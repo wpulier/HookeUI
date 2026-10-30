@@ -41,7 +41,8 @@ def calls(path: Path) -> list[list[str]]:
 
 def complete(judged: dict) -> dict:
     """A verdict for every step of the synthetic run, as verdicts() writes them (a step without one is judged again)."""
-    return {sid: {"answered": True} for sid in ("outline", "table", "researcher", "status", "explain", "barge", "multi")} | judged
+    return {sid: {"answered": True, "partner_quality": 3}
+            for sid in ("outline", "table", "researcher", "status", "explain", "barge", "multi")} | judged
 
 
 def kept_run(out: Path, verdicts=True) -> None:
@@ -174,17 +175,21 @@ def expects_of(plan: dict, step_id: str) -> dict:
     return next((s.get("expect") or {} for s in plan["steps"] if s["id"] == step_id), {})
 
 
-KNOWN = {"look_hard", "mark", "do_in_hooke", "think", "show_measurements", "run_capability", "web_search"}
+# The voice's own tools, and brain tools a hand-off's steps may name that the voice's golden schemas do not list.
+KNOWN = {"look_hard", "mark", "do_in_hooke", "stop_work", "think", "show_measurements", "run_capability", "web_search",
+         "models"}
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in stack.PLANS.glob("*.json")))
 def test_shipped_plans_name_real_tools_and_known_fields(name):
+    from orchestrator import view_watch
+
     golden = json.loads((Path(__file__).parent / "golden" / "tool_schemas.json").read_text())
     tools = KNOWN | set(__import__("re").findall(r'"name": "([a-z_]+)"', json.dumps(golden)))
     plan = stack.load_plan(name)
     assert plan["id"] == name and plan["voices"]["user"]
     fields = {"tools", "toolRequired", "visible", "researchers", "marks", "status", "multi", "fails", "outcome",
-              "judge", "silent"}
+              "judge", "silent", "takeover", "watch"}
     for step in [*plan.get("setup", []), *plan["steps"]]:
         expect = step.get("expect") or {}
         assert set(expect) <= fields, (step["id"], set(expect) - fields)
@@ -193,6 +198,7 @@ def test_shipped_plans_name_real_tools_and_known_fields(name):
             isinstance(status, dict) and status.get("from") in {s["id"] for s in plan["steps"]}
             and (expects_of(plan, status["from"]).get("researchers") or 0) > status.get("index", 0)), step["id"]
         assert set(expect.get("tools") or []) <= tools, (step["id"], set(expect["tools"]) - tools)
+        assert set(expect.get("watch") or []) <= set(view_watch.KINDS), step["id"]  # the watcher's kinds of event
         assert step["kind"] in ("act", "view", "ask", "status", "idle", "restart", "typed", "plural", "close", "photo",
                                 "side", "stage"), step["id"]
         if step["kind"] not in ("idle", "restart", "stage"):
@@ -274,7 +280,8 @@ def test_the_judge_numbers_the_lines_the_scorer_reads():
 
     model = Model()
     judged = asyncio.run(verdicts(bench, conv, inter, PLAN, None, model=model))
-    assert judged["outline"]["claims_on_screen"] == [{"line": 1, "words": "Done"}, 0]
+    # Answer quality only: anything else the judge says is not kept (the app's records score the rest).
+    assert set(judged["outline"]) == {"answered"} and "claims_on_screen" not in model.prompts[0]
     assert 'The user said: "outline"' in model.prompts[0] and "confirmed +" in model.prompts[0]
     assert "partner_quality: 0-3" in model.prompts[0] and "I've circled it." in model.prompts[0]  # calibrated
     assert "Earlier" not in model.prompts[0] and 'Earlier, the user said "outline"' in model.prompts[1]  # the turns before
@@ -284,7 +291,9 @@ def test_the_broad_journey_covers_what_a_partner_is_asked():
     """Will, 2026-10-29: broad, not a memorised path. 25-30 requests in one session, each area covered."""
     plan = stack.load_plan("part-2.5-broad")
     spoken = [s for s in plan["steps"] if s.get("say")]
-    assert 25 <= len(spoken) <= 30 and len({s["say"] for s in spoken}) == len(spoken)
+    assert 25 <= len(spoken) <= 31 and len({s["say"] for s in spoken}) == len(spoken)
+    taken = [s for s in plan["steps"] if s.get("takeover")]  # the Drive line needs a takeover in every run
+    assert len(taken) == 1 and taken[0]["takeover"]["how"] in ("mouse", "escape") and taken[0]["expect"]["takeover"]
     expects = {s["id"]: s.get("expect") or {} for s in plan["steps"]}
     assert sum(1 for s in plan["steps"] if s.get("interrupt")) == 1
     assert sum(1 for e in expects.values() if e.get("fails")) == 1
@@ -462,3 +471,87 @@ def test_only_the_steps_without_an_answer_are_judged_again(tmp_path, monkeypatch
     after = json.loads((out / "run-1" / "verdicts.json").read_text())
     assert after["_judge"] == "gpt-6.1-sol + gemini-3.8-flash" and after["explain"]["partner_quality"] == 2
     assert calls(log)[0][2] == f"{1 * judge.COST_PER_STEP_USD:.2f}"  # one step's worst case reserved
+
+
+
+def test_a_kept_run_rescored_twice_gives_the_same_result(tmp_path, monkeypatch):
+    """The spec: a kept run scored twice by the same scorer gives the same result; result.json names the scorer."""
+    out = tmp_path / "out"
+    kept_run(out)
+    monkeypatch.setattr(run.stacks, "up", lambda *_: pytest.fail("score-only started a stack"))
+    plan_file = tmp_path / "plan.json"
+    plan_file.write_text(json.dumps({**PLAN, "id": "synthetic"}))
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])
+    first = (out / "result.json").read_text()
+    run.main(["--keys", str(NO_KEYS), "--score-only", "--plan", str(plan_file), "--out", str(out)])
+    assert (out / "result.json").read_text() == first
+    from bench.voice_journeys.standard import SCORER_VERSION
+
+    assert json.loads(first)["about"]["scorer"] == SCORER_VERSION
+    assert f"Scorer {SCORER_VERSION}." in (out / "scoreboard.md").read_text()
+
+
+def test_the_watch_plan_moves_the_slide_once_measures_a_steady_stretch_and_brings_its_own_settings():
+    """part-2.5-watch: the clip the stack makes (stack.panning_clip's name), the slide-moved step, a steady step of
+    minutes, and the plan's settings under the arm's own (--settings, --voice, --talk on top)."""
+    import argparse
+
+    plan = stack.load_plan("part-2.5-watch")
+    assert plan["camera"]["pan"] and plan["settings"] == {"watch": "chatty"}
+    pan = next(s for s in plan["steps"] if (s.get("expect") or {}).get("watch"))
+    assert pan["footage"] == Path(plan["camera"]["still"]).stem + "-pan.mp4"
+    assert pan["settle"] + pan["wait"] > stack.PAN_HOLD_S + stack.PAN_S  # the move happens inside the step
+    steady = next(s for s in plan["steps"] if (s.get("expect") or {}).get("watch") == [])
+    assert steady["wait"] >= 300 and steady["footage"] == plan["camera"]["footage"]
+    args = argparse.Namespace(settings='{"reflex": "lean"}', voice="gpt-realtime-2.1", talk="hold")
+    assert json.loads(stack.settings_for(args, plan)) == {"watch": "chatty", "reflex": "lean", "voice": "gpt-realtime-2.1",
+                                                          "talk": "hold"}
+    assert stack.settings_for(argparse.Namespace(settings="", voice="", talk="")) == ""
+
+
+def test_a_studio_build_older_than_its_sources_is_rebuilt_before_a_journey(tmp_path):
+    """29 Oct: the bench served a studio built at 17:06 to every journey after it, without the hand-off rows or the
+    voice's state; a build older than any source is stale."""
+    import os
+
+    studio = tmp_path / "studio"
+    (studio / "src").mkdir(parents=True)
+    (studio / "dist").mkdir()
+    source, built = studio / "src" / "main.ts", studio / "dist" / "index.html"
+    source.write_text("x"), built.write_text("y")
+    os.utime(source, (1000, 1000)), os.utime(built, (2000, 2000))
+    assert not stack.stale(studio)
+    os.utime(source, (3000, 3000))
+    assert stack.stale(studio)
+    built.unlink()
+    assert stack.stale(studio)
+
+
+def test_the_judge_reads_each_steps_receipt_without_ids():
+    """will-display, 29 Oct: the receipt said 'a new Tab "Cell results" in front holds the cells' outlines…', but the
+    judge saw only "ok, confirmed" and called the claim unsupported: it gets the receipt's words, without ids."""
+    from bench.voice_journeys.judge import receipt
+
+    said = receipt('opened in window w-5deb0a46-bdb5-4341-8349-ccd9d24221dd: a new Tab "Cell results"  in front')
+    assert "w-5deb" not in said and 'a new Tab "Cell results" in front' in said
+    assert receipt("x" * 500).endswith("…") and len(receipt("x" * 500)) == 421
+
+
+def test_researchers_the_app_starts_on_its_own_count_toward_the_cap():
+    """will-experiment, 30 Oct: no step starts the experiment's audit researcher, so the stack's research cap was $0.00
+    and every audit stopped on it. The plan's "researchersBehind" counts it for the cap and the reservation."""
+    assert run.researchers({"steps": [{"expect": {"researchers": 2}}], "researchersBehind": 1}) == 3
+    assert run.researchers({"steps": [{"expect": {"researchers": 2}}]}) == 2
+    # will-experiment's audit is started in the step that waits for the experiment, and counted there.
+    assert run.researchers(stack.load_plan("will-experiment")) == 1
+
+
+def test_the_judge_is_shown_what_the_voice_pointed_at():
+    """will-alive, 30 Oct: a close look's box on the stoma came with its answer, not as a tool call, and the judge,
+    shown only tool calls, said the voice "did not point to it". The marks the page drew in a step are its actions."""
+    from bench.voice_journeys.judge import facts
+
+    bench, conv, inter, _ = good()
+    told = {f["id"]: f for f in facts(bench, conv, inter)}
+    assert any("pointed: a mark drawn on tab:Measurements" in a for a in told["table"]["actions"])
+    assert not any("pointed" in a for a in told["outline"]["actions"]), "only the step's own marks"

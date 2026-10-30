@@ -50,8 +50,12 @@ RUNNABLE: dict[str, str] = {
 
 # Not runnable, with why. Every other tool of the Assistant is declared here.
 NOT_RUNNABLE: dict[str, str] = {
+    "show_web": "changes what a window presents (a video or web page from the web)",
+    "write_document": "writes with the Assistant's own model and opens a Tab in the researcher's workspace",
     "find_workflows": "use Project-scoped workflow discovery through the door",
     "workflow": "use Project-scoped workflow admission through a Study",
+    "experiment": "starts researchers and runs on the user's own yes to its plan, in the researcher's workspace",
+    "experiment_status": "reads the researcher's experiments; agents read their Study's workflow runs",
     "add_asset": "puts the researcher's library assets on stage; agents bring files with open",
     "assets": "reads the researcher's whole library",
     "annotate_resource": "writes notes on any retained evidence, the researcher's too",

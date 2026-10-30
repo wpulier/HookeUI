@@ -26,5 +26,23 @@
   transition: box-shadow 90ms linear;
 }
 .talk-hold-ring[data-state='connecting'] .talk-hold-dot { background: transparent; box-shadow: inset 0 0 0 2px var(--mm-accent, #79adff); }
+/* The sign it heard you (heard.ts; the live-partner spec, decision 1). Let go, the ring stays a moment as sent: its
+   words fade and its halo comes to rest. Once the server says it heard the turn, the halo eases into a soft filled disc
+   and the ring fades, 260 ms in all (SETTLE_MS), opacity and the halo only, so nothing moves. */
+.talk-hold-words { transition: opacity var(--mm-fast, 120ms) var(--mm-ease, ease); }
+.talk-hold-ring:is([data-state='sent'], [data-state='heard']) .talk-hold-words { opacity: 0; }
+.talk-hold-ring[data-state='sent'] .talk-hold-dot { box-shadow: 0 0 0 3px color-mix(in srgb, var(--mm-accent, #79adff) 28%, transparent); }
+.talk-hold-ring[data-state='heard'] { animation: talk-heard-fade 260ms var(--mm-ease, ease) both; }
+.talk-hold-ring[data-state='heard'] .talk-hold-dot { animation: talk-heard-settle 260ms var(--mm-ease, ease) both; }
+@keyframes talk-heard-settle {
+  0% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--mm-accent, #79adff) 28%, transparent); }
+  55%, 100% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--mm-accent, #79adff) 38%, transparent); }
+}
+@keyframes talk-heard-fade { 0% { opacity: 1; } 45% { opacity: 1; animation-timing-function: ease-in-out; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .talk-hold-words { transition: none; }
+  .talk-hold-ring[data-state='heard'], .talk-hold-ring[data-state='heard'] .talk-hold-dot { animation: none; }
+  .talk-hold-ring[data-state='heard'] .talk-hold-dot { box-shadow: 0 0 0 7px color-mix(in srgb, var(--mm-accent, #79adff) 38%, transparent); }
+}
 body[data-workspace-study='true'] .mm-composer .talk[data-holding] { box-shadow: 0 0 0 2px var(--mm-accent, #79adff); }
 .talk[data-holding] { outline: 2px solid var(--mm-accent, #79adff); outline-offset: 2px; }

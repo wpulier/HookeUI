@@ -23,7 +23,7 @@ import { moreButton, popMenu, type MenuItem } from './drawer-menu';
 import { tabMark, type TabMark } from './tab-marks';
 import { artifactPresentation, drawRetainedMasks, readRetainedText, undrawnWords } from './workspace-study-content';
 import { formatValue, header, readMeasurementTable, type MeasurementTable, type TableColumn } from './measurements';
-import { clean, defaultResearchOutput, researchChartNode, researchFindingPage, researchHero, researchTableNode } from './research';
+import { clean, defaultResearchOutput, isResearcherPage, researchChartNode, researchFindingPage, researchHero, researchTableNode } from './research';
 import { daysAgo, monthDay } from './sessions';
 import { clock } from './working-strip';
 import type { AssetMeta, ResearchOutput, ResearchSession } from './protocol';
@@ -57,14 +57,58 @@ export type ReaderEntry = StudyResource & {
   untrusted?: boolean; asset?: AssetMeta; material?: ProjectMaterial;
 };
 /** The detail route's reply (`GET /api/resources/<id>`), with the contract's `how`. */
-interface Detail { entry?: ReaderEntry; detail?: { text?: string }; how?: ReaderHow; error?: string }
+interface Detail { entry?: ReaderEntry; detail?: { text?: string; values?: unknown }; how?: ReaderHow; error?: string }
+/** A document's sections as its result keeps them (orchestrator/documents.py `values_of`), each paragraph with the
+ * records it cites; null when the reply does not hold one. Read leniently: a malformed part is left out. */
+export interface ReaderDocument {
+  title: string; leftOut: number;
+  /** Who made it, when it is not the Assistant's writing (an experiment's results: made by the app from its records). */
+  byline?: string;
+  sections: { heading: string; paragraphs: { text: string; cites: { id: string; day?: string; title: string }[] }[];
+    /** A table of the section's numbers (an experiment's comparison), its cells as kept. */
+    table?: { columns: string[]; rows: (string | number | boolean | null)[][] };
+    /** One of the entry's own pictures (by its index), with its caption. */
+    figure?: { picture: number; caption: string } }[];
+}
+export function readerDocument(detail: { values?: unknown } | undefined): ReaderDocument | null {
+  const values = detail?.values as { document?: unknown; leftOut?: { paragraphs?: unknown } } | undefined;
+  const doc = values?.document as { title?: unknown; sections?: unknown } | undefined;
+  if (!doc || !Array.isArray(doc.sections)) return null;
+  const text = (value: unknown, max: number) => typeof value === 'string' ? value.slice(0, max) : '';
+  const sections = doc.sections.slice(0, 12).flatMap((section: { heading?: unknown; paragraphs?: unknown }) => {
+    const paragraphs = (Array.isArray(section?.paragraphs) ? section.paragraphs : []).slice(0, 12).flatMap((p: { text?: unknown; cites?: unknown }) => {
+      const words = text(p?.text, 4000);
+      if (!words) return [];
+      const cites = (Array.isArray(p?.cites) ? p.cites : []).slice(0, 24).flatMap((c: { id?: unknown; day?: unknown; title?: unknown }) =>
+        typeof c?.id === 'string' && c.id ? [{ id: c.id, ...(typeof c.day === 'string' ? { day: c.day } : {}), title: text(c.title, 200) || c.id }] : []);
+      return [{ text: words, cites }];
+    });
+    if (!paragraphs.length) return [];
+    const raw = section as { table?: { columns?: unknown; rows?: unknown }; figure?: { picture?: unknown; caption?: unknown } };
+    const columns = Array.isArray(raw.table?.columns) ? raw.table.columns.slice(0, 16).map((c) => text(c, 80)) : [];
+    const cell = (v: unknown) => typeof v === 'string' ? v.slice(0, 120) : typeof v === 'number' && Number.isFinite(v) ? v
+      : typeof v === 'boolean' ? v : null;
+    const rows = columns.length && Array.isArray(raw.table?.rows)
+      ? raw.table.rows.slice(0, 200).flatMap((r) => Array.isArray(r) ? [columns.map((_, i) => cell(r[i]))] : []) : [];
+    const picture = raw.figure?.picture;
+    return [{ heading: text(section?.heading, 200), paragraphs,
+              ...(columns.length && rows.length ? { table: { columns, rows } } : {}),
+              ...(typeof picture === 'number' && Number.isInteger(picture) && picture >= 0
+                ? { figure: { picture, caption: text(raw.figure?.caption, 300) } } : {}) }];
+  });
+  if (!sections.length) return null;
+  const left = values?.leftOut?.paragraphs;
+  const byline = text((values as { byline?: unknown } | undefined)?.byline, 200);
+  return { title: text(doc.title, 200) || 'Document', sections, leftOut: typeof left === 'number' && left > 0 ? Math.floor(left) : 0,
+           ...(byline ? { byline } : {}) };
+}
 
 /** What the thing is, for its renderer. `sources` is a researcher's Tab's list of the sources it cited (no index entry
  * of its own: `<rid>:sources`, made by `sourcesItem`). */
 export type ReaderShape = 'masks' | 'table' | 'writeup' | 'finding-table' | 'finding-chart' | 'source' | 'sources' | 'note' | 'recording'
-  | 'picture' | 'answer' | 'other';
+  | 'picture' | 'document' | 'answer' | 'other';
 const WRITEUP_KINDS = ['research', 'lesson', 'video', 'figure', 'presentation'];
-export function readerShape(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset'>): ReaderShape {
+export function readerShape(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'media'>): ReaderShape {
   if (entry.kind === 'population') return 'masks';
   if (entry.kind === 'source') return 'source';
   if (entry.kind === 'sources') return 'sources';
@@ -74,6 +118,8 @@ export function readerShape(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset'>
   if (entry.kind === 'annotation') return 'note';
   if (entry.kind === 'recording' || entry.kind === 'asset' && entry.asset?.kind === 'recording') return 'recording';
   if (entry.kind === 'asset' || entry.kind === 'snapshot') return 'picture';
+  // A document the Assistant wrote from this Project's records (orchestrator/documents.py), under Write-ups.
+  if (entry.kind === 'result' && entry.media === 'document') return 'document';
   if (entry.kind === 'tracks' || artifactPresentation(entry) === 'table') return 'table';
   if (entry.kind === 'result') return 'answer';
   return 'other';
@@ -107,7 +153,7 @@ export function makerOf(entry: Pick<ReaderEntry, 'id' | 'kind' | 'maker' | 'made
 export const makerWords = (maker: ReaderMaker): string => maker.kind === 'you' ? 'You' : maker.kind === 'assistant' ? 'The Assistant' : maker.name;
 
 /** The kind in a word, as the header and the first view say it. */
-export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material'>): string {
+export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material' | 'media'>): string {
   if (entry.kind === 'project' && entry.material) return materialKind(entry.material.kind);
   const shape = readerShape(entry);
   switch (shape) {
@@ -115,6 +161,7 @@ export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | '
     case 'table': case 'finding-table': return 'Table';
     case 'finding-chart': return 'Chart';
     case 'answer': return 'Answer';
+    case 'document': return 'Document';
     case 'note': return 'Note';
     case 'recording': return 'Recording';
     case 'picture': return 'Picture';
@@ -129,7 +176,7 @@ export function kindWord(entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | '
   }
 }
 /** The first view's name: Page for a write-up, Source for a source, else the kind's word. */
-export const thingView = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material'>): string =>
+export const thingView = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'values' | 'forms' | 'pictures' | 'material' | 'media'>): string =>
   readerShape(entry) === 'writeup' ? 'Page' : readerShape(entry) === 'source' ? 'Source' : kindWord(entry);
 
 /** Everything a researcher made, as its Tab's reader switches between them (the mock's research-docs frame): Data's
@@ -316,9 +363,9 @@ const button = (text: string, click: () => void, className = ''): HTMLButtonElem
   const node = el('button', className, text); node.type = 'button'; node.addEventListener('click', click); return node;
 };
 const MARKS: Partial<Record<ReaderShape, TabMark>> = { masks: 'outline', table: 'table', 'finding-table': 'table', 'finding-chart': 'count',
-  writeup: 'output', note: 'name', recording: 'recording', picture: 'picture', source: 'link', answer: 'name' };
+  writeup: 'output', document: 'output', note: 'name', recording: 'recording', picture: 'picture', source: 'link', answer: 'name' };
 /** A thing's mark for a Tab (its kind), shared with the reader Tab in the row. */
-export const readerMark = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset'>): TabMark => MARKS[readerShape(entry)] ?? 'output';
+export const readerMark = (entry: Pick<ReaderEntry, 'kind' | 'table' | 'asset' | 'media'>): TabMark => MARKS[readerShape(entry)] ?? 'output';
 
 /** What the reader needs from the workspace (workspace-study.ts gives it). */
 export interface ReaderDeps {
@@ -676,6 +723,7 @@ export class DataReader {
       : shape === 'source' ? this.drawSource(body, signal)
       : shape === 'sources' ? this.drawSources(body)
       : shape === 'note' ? this.drawNote(body, signal)
+      : shape === 'document' ? this.drawDocument(body, signal)
       : shape === 'recording' ? this.drawRecording(body, signal)
       : shape === 'picture' ? this.drawPicture(body)
       : this.drawAnswer(body, signal);
@@ -761,7 +809,7 @@ export class DataReader {
     const nodes = hero.nodes.length ? hero.nodes : finding ? [researchFindingPage(finding, presentation)] : [];
     const working = this.deps.working(s.rid);
     this.loaded.title = clean(finding?.title || output?.caption || r?.title || '') || undefined;
-    this.loaded.kind = output?.kind === 'presentation' ? 'Presentation' : output?.kind === 'html' ? 'Lesson' : output?.kind === 'video' ? 'Video' : output?.kind === 'image' ? 'Picture' : finding ? 'Report' : undefined;
+    this.loaded.kind = output?.kind === 'presentation' ? 'Presentation' : output && isResearcherPage(output) ? ((output.content as { kind?: string }).kind === 'visual' ? 'Visual' : 'Presentation') : output?.kind === 'html' ? 'Lesson' : output?.kind === 'video' ? 'Video' : output?.kind === 'image' ? 'Picture' : finding ? 'Report' : undefined;
     this.loaded.live = working;
     this.drawHead();
     if (!nodes.length) { body.replaceChildren(el('p', 'rd-empty', working ? 'Nothing written yet. It is still working; its page shows here as it writes.' : 'Nothing written. Its conversation is on its Tab.')); return; }
@@ -840,6 +888,64 @@ export class DataReader {
     // On its page as a write-up is: its title, when, then its words (the page's own type).
     const words = el('div', 'viewer-summary'), when = whenWords(entry.at);
     words.append(el('h2', '', readerTitle(entry.title, entry.kind)), ...(when ? [el('p', 'byline', `Note, ${when}`)] : []), ...text.split(/\n{2,}/).map((part) => el('p', '', part)));
+    inner.append(words); page.append(inner); pages.append(page); desk.append(pages);
+    body.replaceChildren(desk); body.classList.add('rd-deskbody');
+  }
+  /** A document the Assistant wrote from this Project's records (orchestrator/documents.py): on its page as a note is,
+   * its title, then each section, each paragraph with the records it cites by name, each opening here. Its words are a
+   * model's: drawn as text only. */
+  private async drawDocument(body: HTMLElement, signal: AbortSignal): Promise<void> {
+    const entry = this.entry!;
+    this.loading(body, 'Opening the document…');
+    const detail = await this.readDetail(signal);
+    if (signal.aborted) return;
+    const doc = readerDocument(detail?.detail);
+    const desk = el('div', 'desk rd-desk'), pages = el('div', 'desk-pages'), page = el('article', 'page'), inner = el('div', 'page-in');
+    page.dataset.theme = 'paper';
+    const words = el('div', 'viewer-summary rd-doc'), when = whenWords(entry.at);
+    if (!doc) {
+      const text = detail?.detail?.text ?? '';
+      if (!text) throw new Error('Nothing written was kept with it.');
+      words.append(...text.split(/\n{2,}/).map((part) => el('p', '', part)));
+    } else {
+      this.loaded.title = doc.title; this.loaded.kind = 'Document'; this.drawHead();
+      words.append(el('h2', '', doc.title), el('p', 'byline', `${doc.byline ?? 'Written by the Assistant from this Project’s records'}${when ? `, ${when}` : ''}`));
+      for (const section of doc.sections) {
+        words.append(el('h3', '', section.heading));
+        const src = section.figure ? entry.pictures?.[section.figure.picture] : undefined;
+        if (section.figure && typeof src === 'string' && src) {
+          const fig = el('figure', 'rd-doc-fig'), img = el('img');
+          img.src = src; img.alt = section.figure.caption; img.loading = 'lazy'; fig.append(img);
+          if (section.figure.caption) fig.append(el('figcaption', '', section.figure.caption));
+          words.append(fig);
+        }
+        if (section.table) {
+          const wrap = el('div', 'rd-doc-table'), table = el('table'), head = el('tr');
+          for (const c of section.table.columns) head.append(el('th', '', c));
+          const thead = el('thead'); thead.append(head);
+          const tbody = el('tbody');
+          for (const row of section.table.rows) {
+            const tr = el('tr');
+            for (const v of row) tr.append(el('td', typeof v === 'number' ? 'mm-num' : '', v === null ? '' : typeof v === 'boolean' ? (v ? 'yes' : '') : String(v)));
+            tbody.append(tr);
+          }
+          table.append(thead, tbody); wrap.append(table); words.append(wrap);
+        }
+        for (const paragraph of section.paragraphs) {
+          words.append(el('p', '', paragraph.text));
+          if (!paragraph.cites.length) continue;
+          const from = el('p', 'rd-doc-from', 'From ');
+          paragraph.cites.forEach((cite, i) => {
+            if (i) from.append(i === paragraph.cites.length - 1 ? ' and ' : ', ');
+            const name = readerTitle(cite.title);
+            const link = button(name, () => this.deps.open({ id: cite.id, day: cite.day ?? entry.day }), 'rd-doc-cite');
+            link.title = `Open ${name} here`; from.append(link);
+          });
+          words.append(from);
+        }
+      }
+      if (doc.leftOut) words.append(el('p', 'rd-note', `Left out: ${doc.leftOut} paragraph${doc.leftOut === 1 ? '' : 's'} that cited no record of this Project.`));
+    }
     inner.append(words); page.append(inner); pages.append(page); desk.append(pages);
     body.replaceChildren(desk); body.classList.add('rd-deskbody');
   }

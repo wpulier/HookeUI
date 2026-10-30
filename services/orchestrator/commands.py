@@ -736,6 +736,11 @@ async def run_tool(app, name: str, args: dict, *, question: str = '', client=Non
             stop = user_stop.STOP.get()
             if stop is not None and stop.requested:
                 raise asyncio.CancelledError  # the user pressed Stop between the steps of their action: none starts after it
+            if client is not None or door_actor.current():
+                # One way in (screen.fresh_report): the studio's report current before the tool acts, for the studio's
+                # own Run and a connected agent's run (which names no studio: the one whose report counts).
+                from .screen import fresh_report
+                await fresh_report(app.hub, client)
             run = app.brain.registry.start(name, args, ctx)
             if run.task is not None:
                 if stop is not None:
@@ -1574,6 +1579,14 @@ async def table_window_result(app, client, msg):
     from .table_window import table_windows
 
     return {'ok': table_windows(app.hub).reply(client, msg)}
+
+
+@command('web-window-result')
+async def web_window_result(app, client, msg):
+    """The studio's answer to `web-window` (web_window.py): the web window it opened on that Tab, or why not."""
+    from .web_window import web_windows
+
+    return {'ok': web_windows(app.hub).reply(client, msg)}
 
 
 @command('workspace-tabs-result')
@@ -3521,6 +3534,31 @@ async def research_followup(app, client, msg) -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+@command("experiment")
+async def experiment_command(app, client, msg) -> dict:
+    """The experiment card's buttons (experiments.py): Run it runs exactly the plan the card shows (its version), the
+    user's own press; Stop stops it. Both go through the brain's `experiment` tool, as the brain's would."""
+    action = msg.get("action")
+    if action not in ("run", "stop", "open"):
+        return {"ok": False, "error": "Choose Run it, Stop or Open results on the experiment's card."}
+    if action == "open":  # its results, in a Tab of their own, on this studio (done once its report shows them)
+        from .experiments import experiments_of
+
+        xs = experiments_of(app.hub, app.day, app)
+        try:
+            x = xs.get(str(msg.get("id") or ""), app.day.sid)
+            said = await xs.open(x, client)
+        except ToolFailed as exc:
+            return {"ok": False, "error": str(exc)}
+        return {"ok": not said.startswith("not opened"), "summary": said,
+                **({"error": said} if said.startswith("not opened") else {})}
+    args = {"do": action, "experiment": str(msg.get("id") or "")}
+    if action == "run":
+        args.update(by="card", **({"version": msg["version"]} if type(msg.get("version")) is int else {}))
+    return await run_tool(app, "experiment", args, question="Run the experiment" if action == "run"
+                          else "Stop the experiment", client=client)
+
+
 @command("research-note")
 async def research_note(app, client, msg) -> dict:
     import uuid
@@ -3602,16 +3640,48 @@ async def screen(app, client, msg) -> dict:
     from .screen import screen_of
     from .workspace_observation import ObservationError
 
+    screen = screen_of(app.hub)
     try:
-        screen_of(app.hub).report(msg, client=client)
+        screen.report(msg, client=client)
         transport = getattr(app, "workspace_transport", None)
         if transport is not None:
             transport.save(client)
     except ObservationError as exc:
         correlation = getattr(exc, "screen_report", None)
+        _report_refused(app, client, exc.code, str(exc))
         return {"ok": False, "code": exc.code, "error": str(exc),
                 **({"screenReport": correlation} if correlation is not None else {})}
+    partial = screen.partial(client) if callable(getattr(screen, "partial", None)) else None
+    if partial:
+        # Taken without the windows whose source has no grant here: the rest of the screen still counts. Said in the
+        # log only (the studio shows no notice for it: it is Hooke's own bookkeeping, not something the user did).
+        _report_refused(app, client, "SOURCE_UNRESOLVED", "; ".join(row["reason"] for row in partial["unresolved"]),
+                        partial=partial)
+        return {"ok": True, "partial": partial}
     return {"ok": True}
+
+
+_REFUSAL_LOG_S = 5.0  # one log line per client and reason this often: a studio reports every few seconds
+
+
+def _report_refused(app, client, code: str, reason: str, *, partial: dict | None = None) -> None:
+    """A studio report refused or taken in part, in the interaction log (`screen-refused`, `screen-partial`): which
+    source or entry and why, so a screen that stops confirming is explained by the log (2026-10-29: it was not)."""
+    seen = getattr(app, "_report_refusals", None)
+    if seen is None:
+        seen = app._report_refusals = {}
+    key = (id(client), code, reason)
+    now = time.monotonic()
+    if now - seen.get(key, -_REFUSAL_LOG_S) < _REFUSAL_LOG_S:
+        return
+    seen[key] = now
+    if len(seen) > 64:
+        for old in sorted(seen, key=seen.get)[:-32]:
+            seen.pop(old, None)
+    record = {"kind": "screen-partial" if partial else "screen-refused", "code": code, "reason": reason[:300]}
+    if partial:
+        record.update(seq=partial.get("seq"), unresolved=partial.get("unresolved"))
+    _log_quietly(app, record)
 
 
 @command("present")

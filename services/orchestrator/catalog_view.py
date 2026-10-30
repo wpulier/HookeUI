@@ -9,7 +9,8 @@ worked out (each role's choice and options, their checks) and the facts readines
   - its files: downloaded (revision, size, the folder), in an older cache, or not downloaded yet (how much, into where);
   - its code: installed, or how to install it;
   - this copy: allowed in this edition, or why not;
-  - the app's last check of it (model_checks.py), when there is one.
+  - the app's last check of it (model_checks.py), when there is one;
+  - its last real use here (observed.py "use"): worked, or failed with why, when there is one.
 - **usedFor**: each role it serves, with whether it is the current choice there (a fixed role's model in use counts).
 - **group**: "needs-you" (the current choice of a role you choose uses it and it can't run: what "All set" is about, the
   review's correction 1: your selections only), "ready", "available" (it can be turned on with a step: a key, a
@@ -22,6 +23,7 @@ downloads. Nothing here is pushed into a model's prompt; the agent reads it when
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Mapping
 
@@ -45,6 +47,14 @@ def _link(m: catalog.Manifest) -> str:
     if m.source.get("hf"):
         return f"https://huggingface.co/{m.source['hf']}"
     return str(m.credit.get("link") or "")
+
+
+def operations_of(m: catalog.Manifest) -> list[str]:
+    """The kinds of work an entry declares (its operation contracts; a bundle's members' operations), as its manifest says
+    them, installed or not: what the agent's `models` finds it by (`does`)."""
+    ops = [i.operation for i in m.implements]
+    ops += [str(d.get("operation") or d.get("id") or "") for d in m.members if isinstance(d, dict)]
+    return list(dict.fromkeys(o for o in ops if o))
 
 
 def _uses(roles: list[dict]) -> dict[str, list[dict]]:
@@ -184,6 +194,13 @@ def _kind_description(active, installed, proof=''):
 
 def execution_block(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict | None:
     from . import kinds, own_trials
+
+    if m.runner == "cloud":  # a cloud model its catalog revoked (its provider retired it): said, never offered to run
+        from .maintenance import revocations
+
+        notice = revocations.revoked(m, m.version, environ)
+        if notice is not None and notice["severity"] == "block":
+            return {'action': 'unsupported', 'why': f"{m.name} can't be used: {notice['why']}"}
 
     backend = kinds.backends().get(m.runner)
     from . import fiji_display
@@ -337,9 +354,12 @@ def own_proof(role_id: str, option_id: str, environ: Mapping[str, str] = os.envi
 def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
          environ: Mapping[str, str] = os.environ) -> dict:
     """The card's face (Will's consolidation): its state, the line that says why, and the one action that changes it.
-    Obtained, runnable and proved are kept apart (Codex's review of 14054603): "on" only with a current passed check of
-    this build; ready to run with none is "unchecked", its action Check it here; data runs nothing, so it is "obtained"
-    with no check. Not ready: its next step."""
+    Obtained, runnable and proved are kept apart (Codex's review of 14054603): "on" only with evidence that it ran here,
+    a current passed check of this build or a real use that worked (`by: "use"`: "Working here · last ran 14:02",
+    observed.py "use", Will 2026-10-29: the model answering him all session said "Not checked"), the newer of the two
+    counting (readiness.newest_use; a newer failed use is Broken, readiness.failed_in_use); ready to run with neither is
+    "unchecked" (said as ready, not checked yet), its action Check it here; data runs nothing, so it is "obtained" with no
+    check. Not ready: its next step."""
     from . import own_trials, env_runner
     installed = env_runner.in_use(m, environ) if m.runner == "python-env" else None
     if r.status == "ready" and own_trials.pending(installed.m if installed else m, environ):
@@ -373,6 +393,13 @@ def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
             return {'state': 'unchecked', 'says': 'Ready to run; its functional proof is not recorded here',
                     'action': recovery, 'also': change}
         proved = bool(check) and check.get("state") == "works" and not check.get("earlierBuild")
+        use = readiness.newest_use(m.key, check)
+        if use is not None and use.get("state") == "yes":
+            from .model_checks import at_words
+
+            return {"state": "on", "by": "use", "says": f"Working here · last ran {at_words(use.get('at', ''))}",
+                    "action": None, "also": [{"kind": "check", "says": "Check again" if proved else "Check it here",
+                                              "model": m.key}] + change}
         if not proved:
             said = (f"Last check: {check.get('state')}" + (" (an earlier build)" if check.get("earlierBuild") else "")
                     if check else "Ready to run; not checked on this Mac yet")
@@ -702,6 +729,13 @@ def facts(m: catalog.Manifest, key_facts: Mapping[str, dict], have, checks: list
                              f"Its last check failed: {check.get('why') or 'it failed'}" if check.get("state") == "broken"
                              else f"Last check: {check.get('why') or check.get('state')}")
                             + (" (an earlier build)" if check.get("earlierBuild") else "")})
+    use = observed.last_use(m.key)
+    if use:  # its real use here (observed.py "use"), a fact of its own beside the app's check
+        from .model_checks import at_words
+
+        ok = use["state"] == "yes"
+        out.append({"kind": "use", "ok": ok, "says": f"Worked when last used here at {at_words(use.get('at', ''))}" if ok
+                    else f"Its last use here failed at {at_words(use.get('at', ''))}: {use.get('says') or 'it failed'}"})
     return out
 
 
@@ -728,6 +762,9 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
             r = readiness.model(key, keys, environ)
             broken_check = next((c for c in checks if c.get("state") == "broken" and not c.get("earlierBuild")), None)
             r = readiness.broken(r, broken_check)
+            functional = entry_check(m, environ)
+            if proof_step(m) is None and m.kind not in ("runtime", "data"):  # what the app's own check covers (face)
+                r = readiness.failed_in_use(r, readiness.newest_use(key, next(iter(checks), None) or functional))
             in_use = any(u["current"] for u in used)
             chosen = any(u["current"] and not u["fixed"] for u in used)  # a selection of yours, not a fixed model
             if r.status == "ready":
@@ -740,7 +777,7 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
                 group = "available" if r.status == "needs-setup" else "unavailable"
             owner = model_files.owner(m)
             row = {"id": key, "name": m.name, "runs": m.runs, "where": WHERE.get(m.runs, m.runs), "what": m.what,
-                   "kind": m.kind, "version": m.version, "credit": dict(m.credit), "link": _link(m),
+                   "kind": m.kind, "does": operations_of(m), "version": m.version, "credit": dict(m.credit), "link": _link(m),
                    "licence": licences.licence_text(m.licence), "tier": licences.tier(m.licence),
                    "mine": m.namespace == "mine", **(_channel_fields(m.channel, environ) if m.channel else {}),
                    # An adapter the builder drafted says so on its card (C4; drafts.py writes it into its component).
@@ -775,7 +812,7 @@ def rows(roles: list[dict], key_facts: Mapping[str, dict], keys: Mapping[str, bo
                             'says': blocked['why'], 'action': None} if blocked else face(m, r, used, environ))
             if row['group'] == 'ready' and row['face']['state'] not in ('on', 'obtained'):
                 row['group'] = 'available'
-            row['functionalCheck'] = entry_check(m, environ)
+            row['functionalCheck'] = functional
             row['proofStep'] = proof_step(m)
             if not used and row['proofStep'] is not None:
                 from . import capability_shelf
@@ -879,13 +916,258 @@ def matching(rows: list[dict], about: str) -> list[dict]:
     key = _norm(about)
     if not key:
         return []
-    named = [r for r in rows if key in (_norm(r["name"]), _norm(r["id"]))]
-    if named:
-        return named
-    named = [r for r in rows if _norm(r["name"]).startswith(key) or _norm(r["id"]).startswith(key)]
+    named = named_rows(rows, about)
     if named:
         return named
     return [r for r in rows if any(_norm(u["title"]) == key or _norm(u["title"]).startswith(key) for u in r.get("usedFor", []))]
+
+
+def named_rows(rows: list[dict], about: str) -> list[dict]:
+    """The rows a request names as a model, by its name or id, exactly or as a family's start ("SAM 3.1")."""
+    key = _norm(about)
+    if not key:
+        return []
+    named = [r for r in rows if key in (_norm(r["name"]), _norm(r["id"]))]
+    return named or [r for r in rows if _norm(r["name"]).startswith(key) or _norm(r["id"]).startswith(key)]
+
+
+# --- by the work it does, for the agent (`models` does; Part 2.5) ------------------------------------------------------
+# Live 2026-10-29 (journey at 9618e42): "What segmentation models do we have, and what others could we add?" was asked of
+# the Outlining job alone, which lists only the models already a choice of it; the answer guessed the rest ("possibly
+# other specialized tools like Cellpose-SAM or InstanSeg") while Cellpose-SAM was the user's Cells choice and InstanSeg
+# an entry one download away. The catalog says what each entry does (its operation contracts), so the model names the
+# kinds of work it means and is given every entry that does them, installed or not, with where each stands here.
+# Said compactly, most needed first: the round that answers from a query reads at most ~1,900 characters of its text
+# (brain/claims.py answer_facts cuts a longer string, saying so), and a cut list was answered by guessing what it hid.
+STANDING = (("working", "Working here (ran or passed its check on this Mac)"),
+            ("here", "Installed here, not run yet (nothing to get or install)"),
+            ("setup", "Can be added (where it runs; every step it needs)"),
+            ("broken", "Broken here"),
+            ("unavailable", "Can't run on this Mac"))
+# Models apart from tools (will-workspace "models", measure-c4acc90, all runs 2/3: a tag on the entry's line, "a tool, not
+# a model", still had Fiji's Analyze Particles answered among the models). A tool is an algorithm or a program's function
+# (the manifest's kind: tool, tool-function); a runtime or data entry is said with the tools, never as a model.
+MODEL_KINDS = ("model", "cloud-model")
+ENTRY_GROUPS = (("model", "Models"), ("tool", "Tools, not models (algorithms, Fiji functions)"))
+
+
+def entry_group(row: dict) -> str:
+    """"model" or "tool", by the manifest's kind (an entry that says none is a model, as the manifest reads it)."""
+    return "model" if (row.get("kind") or "model") in MODEL_KINDS else "tool"
+
+
+def work_kinds(rows: list[dict]) -> dict[str, str]:
+    """The kinds of work the catalog's entries declare, each with its title: the app's operations (operations.OPERATIONS:
+    "cells": "Segment every cell in the view") first, then an entry's own operation by what that entry does."""
+    from .operations import OPERATIONS
+
+    declared = {o for r in rows for o in r.get("does") or []}
+    kinds = {k: op.title for k, op in OPERATIONS.items() if k in declared}
+    for r in rows:
+        for o in r.get("does") or []:
+            kinds.setdefault(o, r.get("what") or o)
+    return kinds
+
+
+def shared_kinds() -> dict[str, str]:
+    """The app's operations some reviewed catalog entry declares (what the `models` tool's does offers by name), each
+    with its title and what its entries give, in the catalog's own words for the data type (manifests.DATA_TYPES):
+    "cells": "Segment every cell in the view (gives every instance found, one label each)"."""
+    from .operations import OPERATIONS
+
+    gives: dict[str, list[str]] = {}
+    for m in catalog.manifests().values():
+        for i in m.implements:
+            if i.output not in gives.setdefault(i.operation, []):
+                gives[i.operation].append(i.output)
+    return {k: op.title + (f" (gives {'; '.join(catalog.DATA_TYPES.get(t, t) for t in gives[k])})" if gives.get(k) else "")
+            for k, op in OPERATIONS.items() if k in gives}
+
+
+def job_operations(roles: list[dict], about: str) -> list[str]:
+    """The kinds of work a job named does: a role whose title or id it names and that chooses an operation's model
+    ("outlining" → outline, "cells" → cells), or an operation named by its id or title. [] for a job of no operation."""
+    from .operations import OPERATIONS
+
+    key = _norm(about)
+    if not key:
+        return []
+    by_role = {op.selected_by: k for k, op in OPERATIONS.items() if op.selected_by}
+    out = [by_role[r["id"]] for r in roles if r.get("id") in by_role
+           and (key in (_norm(r.get("title", "")), _norm(r["id"])) or _norm(r.get("title", "")).startswith(key))]
+    out += [k for k, op in OPERATIONS.items() if key in (_norm(k), _norm(op.title))]
+    return list(dict.fromkeys(out))
+
+
+def standing(row: dict) -> str:
+    """Where an entry stands here, as its card says it (its face and readiness): working, here but not run yet, steps
+    left, broken, or not on this Mac."""
+    if (row.get("execution") or {}).get("action") == "unsupported":
+        return "unavailable"
+    status = row.get("status")
+    if status == "ready":
+        return "working" if (row.get("face") or {}).get("state") in ("on", "obtained") else "here"
+    return {"needs-setup": "setup", "broken": "broken"}.get(status, "unavailable")
+
+
+def step_words(step: dict, entry: str = "") -> str:
+    """One step left with what it takes: a download's size is in its words; a licence's page, and an install's or a
+    made-here step's how for this entry itself (its own Python and how many packages), are added. A key's how is left
+    out (keys are the user's to add, on its card), and so is a step that sets up another entry (Fiji's)."""
+    says, kind = step.get("says", ""), step.get("kind")
+    if kind == "download" and not step.get("bytes"):
+        # No bytes to get on record: its manifest gives no size, and readiness's size words floor at "1 MB" (a size
+        # never known). Said as not known, never invented (will-workspace "models", 30 Oct: sizes are part of the need).
+        bare = re.sub(r"\s*\(?\b\d+(?:\.\d+)? (?:MB|GB)\b\)?", "", says)
+        if bare != says:
+            says = f"{bare} (its size is not in its manifest)"
+    if kind == "licence":
+        extra = step.get("url", "")
+    elif kind in ("install", "weights") and step.get("model", "") in ("", entry):
+        extra = step.get("how", "").split(", ")[0]
+    else:
+        extra = ""
+    return says + (f" ({extra})" if extra and extra not in says else "")
+
+
+def _short_name(row: dict) -> str:
+    """Its name, with where it runs only when that is the cloud (the list says the rest run on this Mac)."""
+    from .names import says_where
+
+    return row["name"] if says_where(row["name"]) or row.get("runs") != "cloud" else f"{row['name']} (in the cloud)"
+
+
+def _cloud_key(row: dict) -> str:
+    """The key a cloud entry runs with, said by service ("your fal key"), when its card says that key is there."""
+    for f in row.get("facts", []):
+        found = re.match(r"Your (.+?) key\b", f.get("says", "")) if f.get("kind") == "key" and f.get("ok") is True else None
+        if found:
+            return f"with your {found.group(1)} key"
+    return ""
+
+
+def work_line(row: dict, asked: list[str]) -> str:
+    """One entry, compactly: its name, the kinds asked that it does, the jobs it is chosen for, where it came from and,
+    in the cloud, with which key; where it would run and every step it needs when it can be added; why when it is broken
+    or can't run here. Whether it is a model or a tool is its group's heading (work_words)."""
+    where = standing(row)
+    does = [o for o in row.get("does") or [] if o in asked] if len(asked) > 1 else []
+    tags = [", ".join(does)] if does else []
+    if where in ("working", "here") and row.get("runs") == "cloud":
+        from .names import says_where
+
+        key = _cloud_key(row)
+        cloud = [] if says_where(row["name"]) else ["in the cloud"]  # "SAM 3.1 (cloud)" says it already
+        if cloud or key:
+            tags.append(", ".join(cloud + ([key] if key else [])))
+    chosen = [u["title"] for u in row.get("usedFor", []) if u.get("current") and not u.get("fixed")]
+    fixed = [u["title"] for u in row.get("usedFor", []) if u.get("current") and u.get("fixed")]
+    tags += [f"chosen for {', '.join(chosen)}"] * bool(chosen) + [f"in use for {', '.join(fixed)}"] * bool(fixed)
+    if row.get("channel"):  # where it came from, as its card says it ("From … : not reviewed here")
+        tags.append(next((f["says"] for f in row.get("facts", []) if f.get("kind") == "entry"), "from a channel"))
+    elif row.get("mine"):
+        tags.append("one of the user's own")
+    # Where it runs is said once: in its name, in its tags (in the cloud), or after its name when it can be added.
+    plain = where == "setup" or any(t.startswith("in the cloud") for t in tags)
+    line = (row["name"] if plain else _short_name(row)) + (f" ({'; '.join(tags)})" if tags else "")
+    if where in ("working", "here"):
+        return line
+    if where == "setup":
+        steps = "; ".join(step_words(s, row["id"]) for s in row.get("steps") or []) or row.get("word", "")
+        runs = "in the cloud" if row.get("runs") == "cloud" else "on this Mac"
+        line += f": {runs}; {steps}" + (f" (downloading now: {row['download'].get('state')})" if row.get("download") else "")
+    elif where == "broken":
+        failed = [f["says"] for f in row.get("facts", []) if f.get("ok") is False]
+        line += f": {row.get('word', 'Broken')}" + (f" ({'; '.join(failed)})" if failed else "")
+    else:
+        line += f": {state_words(row)}"
+    return line
+
+
+def ways_to_add(asked: list[str]) -> list[str]:
+    """How one not in the catalog is added for this work, from what this copy of the app has: each reviewed template
+    (catalog/templates, the Toolbox's Add a capability, From a link) whose operation it is, and the user's own Cellpose
+    model file (mine.py) for cells."""
+    import tomllib
+
+    from .link_recognise import TEMPLATES
+    from .mine import CELLS_IMPLEMENTS
+
+    out = []
+    for path in sorted(TEMPLATES.glob("*/template.toml")) if TEMPLATES.is_dir() else ():
+        try:
+            t = tomllib.loads(path.read_text())
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        if (t.get("implements") or {}).get("operation") in asked and t.get("runs"):
+            # What it runs, up to its details: "A 2D BioImage Model Zoo model with TorchScript or ONNX weights".
+            runs = re.split(r",| \(", t["runs"], maxsplit=1)[0]
+            out.append(runs[:1].lower() + runs[1:])
+    if any(i["operation"] in asked for i in CELLS_IMPLEMENTS):
+        out.append("a Cellpose model file of the user's")
+    return out
+
+
+def work_words(found: list[dict], asked: list[str], kinds: Mapping[str, str], *, rows: list[dict] = (),
+               news: list[dict] = (), ways: list[str] = ()) -> str:
+    """Everything the catalog has for kinds of work, compactly and most needed first (see STANDING): that this is all of
+    it, each entry once by where it stands here, what is new in the catalog for it, how one not in it is added, and the
+    other kinds of work the catalog has (so a request that means more than the kinds asked can ask for them)."""
+    from .untrusted import block, inline
+
+    ids = {r["id"] for r in found}
+    fresh = [n for n in news if set(n.get("does") or []) & set(asked) and n.get("key") not in ids]
+    what = ", ".join(asked if all(o in shared_kinds() for o in asked) else  # the tool names the app's own kinds
+                     (f"{o} ({kinds[o]})" if kinds.get(o) else o for o in asked))
+    head = (f"Hooke's catalog for {what}: {len(found)} entries, installed or not" + (f", and {len(fresh)} new" if fresh else "")
+            + "; nothing else in it does this. On this Mac unless it says cloud. Answer with models and tools apart, as "
+            "grouped.")
+    lines = []
+    for kind, heading in ENTRY_GROUPS:  # models, then tools, each by where it stands here
+        mine = [r for r in found if entry_group(r) == kind]
+        if mine:
+            lines.append(f"{heading}:")
+        for key, title in STANDING:
+            group = [work_line(r, asked) for r in mine if standing(r) == key]
+            if group:
+                lines += [f"{title}:", *(f"- {line}" for line in group)]
+    if fresh:
+        lines.append("New in the catalog, not on this Mac yet (New for you's Get it fetches it):")
+        lines += [f"- {inline(n['name'], 80)}: {inline(n.get('what') or n.get('kind', ''), 160)}"
+                  + (f". Needs: {inline('; '.join(n.get('requirements') or []), 240)}" if n.get("requirements") else "")
+                  + (" (community, not reviewed here)" if n.get("badge") == "community" else "") for n in fresh[:6]]
+    out = [head, block("\n".join(lines) or "None.", tag="catalog-facts", source="catalog manifests and local checks",
+                       limit=8000)]
+    out.append("Adding one not in the catalog (the user, on the Toolbox's Add a capability): "
+               + (f"from a link to {', '.join(ways[:-1]) + ' or ' + ways[-1] if len(ways) > 1 else ways[0]}, each checked "
+                  "here first; for any other link, " if ways else "no reviewed code here runs one from a link for this work; ")
+               + "Have an AI build it drafts an adapter, used once the user reviews it.")
+    shared = shared_kinds()
+    others = {o: sum(o in (r.get("does") or []) for r in rows) for o in kinds if o not in asked and o in shared}
+    if any(others.values()):
+        out.append("Other kinds of work in the catalog (does): " + "; ".join(f"{o} ({n})" for o, n in others.items() if n) + ".")
+    return "\n".join(out)
+
+
+def kinds_line(rows: list[dict]) -> str:
+    """The overview's line of the kinds of work the catalog has, each with how many entries do it and how many work here."""
+    shared = shared_kinds()
+    counts = {o: [r for r in rows if o in (r.get("does") or [])] for o in shared}
+    said = [f"{o} ({len(rs)}, {sum(standing(r) == 'working' for r in rs)} working here)" for o, rs in counts.items() if rs]
+    return ("Kinds of work in the catalog (models with does lists every entry for one, installed or not, with what each "
+            "needs): " + "; ".join(said) + ".") if said else ""
+
+
+def elsewhere(rows: list[dict], operation: str, listed: set[str]) -> str:
+    """The catalog's entries that do `operation` but aren't set up here, so not among the implementations the
+    capabilities tool lists (an entry with its own adapter becomes one only once installed and proven), with their
+    next step."""
+    left = [r for r in rows if operation in (r.get("does") or []) and r["id"] not in listed
+            and standing(r) not in ("working", "here")]
+    if not left:
+        return ""
+    return ("Also in Hooke's catalog, not set up here: " + "; ".join(f"{named(r)}: {state_words(r)}" for r in left)
+            + f". models with does [{operation!r}] says every step each needs, and how one not in the catalog is added.")
 
 
 def key_matching(key_facts: Mapping[str, dict], about: str) -> dict | None:
@@ -921,6 +1203,9 @@ def overview(rows: list[dict], key_facts: Mapping[str, dict]) -> str:
                 for r in available[:12]]
         if len(available) > 12:
             out.append(f"- and {len(available) - 12} more on the Models page")
+    kinds = kinds_line(rows)
+    if kinds:
+        out.append(kinds)
     if key_facts:
         have = [f.get("short", k) for k, f in key_facts.items() if f.get("present")]
         missing = [f"{f.get('short', k)} ({f.get('enables') or f.get('name', '')})" for k, f in key_facts.items() if not f.get("present")]

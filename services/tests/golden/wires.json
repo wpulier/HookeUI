@@ -374,24 +374,29 @@
   "early_look_typed": "sequential",
   "embed": "dinov2-small",
   "fast": "off",
+  "heard_cue": "tone",
   "hintsFirst": true,
   "image": "gpt-image-2.5-flare",
   "lesson_check": "check",
   "level": "technical",
   "library_looks": "off",
+  "look_hard": "gemini-4-argon",
   "menu": "flat",
   "naming": "one",
+  "naming_model": "close-look",
   "orb_every": "1",
   "outcome_lines": "off",
   "outline": "edgetam",
   "outlineColor": "pink",
   "outline_check": "fix",
   "outline_repair": "same",
+  "partner_acts": "brain",
+  "partner_speaks": "acknowledges",
   "pointing": "box",
   "presentation": "off",
   "quality": "tell",
   "quieter": false,
-  "reference_search": "web+commons",
+  "reference_search": "web",
   "reflex": "lean-3.5-flash",
   "research": "gpt-6.1-sol",
   "researchCap": null,
@@ -406,11 +411,13 @@
   "talk": "hold",
   "talk_key": "control-option",
   "taught": "on",
+  "think": "claude-opus-5-5",
   "track": "objects",
   "userLeads": true,
-  "vision": "gemini-3.8-flash",
-  "voice": "gpt-live-1",
+  "vision": "claude-opus-5-5-fast",
+  "voice": "gpt-realtime-2.1",
   "voicelink": "webrtc",
+  "watch": "quiet",
   "zeroshot": "off"
  },
  "slidemap": {
@@ -653,9 +660,9 @@
  "toolRun": {
   "models": [
    {
-    "name": "Gemini 3.8 Flash",
+    "name": "Claude Opus 5.5 (fast mode)",
     "role": "found by",
-    "said": "Gemini 3.8 Flash (cloud)"
+    "said": "Claude Opus 5.5 (fast mode) in the cloud"
    },
    {
     "name": "EdgeTAM",

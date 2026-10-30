@@ -88,7 +88,9 @@ RESULT_TITLES = {
     "track_motion": "Motion", "measure": "Measurement", "count": "Count", "contrast": "Comparison",
     "compare": "Side by side", "enhance": "Clearer picture", "what_happened": "What happened",
     "where_is": "Where it is", "focus_check": "Focus check", "dissect": "Parts", "watch": "Watch",
-    "reference_photo": "Reference photo",
+    "reference_photo": "Reference photo", "show_web": "From the web", "write_document": "Document",
+    "compare_models": "Model comparison",
+    "experiment": "Experiment results", "experiment_table": "Experiment comparison",  # experiments.py
 }
 
 # A researcher's deliverable in plain words (an entry's title uses only the app's words).
@@ -139,6 +141,20 @@ def _words(text: object, limit: int) -> str:
     """A researcher's words as one line of plain text for Data (never a model's line): whitespace collapsed, capped."""
     line = " ".join(str(text or "").split())
     return line[:limit]
+
+
+def _document_text(values) -> str:
+    """A document's text, from its kept values (documents.py)."""
+    from .documents import text_of
+
+    return text_of(values)
+
+
+def _document_summary(values) -> str:
+    """A document's line, from what its journal keeps (documents.py)."""
+    from .documents import summary_of
+
+    return summary_of(values)
 
 
 def hhmm(at: float | None) -> str:
@@ -701,7 +717,9 @@ class Results:
                 self._discard_later(prepared)
             return None
         info = None
-        web = (run.values or {}).get("web") if (run.values or {}).get("media") == "reference" else None
+        media = (run.values or {}).get("media")
+        # A reference photo, a web page or a video from the web was made on no frame of this slide (show_web).
+        web = (run.values or {}).get("web") if media in ("reference", "web-page", "video") else None
         if hub is not None and web is None:  # a reference photo from the web was made on no frame of this slide
             info = (getattr(hub, "infos", {}) or {}).get(ctx.frame_id) if ctx.frame_id is not None else None
             info = info or getattr(hub, "latest_info", None)
@@ -710,9 +728,14 @@ class Results:
         source = None
         if isinstance(web, dict):
             source = {"frame": None, "seq": None, "boot": None, "web": copy.deepcopy(web)}
+            # A reference photo's description is what a look at its pixels saw (reference.retrieve), named by who
+            # looked, so it is never taken for the request's words.
             description = (run.values or {}).get("description")
             if isinstance(description, str) and description:
                 source["description"] = description[:600]
+                described_by = (run.values or {}).get("describedBy")
+                if isinstance(described_by, str) and described_by:
+                    source["describedBy"] = described_by[:80]
         elif isinstance(capture_sources, list):
             # Multi-capture outputs cannot be attributed to the unrelated current request frame.
             source = {"frame": None, "seq": None, "boot": None, "captures": capture_sources[:8]}
@@ -756,12 +779,14 @@ class Results:
                              made_with=_made_with(hub, run.executions),
                              session=self._session_of_asked(getattr(ctx, "asked", None)),
                              actor=getattr(run, "actor", None),
-                             **({"web": web} if isinstance(web, dict) else {}))
+                             **({"media": media} if media == "document" else {}),
+                             **({"web": web} if isinstance(web, dict) and media == "reference" else {}))
         # Its address in the index: (session, id), whatever date folder its pictures are in.
         address = session_of(entry, entry["day"])
         run.resource = {"id": entry["id"], "day": address, "title": entry["title"],
                         "version": None, "picture": 0 if entry.get("pictures") else None,
-                        "kind": "Reference photo" if web else "Saved result"}
+                        "kind": ({"web-page": "Web page", "video": "Video"}.get(media, "Reference photo") if web
+                                 else "Saved result")}
         key = id(run)
         self._consumed[key] = (weakref.ref(run, lambda _: self._consumed.pop(key, None)), entry)
         from .brain.registry import record_made, record_output
@@ -799,14 +824,15 @@ class Results:
             picture_bytes=(), made_for: str | None = None, web: dict | None = None, source: dict | None = None,
             components: tuple[RetainedComponent, ...] = (), durable_guard: Callable[[], None] | None = None,
             session: str | None = None, made_with: list[dict] | None = None, retaining: bool = False,
-            actor: str | None = None) -> dict:
+            actor: str | None = None, media: str | None = None) -> dict:
         """`pictures`: magnifier keys of pictures the run showed; `picture_bytes`: pictures made for no screen (a
         researcher's, research/hands.py). `made_for`: who it was made for when not the user's request ("Researcher
         2"), in its own field and its title, so no reader or filter takes it for the user's. `web`: where a
         reference photo from the web came from (site, page, title, licence, author), so it is kept and shown as one
         (media.REFERENCE) and never as the camera's. `session`: the session it was asked in (default: the one open);
         it is filed in that session's journal, its pictures in today's folder. `actor`: who started the run that made
-        it ("you", "assistant"; ticket 66, S2), kept as its "actor"."""
+        it ("you", "assistant"; ticket 66, S2), kept as its "actor". `media`: "document" for a document written from
+        the Project's records (documents.py), kept so Data lists it under Write-ups."""
         from .brain.registry import ToolFailed
 
         durable = bool(components)
@@ -891,7 +917,8 @@ class Results:
                  # Each kept picture's sha256 as it was made: a reopen reads it only while it is still those bytes.
                  **({"digests": [hashlib.sha256(data).hexdigest() for _name, data in writes]} if writes else {}),
                  **({"madeWith": list(made_with)} if made_with else {}),
-                 **({"media": "reference", "web": dict(web)} if web else {})}
+                 **({"media": "reference", "web": dict(web)} if web else {}),
+                 **({"media": "document"} if media == "document" and not web else {})}
         if retaining and not durable:
             entry['state'] = 'saving' if written else 'failed'
             if not written:
@@ -1813,7 +1840,8 @@ class Index:
         if entry.kind == "result":
             head.append("Retained byte/source association: selected producer metadata revalidated; "
                         "file byte identity is not independently verified by this read.")
-        if values not in (None, {}, []):
+        if values not in (None, {}, []) and not (entry.kind == "result" and entry.media == "document"):
+            # A document's values are its text (its detail), not read twice.
             body += ("\n" if body else "") + "values: " + json.dumps(values, default=str)
         if entry.untrusted or entry.kind in ('dataset-table', 'analysis', 'graph'):  # labels and source text remain data, not instructions
             from .untrusted import block
@@ -2263,6 +2291,13 @@ class Index:
                 except ValueError:
                     host = None
                 plain = "Reference photo" + (f" · {host}" if host else "")
+            # A document written from the Project's records (documents.py): the model's words from records partly
+            # not the app's, so untrusted to every prompt; Data shows its own title, and its text is read from its file.
+            document = r.get("media") == "document"
+            if document:
+                plain = "Document"
+            if document and state == "done":
+                summary = _document_summary(r.get("values"))  # what it is, not where its request showed it then
             out.append(Entry(
                 r["id"], "result", r.get("title") or r["id"], day, at if at is not None else 0.0, summary=summary,
                 state=state, plain=plain,
@@ -2276,7 +2311,10 @@ class Index:
                 media=r.get("media"), run=single_run(r.get("executions")),
                 source=copy.deepcopy(r.get("source") or {}), values=copy.deepcopy(r.get("values")), time_known=at is not None,
                 pictures=[f"/api/resources/{r['id']}/picture?day={day}&n={n}" for n in range(len(r.get("pictures") or []))],
-                date=str(r.get("day") or ""), portable=bool(r.get("madeWith")), table=self.results.table_candidate(r, day, discover=discover_tables), detail=(lambda r=r: f"asked: {r.get('request')}\nwith: {json.dumps(r.get('args'), default=str)}" if r.get("request") else "")))
+                date=str(r.get("day") or ""), portable=bool(r.get("madeWith")), table=self.results.table_candidate(r, day, discover=discover_tables),
+                detail=((lambda r=r: _document_text(self.results.values(r["id"], day))) if document else
+                        (lambda r=r: f"asked: {r.get('request')}\nwith: {json.dumps(r.get('args'), default=str)}" if r.get("request") else "")),
+                untrusted=document, shown=_words(((r.get("values") or {}).get("title") if isinstance(r.get("values"), dict) else None), 200) if document else ""))
         return out
 
     def _research(self, day: str) -> list[Entry]:

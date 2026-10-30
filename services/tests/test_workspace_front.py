@@ -39,7 +39,8 @@ def test_front_is_the_highest_window_on_the_tab_in_front_with_the_tab_s_title(tm
 
 def test_a_report_without_the_tab_strip_says_no_tab_rather_than_guessing_one():
     shown = front({'items': [], 'viewport': {'visible': True, 'documentFocused': False}})
-    assert shown == {'project': None, 'tab': None, 'tabTitle': None, 'window': None, 'title': None,
+    assert shown == {'project': None, 'tab': None, 'tabTitle': None, 'window': None, 'title': None, 'specimen': None,
+                     'holds': None, 'overlays': None, 'magnifiers': None,
                      'studioVisible': True, 'studioFocused': False}
 
 

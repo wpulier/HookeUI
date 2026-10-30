@@ -87,9 +87,16 @@ class Capture extends AudioWorkletProcessor {
 registerProcessor('capture', Capture);
 `;
 
+/** The microphone was refused: Talk's card says how to turn it back on (mic-card.ts). */
+export const MIC_BLOCKED = 'The microphone is off for Hooke. Turn it on, then start Talk again.';
+
 export class VoiceClient {
   state: VoiceState = 'off';
   muted = false;
+  /** Waiting for the browser's (or the Mac's) microphone prompt: shown as the microphone card, never as connecting. */
+  awaitingMic = false;
+  /** The last start was refused the microphone. */
+  micBlocked = false;
   /** How audio travels (the server's VOICELINK option): "relay" through the app over a WebSocket,
    * or "webrtc" directly between this browser and OpenAI (the app keeps a sideband for events). */
   link: 'relay' | 'webrtc' = 'relay';
@@ -163,6 +170,8 @@ export class VoiceClient {
     this.providerReady = false; this.captured = false; this.mediaConnected = false;
     this.stageSent.clear(); this.pendingStages.clear();
     this.talkMode = undefined; this.micOpen = false;
+    this.micBlocked = false;
+    this.awaitingMic = true; // the microphone first: until it is on, this is the card's wait, not "Connecting"
     this.setState('connecting');
     try {
       // Both contexts are created inside the click that started the conversation, so the
@@ -177,12 +186,18 @@ export class VoiceClient {
         if (attempt === this.connectionAttempt) this.setState('connecting',
           'Waiting for microphone access. Allow the microphone prompt, or end Talk and check microphone permissions.');
       }, 8_000);
-      const mic = await navigator.mediaDevices.getUserMedia({
-        audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-      });
+      let mic: MediaStream;
+      try {
+        mic = await navigator.mediaDevices.getUserMedia({
+          audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        });
+      } finally {
+        this.awaitingMic = false;
+      }
       if (attempt !== this.connectionAttempt) { mic.getTracks().forEach((track) => track.stop()); return; }
       if (this.permissionTimer !== null) clearTimeout(this.permissionTimer);
       this.permissionTimer = null;
+      this.setState('connecting'); // the microphone is on: what is shown now is the real connect
       this.mic = mic;
       await audioReady;
       if (attempt !== this.connectionAttempt) return;
@@ -220,10 +235,12 @@ export class VoiceClient {
         this.fail('The microphone disconnected. Choose an available microphone, then start Talk again.');
       }));
     } catch (error) {
+      this.awaitingMic = false;
       if (attempt !== this.connectionAttempt) return;
       this.cleanup();
       const denied = error instanceof DOMException && error.name === 'NotAllowedError';
-      this.setState('error', denied ? 'Microphone access was blocked. Allow Hooke in System Settings → Privacy & Security → Microphone (or allow this browser), then start Talk again.' : String(error));
+      this.micBlocked = denied;
+      this.setState('error', denied ? MIC_BLOCKED : String(error));
       return;
     }
 
@@ -465,6 +482,12 @@ export class VoiceClient {
     if (this.socket?.readyState !== WebSocket.OPEN) return false;
     this.socket.send(JSON.stringify(command));
     return true;
+  }
+
+  /** The speaker's context (made in the press that started Talk, so it may play), for the sign it heard you
+   * (heard.ts HeardTone); null while Talk is off. */
+  cueContext(): AudioContext | null {
+    return this.speaker;
   }
 
   /** The talk key or button pressed: the microphone opens, the voice falls silent (barge-in), the turn starts. */

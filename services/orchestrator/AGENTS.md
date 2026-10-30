@@ -383,7 +383,8 @@ legacy export and explicitly offline `reimport(..., sessions=None)` remain avail
 verified ownership permits the ordinary UI to offer Open. Import does not switch the active Project or restore unrelated history.
 These filesystem/API guarantees do not establish an actual fresh-profile browser journey or platform qualification.
 
-`method_evidence.py` retains two or three declared methods as a Project document, separate from the existing
+`method_evidence.py` retains two to six declared methods (arms A to F; Part 2.5 W5: a workflow's comparison step
+takes up to six branches, `workflows.MAX_COMPARED`; records of two or three read as before) as a Project document, separate from the existing
 `method_comparison` aggregate API. It admits exact native source/mask revisions through `admission.native_source`,
 requires matching ordered axes, shape and calibration, and follows recorded edit/output associations back to the
 frozen input. Histories, runtime generations and corrections stay at their accepted references. Manual methods

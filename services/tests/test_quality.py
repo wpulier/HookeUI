@@ -181,7 +181,7 @@ def test_by_default_the_model_is_told_the_measured_view_and_decides():
     assert "out of focus" not in prompts[0] and not view.summary.startswith("Can't tell")
 
 
-def test_naming_shows_the_group_when_it_is_not_sure():
+def test_naming_shows_its_best_guess_marked_unsure_when_it_is_not_sure():
     from orchestrator.agent import identify_reading
 
     sure = identify_reading({"group": "white blood cell", "label": "neutrophil", "confidence": 0.95,
@@ -192,8 +192,10 @@ def test_naming_shows_the_group_when_it_is_not_sure():
     assert low["label"] == "monocyte" and low["status"] == "likely"  # a low confidence alone is the model's to weigh
     unsure = identify_reading({"group": "white blood cell", "label": "monocyte", "confidence": 0.8, "unsure": True,
                                "alternatives": [{"name": "Lymphocyte", "why": "looks similar"}, "white blood cell"]})
-    assert unsure["label"] == "white blood cell" and unsure["status"] == "unsure"
-    assert unsure["maybe"] == ["monocyte", "Lymphocyte"]  # the group itself is not a "maybe"
+    assert unsure["label"] == "monocyte" and unsure["status"] == "unsure" and unsure["group"] == "white blood cell"
+    assert unsure["maybe"] == ["Lymphocyte"]  # neither the name nor the group itself is a "maybe"
+    only_group = identify_reading({"group": "white blood cell", "label": "", "unsure": True})
+    assert only_group["label"] == "white blood cell" and only_group["status"] == "unsure"
     said = identify_reading({"group": "", "label": "speck", "confidence": 0.95, "unsure": True})
     assert said["label"] == "speck" and said["status"] == "unsure"
     old_reply = identify_reading({"label": "stoma", "confidence": 0.92})  # the reply before W1-3b

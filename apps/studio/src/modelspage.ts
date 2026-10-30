@@ -122,13 +122,13 @@ export function mark(f: ModelFact): '✓' | '✗' | '·' {
   return f.ok === true ? '✓' : f.ok === false ? '✗' : '·';
 }
 
-/** "3 need you · 21 ready · 2 not checked · 6 can be set up": the sections' own counts (run-spec.ts `modelSection`, the
+/** "3 need you · 21 ready · 2 ready, not checked yet · 6 can be set up": the sections' own counts (run-spec.ts `modelSection`, the
  * same ones Tools By model says), so the line, the sections and Tools never name the same rows three ways. */
 export function summary(rows: ModelRow[]): string {
   const n = (section: ModelSection) => rows.filter((r) => modelSection(r) === section).length;
   const needs = n('needs'), ready = n('ready'), unchecked = n('unchecked'), setup = n('setup'), away = n('away');
   return [needs ? `${needs} need${needs === 1 ? 's' : ''} you` : '', ready ? `${ready} ready` : 'none ready yet',
-    unchecked ? `${unchecked} not checked` : '', setup ? `${setup} can be set up` : '', away ? `${away} not on this Mac` : ''].filter(Boolean).join(' · ');
+    unchecked ? `${unchecked} ready, not checked yet` : '', setup ? `${setup} can be set up` : '', away ? `${away} not on this Mac` : ''].filter(Boolean).join(' · ');
 }
 
 /** The downloads your current choices are waiting on, for "Get what your choices need". */
@@ -626,8 +626,8 @@ export class ModelsPage {
     const body = el('div', { class: 'models-page-body' });
     if (wire) body.append(this.starter ??= starterOffer('row'));
     // The sections are run-spec.ts's `modelSection`, the ones Tools By model and a task's model list use (Needs you, Ready,
-    // Not checked, Can be set up, then Not on this Mac folded), so the summary, the side's counts, these sections and Tools
-    // agree exactly (one meaning of Ready: face on or obtained; Not checked is its own state).
+    // Ready, not checked yet, Can be set up, then Not on this Mac folded), so the summary, the side's counts, these sections
+    // and Tools agree exactly (one meaning of Ready: face on or obtained; Ready, not checked yet is its own state).
     const bySection = new Map<ModelSection, ModelRow[]>();
     for (const row of rows) { const section = modelSection(row); bySection.set(section, [...(bySection.get(section) ?? []), row]); }
     for (const [section, title] of MODEL_SECTIONS) {
@@ -1840,7 +1840,8 @@ export class ModelsPage {
       el('p', {}, 'Prepare this package on this computer, then return to your data to review it. Preparation does not enable or independently qualify the tool.'),
       this.facts(row, keys, preparationFacts, 'details')));
     // Tasks: one row per task a person can run here (by its name, once), each with Try it on <specimen> when the model can
-    // run (Ready or Not checked): its run page with this model chosen. Capabilities only the Assistant uses are not tasks.
+    // run (Ready, or Ready, not checked yet): its run page with this model chosen. Capabilities only the Assistant uses are
+    // not tasks.
     const runnable = ['ready', 'unchecked'].includes(modelSection(row)) && !row.execution;
     const seen = new Set<string>();
     const tasks = (this.servedTasks(row.id) ?? []).filter((t) => !seen.has(t.title) && !!seen.add(t.title));
@@ -1854,10 +1855,10 @@ export class ModelsPage {
       }
       return item;
     })));
-    // Not checked, said as what it means beside Try it on: Hooke's own check is a record of its own (contract/AGENTS.md
-    // "The app's own check"), which a run of yours on your picture does not make, so a model that just worked stays here.
+    // Ready, not checked yet, said as what it means beside Try it on: it can run, and nothing of it is recorded here yet,
+    // neither a run that worked (observed.py "use") nor Hooke's own check (contract/AGENTS.md "The app's own check").
     if (modelSection(row) === 'unchecked' && !row.execution) pane.append(el('p', { class: 'tool-check-note' },
-      'Not checked: Hooke’s own check of it (one run on the public example) is not recorded on this Mac yet. Trying it here runs it on your picture, which does not record that check; Check it here in its setup does.'));
+      'Ready, not checked yet: it can run here, and no run of it on this Mac is recorded yet. Once a run of it works here it shows as working here; Check it here in its setup runs Hooke’s own check (one run on the public example).'));
     const cloud = row.runs === 'cloud';
     const fact = (term: string, value: string) => el('div', {}, el('dt', {}, term), el('dd', {}, value));
     pane.append(el('dl', { class: 'tool-details-facts' },

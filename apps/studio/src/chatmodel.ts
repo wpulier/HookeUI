@@ -2,9 +2,9 @@
 // conversation, not an activity log: one conversation (thread) at a time, its lines as they
 // were shown, and later tool results updating their answer's line in place.
 import { SPEECH_LINE_GAP_MS } from './overlay';
-import type { ActivityEvent, AppNotice, ChatAction, ChatAnswerStatus, ChatLine, ServerMessage, ToolRun, Trial } from './protocol';
+import type { ActivityEvent, AppNotice, ChatAction, ChatAnswerStatus, ChatLine, HandoffLine, ServerMessage, ToolRun, Trial } from './protocol';
 
-export type Role = ChatLine['role'] | 'arm' | 'activity';
+export type Role = ChatLine['role'] | 'arm' | 'activity' | 'handoff';
 
 /** A line in the log: a chat line as shown, a live voice transcript or a blind-trial answer. */
 export interface LogLine {
@@ -20,6 +20,8 @@ export interface LogLine {
   answerStatus?: 'not-published'; // operation-absent UI status, never assistant text
   notice?: AppNotice; // producer facts outside ToolRun, never an answer or execution anchor
   event?: ActivityEvent; // an Activity line (activity.ts): a request's record, a click, a studio action, a setting...
+  handoff?: HandoffLine; // a request the voice handed to Hooke's brain, as it stands (handoffs.ts)
+  replayed?: boolean; // drawn from a replay and not updated live since (a hand-off's late step may never be recorded)
   calls?: number;
   update?: boolean;
   answered?: number; // the log's next key when a later model answer replaced this text (steps after it are said by it)
@@ -40,6 +42,7 @@ export type Change =
   | { kind: 'text'; line: LogLine }
   | { kind: 'action'; line: LogLine; index: number }
   | { kind: 'event'; line: LogLine } // an Activity line replaced by a later one with its id (running, then done)
+  | { kind: 'handoff'; line: LogLine } // a hand-off's later state, or one of its steps' late receipt
   | { kind: 'tag'; line: LogLine }
   | { kind: 'hint'; text: string; error: boolean }
   | { kind: 'describe'; ids: string[] };
@@ -122,6 +125,7 @@ export class ChatModel {
           else if (line.type === 'chat-action') changes.push(...this.action(line, true));
           else if (line.type === 'app-notice') changes.push(...this.notice(line, true));
           else if (line.type === 'activity') changes.push(...this.event(line));
+          else if (line.type === 'handoff') changes.push(...this.handoff(line, true));
         }
         if (this.trial) {
           const pending = this.trial;
@@ -157,9 +161,31 @@ export class ChatModel {
         return this.notice(message, false);
       case 'activity':
         return this.event(message);
+      case 'handoff':
+        if (this.elsewhere(message.thread) || this.otherSession(message.day)) return [];
+        return this.handoff(message, false);
       default:
         return [];
     }
+  }
+
+  /** A hand-off to Hooke's brain: its first state is a row at the end of the log, under the voice line that started it
+   * (the voice's next words start a line of their own below it); each later state replaces it in place. A step that a
+   * late receipt settled stays settled. */
+  private handoff(m: HandoffLine, replaying: boolean): Change[] {
+    const existing = this.lines.find(line => line.handoff?.id === m.id);
+    if (existing) {
+      const before = existing.handoff?.steps ?? [];
+      const steps = (m.steps ?? []).map(step => before.find(b => b.ok !== null && step.ok === null && b.requestId
+        && b.requestId === step.requestId && b.actionId === step.actionId) ?? step);
+      existing.handoff = { ...m, ...(m.steps ? { steps } : {}) };
+      if (typeof m.turnId === 'number') existing.turnId = m.turnId;
+      if (!replaying) existing.replayed = false;
+      return [{ kind: 'handoff', line: existing }];
+    }
+    if (!replaying) this.speaking = null;
+    return [this.add({ role: 'handoff', text: '', at: m.at, handoff: { ...m, steps: m.steps ? [...m.steps] : undefined },
+      ...(typeof m.turnId === 'number' ? { turnId: m.turnId } : {}), replayed: replaying }, !replaying)];
   }
 
   /** An Activity line of this conversation and day: a later one with the same id replaces it in place. It is not a
@@ -237,6 +263,23 @@ export class ChatModel {
    * updates. One whose answer is not in the log is said as a hint, but not while replaying:
    * a replay only redraws what was already said. */
   private action(m: ChatAction | ChatAnswerStatus, replaying: boolean): Change[] {
+    // A hand-off's step that finished after the brain answered: its row settles from this receipt (by occurrence).
+    const settled: Change[] = [];
+    if (!('answerStatus' in m) && m.requestId && m.actionId) {
+      const { type: _type, turnId: _turn, thread: _thread, answer: _answer, standalone: _standalone, ...run } = m;
+      for (const line of this.lines) {
+        const steps = line.handoff?.steps;
+        const index = steps?.findIndex(step => step.requestId === m.requestId && step.actionId === m.actionId) ?? -1;
+        if (!steps || index < 0) continue;
+        steps[index] = run;
+        if (!replaying) line.replayed = false;
+        settled.push({ kind: 'handoff', line });
+      }
+    }
+    return [...this.receipt(m, replaying), ...settled];
+  }
+
+  private receipt(m: ChatAction | ChatAnswerStatus, replaying: boolean): Change[] {
     if ('answerStatus' in m) {
       return [this.add({ role: 'activity', text: '', turnId: m.turnId, answerStatus: m.answerStatus,
         calls: m.calls, model: m.model }, !replaying)];

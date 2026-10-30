@@ -5752,7 +5752,7 @@
        }
       ],
       "then": {
-       "answer": "Gemini 3.8 Flash found the guard cell and EdgeTAM drew its outline, on this Mac.",
+       "answer": "Claude Opus 5.5 in fast mode found the guard cell and EdgeTAM drew its outline, on this Mac.",
        "targets": [],
        "actions": []
       }
@@ -5770,7 +5770,7 @@
     ],
     "queried": {
      "resources": [
-      "How it was made, each model in order: found by Gemini 3.8 Flash, drawn by EdgeTAM (on this Mac)"
+      "How it was made, each model in order: found by Claude Opus 5.5 (fast mode), drawn by EdgeTAM (on this Mac)"
      ]
     },
     "told": [
@@ -7566,7 +7566,7 @@
   },
   {
    "id": "journey-8-vision-model-for-one-request",
-   "about": "Journey 8 (Slice 9, Q14): 'use Gemini 3.5 Flash to look at this': the look of this request uses Gemini 3.5 Flash (the turn log's `used`; its settings are only the defaults); the default stays Gemini 3.8 Flash.",
+   "about": "Journey 8 (Slice 9, Q14): 'use Gemini 3.5 Flash to look at this': the look of this request uses Gemini 3.5 Flash (the turn log's `used`; its settings are only the defaults); the default stays Claude Opus 5.5 in fast mode (the live partner's eyes).",
    "slide": [
     {
      "name": "stoma",
@@ -7627,7 +7627,7 @@
      {
       "setting": [
        "vision",
-       "gemini-3.8-flash"
+       "claude-opus-5-5-fast"
       ]
      }
     ],

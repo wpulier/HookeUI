@@ -792,6 +792,20 @@ class Evidence:
             population.summary_hold.grow(max(0, needed - population.summary_hold.nbytes), "retaining evidence's table")
             population.summary_hold.settle(needed)
             return
+        if population.hold is not None and population.hold.reservation.cls in BACKGROUND:
+            # A background run's table (a researcher's, an experiment's) is kept in an allowance of its own, so its
+            # working allowance is free again once the run is saved (capture.ALLOWANCES_MB "kept"); with no room
+            # there, it stays with its hold as below.
+            from .capture import Refused as MemoryRefused
+
+            try:
+                kept = population.hold.reservation.memory.reserve("kept", needed, "a background run's evidence table")
+            except (MemoryRefused, ValueError):
+                kept = None
+            if kept is not None:
+                population.summary_hold = kept
+                weakref.finalize(population, kept.release)
+                return
         if population.hold is not None:
             # Transfer its existing capacity; the pixel hold still owns every resident image/mask.
             pixels = sum(m.mask.bits.nbytes for m in population.members.values() if m.mask is not None)
@@ -1311,6 +1325,10 @@ def _enrichment_kinds(population) -> list[str]:
     from .enrichment import kinds
 
     return kinds(population)
+
+
+# Allowances a run in the background holds its evidence in (capture.py): its table, once saved, is kept apart ("kept").
+BACKGROUND = frozenset({"research"})
 
 
 def summary_bytes(population: Population) -> int:

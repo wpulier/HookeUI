@@ -137,6 +137,30 @@ describe('retained workspace presentation', () => {
     expect(sent[0].base.lifetimeGeneration).toBe(lifetime);
     expect(fact(windows,A).view).toMatchObject({zoom:2,pan:[.25,.75]});
   });
+  test('places a window by its id through its own fenced resize, then move, one at a time', async () => {
+    // Arrange's tile for a native window with no retained resource (the live magnifier): the person's own resize and
+    // move, each waiting for the accepted descriptor that fences the next (workspace-views.ts place).
+    const { windows, sent } = await make();
+    apply(windows, [state()]); await decoded(windows, A);
+    const placer = windows as unknown as { placeWindow(id: string, rect: number[]): boolean };
+    const tile = [12, 12, 600, 400];
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent.map(command => command.action)).toEqual(['resize']);
+    expect(sent[0].values).toEqual({ size: [600, 400] });
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent).toHaveLength(1); // polling never sends a second command while one is unanswered
+    const accepted = state(); accepted.revision++; accepted.geometryIntent.size = [600, 400]; accepted.propertyVersions.geometry++;
+    apply(windows, [accepted], 'resize-accepted');
+    expect(placer.placeWindow(A, tile)).toBe(false);
+    expect(sent.map(command => command.action)).toEqual(['resize', 'move']);
+    const host = (dom.host as unknown as HTMLElement).getBoundingClientRect();
+    expect(sent[1].values).toEqual({ position: [12 + host.left, 12 + host.top] });
+    accepted.revision++; accepted.geometryIntent.position = [12 + host.left, 12 + host.top]; accepted.propertyVersions.geometry++;
+    apply(windows, [accepted], 'move-accepted');
+    expect(placer.placeWindow(A, tile)).toBe(true);
+    expect(sent).toHaveLength(2);
+    expect(placer.placeWindow('w-gone', tile)).toBe(true); // a window no longer open has nothing to place
+  });
   test('does not reopen a dismissed view or apply transforms before evidence loads', async () => {
     const { windows } = await make();
     apply(windows, [state()]);
@@ -1026,4 +1050,35 @@ test('explicit restore raises a background-created native placement after accept
  const accepted={...state(A),revision:2,propertyVersions:{...state(A).propertyVersions,hidden:2}};
  windows.apply({context,requestId:sent.at(-1)!.requestId,commandId:'restored',actionOccurrenceId:'restored',items:[accepted],op:'restore'});
  dom.frame();expect(panels.top()?.id).toBe(A);
+});
+
+// will-tabs, 30 Oct (the isolated instance): a live close-up whose Tab was not in front kept receiving frames it could not
+// paint, then its source held (the object left the frame: no more frames come). Moved to the Tab in front, it painted the
+// frame it held but reported no sample, so its front was never confirmed ("No actual content draw is recorded").
+describe('a live window shown again paints the frame it holds with that frame\'s sample', () => {
+  test('hidden, held, then shown: its paint carries the held frame\'s sample', async () => {
+    const { windows, image, item, draw } = await liveWindow();
+    const sample: ReviewedSample = { run: 'run-a', boot: 'live-boot', seq: 10 };
+    draw(sample); dom.frame(); expectLivePixels(windows, image, item);
+    const shown = root(windows, A) as unknown as TestElement;
+    shown.style.visibility = 'hidden'; // its Tab is not in front
+    draw({ ...sample, seq: 11 }); dom.frame(); // the next frame arrives, and cannot be painted there
+    expect(liveFact(windows).load.state).toBe('loaded');
+    shown.style.visibility = ''; // its Tab comes to the front; no frame follows (the source holds its last one)
+    (windows as Renderer & { shownAgain(): void }).shownAgain(); dom.frame();
+    expect(liveFact(windows).load.state).toBe('drawn');
+    expect(liveFact(windows).liveSample).toEqual({ ...sample, seq: 11 });
+  });
+  test('hidden, held, then its layout changes in sight (its Tab in front, a zoom): painted with the held frame\'s sample', async () => {
+    const { windows, draw } = await liveWindow();
+    const sample: ReviewedSample = { run: 'run-a', boot: 'live-boot', seq: 10 };
+    draw(sample); dom.frame();
+    const shown = root(windows, A) as unknown as TestElement;
+    shown.style.visibility = 'hidden';
+    draw({ ...sample, seq: 12 }); dom.frame();
+    expect(liveFact(windows).load.state).toBe('loaded');
+    shown.style.visibility = ''; windows.dispatchUser({ action: 'zoom', instance: A, values: { factor: 2 } }); dom.frame();
+    expect(liveFact(windows).load.state).toBe('drawn');
+    expect(liveFact(windows).liveSample).toEqual({ ...sample, seq: 12 });
+  });
 });

@@ -4,7 +4,7 @@ dissect."""
 from __future__ import annotations
 
 from ...day.sid import session_of
-from ..registry import Registry, Tool, ToolContext, ToolFailed, current_step, record_made, schema
+from ..registry import CURRENT_RUN, Registry, Tool, ToolContext, ToolFailed, current_step, record_made, record_output, schema
 from .common import OBJECT, describe, resolve_object, visible_object
 
 
@@ -79,14 +79,22 @@ def add_scene_tools(registry: Registry, services) -> None:
         except tools.ToolError as exc:
             raise ToolFailed(str(exc), next=exc.next) from exc
         record_made(ctx, population.id)  # "@n" to the steps after this one (the step fixed when it started)
+        if CURRENT_RUN.get() is not None:  # its typed output on its run: what it made, for the receipt (voice/hands.py)
+            record_output(ctx, {"kind": "population", "id": population.id})
+        from ...placement import live_in_sight
         from ...population import drawn_on_stage
 
         original = bool(population.view.get("sourceImage"))
+        on_stage = shown and drawn_on_stage(hub, population)
         return (f"{population.title} ({population.id}): {population.count_words()}, measured; "
-                + ("kept on the original image; open the saved result in Made" if shown and not drawn_on_stage(hub, population)
-                   else "the layer is on the picture on the Stage; they are drawn once that picture is checked" if shown and original
-                   else "the layer is on; each is drawn once its own pixels are checked" if shown
-                   else "kept, not shown (the request was superseded)"))
+                + ("kept on the original image; open the saved result in Made" if shown and not on_stage
+                   # What the user sees, not how each outline is placed (will-display, 29 Oct: "142 verified outlines
+                   # displayed from 168 detected", from "each is drawn once its own pixels are checked").
+                   else "the layer is on the picture on the Stage" if shown and original
+                   else "the layer is on the live view" if shown
+                   else "kept, not shown (the request was superseded)")
+                # Drawn on the specimen: in sight, Main brought forward when the Tab in front hides it (placement.py).
+                + (await live_in_sight(hub, ctx) if on_stage else ""))
 
     async def name_outline(ctx: ToolContext, args: dict) -> str:
         from ...labels import label_key

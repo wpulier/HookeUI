@@ -935,8 +935,9 @@ test('tool cards use plain kind labels while preserving their readiness', () => 
     'Method, on this Mac', 'Model, on this Mac', 'Cloud model, in the cloud', 'Data, on this Mac', 'Tool, on this Mac',
   ]);
   const cells = root.querySelectorAll('.model-card').map(card => card.querySelector('[data-kind="lit-cell"]')!);
-  expect(cells.map(n => n.getAttribute('aria-label'))).toEqual(Array(5).fill('Not checked'));
-  expect(cells.map(n => n.getAttribute('data-state'))).toEqual(Array(5).fill('idle'));
+  // Ready, not checked yet: it can run, so never the grey of a model that isn't there (Will, 2026-10-29).
+  expect(cells.map(n => n.getAttribute('aria-label'))).toEqual(Array(5).fill('Ready · not checked yet'));
+  expect(cells.map(n => n.getAttribute('data-state'))).toEqual(Array(5).fill('partial'));
 });
 
 test('Try uses the declared parameter form and opens its exact retained table', async () => {
@@ -1435,8 +1436,8 @@ test('prepared unchecked tools stay outside Ready and missing files lead to setu
       plan: { option: 'primary', model: 'trackastra', label: 'Trackastra', recipe: 'fixture', privacy: '', cost: '',
         steps: [{ kind: 'download', says: 'Download 43 MB', model: 'trackastra', by: 'app' }] } }],
   })]);
-  expect(root.querySelector('.toolbox-head-sub')!.textContent).toBe('2 ready · 5 not checked · 1 can be set up');
-  // One meaning of Ready (run-spec.ts modelSection): Not checked is its own section, as in Tools By model.
+  expect(root.querySelector('.toolbox-head-sub')!.textContent).toBe('2 ready · 5 ready, not checked yet · 1 can be set up');
+  // One meaning of Ready (run-spec.ts modelSection): Ready, not checked yet is its own section, as in Tools By model.
   expect(root.querySelector('[data-section="ready"]')!.querySelectorAll('.model-card').map(n => n.dataset.model)).toEqual(['one', 'two']);
   expect(root.querySelector('[data-section="unchecked"]')!.querySelectorAll('.model-card')).toHaveLength(5);
   const card = root.querySelector('[data-model="trackastra"]')!;
@@ -1723,9 +1724,9 @@ test('a card has no step list; its Details offer Try on <specimen> for each task
   page.show('cellpose-sam');
   const tries = root.querySelector('.tool-details')!.querySelectorAll('.tool-task-try');
   expect(tries.map(b => b.textContent)).toEqual(['Try it on Human cells']); // only the task it serves here
-  // Not checked is said as what it means: trying it here does not record Hooke's own check.
+  // Ready, not checked yet is said as what it means: a run that works here makes it working here; its check is Hooke's own.
   expect(root.querySelector('.tool-details')!.querySelector('.tool-check-note')!.textContent)
-    .toBe('Not checked: Hooke’s own check of it (one run on the public example) is not recorded on this Mac yet. Trying it here runs it on your picture, which does not record that check; Check it here in its setup does.');
+    .toBe('Ready, not checked yet: it can run here, and no run of it on this Mac is recorded yet. Once a run of it works here it shows as working here; Check it here in its setup runs Hooke’s own check (one run on the public example).');
   expect(root.querySelector('.tool-tasks')!.textContent).not.toContain('Compare named models'); // the Assistant's, under More
   fire(tries[0], 'click');
   expect(used).toEqual([{ model: 'cellpose-sam', task: 'cells' }]);

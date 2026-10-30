@@ -320,8 +320,11 @@ def made_from(s) -> list[str]:
         if isinstance(finding, dict):
             ids += [x for x in finding.get("sources") or [] if isinstance(x, str) and not x.startswith("http")]
     ids += [r.get("id") for r in getattr(s, "ran", None) or [] if isinstance(r, dict)]
-    ids += [((o.get("derived") or {}).get("source") or {}).get("id") for o in getattr(s, "outputs", None) or []
-            if isinstance(o, dict) and isinstance(o.get("derived"), dict)]
+    for o in getattr(s, "outputs", None) or []:
+        if isinstance(o, dict) and isinstance(o.get("derived"), dict):  # a means chart: every table it read
+            sources = o["derived"].get("sources") if isinstance(o["derived"].get("sources"), list) else []
+            ids += [(o["derived"].get("source") or {}).get("id"),
+                    *[x.get("id") for x in sources if isinstance(x, dict)]]
     out = []
     for value in ids:
         if not isinstance(value, str):

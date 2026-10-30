@@ -163,13 +163,22 @@ def admit(kind: str, *, words: str = "", effort: str | None = None, deliverable:
         raise ResearchRefused(f"effort is one of {', '.join(CHOOSABLE)}", next=None)  # no next: the model's own argument
     if deliverable is not None and deliverable not in DELIVERABLES:
         raise ResearchRefused(f"deliverable is one of {', '.join(DELIVERABLES)}", next=None)  # no next: the model's own argument
-    effort, deliverable = effort or "quick", deliverable or "research"
+    deliverable = deliverable or "research"
+    effort = effort or default_effort(deliverable)
     # `confirmed`: the user's yes to a proposal of exactly this (brain/toolbox/research.py, start_researcher confirms).
     why = None if confirmed else explicit_refusal(words, effort, deliverable, asked_with, mode)
     if why:
         raise NeedsTheirWords(why, next="ask for it in your own words")
     require_delivery_tool(effort, deliverable)
     return Admitted(effort, deliverable, asked=asked or confirmed)
+
+
+def default_effort(deliverable: str | None) -> str:
+    """The effort when none was chosen: quick, or the smallest that can make the deliverable (a video: standard). A
+    request for a video that named no effort is made, never refused for an effort nobody chose (Will, 30 Oct: no ability
+    error); an effort the user or model did choose is kept, never raised (require_delivery_tool)."""
+    tool = DELIVERY_TOOL.get(deliverable or "")
+    return next((name for name in CHOOSABLE if tool in EFFORTS[name].tools), "quick") if tool else "quick"
 
 
 def require_delivery_tool(effort: str, deliverable: str | None) -> None:

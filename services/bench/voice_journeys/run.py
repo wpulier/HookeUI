@@ -4,10 +4,7 @@ each scored against the acceptance standard (standard.py), written as result.jso
 
   cd services && .venv/bin/python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --talk hold \\
       --plan part-2.5 --reps 3 --out /tmp/p25-rt --budget <path to budget.py>
-  cd services && .venv/bin/python -m bench.voice_journeys.run --voice gpt-live-1 --plan part-2.5 --reps 3 \\
-      --out /tmp/p25-live --budget <path to budget.py>
   cd services && .venv/bin/python -m bench.voice_journeys.run --score-only --out /tmp/p25-rt   # nothing started or spent
-  cd services && .venv/bin/python -m bench.voice_journeys.compare /tmp/p25-live /tmp/p25-rt
 
 Every paid run reserves its worst case first (`budget.py reserve pr <usd> <owner> <purpose>`) and refuses when the
 reservation is refused; it settles afterwards from what the stack recorded (its Spending: /api/spending, plus the one
@@ -28,7 +25,7 @@ from pathlib import Path
 
 from . import stack as stacks
 from .judge import COST_PER_STEP_USD, JUDGES
-from .standard import markdown, meets, read_jsonl, realtime_cost, score_run, scoreboard, summarise
+from .standard import SCORER_VERSION, markdown, meets, read_jsonl, realtime_cost, score_run, scoreboard, summarise
 
 HERE = Path(__file__).resolve().parent
 SERVICES = HERE.parents[1]
@@ -36,7 +33,7 @@ REPO = SERVICES.parent
 VOICES = ("gpt-live-1", "gpt-realtime-2.1")
 TALK = ("hold", "open")
 OWNER = "p25-rt-bench"
-# Worst cases, in dollars (PARTNER-CONTRACT.md's prices; GPT-Live's minutes plus the brain's calls): per spoken step,
+# Worst cases, in dollars (live-partner-contract.md's prices; GPT-Live's minutes plus the brain's calls): per spoken step,
 # per researcher the plan starts (bounded by the stack's research cap), per setup (once a stack), per judged step.
 STEP_USD = {"gpt-realtime-2.1": 0.55, "gpt-live-1": 0.15}
 RESEARCHER_USD = 1.50
@@ -50,7 +47,11 @@ def spoken_steps(plan: dict) -> int:
 
 
 def researchers(plan: dict) -> int:
-    return sum(int((s.get("expect") or {}).get("researchers") or 0) for s in plan["steps"])
+    """The researchers a run may start: those its steps start, plus those the app starts on its own behalf (the plan's
+    "researchersBehind": an experiment's audit), so the stack's research cap and the reservation cover them
+    (will-experiment, 30 Oct: no step counts the audit, the cap was $0.00, and every audit stopped on it)."""
+    return (sum(int((s.get("expect") or {}).get("researchers") or 0) for s in plan["steps"])
+            + int(plan.get("researchersBehind") or 0))
 
 
 def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -> float:
@@ -59,9 +60,10 @@ def worst_case(plan: dict, reps: int, voice: str, *, judge: bool, setup: bool) -
     return round(per_run * reps + (SETUP_USD if setup and plan.get("setup") else 0), 2)
 
 
-def reserve(budget: str, usd: float, purpose: str) -> str:
-    """The reservation id, or SystemExit(3) when the budget refuses it (nothing is started)."""
-    done = subprocess.run([sys.executable, budget, "reserve", "pr", f"{usd:.2f}", OWNER, purpose],
+def reserve(budget: str, usd: float, purpose: str, pot: str = "pr") -> str:
+    """The reservation id, or SystemExit(3) when the budget refuses it (nothing is started). `pot`: the budget's pot
+    it is drawn from (budget.py's pots: pr, stretch, held)."""
+    done = subprocess.run([sys.executable, budget, "reserve", pot, f"{usd:.2f}", OWNER, purpose],
                           capture_output=True, text=True)
     if done.returncode != 0:
         print(f"refused by the budget: {done.stderr.strip() or done.stdout.strip()}", file=sys.stderr)
@@ -172,7 +174,7 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
         if folder in pending and chosen is not None:
             from .judge import judge_run
 
-            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge))
+            fresh = judge_run(bench, conv, inter, plan, checkout, name=chosen, only=unjudged(folder, rejudge), logs=logs)
             old = verdicts or {}
             still = [k for k, v in old.items() if not k.startswith("_") and k not in fresh and isinstance(v, dict)
                      and not v.get("error")]
@@ -194,7 +196,7 @@ def write_results(out: Path, plan: dict, about: dict, *, logs: Path | None = Non
              "transcripts": "from the transcripts' first words (no audio timing)"}
     result = {"about": {**about, "plan": plan["id"], "reps": len(runs),
                         "audioFrom": "; ".join(heard.get(s, s) for s in sorted(sources)) or "nowhere: no runs",
-                        "judge": ", ".join(dict.fromkeys(judges)) or "none",
+                        "judge": ", ".join(dict.fromkeys(judges)) or "none", "scorer": SCORER_VERSION,
                         **({"judgesPassedOver": passed_over} if passed_over else {})},
               "summary": summary, "scoreboard": board, "meets": meets(board), "recovered": recovered,
               "staged": staged, "runs": runs}
@@ -233,6 +235,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--keys", default=str(stacks.KEYS), help="the keys file the stack (and the judge) read")
     parser.add_argument("--budget", default=os.environ.get("HOOKE_BENCH_BUDGET", ""), help="budget.py, for reserve/settle")
     parser.add_argument("--worst-usd", type=float, help="reserve this instead of the computed worst case")
+    parser.add_argument("--pot", default="pr", help="the budget pot to reserve from (pr, stretch, held)")
     parser.add_argument("--no-judge", action="store_true", help="timings and counts only: false done not measured")
     parser.add_argument("--judge", default="auto", choices=("auto", *JUDGES),
                         help="the judge: auto = gpt-6.1-sol (the default, comparable with old runs), else claude-opus-5-5, "
@@ -241,6 +244,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--acoustic", action="store_true",
                         help="play the words through this Mac's speakers into its microphone (a visible browser)")
     parser.add_argument("--no-faults", action="store_true", help="don't inject the plan's faults (forced reconnect)")
+    parser.add_argument("--settings", default="", help='settings for the stack, JSON over the plan\'s "settings" '
+                        '(e.g. {"vision": "claude-opus-5-5-fast", "think": "claude-opus-5-5"})')
     parser.add_argument("--port", type=int, default=28870)
     parser.add_argument("--bridge-port", type=int, default=28865)
     parser.add_argument("--keep-up", action="store_true", help="leave the stack running afterwards")
@@ -258,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
             if not args.budget:
                 parser.error(f"{len(judging)} run(s) need the judge: pass --budget to reserve it, or --no-judge")
             worst = round(sum(judged_steps(f, args.rejudge) for f in judging) * COST_PER_STEP_USD, 2)
-            reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}")
+            reservation = reserve(args.budget, worst, f"judge {plan['id']} x{len(judging)}", args.pot)
         try:
             with judge_keys(args.keys):
                 result = write_results(out, plan, about, judge=not args.no_judge, checkout=Path(args.checkout),
@@ -278,9 +283,10 @@ def main(argv: list[str] | None = None) -> int:
     setup_needed = bool(plan.get("setup")) and not (out / "setup" / "bench.json").exists()
     worst = args.worst_usd if args.worst_usd is not None else \
         worst_case(plan, args.reps, args.voice, judge=not args.no_judge, setup=setup_needed)
-    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}")
+    reservation = reserve(args.budget, worst, f"journey {plan['id']} x{args.reps} {args.voice}/{talk}", args.pot)
     checkout = Path(args.checkout).resolve()
-    about = {"voice": args.voice, "talk": talk, "checkout": str(checkout), "commit": commit(checkout),
+    about = {"voice": args.voice, "talk": talk, "settings": {**(plan.get("settings") or {}),
+                                                              **json.loads(args.settings or "{}")}, "checkout": str(checkout), "commit": commit(checkout),
              "acoustic": args.acoustic, "reservation": reservation, "worstUsd": worst, "started": time.time(),
              "evidence": ("recorded audio played through this Mac's speakers into its microphone" if args.acoustic else
                           "recorded audio (macOS voices) injected as the microphone") +
@@ -288,7 +294,9 @@ def main(argv: list[str] | None = None) -> int:
                           if (plan.get("camera") or {}).get("still") else "; the camera was test footage")}
     about_file.write_text(json.dumps(about, indent=1))
     up = argparse.Namespace(checkout=str(checkout), out=str(out), plan=args.plan, port=args.port,
-                            bridge_port=args.bridge_port, keys=args.keys, build=False, settings="", voice=args.voice,
+                            bridge_port=args.bridge_port, keys=args.keys, build=False,
+                            settings=json.dumps({**(plan.get("settings") or {}), **json.loads(args.settings or "{}")})
+                            if plan.get("settings") or args.settings else "", voice=args.voice,
                             talk=talk if args.voice == "gpt-realtime-2.1" else "", faults=not args.no_faults,
                             research_cap=RESEARCHER_USD * (researchers(plan) * args.reps + int(setup_needed)))
     cost = None

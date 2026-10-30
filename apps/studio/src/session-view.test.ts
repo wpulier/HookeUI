@@ -2,7 +2,7 @@
 // home; a returning one lands on its last source, held (a recording where it was left, a picture as it is), or live;
 // a start keeps what plays. Nothing is read from or kept in the browser (#252's remembered map is gone).
 import { describe, expect, test } from 'vitest';
-import { LAND_GRACE_MS, LAND_WAIT_MS, StageGate, cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, lookState, onStart, startMayLand, viewOnOpen, type StageFacts } from './session-view';
+import { LAND_GRACE_MS, LAND_WAIT_MS, StageGate, cameraHomeWanted, emptyCameraHomeWanted, ConnectionStart, lookState, onStart, startMayLand, viewOnOpen, switchBlock, type StageFacts } from './session-view';
 
 const facts = (onStage: string | null, sources: StageFacts['sources'] = []): StageFacts => ({ onStage, sources });
 const sperm = { id: 'a7', kind: 'recording', position: 192.4 };
@@ -224,5 +224,23 @@ describe('a connection\'s start: the first session message after hello lands, on
     start.hello();
     start.cleared();
     expect(start.session()).toBe(false);
+  });
+});
+
+// Talk never holds the user back (Will's bar, 2026-10-29: HeyClicky never blocks the user). Both voices follow the open
+// Project (the server tells them and refreshes the partner's brief; each tool takes a fresh pin of the studio's report),
+// so a Project switch or an input change, the user's or the voice's own, goes ahead while Talk is on. Before: "End voice
+// before switching projects" / "changing the input"; and with Talk on, a Project the voice opened never got its Tabs
+// (bench think-broad-1).
+describe('Talk never holds back a Project switch or an input change', () => {
+  test('with either voice on, in any state, the switch or the input change goes ahead', () => {
+    for (const talk of ['live', 'connecting', 'error', 'off'] as const)
+      expect(switchBlock({ connected: true, documentBlock: null, recording: false, talk })).toBe(null);
+  });
+
+  test('what still holds it back: no connection, a document that must be saved first, a recording', () => {
+    expect(switchBlock({ connected: false, documentBlock: null, recording: false, talk: 'live' })).toBe('Reconnect before switching projects.');
+    expect(switchBlock({ connected: true, documentBlock: 'Save the note first.', recording: false, talk: 'off' })).toBe('Save the note first.');
+    expect(switchBlock({ connected: true, documentBlock: null, recording: true, talk: 'live' })).toBe('Stop the recording before switching projects.');
   });
 });

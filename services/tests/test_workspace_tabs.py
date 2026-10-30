@@ -1,5 +1,6 @@
 """Original accepted Screen pins with synthetic Studio ACKs; no browser/agent acceptance."""
 import asyncio
+import contextlib
 import json
 from types import SimpleNamespace
 
@@ -121,4 +122,22 @@ def test_reopened_workspace_cannot_confirm_pending_action():
         with pytest.raises(ToolFailed, match='opening changed'):
             await task
         assert not rig.broker.pending
+    asyncio.run(run())
+
+
+def test_an_item_named_by_its_id_alone_is_added_at_its_saved_version():
+    """will-workspace, 29 Oct: "put that photo in it as the main item" was refused for want of a version, and the voice
+    said "Hooke needs an exact saved version chosen": Hooke reads the saved version itself."""
+    async def run():
+        rig = Rig()
+        rig.app.hub.resources = SimpleNamespace(
+            get=lambda resource, session: SimpleNamespace(id='d1', version=3, kind='dataset-table', title='Cells'))
+        for ref in ('d1', {'id': 'd1'}):
+            task = asyncio.create_task(rig.broker.run(rig.ctx, {'action': 'add', 'tab': 'main', 'resource': ref}))
+            command = await asyncio.wait_for(rig.client.sent.get(), HANG_S)
+            sent = json.loads(command) if isinstance(command, str) else command
+            assert sent['action']['item']['resource']['version'] == 3
+            task.cancel()
+            with contextlib.suppress(BaseException):
+                await task
     asyncio.run(run())

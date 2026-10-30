@@ -12,10 +12,16 @@ cached or returned for an actor that may not read the Project.
 Readers: the brain's `resources` (its default answer) and `research_status` tools and the voice roster
 (brain/context.py `_roster`), the researchers' session tool (`/for-researchers/api/resources/summary`) and the door's
 `project.state`. Researchers are in one order for all of them (`ordered`): running first, then finished, then stopped.
+
+The live partner's think jobs and Hooke's own work on the voice's hand-offs (voice/jobs.py, kind "hooke") are listed
+beside the researchers, numbered together by when each started (`jobs`), in `text` and `brief` (what the brain, the voice
+and think read). They are not on `project.state`'s wire yet: its schema is closed
+(contract/agent/project-state.schema.json), and adding them there is a contract change of its own.
 """
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
 import hashlib
 import json
@@ -34,6 +40,7 @@ STUDIES_MAX = 20
 OPERATIONS_MAX = 20
 WINDOWS_MAX = 40
 TABS_MAX = 24
+JOBS_MAX = 40  # researchers and think jobs `jobs` lists, the newest (numbered over all of them)
 CACHE_MAX = 16  # (actor, Project) projections kept, each its whole data list; the least recently read goes first
 BRIEF_MAX = 3000  # characters of `brief`, the whole text injected into the realtime voice and researchers
 # Each section's share of a brief, in its order (the rest is the untrusted words'): no section crowds out another.
@@ -169,8 +176,9 @@ def _item(entry, *, owner: bool = True, researchers: dict | None = None) -> dict
     if entry.kind == "research" and not owner:
         session = (researchers or {}).get(entry.id)
         summary = _public_line(session) if session is not None else f"{entry.title}: {entry.state}"
+    document = entry.kind == "result" and getattr(entry, "media", None) == "document"  # a write-up, not a measurement
     item = {"ref": {"kind": entry.kind, "id": entry.id, "revision": entry.version},
-            "category": CATEGORY.get(entry.kind, "other"),
+            "category": "other" if document else CATEGORY.get(entry.kind, "other"),
             "title": inline(entry.title, 200), "summary": inline(summary, 300), "at": float(entry.at or 0),
             "state": str(entry.state),
             "source": {"store": "researcher" if entry.kind == "research" or ":" in entry.id else "session-index",
@@ -226,6 +234,34 @@ def _researcher(s, *, owner: bool) -> dict:
     return row
 
 
+def jobs(hub, project: str | None) -> list[dict]:
+    """The Project's researchers, the live partner's think jobs and Hooke's own work on the voice's hand-offs (kind
+    "hooke") as one list, numbered together by when each started
+    (oldest first, so a number stays as others start and end): "how are they doing?", "the second one" and "cancel
+    that" mean the same for both (the part 2.5 spec, 4.4). Read by the voice's jobs tool and said by `text` and
+    `brief`. A researcher's about, step and question are its own (or its request's) words, like a think job's request."""
+    from .resources import resources_of
+    from .untrusted import inline
+    from .voice.jobs import jobs_of
+
+    rows = []
+    if project:
+        with contextlib.suppress(Exception):  # no index or no research here: its think jobs only
+            for s in resources_of(hub).researchers_of(project):
+                group = group_of(s.status)
+                asking = next((r for r in getattr(s, "requests", None) or [] if r.get("status") == "asked"), None)
+                rows.append({"kind": "researcher", "id": s.rid, "name": s.name, "number": int(getattr(s, "n", 0) or 0),
+                             "state": str(s.status), "group": group, "started": float(getattr(s, "created", 0) or 0),
+                             "about": inline(getattr(s, "label", "") or getattr(s, "brief", ""), 160),
+                             "doing": inline(s.step, 160) if group == "running" and getattr(s, "step", "") else "",
+                             "asking": inline(asking.get("what"), 160) if asking else ""})
+    rows += [job.row() for job in jobs_of(hub).of(project)]
+    rows.sort(key=lambda r: r["started"])
+    for n, row in enumerate(rows, 1):
+        row["n"] = n
+    return rows[-JOBS_MAX:]
+
+
 def ui_of(screen, project: str, now: float | None = None) -> dict:
     """What the studio's latest report says of `project` (screen.py): read on the event loop, as the reports are.
     Unavailable, with why, when no studio reports or the one that does shows another Project (never named here)."""
@@ -269,12 +305,42 @@ def ui_of(screen, project: str, now: float | None = None) -> dict:
     front = frontmost(mine)
     observed = float(report.get("at") or 0.0)
     now = time.time() if now is None else now
-    return {"state": "reported", "says": "What the studio's latest report says of this Project.",
-            "observedAt": observed, "ageMs": round(max(0.0, now - observed) * 1000, 1),
-            "visible": report.get("visible") is not False,
-            "activeTab": shown.get("tab") if isinstance(shown.get("tab"), str) else None, "windows": windows,
-            "front": ({"id": str(front.get("id"))[:120], "title": inline(front.get("title"), 120),
-                       "kind": str(front.get("kind") or "")} if front is not None else None)}
+    out = {"state": "reported", "says": "What the studio's latest report says of this Project.",
+           "observedAt": observed, "ageMs": round(max(0.0, now - observed) * 1000, 1),
+           "visible": report.get("visible") is not False,
+           "activeTab": shown.get("tab") if isinstance(shown.get("tab"), str) else None, "windows": windows,
+           "front": ({"id": str(front.get("id"))[:120], "title": inline(front.get("title"), 120),
+                      "kind": str(front.get("kind") or "")} if front is not None else None)}
+    tabs = open_tabs(shown.get("tabs"))
+    if tabs:
+        out["tabs"] = tabs
+    return out
+
+
+def open_tabs(reported) -> list[dict]:
+    """The Project's open Tabs as its Tab strip reports them (the live partner spec 4.8, horizontal 2: one truth for
+    what is on screen): each Tab's kind, whether it is in front, where its specimen is (filling it, floating, hidden)
+    and what it holds by kind, so "which Tab has the measurements?" is answered from what each holds, never its title.
+    Lenient: a Tab the report garbles is left out, never the rest (the finalisation plan's rule 4)."""
+    from .untrusted import inline
+    from .workspace_observation import ITEM_KINDS, SPECIMEN_STATES, TAB_KINDS, _holds
+
+    rows = []
+    for t in reported if isinstance(reported, list) else ():
+        if not isinstance(t, dict) or not isinstance(t.get("id"), str) or not t["id"]:
+            continue
+        row = {"id": t["id"][:120], "title": inline(t.get("title"), 120), "front": t.get("front") is True}
+        if t.get("kind") in TAB_KINDS:
+            row["kind"] = t["kind"]
+        specimen = t.get("specimen")
+        state = specimen.get("state") if isinstance(specimen, dict) else specimen
+        if state in SPECIMEN_STATES:
+            row["specimen"] = state
+        holds = {k: n for k, n in _holds(t.get("holds")).items() if k in ITEM_KINDS}
+        if holds:
+            row["holds"] = holds
+        rows.append(row)
+    return rows[:TABS_MAX]
 
 
 def stage_of(store, entries) -> dict:
@@ -627,6 +693,42 @@ def _researcher_line(r: dict, words: list) -> str:
     return row
 
 
+def _job_lines(state: dict, rows: list[dict], words: list) -> list[str]:
+    """The jobs of `jobs` in the Project view's one order (running first, then finished, then stopped; newest first in
+    each), each with its number: a researcher as its row here says it, a think job by its id and state. Their own
+    words go to `words`."""
+    by_id = {r["ref"]["id"]: r for r in state["researchers"]["items"]}
+    out = []
+    for r in sorted(rows, key=lambda r: (GROUP_RANK[r["group"]], -r["started"])):
+        if r["kind"] == "researcher" and r["id"] in by_id:
+            out.append(f"#{r['n']} " + _researcher_line(by_id[r["id"]], words))
+            continue
+        name = r["name"] if r["kind"] == "researcher" else "Hooke's work" if r["kind"] == "hooke" else "think job"
+        line = f"#{r['n']} {name} ({r['id']}): {r['state']}" + (", asking the user a question" if r.get("asking") else "")
+        if r["kind"] == "think" and r["state"] == "done" and r.get("verified") is False:
+            line += ", not all of it checked"
+        if r["kind"] == "hooke" and r["state"] == "uncertain":
+            line += " (sent, not confirmed on screen)"
+        about = " · ".join(w for w in (r.get("about"), r.get("doing") and f"now: {r['doing']}",
+                                       r.get("asking") and f"asking: {r['asking']}") if w)
+        if about:
+            words.append(f"{r['id']} ({name}): {about}")
+        out.append(line)
+    return out
+
+
+def _with_think(rows) -> bool:
+    """Whether the jobs hold more than researchers (think jobs, Hooke's own work): then they are listed as jobs."""
+    return any(r.get("kind") in ("think", "hooke") for r in rows or ())
+
+
+def _jobs_kinds(rows) -> str:
+    """What the jobs list holds, in words: "researchers and think jobs", "researchers and Hooke's own work"..."""
+    kinds = ["researchers"] + [words for kind, words in (("think", "think jobs"), ("hooke", "Hooke's own work"))
+                               if any(r.get("kind") == kind for r in rows or ())]
+    return kinds[0] if len(kinds) == 1 else ", ".join(kinds[:-1]) + " and " + kinds[-1]
+
+
 def _studio_line(state: dict, *, age: bool = True) -> str:
     ui = state["ui"]
     if ui["state"] != "reported":
@@ -666,11 +768,12 @@ def _wrapped(words: list, limit: int | None = None) -> str:
     return block("\n".join(kept), **WRAPPER) if kept else ""
 
 
-def text(state: dict, index: str | None = None) -> str:
+def text(state: dict, index: str | None = None, *, jobs: list[dict] | None = None) -> str:
     """The projection as the brain's resources tool answers "what data do we have?": each item with its exact
-    reference, what it is, who made it and with what; the researchers in their one order; Studies, agents' work and
-    the studio; then `index`, the index's own summary by kind (Index.summary_text: each kind's count and newest, what
-    is shown live, what could be made). Words that are not the app's are only inside one untrusted block."""
+    reference, what it is, who made it and with what; the researchers in their one order (with the partner's think jobs
+    beside them, numbered together, when there are any: `jobs`); Studies, agents' work and the studio; then `index`,
+    the index's own summary by kind (Index.summary_text: each kind's count and newest, what is shown live, what could be
+    made). Words that are not the app's are only inside one untrusted block."""
     project, data = state["project"], state["data"]
     words = []
     when = time.strftime("%H:%M:%S", time.localtime(state["observedAt"]))
@@ -686,7 +789,10 @@ def text(state: dict, index: str | None = None) -> str:
         lines.append(f"Researchers' own lessons, pictures, tables, charts and sources: {data['omitted']['researchersWork']} "
                      "(ask by kind: lesson, video, figure, finding-table, finding-chart, source)")
     research = state["researchers"]
-    if research["total"]:
+    if _with_think(jobs):
+        lines.append(f"Jobs ({_jobs_kinds(jobs)}, numbered together by when each started), running first, then "
+                     "finished, then stopped: " + "; ".join(_job_lines(state, jobs, words)))
+    elif research["total"]:
         more = research["total"] - len(research["items"])
         lines.append("Researchers, running first, then finished, then stopped: "
                      + "; ".join(_researcher_line(r, words) for r in research["items"])
@@ -712,7 +818,7 @@ def text(state: dict, index: str | None = None) -> str:
     return out + ("\n" + _wrapped(words) if words else "")
 
 
-def brief(state: dict, max_chars: int = BRIEF_MAX) -> str:
+def brief(state: dict, max_chars: int = BRIEF_MAX, *, jobs: list[dict] | None = None) -> str:
     """The owner's project.state as one compact text for the realtime voice and researchers, injected whole as one
     replaced item: never written to disk, never an editable file, and never longer than `max_chars` (BRIEF_MAX, 3000).
     Sections in a fixed order, each in its own share of the cap (BRIEF_SHARES) of whole lines, then how many more:
@@ -755,10 +861,16 @@ def brief(state: dict, max_chars: int = BRIEF_MAX) -> str:
                          more=f"and {{n}} more of these; {data['total'] - len(rows)} older (resources lists them)"
                          if data["total"] > len(rows) else "and {n} more (resources lists them)"))
     research = state["researchers"]
-    rows = [_researcher_line(r, words) for r in research["items"]]
-    parts.append(section([f"Researchers (running first; {research['running']} running, {research['finished']} finished, "
-                          f"{research['cancelled']} stopped):" if research["total"] else "Researchers (none).", *rows],
-                         BRIEF_SHARES["researchers"]))
+    if _with_think(jobs):  # think jobs and Hooke's own work beside the researchers, numbered together (`jobs`)
+        rows = _job_lines(state, jobs, words)
+        running = sum(1 for r in jobs if r["group"] == "running")
+        parts.append(section([f"Jobs ({_jobs_kinds(jobs)}, numbered together by when each started; running "
+                              f"first; {running} running):", *rows], BRIEF_SHARES["researchers"]))
+    else:
+        rows = [_researcher_line(r, words) for r in research["items"]]
+        parts.append(section([f"Researchers (running first; {research['running']} running, {research['finished']} "
+                              f"finished, {research['cancelled']} stopped):" if research["total"]
+                              else "Researchers (none).", *rows], BRIEF_SHARES["researchers"]))
     tabs = state["tabs"]["items"]
     rows = [f"- {inline(t['title'], 60)} ({t['id']}): {t['windows']} windows" for t in tabs]
     parts.append(section(["Tabs: " + _studio_line(state, age=False), *rows], BRIEF_SHARES["tabs"]))

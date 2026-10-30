@@ -50,7 +50,7 @@ def test_a_renewal_that_fails_closes_the_provider_whatever_the_browser_does(monk
         return False
 
     monkeypatch.setattr(api_usage.VoiceUsage, "renew", renew)
-    with client.websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+    with client.websocket_connect("/ws/voice?model=gpt-live-1", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         assert json.loads(ws.receive_text())["kind"] == "model"
         said = json.loads(ws.receive_text())
         assert said["kind"] == "error" and "monthly cap" in said["data"]["message"]
@@ -76,7 +76,7 @@ def test_a_start_that_fails_after_acquiring_closes_it_before_its_allowance_is_se
         real_finish(self, confirmed, why)
 
     monkeypatch.setattr(api_usage.VoiceUsage, "finish", finish)
-    with client.websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+    with client.websocket_connect("/ws/voice?model=gpt-live-1", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         said = json.loads(ws.receive_text())
         assert said["kind"] == "error" and "session.start refused" in said["data"]["message"]
     assert FailsToStart.made[0].closed and order == ["settled"]
@@ -120,7 +120,7 @@ def test_anything_after_the_provider_is_acquired_that_fails_closes_it_and_releas
         raise RuntimeError("the browser went away")
 
     monkeypatch.setattr(route, "_sha", broken)  # fails right after the first message is sent
-    with client.websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+    with client.websocket_connect("/ws/voice?model=gpt-live-1", headers={"origin": "http://127.0.0.1:8770"}) as ws:
         assert json.loads(ws.receive_text())["kind"] == "model"
     session = FakeSession.made[0]
     until(lambda: session.closed and ledger.month()["inFlightUsd"] == 0)
@@ -236,7 +236,7 @@ def test_every_way_a_route_ends_closes_then_settles_through_the_owned_cleanup(mo
         monkeypatch.setattr(api_usage.VoiceUsage, "renew",
                             lambda self: (calls.append(1), real(self) if len(calls) == 1 else False)[1])
     with __import__("contextlib").suppress(BaseException):
-        with client.websocket_connect("/ws/voice", headers={"origin": "http://127.0.0.1:8770"}) as ws:
+        with client.websocket_connect("/ws/voice?model=gpt-live-1", headers={"origin": "http://127.0.0.1:8770"}) as ws:
             with __import__("contextlib").suppress(BaseException):
                 ws.receive_text()
                 ws.receive_text()
@@ -423,7 +423,7 @@ def test_repeated_cancellation_while_a_failed_setup_closes_still_lets_the_app_go
     endpoint = next(r.endpoint for r in app.routes if getattr(r, "path", "") == "/ws/voice")
 
     class Socket:
-        headers, query_params, client = {"origin": "http://127.0.0.1:8770"}, {}, None
+        headers, query_params, client = {"origin": "http://127.0.0.1:8770"}, {"model": "gpt-live-1"}, None
 
         async def accept(self): pass
         async def send_text(self, text): pass

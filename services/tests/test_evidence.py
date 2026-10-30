@@ -293,3 +293,43 @@ def test_ids_made_but_never_saved_are_not_given_again_after_a_restart(tmp_path):
     store.add(p)
     again = Evidence(SimpleNamespace(), None, day=DayStore(root=tmp_path / "sessions", day="2026-10-07"))
     assert again.new_id() == "e2" and again.member_id() == "c4"
+
+
+def test_kept_tables_of_background_runs_never_fill_the_researchers_working_allowance(tmp_path):
+    """will-experiment, 29 Oct (measure-c4acc90): Experiment 2 stopped at frame 4 with "a researcher's analyses fill their
+    allowance (24 of 24 MB)" and Experiment 3 at its second run (20 of 24 MB). Each model run of an experiment (and each
+    of a researcher's own segment runs) is made at research priority, so its evidence is held in the "research"
+    allowance, which is sized for one run at a time; once saved, its table stayed resident split from that hold, in that
+    allowance, for as long as the population was loaded. Experiment 1's ten tables and Experiment 2's first six filled it.
+    A saved background run's table is now kept in an allowance of its own ("kept"), so the researchers' working allowance
+    is free again once each run is saved."""
+    from orchestrator.capture import MB, Captures, Memory
+
+    hub = SimpleNamespace()
+    first = view(1)
+    hold_bytes = first.footprint("evidence")
+    memory = Memory({"interactive": 64, "analysis": 64, "unsaved": 8, "research": 2 * hold_bytes / MB, "kept": 64})
+    hub.captures = Captures(hub, memory)
+    store = Evidence(hub, tmp_path / "evidence", day=DayStore(root=tmp_path / "sessions", day="2026-10-07"))
+    kept = []
+    for n in range(12):  # an experiment's ten runs and two more
+        capture = first if n == 0 else view(n + 1)
+        hold = hub.captures.hold(capture, "research", "evidence", "evidence being made")
+        p = population(store, capture, n=40)
+        p.hold = hold
+        store.add(p)
+        store.schedule_save(p)
+        assert saved(p).status == "saved", p.status_why
+        kept.append(p)  # loaded, as the session keeps them
+        assert memory.reserved["research"] == 0, n
+    assert memory.reserved["kept"] > 0 and memory.refused["research"] == 0
+    hub.captures.hold(view(99), "research", "evidence", "the next run").release()  # the next run still fits
+    # With no room kept for tables (a stand-in memory without one), the table stays where it was, as before.
+    tight = Memory({"interactive": 64, "analysis": 64, "unsaved": 8, "research": 64})
+    hub.captures = Captures(hub, tight)
+    capture = view(100)
+    p = population(store, capture, n=5)
+    p.hold = hub.captures.hold(capture, "research", "evidence", "evidence being made")
+    store.add(p)
+    store.schedule_save(p)
+    assert saved(p).status == "saved" and tight.reserved["research"] > 0 and tight.reserved["kept"] == 0

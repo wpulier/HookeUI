@@ -56,6 +56,16 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
   requirement kind has a source (`observed.SOURCES`), and no ✗ on a card is without evidence (both tested).
   The local-only Example project asks no one (`api_usage.require_provider`), so a licence not yet asked says so there
   (`observed.NOT_ASKED_STEP`: open another project to finish setting it up), never "asked in a moment" (F-L8-4).
+  **Real use** is kept the same way (kind "use", `observed.used`), in the app's own home beside its checks
+  (`uses.json`, opened by server.py's lifespan only, so tests and the sim keep their own): each
+  run of an entry `operations.Runner` records (`operations._used`, by `IMPL_MODEL`), each cloud call through
+  `api_usage.attempt` (its `outcome` hook, by the entry's API version) and each voice session that opened, as its latest
+  outcome with when; the app's own cut-offs, runs that never reached the model, blind trials before their vote and the
+  app's own check (`observed.not_use`) are not use. The card (`catalog_view.face`) is on with `by: "use"`, "Working here
+  · last ran 14:02", when the newest evidence is a run that worked (`readiness.newest_use`: the later of it and a passed
+  check counts), Broken with its words when it is one that failed (`readiness.failed_in_use`), and otherwise as before:
+  ready to run with neither is "unchecked", said Ready · not checked yet (Will, 2026-10-29: Claude Opus 5.5 answered him
+  all session while its card said "Not checked", grey). Its Check it here stays, in `also`.
 - **One readiness for contributed choices:** a contributed or AI-made capability becomes a choice only once its own
   functional proof passed (`kinds.py`). The app has no check of its own for it (`model_checks.find` is None), so that
   proof is its role option's check, and checking it again reruns the proof (`catalog_view.own_proof`): the Models
@@ -234,6 +244,18 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
 - **The agent relays it** (`brain/toolbox/catalog.py`; `catalog/README.md` "Asking the agent"):
   - **`models` (query):** the page in words: what your choices need, a model, a job or a key ("what does my Google
     key turn on?"). A download it can take next is offered with an id (`p1`, kept 180 s).
+  - **What Hooke has and could add for some work** (`models` `does`; live 2026-10-29, "what segmentation models do we
+    have, and what others could we add?" was asked of the Outlining job alone and the rest guessed): the model names the
+    kinds of work the request means (the catalog's operations, each with its title and what it gives, in the tool's
+    parameters); each row's `does` is read from its manifest (`catalog_view.operations_of`), New for you's too. The answer
+    (`catalog_view.work_words`) is every entry that does them, installed or not, models apart from tools (the manifest's
+    kind: a tool is an algorithm or a Fiji function; will-workspace 30 Oct had Analyze Particles answered as a model), each
+    by where it stands (working here, installed but not run yet, can be added with where it runs and every step: a
+    download's size, or that its manifest gives none, never readiness's "1 MB" floor; a key by its service; its setup;
+    can't run here), then what is new, how one not in the catalog is added
+    (the reviewed templates' links, a Cellpose file, Have an AI build it) and the other kinds; a job named is answered
+    the same way, and `capabilities` by operation says the entries not set up. It is compact, most needed first: the
+    round that answers from a query reads about 1,900 characters of its text (`brain/claims.py` `answer_facts`).
   - **`get_model` (effect):** starts exactly that download on the user's own yes (`confirms`, `asked_with` checked by
     `research/policy.quoted`), through the page's queue. Asking for one by name ("please download DINOv3") is that
     yes: their words must name it, and only a download its card offers (live 2026-10-12 it was asked back).

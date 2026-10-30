@@ -330,6 +330,44 @@ export interface ChatLine {
   labels?: string[];
 }
 
+/** The voice handed a request to Hooke's brain (`do_in_hooke`; services/orchestrator/voice/handoffs.py): one row in the
+ * chat under the voice line that started it (handoffs.ts), filed with its conversation under `lineId`, so a later state
+ * replaces the earlier one. Working until the brain's turn returns (`long` once past the voice's wait: still working),
+ * then done from its answer with no step that failed, or failed with its reason; `settling`: answered while a step still
+ * runs, settled from that step's own receipt (a `chat-action` by occurrence); started: what it did was start a
+ * researcher (its work goes on, on its card); uncertain: a change sent that Hooke could not confirm on screen (it may not
+ * have happened, never "did not work"); unknown: no result was recorded. */
+export interface HandoffLine {
+  type: 'handoff';
+  id: string;
+  lineId?: string;
+  state: 'working' | 'done' | 'started' | 'uncertain' | 'failed' | 'unknown';
+  /** Its title: the voice's few plain words for it ("Reference photo of a stoma"), else the request's own. */
+  label: string;
+  /** The request as handed over, in the user's words. */
+  request?: string;
+  /** When it was handed over and when it ended (epoch seconds, the server's clock). */
+  startedAt: number;
+  endedAt?: number;
+  long?: boolean;
+  settling?: boolean;
+  /** The brain's answer, and why it did not work. */
+  answer?: string;
+  reason?: string;
+  /** The steps the brain took (its ToolRuns: their words, models and time, and identity for a late receipt). */
+  steps?: ToolRun[];
+  /** The brain's turn: its Activity entry. */
+  turnId?: number;
+  /** A step the user asked for after the work this starts (services/orchestrator/voice/followups.py): kept with the
+   * researcher it started (`rid`, `after`: its name) and done by Hooke when that one lands, or right after this. */
+  then?: { words: string; state: 'planned' | 'waiting' | 'running' | 'done' | 'failed' | 'dropped'; after?: string; rid?: string; reason?: string };
+  /** This hand-off is such a step: done after that work finished ("Researcher 2"). */
+  after?: string;
+  at?: number;
+  thread?: string | null;
+  day?: string | null;
+}
+
 /** A tool of an earlier answer finished: that answer's action line updates in place. */
 export type ChatAction = {
   type: 'chat-action'; turnId: number; thread?: string | null; day?: string | null; answer?: string;
@@ -741,6 +779,9 @@ export type ServerMessage =
   // The Assistant's measurements table in the window Open in Measurements opens, on the Tab named (agent-table.ts;
   // orchestrator/table_window.py): answered by table-window-result, done once the screen report shows it.
   | import('./agent-table').TableWindowRequest
+  // A web page or video from the web in a sandboxed window on the Tab named (web-window.ts; orchestrator/web_window.py):
+  // answered by web-window-result, done once the screen report shows it, its frame loaded.
+  | import('./web-window').WebWindowRequest
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
   // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
@@ -774,7 +815,11 @@ export type ServerMessage =
   | CapabilitiesWire
   | ScaleState
   | CoachState
-  | { type: 'thinking'; on: boolean; phase?: 'answering' } // answering: its steps have run, its answer is being written
+  // answering: its steps have run, its answer is being written. A voice hand-off's working signal (channel "voice",
+  // claude/p25-w1) carries its hand-off's id, job, label and, when off, its state; its row and the voice's state show it,
+  // never the typed slot.
+  | { type: 'thinking'; on: boolean; phase?: 'answering'; id?: string; channel?: 'chat' | 'voice'; job?: string; label?: string;
+      state?: 'done' | 'failed' | 'uncertain' | 'running' | 'cancelled' | 'cancelling' }
   | SessionState
   | SessionsList
   | SessionCleared // actual App reset: a new session, or a switch to another one
@@ -783,6 +828,7 @@ export type ServerMessage =
   | ThreadReplay
   | ChatAction
   | ChatAnswerStatus
+  | HandoffLine // a request the voice handed to Hooke's brain, as it goes (handoffs.ts)
   | AppNotice
   | ActivityEvent // a line of Activity (activity.ts): a request's record, a click, a studio action, a setting, a load
   | { type: 'hint'; text: string; tone?: 'error' | '' } // a passing status line under the view, not a chat post
@@ -797,6 +843,9 @@ export type ServerMessage =
   | { type: 'notes'; full?: Record<string, NoteEntry>; upsert?: Record<string, NoteEntry> }
   | { type: 'research'; session: ResearchSession; spentToday: number; estimatedToday?: number }
   | { type: 'research-list'; sessions: ResearchSession[]; spentToday: number; estimatedToday?: number }
+  // An experiment's card, as its server record says it (experiments.py), and the open Project's experiments.
+  | { type: 'experiment'; experiment: import('./experiment-card').ExperimentWire }
+  | { type: 'experiments'; session: string; experiments: import('./experiment-card').ExperimentWire[] }
   | PresentMessage // a change of something on screen, done once a screen report shows it (screen.ts)
   | { type: 'screen-look'; id: string; schema?: never } // legacy approximate composition only
   | WorkspaceCaptureRequest
@@ -897,7 +946,8 @@ export interface ModelFact {
 export interface ModelUse { role: string; title: string; option: string; options: string[]; current: boolean; fixed: boolean }
 /** One catalog entry as the Models page shows it (catalog_view.rows). */
 export interface ToolAbility { id: string; title: string; what: string; actor: string; say: string; preview?: string; role: string; option: string; current: boolean }
-export interface ToolFace { state: string; says: string; action: ({ kind: string; says: string; model?: string; key?: string } & Partial<ReadinessStep>) | null; also: { kind: string; says: string; model?: string; key?: string }[] }
+/** A card's face (catalog_view.face): `by: 'use'` when what shows it working is its real use here, not Hooke's own check. */
+export interface ToolFace { state: string; says: string; by?: 'use'; action: ({ kind: string; says: string; model?: string; key?: string } & Partial<ReadinessStep>) | null; also: { kind: string; says: string; model?: string; key?: string }[] }
 export interface ToolSetup { ready?: boolean; recipe?: string; current?: string; role: string; title: string; option: string; plan: NonNullable<import('./capabilityshelf').ShelfCard['turnOn']> | null; recheck: boolean; canTry: boolean; check?: ModelCheck | null }
 export interface ToolTrial { role: string; option: string; title: string; try: { command: string; job?: string; option?: string; model?: string } }
 export interface ModelRow extends Readiness {
@@ -1374,7 +1424,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'library_looks' | 'talk' | 'talk_key';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'naming_model' | 'library_looks' | 'talk' | 'talk_key' | 'heard_cue' | 'partner_acts' | 'partner_speaks' | 'think' | 'look_hard' | 'watch';
 
 export interface ModelOption {
   id: string;
@@ -1410,6 +1460,13 @@ export interface Settings {
   voicelink?: string;
   talk?: string; // how the one-brain voice hears you: "hold" (hold to talk) | "open" (open mic, headphones) (options.py TALK)
   talk_key?: string; // the key held to talk: "control-option" | "right-option" (options.py TALK_KEY; talk.ts)
+  heard_cue?: string; // the sign it heard you: "tone" (ring and a soft tone) | "ring" (options.py HEARD_CUE)
+  partner_acts?: string; // how the live partner gets things done in Hooke: "brain" | "direct" (options.py PARTNER_ACTS)
+  partner_speaks?: string; // when the live partner speaks in a turn: "after-deciding" | "as-it-decides" (options.py PARTNER_SPEAKS)
+  think?: string; // the frontier mind behind the one-brain voice: "claude-opus-5-5" | "gpt-6.1-sol" (options.py THINK)
+  look_hard?: string; // the live partner's close look: "gemini-4-argon" | "claude-opus-5-5" (options.py LOOK_HARD)
+  naming_model?: string; // which model names an outline: "close-look" | "quick-look" (options.py NAMING_MODEL)
+  watch?: string; // what the watcher says unasked: "quiet" | "chatty" | "off" (options.py WATCH; view_watch.py)
   taught?: string; // matching the labels the user teaches: "on" | "off"
   lesson_check?: string; // lessons' steps checked for needing the picture (research_worker/lesson_check.py)
   seen?: string; // telling naming the outline named earlier today most like it (orchestrator/seen.py): "on" | "off"
@@ -1450,8 +1507,36 @@ export interface MarksMessage { type: 'marks'; id: string; marks: MarkSpec[]; un
 export interface MarksClear { type: 'marks-clear'; id?: string }
 /** The call ended (its 60-minute limit, a provider error): answer with a fresh offer on the same socket. */
 export interface Reoffer { type: 'reoffer'; id: string; why?: string }
-export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer;
-export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer'];
+/** Hands (the live-partner spec 4.2): who has control, and the control version every intent is bound to. While the
+ * partner has it, the user's input takes it back (drive.ts Takeover). */
+export interface ControlMessage { type: 'control'; version: number; owner: 'partner' | 'user'; ack?: boolean; at?: number }
+/** The partner cursor's cue before an intent runs: its target by the marks' ids (or control:<element id>) and a caption. */
+export interface DriveIntent { kind: 'open' | 'close' | 'focus' | 'highlight' | 'select' | 'zoom' | 'outline' | 'present' | string;
+  target: string; caption?: string; style?: 'cursor' | 'ring'; region?: [number, number, number, number]; polygon?: [number, number][] }
+export interface DriveMessage { type: 'drive'; id: string; version: number; intent: DriveIntent; frame?: MarkFrameRef }
+export type DriveOutcome = 'verified' | 'failed' | 'uncertain' | 'running';
+export interface DriveEnd { type: 'drive-end'; id: string; outcome?: DriveOutcome }
+/** A sign it heard you (the live-partner spec, decision 1): sent as released turn `n` begins (voice/partner.py
+ * Partner.heard); the hold ring settles and, with HEARD_CUE "tone", a soft tone plays (heard.ts). Never a word. */
+export interface HeardMessage { type: 'heard'; n: number }
+/** The voice's state, the server's truth of it (voice/presence.py; voice-presence.ts shows it): the key held
+ * (listening), the released turn taken (heard), an answer being made with nothing playing (thinking), its words audible
+ * (speaking), Hooke's own work in flight and nothing else (working, `n` of it: each one's key is the in-progress strip's,
+ * `handoff:<id>` or `job:<id>`), live and ready (idle), Talk ended (off). Sent at each change; `seq` rises. */
+export interface VoiceStateMessage {
+  type: 'voice-state';
+  state: 'listening' | 'heard' | 'thinking' | 'speaking' | 'working' | 'idle' | 'off';
+  n: number;
+  working: { key: string; label: string; since: number }[];
+  seq: number;
+  /** When it changed (epoch seconds, the server's clock), and the turn it is in. */
+  at: number;
+  turn?: number;
+}
+export type PartnerMessage = SnapshotRequest | MarksMessage | MarksClear | Reoffer | ControlMessage | DriveMessage | DriveEnd | HeardMessage
+  | VoiceStateMessage;
+export const PARTNER_MESSAGES: readonly PartnerMessage['type'][] = ['snapshot-request', 'marks', 'marks-clear', 'reoffer', 'control', 'drive', 'drive-end', 'heard',
+  'voice-state'];
 /** Which marks the studio drew (and why not the others), so the `mark` tool says what is on screen. */
 export interface MarkResolution { target: string; ok: boolean; rect?: [number, number, number, number]; why?: string }
 // Studio -> server.
@@ -1462,7 +1547,9 @@ export type PartnerCommand =
   | { type: 'snapshot'; id: string; error: string }
   | { type: 'marks-shown'; id: string; resolved: MarkResolution[] }
   | { type: 'offer'; sdp: string; id: string } // a server's reoffer id, or the studio's own rc-<n> after a dropped connection
-  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number }; // the voice's measured output, as it changes
+  | { type: 'voice-phase'; phase: 'speaking' | 'listening'; at: number } // the voice's measured output, as it changes
+  | { type: 'drive-shown'; id: string; ok: boolean; rect?: [number, number, number, number]; why?: string } // the cue reached its target
+  | { type: 'takeover'; version: number; why: 'mouse' | 'escape' | 'talk'; at: number }; // the user took control back
 
 const MAGIC = 'MMF1';
 
@@ -1503,6 +1590,7 @@ export type ClientCommand =
   | { type: 'model-reveal'; model: string } // its folder in the Finder (the Models page); '' the models folder itself
   | { type:'workspace-tabs-result';id:string;session:string;workspacePin:Record<string,unknown>;result:Record<string,unknown> }
   | { type:'table-window-result';id:string;session:string;workspacePin:Record<string,unknown>;result:import('./agent-table').TableWindowResult }
+  | { type:'web-window-result';id:string;session:string;workspacePin:Record<string,unknown>;result:import('./web-window').WebWindowResult }
   | { type: 'page-opened'; id: string; page: string; shown: boolean; visible: boolean } // the answer to open-page
   | { type: 'model-turn-on'; model: string; trial?: string } // one entry's Turn it on (an added link, a new one); trial: Set up for comparison's picture
   | { type: 'model-publish-prepare'; model: string; destination?: 'review' | 'community' }
@@ -1643,6 +1731,8 @@ export type ClientCommand =
   | { type: 'research-note'; rid: string; text: string; requestId?: string;
       expectedBase?: number | null; selection?: ResearchTarget }
   | { type: 'research-cancel'; rid: string }
+  // An experiment's card (experiment-card.ts; experiments.py): Run it (exactly the plan's version shown), Stop, Open results.
+  | { type: 'experiment'; action: 'run' | 'stop' | 'open'; id: string; version?: number }
   | { type: 'research-evidence'; rid: string; day: string; questionId: string; run: number; choice: 'hold' | 'decline'; requestId: string }
   | { type: 'research-presentation'; action: 'produce'; rid: string; requestId: string; findingVersion: number;
       findingDigest: string; expectedBase: string | null; model?: string; change?: string; contentKind?: 'report' | 'lesson' }

@@ -85,7 +85,9 @@ def add_finding_tools(registry: Registry, services) -> None:
                       "are the ones asked for; best for many cells of a smear or tissue (red or white blood cells, cheek "
                       "cells), not for tiny things like platelets or bacteria (blood smear bench: every red cell 0.90 found this way against 0.60 by looking). "
                       "It sees the camera's picture only, never the outlines the app draws (by their colour: highlight where).",
-                      schema({"what": {"type": "string", "description": "what to find (for \"concept\": the thing's name alone)"},
+                      schema({"what": {"type": "string", "description": "what to find: the thing the user named, whole, as "
+                                                                       "they see it, never a part inside it unless they named "
+                                                                       "that part (for \"concept\": the thing's name alone)"},
                               "inside": OBJECT,
                               "like": {"type": "string", "description": 'every thing like this outlined one ("find all like '
                                                                         'this", "the others like it"): object id or "that"'},
@@ -93,5 +95,8 @@ def add_finding_tools(registry: Registry, services) -> None:
                               "keep": {"type": "boolean", "description": "keep earlier highlights too"},
                               "keep_container": {"type": "boolean", "description": "default true; false replaces only the app-drawn inside outline after a successful find, preserving user outlines"},
                               "by": {"type": "string", "enum": list(BY),
-                                     "description": '"look" (default), "cells", or "concept" (SAM 3.1 matches the words; on these slides an example works better)'}}, ["what"]),
+                                     "description": '"look" (default: the app\'s eyes find the thing meant and its segmenter outlines it, as a click does; '
+                                                    'what "segment that" or "use a segmentation model on it" means for one thing), "cells", '
+                                                    'or "concept" (SAM 3.1 finds every match of a kind named by its name; on these slides '
+                                                    'words often find nothing and an example works better)'}}, ["what"]),
                       find, inline_ms=3500, family="finding", outline_refs=("like",)))

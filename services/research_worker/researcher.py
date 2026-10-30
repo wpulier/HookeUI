@@ -35,6 +35,8 @@ from . import claims as claim_check
 from . import evidence as evidence_check
 from . import transcript
 from .limits import FIELD_MAX, HOLD_MAX_S, TooLong, whole
+from .api_usage import refusal, refusal_clause
+from . import video
 from .budget import (ALIVE_EVERY_S, CALL_MOST, CELL_FINDERS, CHART_TOOLS, CHECK_IN_COST_X, CHECK_IN_S, CHECK_IN_WAIT_S, EFFORTS, PRICES,
                      RUN_OPERATIONS, RUN_WAIT_MAX_S, STALL_ROUNDS, WRAP_UP_AT,
                      Budget, OverBudget, estimate_cancelled, image_cost, operation_limit, tokens_cost)
@@ -50,8 +52,12 @@ from .work import (LESSON, UnreadableReply, REVISE_LABELS, REVISE_LESSON, SCHEMA
                    inline_photo, json_reply, named_steps, offline_lesson, slug, trim)
 
 IMAGE_MODEL_DEFAULT = "gpt-image-2.5-flare"
-VIDEO_MODEL = "veo-3.1-fast-generate-preview"
-VIDEO_NAME = "Veo 3.1 Fast"  # its one name (catalog/models/veo-3.1-fast), said when it can't be used
+# The picture models' one names (catalog/models/<id>/model.toml `name`; a test keeps them the same), said when one can't be
+# used: the research process does not import the app.
+IMAGE_NAMES = {"gpt-image-2.5-flare": "GPT Image 2.5 Flare", "gpt-image-2.5-sunburst": "GPT Image 2.5 Sunburst",
+               "gemini-3.1-flash-image": "Gemini 3.1 Flash Image"}
+VIDEO_MODEL = video.MODEL  # research_worker/video.py: Veo 3.1 Fast's successor since Google retired it
+VIDEO_NAME = video.NAME  # its one name (catalog/models/gemini-omni-flash), said when it can't be used
 CHART_TABLE_MAX = 2_000_000  # characters of one table a chart reads whole (measurement_charts.py)
 LESSON_CLAUDE = "claude-sonnet-5-5"  # lessons when ANTHROPIC_API_KEY is set (capability role fixed:lesson-writer)
 LESSON_FALLBACK = "gpt-6.1-sol"  # lessons otherwise
@@ -144,6 +150,7 @@ def lesson_writer() -> str:
 
 
 LESSON_MAX_OUTPUT = 16_000
+PAGE_MAX_CHARS = 400_000  # a researcher's own HTML page (make_page): slides or a small visual, its data inline
 EDIT_MAX_OUTPUT = 8_000
 CHECK_MAX_OUTPUT = 4_000
 
@@ -243,6 +250,9 @@ class Researcher:
         self.saved_finding_refs: set[str] = set()  # scientific revisions survive a later presentation failure
         self.outputs = 0
         self.made: list[dict] = []  # this run's outputs, as emitted (for a partial result)
+        # Models this run could not use, each with why and what to do (api_usage.refusal): its result says them as facts
+        # (`unavailable`), whatever its write-up says (the live partner spec's 4.8, horizontal 4).
+        self.unavailable: list[dict] = []
         self.failed_urls: dict[str, str] = {}  # url -> why it could not be fetched (never fetched again)
         self.fetch_tries: dict[str, int] = {}  # url -> fetches that failed for a reason that may pass (FETCH_TRIES)
         self.spent_estimated = 0.0  # calls cancelled by a stop (billed, usage unknown)
@@ -483,6 +493,14 @@ class Researcher:
         return "A note from the user while you work: " + " / ".join(notes)
 
     # --- what the engine needs ---------------------------------------------------------
+    def final_tools(self) -> list[str]:
+        """The tools of a round made to write up: finish, and make_page while no page is made yet, so slides or a visual
+        the user asked for are made from what it has rather than cut off (live, 30 Oct: "make me a short presentation"
+        ended "I haven't built the presentation yet" after the stall rule made it write up)."""
+        if "make_page" in self.tool_names() and not getattr(self, "pages_made", 0):
+            return ["make_page", "finish"]
+        return ["finish"]
+
     def tool_names(self) -> list[str]:
         allowed = [n for n in SCHEMAS if n in self.effort.tools]
         deliverable = self.spec.get("deliverable")
@@ -500,12 +518,12 @@ class Researcher:
             # A follow-up question about finished work: answered from that work (in the brief)
             # and the web; nothing new is made, so no pictures, snapshots, videos or lessons.
             allowed = [n for n in allowed if n not in ("fetch_reference_image", "snapshot", "annotate_image", "generate_image",
-                                                       "make_video", "make_lesson", *CHART_TOOLS)]
+                                                       "make_video", "make_lesson", "make_page", *CHART_TOOLS)]
         if self.spec.get("purpose") == "description":
             # Fast, and about the kind of thing: no pictures, no snapshots (enrich.py fetches refs),
             # and no relabelling, since it never sees the specimen (it only had the label).
             allowed = [n for n in allowed if n not in ("fetch_reference_image", "snapshot", "annotate_image", "generate_image",
-                                                       "propose_correction")]
+                                                       "propose_correction", "make_page")]
         if not self.crop_jpeg and not self.frame_jpeg:
             allowed = [n for n in allowed if n != "annotate_image"]
         if self.session_index is None or self.spec.get("purpose") == "description":
@@ -569,6 +587,14 @@ class Researcher:
         finders = snap.get("cellFinders") if isinstance(snap.get("cellFinders"), dict) and snap.get("cellFinders") else CELL_FINDERS
         return capabilities, finders
 
+    def classifiers(self) -> dict:
+        """Every model classify can name, as the app said as this run started (its static list for an older app)."""
+        from .budget import CLASSIFIERS
+
+        snap = (getattr(self, "spec", None) or {}).get("snapshot") or {}
+        given = snap.get("classifiers")
+        return given if isinstance(given, dict) and given else CLASSIFIERS
+
     def run_schema(self, schema: dict) -> dict:
         """run, with the capabilities on here as one more operation (each its key, with its parameters) and the cell
         finders the app has now."""
@@ -578,6 +604,11 @@ class Researcher:
         capabilities, finders = self.door()
         props = schema["parameters"]["properties"]
         props["implementation"]["enum"] = list(finders)
+        if "models" in props:
+            classifiers = self.classifiers()
+            props["models"]["items"]["enum"] = list(classifiers)
+            props["models"]["description"] = "classify only: the models, by id (" + "; ".join(
+                f"{k} = {v}" for k, v in classifiers.items()) + ")"
         props["implementation"]["description"] = ("segment only: the cell finder, by id (" + "; ".join(
             f"{k} = {v}" for k, v in finders.items()) + "); the app's default if not given. Motion is measured one way "
             "(spots followed frame to frame)")
@@ -733,6 +764,18 @@ class Researcher:
         fresh = args.get("fresh", False)
         if not isinstance(fresh, bool) or (fresh and operation != "motion"):
             return {"error": "fresh is a boolean for motion's upcoming camera interval"}, None
+        models, classes = args.get("models"), args.get("classes")
+        if operation == "classify":
+            from .budget import MAX_CLASSIFIERS
+
+            known = self.classifiers()
+            if (not isinstance(models, list) or not 2 <= len(models) <= MAX_CLASSIFIERS
+                    or any(not isinstance(m, str) or m not in known for m in models)):
+                return {"error": f"models are two to {MAX_CLASSIFIERS} of: {', '.join(known)}"}, None
+            if classes is not None and (not isinstance(classes, list) or any(not isinstance(c, str) for c in classes)):
+                return {"error": "classes are a list of names"}, None
+        elif models is not None or classes is not None:
+            return {"error": "models and classes belong only to classify"}, None
         limit = operation_limit(self.effort.name)
         if self.runs >= limit:
             return {"error": f"at most {limit} operations in one run: work from what they made"}, None
@@ -777,6 +820,8 @@ class Researcher:
                                    **({"selection": selection} if selection is not None else {}),
                                    **({'runId': self.spec.get('run_id')} if operation in ('measure_saved_objects','workflow') else {}),
                                    **({'params':args['params']} if operation=='workflow' else {}),
+                                   **({"models": list(models), **({"classes": list(classes)} if classes else {})}
+                                      if operation == "classify" else {}),
                                    **({"fresh": True} if fresh else {}))
         if reply.get("ok"):
             self.runs += 1  # a refusal ("another researcher's operation is running") uses none of its runs
@@ -980,8 +1025,8 @@ class Researcher:
             return self._offline_image(source, count)
         if model.startswith("gemini"):
             return await self._gemini_image(model, prompt, source, count)
-        client = openai.AsyncOpenAI(max_retries=0)  # one admitted attempt, never hidden SDK retries
         try:
+            client = openai.AsyncOpenAI(max_retries=0)  # one admitted attempt, never hidden SDK retries
             if source is not None:
                 buf = io.BytesIO(source)
                 buf.name = "photo.png"
@@ -991,6 +1036,8 @@ class Researcher:
         except asyncio.CancelledError:
             self.cancelled_call(model, usd=0.04)
             raise
+        except Exception as exc:  # noqa: BLE001 - why is said with what to do, never "a step didn't work"
+            return self._media_unavailable(exc, model, "the picture", ("OPENAI_API_KEY",))
         usage = getattr(result, "usage", None)
         details = getattr(usage, "input_tokens_details", None)
         self.spend(model, image_cost(model, getattr(details, "text_tokens", 0) or 0, getattr(details, "image_tokens", 0) or 0,
@@ -1005,17 +1052,19 @@ class Researcher:
         from google import genai
         from google.genai import types
 
-        # Keep a reference: a temporary client closes mid-call. One admitted attempt, never hidden SDK retries.
-        client = genai.Client(http_options={"retry_options": {"attempts": 1}})
         contents: list = [prompt]
         if source is not None:
             mime = "image/jpeg" if source[:2] == b"\xff\xd8" else "image/png"
             contents.insert(0, types.Part.from_bytes(data=source, mime_type=mime))
         try:
+            # Keep a reference: a temporary client closes mid-call. One admitted attempt, never hidden SDK retries.
+            client = genai.Client(http_options={"retry_options": {"attempts": 1}})
             response = await client.aio.models.generate_content(model=model, contents=contents)
         except asyncio.CancelledError:
             self.cancelled_call(model, usd=0.04)
             raise
+        except Exception as exc:  # noqa: BLE001 - why is said with what to do, never "a step didn't work"
+            return self._media_unavailable(exc, model, "the picture", ("GEMINI_API_KEY", "GOOGLE_API_KEY"))
         usage = response.usage_metadata
         by = lambda details: {d.modality.name if hasattr(d.modality, "name") else str(d.modality): d.token_count or 0
                               for d in (details or [])}
@@ -1185,7 +1234,8 @@ class Researcher:
                 value=str(args.get("value") if args.get("value") is not None else ""),
                 label=args.get("label") if isinstance(args.get("label"), str) else None,
                 group=args.get("group") if isinstance(args.get("group"), str) and args.get("group") else None,
-                order=str(args.get("order") or "ascending"))
+                order=str(args.get("order") or "ascending"),
+                only=args.get("only") if isinstance(args.get("only"), str) and args.get("only") else None)
         except ValueError as exc:
             return None, "", "", {"error": str(exc)}
         return series, title, kind, None
@@ -1206,9 +1256,60 @@ class Researcher:
                                   **({"frames": frames} if animated else {})})
         return rel
 
+    async def _chart_means(self, args: dict):
+        """make_chart kind "means": one bar per table (one per run of an operation, e.g. motion run 4 times) at the mean
+        of its values with one standard deviation either side and every value a dot. Each table is read whole by the
+        app at its revision, the same rows and value in each; the numbers are the tables' own, never the model's."""
+        from . import measurement_charts as charts
+
+        title = " ".join(str(args.get("title") or "").split())
+        if not 1 <= len(title) <= 90:
+            return {"error": "give the chart a title of 1-90 characters"}, None
+        tables = args.get("tables")
+        if not isinstance(tables, list) or not 1 <= len(tables) <= charts.TABLES_MAX:
+            return {"error": f"a means chart names tables: one to {charts.TABLES_MAX} session entries "
+                             "({id, revision}), one bar each, e.g. one per run"}, None
+        names = args.get("names")
+        if names is not None and (not isinstance(names, list) or len(names) != len(tables)
+                                  or not all(isinstance(n, str) and n.strip() for n in names)):
+            return {"error": "names are one short name per table, in the same order (e.g. Run 1, Run 2)"}, None
+        only = args.get("only") if isinstance(args.get("only"), str) and args.get("only") else None
+        unit = " ".join(str(args.get("unit") or "").split())[:20]
+        sets = []
+        for n, table in enumerate(tables):
+            document, revision, why = await self._table(table)
+            if document is None:
+                return {"error": f"table {n + 1}: {why}"}, None
+            try:
+                sets.append(await asyncio.to_thread(
+                    charts.series, document, revision=revision, rows=str(args.get("rows") or ""),
+                    value=str(args.get("value") if args.get("value") is not None else ""), order="table", only=only))
+            except ValueError as exc:
+                return {"error": f"table {n + 1} ({(table or {}).get('id')}): {exc}"}, None
+        names = [" ".join(n.split())[:16] for n in names] if names else [f"Run {i + 1}" for i in range(len(sets))]
+        png = await asyncio.to_thread(charts.means_png, sets, names, title, unit)
+        content = charts.means_content(sets, names, title, unit)
+        rel = self._save_output("chart", png)
+        across = content["acrossTables"]
+        caption = (f"Chart of the mean {sets[0].column} of {len(sets)} tables (bar: mean, whisker: one standard deviation), "
+                   "drawn by the app from " + ", ".join(str(s.source.get("title") or s.source.get("id")) for s in sets)
+                   + "; its values are the tables' own")
+        self.emit_output("image", rel, caption, content, generated=False,
+                         derived={"from": "tables", "source": dict(sets[0].source),
+                                  "sources": [dict(s.source) for s in sets], "chart": charts.MEANS, "animated": False})
+        self.step(f"Drew a chart of the mean {sets[0].column} of {len(sets)} saved tables")
+        return ({"ok": True, "output": rel, "tables": [{k: t[k] for k in ("name", "n", "mean", "sd", "sem", "median", "min",
+                                                                             "max", "excluded")} | {"id": t["source"].get("id")}
+                                                          for t in content["tables"]],
+                 "acrossTables": across, "unit": unit or None,
+                 "note": "the chart is attached; the user sees it with your result. Report these numbers as they are"},
+                await asyncio.to_thread(_as_jpeg, png))
+
     async def tool_make_chart(self, args: dict):
         from . import measurement_charts as charts
 
+        if args.get("kind") == charts.MEANS:
+            return await self._chart_means(args)
         series, title, kind, error = await self._chart_series(args)
         if error is not None:
             return error, None
@@ -1246,62 +1347,113 @@ class Researcher:
                  "note": "its last frame (the whole chart) is attached; the user sees it play with your result"},
                 await asyncio.to_thread(_as_jpeg, still))
 
+    async def tool_make_page(self, args: dict):
+        """A rendered HTML page the researcher wrote itself (slides or a small interactive visual), kept as one of its
+        outputs and served under the research files' no-network sandbox (orchestrator/research/files.py): the studio
+        shows it rendered in the researcher's Tab or the reader, never as text."""
+        kind = "presentation" if args.get("kind") == "presentation" else "visual"
+        self.pages_made = getattr(self, "pages_made", 0) + 1
+        title = whole(args.get("title") or ("Presentation" if kind == "presentation" else "Visual"), "the page's title")
+        summary = whole(args.get("summary"), "the summary")
+        html = clean_lesson(str(args.get("html") or ""))
+        if not html or "</html>" not in html.lower():
+            return {"error": "give the whole HTML document in html, from <!doctype html> to </html>"}, None
+        if len(html) > PAGE_MAX_CHARS:
+            return {"error": f"the page is {len(html):,} characters; keep it under {PAGE_MAX_CHARS:,}"}, None
+        data_from = [str(x)[:300] for x in (args.get("data_from") or []) if str(x).strip()][:20]
+        self.outputs += 1
+        rel = f"outputs/{self.outputs:02d}-{slug(kind + '-' + title)}.html"
+        (self.dir / rel).write_text(html)
+        content = {"kind": kind, "title": title, "summary": summary, "data_from": data_from}
+        what = "Presentation" if kind == "presentation" else "Interactive visual"
+        self.emit_output("html", rel, f"{what}: {title}", content, generated=True,
+                         contentKind="report" if kind == "presentation" else "visual")
+        self.step(f"Made {'a presentation' if kind == 'presentation' else 'an interactive visual'}: {title}")
+        return {"ok": True, "output": rel, "note": "kept with your work; the user opens it rendered. Now finish, naming "
+                                                   "it in your summary."}, None
+
     async def tool_make_video(self, args: dict):
-        """Veo 3.1 Fast image-to-video from the photo, padded to 16:9 (spike S6). When the provider refuses or fails, the
-        error says which model and the provider's own status, so the user hears why (live 2026-10-28: "I can't see the
-        exact error"), and what can be made instead."""
+        """Gemini Omni 1.1 Flash image-to-video from the photo, padded to 16:9 (research_worker/video.py; spike S6 made it
+        with Veo 3.1 Fast, which Google retired on 22 Oct 2026). When the provider refuses or fails, the error says
+        which model, why in a person's words and what to do (api_usage.refusal: retired, out of credit, no key, rate
+        limited...), with the provider's own status beside it, so the user hears why (live 2026-10-28: "I can't see the
+        exact error"; Will's try-out of 29 Oct: "retired", said without the reason), and what can be made instead."""
         from google import genai
-        from google.genai import types
 
         from .fidelity import pad_to
 
         seconds = int(args.get("seconds") or 6)
-        seconds = seconds if seconds in (4, 6, 8) else 6
-        self.budget.check(PRICES["veo-3.1-fast"] * seconds)
+        seconds = seconds if seconds in video.SECONDS else 6
+        # Under a spending limit, the length asked when it fits what is left, else the longest that does: the video the
+        # user asked for is made shorter, never refused for a length the app chose (Will, 30 Oct).
+        asked = seconds
+        fits = [s for s in video.SECONDS if s <= asked and (
+            self.budget.unlimited or self.budget.spent + PRICES[video.ENTRY] * s <= self.budget.effort.cap_usd)]
+        seconds = max(fits) if fits else asked  # none fits: over the limit, said as such (budget.check)
+        price = PRICES[video.ENTRY] * seconds
+        self.budget.check(price)
         source = self.crop_jpeg or self.frame_jpeg
         motion = whole(" ".join(str(args.get("motion") or "").split()), "motion")
         self.step(f"Making a {seconds} s video: {motion[:80]}")
+        # From the photo when there is one; with no camera (or nothing in view) it is made from the words alone.
         prompt = (f"A still camera looks through a light microscope at the specimen in this photo. {motion} "
+                  "Keep the camera and framing still; no text, no labels." if source else
+                  f"A short scientific illustration video, as seen through a light microscope. {motion} "
                   "Keep the camera and framing still; no text, no labels.")
         try:
             client = genai.Client(http_options={"retry_options": {"attempts": 1}})  # one admitted attempt
-            operation = await client.aio.models.generate_videos(
-                model=VIDEO_MODEL, prompt=prompt,
-                image=types.Image(image_bytes=pad_to(source, 1280, 720), mime_type="image/png") if source else None,
-                config=types.GenerateVideosConfig(duration_seconds=seconds, aspect_ratio="16:9", resolution="720p", number_of_videos=1))
-            while not operation.done:
-                await asyncio.sleep(4)
-                operation = await client.aio.operations.get(operation)
+            data = await video.make(client, prompt, pad_to(source, 1280, 720) if source else None, seconds)
         except asyncio.CancelledError:
             # Asked for, the video is made and billed whether or not anyone waits for it: its price is counted.
-            self.cancelled_call(VIDEO_MODEL, usd=PRICES["veo-3.1-fast"] * seconds)
+            self.cancelled_call(VIDEO_MODEL, usd=price)
             raise
-        except Exception as exc:  # noqa: BLE001 - the provider's status is said, never hidden behind "a step didn't work"
-            return self._video_unavailable(provider_status(exc), detail=f"{type(exc).__name__}: {exc}"), None
-        if operation.error:
-            return self._video_unavailable(provider_status(operation.error), detail=str(operation.error)), None
-        self.spend(VIDEO_MODEL, PRICES["veo-3.1-fast"] * seconds)
-        video = operation.response.generated_videos[0].video
-        data = video.video_bytes or await asyncio.get_running_loop().run_in_executor(None, lambda: client.files.download(file=video))
+        except Exception as exc:  # noqa: BLE001 - why is said, never hidden behind "a step didn't work"
+            return self._video_unavailable(exc, detail=f"{type(exc).__name__}: {exc}"), None
+        self.spend(VIDEO_MODEL, price)
         self.outputs += 1
         rel = f"outputs/{self.outputs:02d}-video.mp4"
         (self.dir / rel).write_bytes(data)
         if not await asyncio.get_running_loop().run_in_executor(
                 None, mark_video, self.dir / rel, ILLUSTRATION, GENERATED, VIDEO_MODEL):
             self.step("Could not burn the AI-illustration label into the video; the studio still says it", "warning")
-        caption = f"Generated illustration ({VIDEO_MODEL}), starting from your photo; not footage of your slide"
+        caption = (f"Generated illustration ({VIDEO_MODEL}), starting from your photo; not footage of your slide" if source
+                   else f"Generated illustration ({VIDEO_MODEL}); not footage of your slide")
         self.emit_output("video", rel, caption, text_content(motion, caption), generated=True)
-        return {"ok": True, "output": rel}, None
+        return {"ok": True, "output": rel, **({"seconds": seconds, "note": f"made {seconds} s long to fit the spending limit"}
+                                              if seconds != asked else {})}, None
 
-    def _video_unavailable(self, status: str, detail: str) -> dict:
-        """The video model refused or failed: said on its card with the provider's status, and told to the model with
-        what it can make instead (an animation of a table it read, when it has that tool)."""
-        self.step(f"The video model was unavailable ({VIDEO_NAME}, {status}); no video was made", "warning",
-                  detail=f"make_video: {detail}"[:600])
+    def _video_unavailable(self, error, detail: str) -> dict:
+        """The video model refused or failed: said on its card with why and what to do (api_usage.refusal) and the
+        provider's status, kept on the run as a fact its result carries (`unavailable`, whatever its write-up says), and
+        told to the model with what it can make instead (an animation of a table it read, when it has that tool)."""
+        found = refusal(error, model=VIDEO_NAME, provider="Google", keys=("GEMINI_API_KEY", "GOOGLE_API_KEY"))
+        status = provider_status(error)
+        self.unavailable = [*getattr(self, "unavailable", []),
+                            {"model": VIDEO_NAME, "for": "the video", **found, "status": status[:200]}]
+        self.step(f"The video model ({VIDEO_NAME}) couldn't be used: {refusal_clause(found)}; {found['todo']}; no video "
+                  "was made",
+                  "warning", detail=f"make_video: {status}; {detail}"[:600])
         instead = (" To show measurements changing instead, animate_measurements draws an animation from a table this "
                    "session kept." if "animate_measurements" in self.tool_names() else "")
-        return {"error": f"the video model was unavailable ({VIDEO_NAME}, {status}); no video was made. Say exactly that "
-                         f"in your result (limitations), with this status.{instead}"}
+        return {"error": f"the video model ({VIDEO_NAME}) couldn't be used: {refusal_clause(found)} ({status}); no "
+                         "video was made. Say that in your result's limitations, "
+                         f"with what the user can do: {found['todo']}.{instead}",
+                "reason": found["reason"], "todo": found["todo"]}
+
+    def _media_unavailable(self, error, model: str, what: str, keys: tuple[str, ...]) -> dict:
+        """A picture model refused or failed (out of credit, no key, retired, its own refusal...): said as the video's is,
+        on the card with why and the one thing to do, kept on the run's result (`unavailable`) and told to the model,
+        never a raw provider error or "one of its steps didn't work" (Will, 30 Oct: no ability error in the demo)."""
+        name = IMAGE_NAMES.get(model, model)
+        found = refusal(error, model=name, keys=keys)
+        status = provider_status(error)
+        self.unavailable = [*getattr(self, "unavailable", []),
+                            {"model": name, "for": what, **found, "status": status[:200]}]
+        self.step(f"The picture model ({name}) couldn't be used: {refusal_clause(found)}; {found['todo']}; no picture "
+                  "was made", "warning", detail=f"{model}: {status}; {type(error).__name__}: {error}"[:600])
+        return {"error": f"the picture model ({name}) couldn't be used: {refusal_clause(found)} ({status}); no picture "
+                         f"was made. Say that in your result's limitations, with what the user can do: {found['todo']}.",
+                "reason": found["reason"], "todo": found["todo"]}
 
     async def tool_make_lesson(self, args: dict):
         """A one-page interactive lesson: Claude when ANTHROPIC_API_KEY is set, else gpt-6.1-sol."""
@@ -1831,6 +1983,8 @@ class Researcher:
             self.result['captures'] = captures
         if getattr(self, 'lesson_draft', None):
             self.result['lesson'] = copy.deepcopy(self.lesson_draft)
+        if getattr(self, "unavailable", None):  # a model it could not use, with why: a fact of the run, not its words
+            self.result['unavailable'] = copy.deepcopy(self.unavailable)
         # A fact beside its sources (not a verdict on them): which cited pages none of its searches or fetches returned.
         # Only when its engine gives the pages' own addresses (a grounding redirect is not one).
         seen = {self._norm_url(u) for u in [*getattr(self, "search_sources", []),
@@ -1982,6 +2136,8 @@ class Researcher:
                                          findings=self.recorded, searched=self.search_sources, operations=self.ran_facts)
             if self.rejected:
                 self.result["rejected"] = copy.deepcopy(self.rejected)
+            if getattr(self, "unavailable", None):
+                self.result["unavailable"] = copy.deepcopy(self.unavailable)
             self.step("Kept what it found and made (no write-up)", "warning")
             status = "partial"
         if self.result is None and status == "done":

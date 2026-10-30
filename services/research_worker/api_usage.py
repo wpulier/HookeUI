@@ -6,10 +6,12 @@ cumulative voice usage idempotent, including reconnects (each session has its ow
 """
 from __future__ import annotations
 
+import contextlib
 from contextlib import asynccontextmanager, contextmanager
 import contextvars
 import math
 from pathlib import Path
+import re
 import sqlite3
 import threading
 import time
@@ -115,13 +117,40 @@ class CapReached(RuntimeError):
     """The monthly cloud cap the user set is reached: said, never a silent failure."""
 
 
-def configure(ledger: UsageLedger | None, *, provider_allowed=None) -> None:
-    global _active, _provider_allowed
+def configure(ledger: UsageLedger | None, *, provider_allowed=None, outcome=None) -> None:
+    """`outcome(model, ok, why)`: told how each call through `attempt` ended, as the running app's record of each model's
+    real use (orchestrator/observed.call_used); never in a process that does not set it (the research worker's)."""
+    global _active, _provider_allowed, _outcome
     _active = ledger
     _provider_allowed = provider_allowed
+    _outcome = outcome
+
+
+_outcome = None
+# How a call ended that says nothing about the model: the app's own doing (its deadline or a newer request cancelled it;
+# the cap kept it from being sent). Every other failure is the model's or its provider's, said with its reason.
+NOT_THE_MODELS = ("cut-off", "capped")
+
+
+def _told(model: str, ok: bool, outcome: str = "", exc: BaseException | None = None) -> None:
+    hook = _outcome
+    if hook is None or (not ok and outcome in NOT_THE_MODELS):
+        return
+    why = ""
+    if not ok:  # why in a person's words with what to do (refusal), the provider's own words beside it
+        words = " ".join(str(exc or "").split())
+        found = refusal(exc, model=model)
+        why = ((words or type(exc).__name__) if found["reason"] == "failed"
+               else refusal_words(found) + (f" ({words[:120]})" if words else ""))
+    try:
+        hook(model, ok, why)
+    except Exception:  # noqa: BLE001 - keeping the record never breaks the call
+        pass
 
 
 def provider_for(model: str) -> str:
+    """Who serves a model, by its API id or its one name ("Claude Opus 5.5")."""
+    model = str(model or "").lower()
     if model.startswith(('gemini', 'veo')) or model == 'google_search':
         return 'Google'
     if model.startswith('claude'):
@@ -385,6 +414,143 @@ def outcome_of(exc: BaseException) -> str:
     return "failed"
 
 
+# Why a model could not be used, as a reason a person understands and what they can do about it: the one mapping every
+# surface reads (the researcher's steps and result, the brain's answer through brain/dispatch.refusal, the model cards'
+# last use, the voice's diagnostics, the engines' credit refusal). Will's try-out of 29 Oct: a video failed because
+# Google had retired its model, and the voice said it without the reason. It is read from the error's own HTTP status and
+# provider codes, and from the few fixed refusal texts a provider sends with no code of its own (Anthropic's credit
+# refusal is a 400 whose only sign is its words); the provider's own words stay beside it as the detail, never instead.
+CREDIT_CODES = frozenset({"insufficient_quota", "insufficient_credits", "billing_not_active", "credit_balance_exhausted"})
+CREDIT_TEXTS = ("credit balance is too low", "you have no credits remaining", "prepayment credits are depleted")
+RETIRED_CODES = frozenset({"model_not_found"})
+RETIRED_TEXTS = ("has been deprecated", "is no longer available", "has been shut down", "has been retired")
+KEY_CODES = frozenset({"invalid_api_key", "api_key_invalid", "permission_denied", "unauthenticated", "authentication_error"})
+KEY_TEXTS = ("api key not valid", "invalid api key", "incorrect api key", "invalid x-api-key")
+# (what happened, what to do): {provider} is the provider's name ("the provider" when not known), {your} "your Google"
+# (else "your"), {key} its key's name with a space ("Gemini ", else ""), {model} the model's one name (names.py).
+KEY_NAMES = {"Google": "Gemini"}  # a provider whose key is called after its API (Models › Keys says "Gemini")
+REASONS = {
+    "retired": ("{provider} has retired {model}", "use its successor, or choose another model"),
+    "no-credit": ("{your} account is out of credit", "add credit to {your} account, or choose another model"),
+    "no-key": ("no {key}key is set here", "add your {key}key in Models › Keys"),
+    "key-refused": ("your {key}key was refused", "check your {key}key in Models › Keys"),
+    "rate-limit": ("{provider} is limiting requests right now", "try again in a minute, or choose another model"),
+    "server": ("{provider} had an error on its side", "try again in a moment"),
+    "connection": ("{provider} could not be reached", "check this Mac's internet connection, then try again"),
+    "cut-off": ("it took too long and was cut off", "try again"),
+    "capped": ("the monthly cap you set for cloud models is reached", "raise or remove it in Spending"),
+    "failed": ("{provider} could not run {model}", "try again, or choose another model"),
+}
+# Where an adapter's kept words give the HTTP status: "HTTP 404", "Error code: 429", "ClientError: 404 NOT_FOUND",
+# "'code': 404", "Anthropic 400: …", or the words starting with it.
+_STATUS = re.compile(r"(?:\bHTTP|\bError code:|\bstatus(?: code)?:?|['\"]code['\"]:|\b[A-Za-z]*Error:"
+                     r"|\b(?:Anthropic|OpenAI|Google|Gemini|fal))\s*(\d{3})\b|^\s*(\d{3})\b", re.I)
+
+
+def _error_parts(error) -> tuple[int | None, str, set[str]]:
+    """(its HTTP status, its words in lower case, its provider codes) from an exception, an operation's error dict
+    ({code, status, message}) or the words an adapter kept ("RuntimeError: Anthropic 400: Your credit balance…")."""
+    import json as _json
+
+    codes: set[str] = set()
+    if isinstance(error, dict):
+        status = error.get("code") if isinstance(error.get("code"), int) else None
+        for key in ("status", "code", "type"):
+            if isinstance(error.get(key), str):
+                codes.add(error[key].lower())
+        words = " ".join(str(error.get(k) or "") for k in ("status", "message", "type", "code"))
+    elif isinstance(error, BaseException):
+        status = next((s for s in (getattr(error, "status_code", None), getattr(error, "code", None),
+                                   getattr(getattr(error, "response", None), "status_code", None))
+                       if isinstance(s, int) and 100 <= s < 600), None)
+        for key in ("status", "code", "type"):
+            if isinstance(getattr(error, key, None), str):
+                codes.add(getattr(error, key).lower())
+        body = getattr(error, "body", None)
+        if isinstance(body, str):
+            with contextlib.suppress(ValueError):
+                body = _json.loads(body)
+        if isinstance(body, dict):
+            inner = body.get("error") if isinstance(body.get("error"), dict) else body
+            codes |= {str(inner.get(k)).lower() for k in ("code", "type", "status") if isinstance(inner.get(k), str)}
+        words = f"{type(error).__name__} {error} {getattr(error, 'message', '') or ''} {body if body else ''}"
+    else:
+        status, words = None, str(error or "")
+    if status is None:
+        found = _STATUS.search(words)
+        status = int(found.group(1) or found.group(2)) if found else None
+    return status, " ".join(words.split()).lower(), codes
+
+
+def reason_of(error, *, keys: tuple[str, ...] = ()) -> str:
+    """Why a model call failed: one of REASONS, from the error itself. `keys`: the environment keys the call needs, any
+    one of which is enough; with none set here, an error that never reached the provider (no HTTP status) is "no-key"."""
+    import asyncio
+    import os
+
+    if isinstance(error, BaseException):
+        if getattr(error, "outcome", None) in ("cut-off", "capped"):
+            return error.outcome
+        if isinstance(error, CapReached):
+            return "capped"
+        if isinstance(error, (asyncio.CancelledError, TimeoutError)):
+            return "cut-off"
+    status, words, codes = _error_parts(error)
+    if keys and status is None and not any(os.environ.get(k) for k in keys):
+        return "no-key"  # it never reached the provider, and none of the keys it needs is set here
+    if words.startswith(("capreached", "cap reached")):
+        return "capped"
+    if codes & CREDIT_CODES or any(c in words for c in CREDIT_CODES) or any(t in words for t in CREDIT_TEXTS):
+        return "no-credit"
+    if codes & RETIRED_CODES or "model_not_found" in words or any(t in words for t in RETIRED_TEXTS) or (
+            status in (404, 410) and "model" in words):
+        return "retired"
+    if status == 429 or "resource_exhausted" in codes or "resource_exhausted" in words or "rate_limit" in words:
+        return "rate-limit"
+    if status in (401, 403) or codes & KEY_CODES or any(c in words for c in (*KEY_CODES, *KEY_TEXTS)):
+        return "key-refused"
+    if status is None and ("api key" in words or "api_key" in words or "missing key" in words):
+        return "no-key"  # the client refused before sending: no key it could use (google-genai's ValueError)
+    if isinstance(status, int) and 500 <= status < 600:
+        return "server"
+    if isinstance(error, BaseException) and outcome_of(error) in ("connection", "cut-off"):
+        return outcome_of(error)
+    if any(w in words for w in ("connecterror", "connectionerror", "connecttimeout", "apiconnectionerror")):
+        return "connection"
+    return "failed"
+
+
+def refusal(error, *, model: str = "", provider: str = "", keys: tuple[str, ...] = (), successor: str = "") -> dict:
+    """{reason, said, todo}: why `model` (its one name) could not be used, in a person's words, and what they can do.
+    `successor`: the model's successor, when its catalog names one, said as what to use instead of a retired one."""
+    reason = reason_of(error, keys=keys)
+    who = provider or (provider_for(model) if model else "")
+    if who in ("", "Unknown provider"):  # else who its own words name ("Anthropic 400: …"), when they name one
+        _, words, _ = _error_parts(error)
+        who = next((name for name, said in (("Anthropic", "anthropic"), ("OpenAI", "openai"), ("Google", "gemini"),
+                                            ("Google", "google")) if said in words), "")
+    said, todo = REASONS[reason]
+    fields = {"provider": who or "the provider", "model": model or "this model", "your": f"your {who}" if who else "your",
+              "key": f"{KEY_NAMES.get(who, who)} " if who else ""}
+    said, todo = said.format(**fields), todo.format(**fields)
+    if reason == "retired" and successor:
+        todo = f"use {successor}, its successor"
+    return {"reason": reason, "said": said[:1].upper() + said[1:], "todo": todo}
+
+
+def refusal_clause(found: dict) -> str:
+    """Its "said" to follow other words ("… couldn't be used: your Anthropic account is out of credit"): a name keeps
+    its capital."""
+    said = found["said"]
+    first = said.split(" ", 1)[0]
+    return said[:1].lower() + said[1:] if first in ("Your", "No", "It", "The") else said
+
+
+def refusal_words(found: dict) -> str:
+    """One sentence of a refusal: what happened, then what to do ("Google has retired Veo 3.1 Fast; use …")."""
+    return f"{found['said']}; {found['todo']}" if found.get("todo") else found["said"]
+
+
 def _seen(provider: str, area: str, outcome: str) -> None:
     now = time.monotonic()
     with _recent_lock:
@@ -463,9 +629,11 @@ async def attempt(model: str, *, provider: str | None = None, area: str = 'Live'
             record(model, 0.0, provider=provider, area=area, basis=f'Refused before it ran: {OUTCOMES[outcome]}; nothing billed')
         else:
             record(model, provider=provider, area=area, basis=f'Interrupted or failed: {OUTCOMES[outcome]}; usage unavailable')
+            _told(model, False, outcome, exc)
         raise
     _seen(provider, area, "ok")
     note_latency(model, (time.monotonic() - began) * 1000)
+    _told(model, True)
 
 
 def search_queries(result) -> list[str]:

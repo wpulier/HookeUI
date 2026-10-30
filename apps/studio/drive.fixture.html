@@ -1,0 +1,48 @@
+<!doctype html><html lang="en" data-workspace-theme="dark"><meta charset="utf-8"><title>Partner cursor · deterministic UI fixture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+body{margin:0;height:100vh;overflow:hidden;background:var(--mm-page);color:var(--mm-text);font:13px/1.4 var(--mm-sans);-webkit-font-smoothing:antialiased}
+.tabs{position:absolute;left:24px;top:16px;display:flex;gap:4px}
+.tabs button{height:30px;padding:0 12px;border-radius:8px;border:0;background:var(--mm-card);color:var(--mm-text-2);font:inherit}
+.stage{position:absolute;left:24px;top:64px;width:560px;height:420px;border-radius:12px;background:#0b0c10;overflow:hidden}
+.disc{position:absolute;left:70px;top:0;width:420px;height:420px;border-radius:50%;background:radial-gradient(circle at 45% 40%,#f3e6ee,#d9b7cb 60%,#b48aa3)}
+.cell{position:absolute;border-radius:50%;background:radial-gradient(circle at 40% 35%,#b0679a,#7d3a6c);opacity:.85}
+section.workspace-window{position:absolute;left:620px;top:64px;width:340px;height:240px;border-radius:12px;background:var(--mm-card)}
+section.workspace-window header{padding:10px 14px;font-weight:600}
+#talk{position:absolute;left:620px;top:340px;height:30px;padding:0 14px;border-radius:15px;border:0;background:var(--mm-accent-fill);color:#fff;font:inherit}
+#report{position:absolute;left:24px;bottom:16px;max-width:900px;padding:10px 14px;border-radius:10px;background:rgb(0 0 0 / 70%);white-space:pre-wrap;font:12px/1.5 ui-monospace,monospace}
+</style>
+<body data-workspace-study="true">
+<div class="tabs" id="workspace-tabs-strip"><button id="work-tab-main" data-workspace-view-tab="main"><span class="workspace-tab-label">Main</span></button>
+ <button id="work-tab-t2" data-workspace-view-tab="t2"><span class="workspace-tab-label">Measurements</span></button></div>
+<div class="stage"><div class="disc"></div><div class="cell" id="o12" style="left:230px;top:160px;width:54px;height:46px"></div>
+ <div class="cell" style="left:320px;top:240px;width:36px;height:36px"></div></div>
+<section class="workspace-window" data-presentation-id="w-1"><header>Measurements · 341 cells</header></section>
+<button id="talk" type="button">Talk</button>
+<div id="report">Fixture only: the partner cursor (drive.ts) going through intents by id (a window, a Tab, a control, an outline on the moving picture), each ending with its outcome. Move the mouse, press Escape or click Talk to take control back: the cursor stops and the "server" (a worker, standing in for the socket) acknowledges. ?run=1 loops.</div>
+<script type="module">
+import '/src/style.css';import '/src/workspace-theme.css';import '/src/workspace-feel.css';import '/src/drive.css';
+import {CursorPainter,PartnerCursor,Takeover} from '/src/drive.ts';
+import {elementPlace} from '/src/marks.ts';
+const viewport=()=>[innerWidth,innerHeight];
+const cell=document.getElementById('o12');let t=0;setInterval(()=>{t+=0.04;cell.style.left=`${230+Math.sin(t)*28}px`;cell.style.top=`${160+Math.cos(t*0.8)*12}px`;},16);
+// The "server": another thread, as the orchestrator is another process; it bumps the version and acknowledges.
+const server=new Worker(URL.createObjectURL(new Blob([`let v=1;onmessage=e=>{const m=e.data;if(m.type==='takeover'){v=Math.max(v,m.version)+1;postMessage({type:'control',version:v,owner:'user',ack:true,at:Date.now()});}else if(m.type==='partner'){v+=1;postMessage({type:'control',version:v,owner:'partner'});}}`],{type:'text/javascript'})));
+const painter=new CursorPainter(document);
+const hooks={doc:document,viewport,outline:id=>elementPlace(document.getElementById(id),viewport()),member:()=>({why:'hidden'}),panel:()=>({why:'hidden'}),researcherRids:()=>[],anchor:()=>null,frame:()=>({why:'out-of-view'})};
+const shown=[];
+const cursor=new PartnerCursor({hooks,paint:s=>painter.paint(s),reply:c=>shown.push(c),frame:fn=>requestAnimationFrame(fn)});
+const takeover=new Takeover({cursor,send:c=>{server.postMessage(c);return true;}});
+takeover.attach(window);
+const results=[];window.__drive={results,takeover,shown};
+server.onmessage=e=>{takeover.control(e.data);if(e.data.ack&&takeover.last){const l=takeover.last;results.push({why:l.why,stopMs:+(l.stoppedAt-l.inputAt).toFixed(2),knownMs:+(l.knownAt-l.inputAt).toFixed(2)});
+ document.getElementById('report').textContent='Takeovers (input → cursor stopped / server knows, ms):\n'+results.map(r=>`${r.why}: ${r.stopMs} / ${r.knownMs}`).join('\n');}};
+document.getElementById('talk').addEventListener('pointerdown',e=>takeover.input('talk',e.timeStamp));
+const intents=[{kind:'focus',target:'tab:t2',caption:'Going to Measurements'},{kind:'open',target:'window:w-1',caption:'Opening the table'},
+ {kind:'highlight',target:'outline:o12',caption:'Highlighting it'},{kind:'present',target:'control:talk',caption:'Pressing Talk'}];
+let n=0;const wait=ms=>new Promise(r=>setTimeout(r,ms));
+async function loop(){for(;;){if(!takeover.acting){server.postMessage({type:'partner'});await wait(60);}const intent=intents[n%intents.length];const id=`d${++n}`;
+ cursor.show({type:'drive',id,version:takeover.version,intent});await wait(900);cursor.end({type:'drive-end',id,outcome:n%5===0?'failed':'verified'});await wait(700);}}
+loop();
+</script>
+</body></html>

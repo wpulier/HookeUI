@@ -173,9 +173,11 @@ def test_each_tool_takes_the_choosable_ids():
     settable = [i.id for op in names.choice_operations() if op.selected_by for i in op.implementations
                 if names.choosable(op, i)] + [o for group in names.SETTINGS for o in GROUPS[group]]
     assert props("set_default")["implementation"]["enum"] == list(dict.fromkeys(settable)) == names.choosable_ids(settable=True)
-    assert props("set_default")["operation"]["enum"][-2:] == ["sight", "zeroshot"]  # from now on only
-    assert props("compare_models")["implementations"]["items"]["enum"] == [
-        i for i in names.choosable_ids() if OPERATIONS["outline"].impl(i) or OPERATIONS["cells"].impl(i)]
+    assert props("set_default")["operation"]["enum"][-4:] == ["sight", "zeroshot", "think", "look_hard"]  # from now on only
+    assert props("compare_models")["implementations"]["items"]["enum"] == [  # outline, cell finders, then classifiers (W5)
+        i for i in names.choosable_ids() if OPERATIONS["outline"].impl(i) or OPERATIONS["cells"].impl(i)] + [
+        i.id for i in OPERATIONS["classify"].implementations]
+    assert "classify" not in names.roles(request=True) and not names.resolve("classify", "gemini-3.8-flash")  # only compared
     description = registry.tools["use"].params["description"]
     assert all(f"{i} = " in description for i in names.choosable_ids(settable=True))
     from orchestrator.brain.menu import render

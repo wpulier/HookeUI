@@ -15,16 +15,142 @@ other files.
   registry's tools). `toolbox.build(Services)` is the one way the tool list is made (the app,
   tests and benches; a tool is there only when what it acts on exists; ADR 0003); a tool fails
   with `ToolFailed` (an `orchestrator/tools.ToolError` is one).
-- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, the default) hears and speaks and hands
-  each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
-  lifecycle. **The one brain** (`gpt-realtime-2.1`, `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the
-  camera and Hooke's window at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
-  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands the
-  brain only what no tool covers (`do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
+- **Two voices, one conversation** (option VOICE). **GPT-Live** (`gpt-live-1`, a choice picked by hand) hears and speaks
+  and hands each request to `Brain.turn` by delegation; everything below about delegations, hands and view notes is its
+  lifecycle. **The one brain** (`gpt-realtime-2.1`, the default since 29 Oct 2026, when the live partner's stack became
+  Hooke's default; `voice/openai_realtime.py` + `voice/partner.py`) hears, sees the camera and Hooke's window
+  at each key-down, calls a curated part of this registry itself (`voice/partner_tools.py`,
+  through `ActionRunner` in a voice Ticket of its own, the Assistant as its actor), points with `mark`, and hands hard questions, many steps and comparisons to `think`'s
+  frontier backend (option THINK; it replaced `do_in_hooke`). Its lifecycle per turn: key down (barge-in if it speaks; perception
   taken) → release (picture and note in, commit, `response.create`) → tool calls (output, a fresh look after a screen
   change, then the model goes on) → its words, filed as GPT-Live's are; lines nobody asked for are said only in a
   pause. Both write the same journal lines and conversation turns; neither replaces the other
-  (docs/architecture/seeing-and-acting.md "The one-brain loop").
+  (docs/architecture/seeing-and-acting.md "The one-brain loop"). The one brain follows the open Project.
+  - Its binding is the studio connection (`workspace-bind`), not a Project, so each tool's pin is that studio's
+    report now.
+  - On a switch it is told the new Project (`App._session_event`'s recap); its brief is refreshed at once and its
+    marks on the Project left are cleared (`Partner.project_changed`). GPT-Live is told the same recap and its
+    delegations take a fresh pin, so the studio no longer asks the user to end Talk before switching Projects or
+    inputs, whichever voice is on.
+  - A Tab tool (show_measurements, tabs, present) that fails while the studio has not yet shown the open Project's
+    Tabs waits for them (`LANDING_WAIT_S`, its progress line saying so) and is tried once more. If they never show,
+    that is said plainly (`partner_tools.py`; tests/test_voice_follows_project.py).
+- **Lines nobody asked for (the one brain's proactive events)** all go on one bus (`voice/events.py`), the brain's
+  (`events.bus_of(brain)`, handed with `Brain.said` to every Talk session by `voice/route.py`), so a result still owed
+  when Talk ends, or one that lands after, is said by the next session. Publishers: `Partner.happened(event, text,
+  ref=, delivery=, marks=, frame=)` → `RealtimeSession.proactive` (a researcher finished or failed, a long tool done,
+  a capability turned on, the watcher's events: `orchestrator/view_watch.py`: the slide settled on a new place, the
+  focus drifted, counted cells no longer where they were counted; a division is an interface with no detector yet),
+  `deliver` (a job's result, a background tool's, a job's question or cancellation) and `inject` (the user's own
+  actions as `user-action`, chat notes). The text is facts as JSON (what was measured, when it happened, the ids to
+  point at), never words to read out: the voice model decides how to say them, in one sentence. Each kind has one
+  route in `events.KINDS`; the publisher may give its own (`delivery`: the watcher's per WATCH choice,
+  `view_watch.DELIVERY`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
+  nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (said as soon
+  as the line playing now ends, without waiting for a pause: a line the voice starts is finished or yielded to the
+  user, never cut by its own next one, Will 29 Oct; never over the user's answer); the user's quieter or "let me find things"
+  makes the watcher's all context. A result is owed until heard (the end of its audio); cut off, it comes back once
+  ("as I started to say…"); cut twice it is retired, and `Partner.retired` files one Activity line. Progress is its
+  own channel, spaced, never owed: a job (think, a slow tool) gets a line once the voice has been quiet 6 s, and a
+  second only when what it is doing has changed; the user's own tool round gets at most one, after 5 s of silence,
+  let go unheard if the result lands first and never cut once playing (seeing-and-acting.md "The one-brain loop").
+  The voice's first line as Talk connects (`opener`: what is on the stage and the obvious next thing, pointed at) is
+  an idle event too, once per Talk session, withdrawn if the user speaks or types first. Detector state is never pushed into the prompt every turn: only events, and only
+  by their rule (a standing note would be an option that must beat "model alone"). GPT-Live has no `happened`, so it
+  gets none of them; every watcher event is still logged (`watch-event`).
+- **What the voice says of a result is its receipt** (`voice/hands.py`: verified, failed, uncertain, running): a
+  background tool's (`reference_photo`, `retrieve_page`) and a job's go with their facts to `deliver`, and the
+  out-of-band wording follows `openai_realtime.RECEIPT_RULES` ("done" only for verified), falling back to the
+  receipt's own `said`. `reference_photo` in a native workspace is two actions: the lookup as background work (no UI
+  lease, no screen lock), then its window opened with `present` under a lease of its own, so a takeover meanwhile
+  leaves no window opened without a fresh look.
+- **`think` is a job** (`voice/jobs.py`, partner_tools `think`, `jobs`, `update_job`, `cancel_job`): queued, running,
+  cancelling, then done, failed or cancelled, with no cap on how many run. Jobs live on the hub (`jobs_of`), not on a
+  Talk session. Interrupting speech, a takeover or Talk ending never cancels one; `cancel_job` does, and "cancelled"
+  is said only from the job's own `job-cancelled` event once its task has stopped. A follow-up goes to the job
+  (`update_job` → `ThinkTask.updates`, read at its next step; a job waiting on its question or one that ended runs
+  again under the same id with what it did, `ThinkTask.previous`). A job's question, and a permission Hands asked
+  during it with its approval id, is a `job-question` with the job's id; the voice relays only those, and the user's
+  answer comes back through `update_job` (think's tools take `approved`). Done is decided from the receipts of its
+  acting calls (`jobs.outcome`): done only when every one ended verified (or it made none and answered); the
+  backend's `checked` is advisory, and what is not verified goes with the result. Researchers are jobs too:
+  `update_job` and `cancel_job` reach one through `researcher_note` and `cancel_researcher` (Hands, their records).
+  Each think job files one Activity line, and `project_state.jobs` numbers researchers, think jobs and hand-offs
+  (below) together by when each started, in the brief and the `resources` answer, so "the second one" resolves the
+  same way everywhere.
+- **Hand-offs as the chat shows them** (`voice/handoffs.py`; the studio's `handoffs.ts`). With PARTNER_ACTS "brain", each
+  `do_in_hooke` files a `handoff` line at once (working, titled by the voice's required `label`), `long` past
+  TOOL_WAIT_S, then its state from the brain's own turn, before the act-then-look: done (an answer, no failed step),
+  started (it started a researcher), uncertain (a step's receipt says its change was sent but not observed on screen:
+  `handoffs.unconfirmed`, never "failed"), failed with its reason, or settling while a late step runs. A refusal of the
+  brain's own call (`ToolFailed(argument=True)`: its arguments did not fit, such as an annotated picture with nothing
+  outlined) that a later call of the same tool in the turn replaced is the brain correcting itself (`handoffs.corrected`):
+  no failure, and neither it nor its words are told to the voice (live 2026-10-29: the user heard "it couldn't annotate
+  your stoma because nothing was outlined first" for an illustration that had started). A step skipped only because a
+  step it waited on did not succeed ("step 3 skipped: dependency 2 did not succeed") stands only while a failure before
+  it stands (`claims.standing`, one rule for the row, `claims.unresolved` and the studio's "!"): will-research, 30 Oct,
+  a refused place, the Tab switch after it skipped, the place made again in that Tab, in front, and the row said failed,
+  the answer check made the answer tell of the switch and "explain that" repeated it. `Dialogue.flying`
+  holds those still running, so a replay shows one an app restart cut off as unknown. The voice is told the row shows a
+  long one (`STILL_HANDED_OFF`) and, in PARTNER_ACTING_BRAIN, to say one short line for a new request only and each
+  outcome once. **A later step** (`then`, `voice/followups.py`): the voice cannot act when work lands (its unasked
+  lines have no tools), so Hooke keeps the step with the researcher the hand-off started (a hub-level `research.on_done`
+  listener, Talk on or not), hands it to the brain as a hand-off of its own when that researcher lands, and says the
+  researcher's result and the step's outcome once, together (`Partner._research_done` defers to it); a researcher that
+  did not finish leaves it undone, and that is said. With no researcher started it runs right after the first part;
+  otherwise the voice is told nothing keeps it (`not_kept`), so it is never promised. Kept in memory only.
+- **A hand-off is a job** (`voice/jobs.py` `HandoffJob`, kind "hooke"; the spec's 4.8 horizontal 1): each
+  `do_in_hooke` (and each kept later step) is Hooke's own work in progress under its row's id, in the hub's jobs beside
+  think jobs and researchers (`project_state.jobs`, "#3 Hooke's work (h3-…): running" in the brief and `resources`).
+  - **States:** running from the call; then done, failed or uncertain (a change sent but not confirmed on screen, never
+    done) from its row (`Jobs.handoff_changed`); a row the brain answered while steps still ran keeps it running until
+    those steps end (`Registry.finished` → `Jobs.run_finished`), and its row ends with them (`Handoffs.settled`).
+  - **Activity:** one line by its label: "Assistant: <label>: working", then done, did not work, "sent, but not
+    confirmed on screen" or stopped.
+  - **The chat's working signal**, as a typed Send's: `{type:"thinking", on:true, id, channel:"voice", job, label}`
+    at the call, `{…, on:false, state}` when the brain's turn on it returns (or once a stop has ended), `id` the row's
+    and the job's; typed ones carry no id.
+  - **Stopped** by the voice's `stop_work(id?)` (brain mode; the newest running hand-off when no id, a number from the
+    brief too): its brain turn and every step it started are cancelled (it runs under its own `user_stop.Stop`; the
+    `ActionRunner` registers its sequence and each step's run there, `Stop.stop_steps`), its ticket's later effects are
+    called off, and "Stopped." is said only once they have ended within `STOP_WAIT_S`; otherwise "being stopped", and
+    the stop is told once when it lands (`job-cancelled`). Work that had finished before the stop reached it says so,
+    and nothing to stop is no failure: ok (`NOTHING_TO_STOP`), with what finished in Hooke's own words and the offer to
+    undo it (will-research "stop-video", 30 Oct: every run judged "the stop action failed").
+    A cancelled step is stopped, never a failure. Its row ends `unknown` with `stopped`. Researchers are still stopped
+    through `do_in_hooke` (the brain's `cancel_researcher`). Tests: `tests/test_one_way_in.py`.
+- **The voice's state on screen** (`voice/presence.py`; W3): the one brain's session says its own phase
+  (`RealtimeSession.phase`: listening, heard, thinking from the released turn to its first words and while a tool of its
+  own runs, speaking, quiet) and `VoicePresence` adds Hooke's work in flight (this session's open hand-offs, the hub's
+  think jobs, a hand-off kept as a job under its row's key), sending the studio `{type:"voice-state", state, n, working,
+  seq, at, turn}` at each change: into a state at once, out of an active one after SETTLE_S, read again every TICK_S.
+  A hand-off's wait is Hooke working, never the voice thinking. Each change is logged (`partner-state`) for the journeys'
+  Alive line; tests/test_voice_presence.py.
+- **Where things go and where they are** (docs/architecture/on-screen.md "The workspace model", "Placing things"):
+  the brain's screen words say what each Tab holds by kind and what is drawn on the specimen (`context.holds_words`,
+  `overlay_words`, `other_tabs_words`), so "which Tab has the measurements?" is read from kinds (`tabs list
+  kind=table`). Every tool that places something takes the one vocabulary (`placement.py`: new-tab, beside, overlay,
+  window, replace, close, only; the words in each tool's description), and its receipt says where the screen shows it
+  ('Tab "Cell results" in front holds the cells' outlines on their capture, with its table beside them'), never an
+  internal word. A video or web page from the web is `show_web` (a checked search, a sandboxed window).
+- **A document of the findings** (`write_document`, `brain/toolbox/documents.py`, `orchestrator/documents.py`; W5):
+  "write out the interesting findings so far, save that doc, and open it in a new tab" is one tool. Code gives the
+  brain's own model the Project's records (ids, what made them, their numbers; researchers' and the web's words in the
+  untrusted block), the model writes the prose with each paragraph's citations, and code keeps only paragraphs citing a
+  record of this Project before saving it under Write-ups. Opened when asked, in a Tab of its own by default, done once
+  the studio shows it (docs/architecture/on-screen.md "Documents"). Only on an explicit request (a large deliverable,
+  below); a deep report that reads the web stays a researcher's.
+- **Experiments** (`experiment`, `experiment_status`; `brain/toolbox/experiments.py`, `orchestrator/experiments.py`; W5):
+  "compare Cellpose and micro-sam on this footage and have a researcher audit it" is planned first (do=plan): the brain
+  chooses the models by their ids as `use` lists them, the input (footage: N frames of the live view, one every S
+  seconds; or the view now) and the audit, in the user's words; code checks each fact (two to six models that can run
+  here, a picture, the researchers' key) and the plan is shown as a card with its steps and what it may cost. Nothing
+  runs before the user's yes: do=run with their words quoted (`asked_with`, checked against what they said:
+  `research.policy.quoted`) or the card's Run it (the version it shows). The run is a job of its own (WorkflowService:
+  each model through the runner at research priority, measured and compared per frame; then the audit researcher), its
+  card saying how it goes; `experiment_status` answers "how is it going?" from its records. Its results land in a Tab of
+  their own and its outcome is told once (`job-result` on the voice's bus, a note in the conversation). One model on
+  the view now stays `compare_models`.
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.
@@ -289,6 +415,33 @@ other files.
       as `user` with who and when (a day saved before this says `unknown`). The objective keeps
       who set it, and a calibration keeps the length it was made from (`Scale.facts`, for
       datasets). Field numbers 5-30 mm are accepted (a WF25x is about 9-10).
+- **"I don't understand that, explain that"** (the live partner spec's 4.8, horizontal 4: what a thing is and what made
+  it come from its record). "That" may be a result, not an outline: `board.last_result`, as of when the request was made
+  (`WhenAsked.at`), is the last thing the user saw or heard as an outcome: the newest exchange of the conversation's
+  journal with an answer (a typed answer, a hand-off's answer note, the voice's words, a late step's or a researcher's
+  note), with what its request made, opened or started (the turns' `resourceIds`, `objectIds` and `rid`), or the window in
+  front when the studio first showed it open after that answer (`Screen.opened_at`, a recorded fact, never the stacking
+  order). Nothing made after the request is what it meant. `resources(id="that")` gives it as facts, never prose: when
+  and how it was asked, what was said, the request's steps with the models that ran them (its Activity line,
+  `request:<session>:<turn>`), each result's record (`resource_how.how`: what made it, settings, from what, when, at
+  whose request, with the app's own titles), each outline's account (`known.py`), and the newest result's own reading
+  with its numbers (paged, a researcher's words in their wrapper), with the user's level; the model explains from those.
+  The voice hands it over (`do_in_hooke` names it). With nothing said yet it asks which result is meant.
+  - **One way in** (will-research 30 Oct, measure-c4acc90: no run read the record; each answered from its notes, the
+    placing step's status or stomata in general): the last-result line asks the brain, only while there is a last
+    result, whether the words are about it (`"about_last"`, the model's judgment, as `corrects` is); when they are,
+    code reads its record (`fast.reading_last_result`: `resources` id "that" after the request's own steps, on the
+    quick pass's and the look's plans) and the answer is written from it in the query round. `placement.put` keeps the
+    saved work it placed on its run (`ToolRun.resource`), so a researcher's picture placed in a Tab is the result its
+    request names (it kept none). For a researcher's work `that_facts` adds the researcher (what it was asked, its
+    engine, the photo it was given and when, when it finished) and its own summary, where its labels are.
+- **Why a model could not be used** is one mapping (`research_worker/api_usage.refusal`: retired, out of credit, no
+  key, a refused key, rate limited, the provider's error, no connection, cut off, the cap), read from the error's own
+  status and codes, said with what to do and the provider's words kept as detail. The brain's answer gets it through
+  `dispatch.refusal` ("Claude Opus 5.5 couldn't be used: your Anthropic account is out of credit; add credit to your
+  Anthropic account, or choose another model"), never "did not answer (…)"; the quick pass still falls back to the full
+  look for these (another model may answer), and stops only for the app's own policy (`POLICY_KINDS`). A researcher's
+  failed video, the engines' credit refusal, a model card's last use and the voice's diagnostics read the same mapping.
 - Corrections of segmented cells (`correct_cells`, M2): only when the user says some are wrong ("that's
   not a cell" about the clicked one, "these two are one cell", "undo that"). Each is a new revision of the
   population (`population.correct`, `Evidence.revise`): revision 0, the model's own, never changes and its
@@ -453,7 +606,9 @@ Project refuses. A studio without the Project workspace is shown the Measurement
 
 A Project is started by `new_project` ("create a new project called experiment", "start a new session"); `new_session`
 is its earlier name, kept with its words so saved workflows and tool ids run. A Tab is an arrangement inside this
-Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`).
+Project (`tabs`), never a new Project; `tabs list` also says what is in front (`workspace_observation.front`). Each
+Tab holds the specimen (filling it, floating or hidden), said in the screen facts; `tabs specimen` floats, fills or
+hides it (Main's never hides), done once the report shows it (docs/architecture/on-screen.md "A Tab's specimen").
 
 `make_table`, `edit_table`, `analyze` and `make_graph` use the ordinary DataTables and TableDerivatives services.
 The original Asked Project, generation and conversation own writes; request cancellation is checked at the shared
@@ -461,6 +616,14 @@ publication boundaries. Exact source/table revisions and explicit test/graph set
 comes from the transport, never model arguments. Accepted Follow work retains its ordinary Project owner after the
 turn finishes. `read_analysis` pages an exact accepted result with a content digest, without recomputation; saved
 numbers, units, exclusions and input identities remain available. Saved never implies displayed.
+
+`compare_models` takes two to six models (outline, cells or classify) through `model_comparison.py`, the one
+comparison interface a researcher's `classify` and an experiment use too: `select` (the names, bounded, the unknown and
+unrunnable said), each run through the runner, `agreement` (every pair's share and kappa, the cells all named alike,
+counts per class) and `build`/`values` (the record and its one table, kept in Data and shown with the placement
+words). Its numbers come only from the runs' records (spec 4.8, horizontal 4); tests/test_classify_comparison.py.
+Classify's models are named only to compare them (`names.COMPARED_ONLY`): `use` lists none of them, since no tool
+classifies with one model alone; the vision models keep their ids, and MedSigLIP is told once on compare_models.
 
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.
 

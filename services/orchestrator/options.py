@@ -151,20 +151,74 @@ OUTLINE = {
     ]
 }
 
-# The voice of the brain (docs/bench/live.md). GPT-Live hears and speaks and hands every
-# request to the same brain you type to, so voice and chat share one mind and one set of
-# tools. Gemini 3.8 Live (its own separate tools) was retired from the studio when the brain
-# was unified; voice/gemini_live.py remains for bench/live_probe.py.
+# The voice (docs/architecture/live-partner-contract.md; the live partner spec, section 4). The default is the live
+# partner: one model hears, sees the camera and Hooke's window each turn, acts through Hands and points at what it talks
+# about (voice/openai_realtime.py, voice/partner.py; WebRTC only). Will, 29 Oct 2026: "dont default to anything old, we
+# are building anew the right way": the partner's stack is the default, and it is judged against the spec's standard,
+# never against GPT-Live. GPT-Live hears and speaks and hands every request to the brain you type to; it stays a choice
+# someone picks by hand (options, not replacements), and nothing falls back to it. Gemini 3.8 Live (its own separate
+# tools) was retired from the studio when the brain was unified; voice/gemini_live.py remains for bench/live_probe.py.
 VOICE = {
     o.id: o
     for o in [
-        Option("gpt-live-1", "GPT-Live (OpenAI)", "voice ~0.1 s, outline ~2-4 s; the brain does the looking", model="gpt-live-1"),
-        # One model hears, sees the camera and Hooke's window each turn, calls the app's tools itself and points at what
-        # it talks about (voice/openai_realtime.py, voice/partner.py). Not yet measured on the journey bench, so not the
-        # default; WebRTC only.
         Option("gpt-realtime-2.1", "One brain (hears · sees · acts)",
-               "GPT Realtime 2.1: sees each turn, acts with the app's tools, points; not yet measured against GPT-Live",
+               "GPT Realtime 2.1, the live partner: sees each turn, acts in Hooke with a receipt, points as it talks",
                model="gpt-realtime-2-1"),
+        Option("gpt-live-1", "GPT-Live (OpenAI)", "voice ~0.1 s, outline ~2-4 s; the brain does the looking", model="gpt-live-1"),
+    ]
+}
+
+# How the live partner gets things done in Hooke (voice/partner_tools.py, prompts.partner_prompt). "brain": the voice
+# talks, looks and points, and hands everything done in Hooke to Hooke's brain (the one typed chat uses) in the user's
+# own words; the brain does it with its own tools, recovers, checks the screen and answers (Will, 29 Oct: the old voice
+# "just worked" this way). "direct": the voice calls Hooke's tools itself, through Hands; on Will's own requests on real
+# footage (journey will-leaf, 9719b4f) it scored 0.86 of 3, so it is a choice someone picks by hand, never the default.
+PARTNER_ACTS = {
+    o.id: o
+    for o in [
+        Option("brain", "Hooke's brain does it", "the voice talks and points; Hooke's brain does what is asked and answers"),
+        Option("direct", "The voice does it itself", "the voice calls Hooke's tools itself (will-leaf: 0.86 of 3)"),
+    ]
+}
+
+# When the live partner speaks in a turn (voice/openai_realtime.py `_deciding`, `_decided`). "after-deciding": each turn
+# is answered first in text alone, so work is handed over with nothing said before it, and a direct answer is then said
+# word for word by one more response (its first words later by that response's time). "as-it-decides": each turn is
+# answered in speech at once, the soonest first words, and words may come before work is handed over (the 30 Oct
+# journeys on b1e2727: "I'll tidy that tab so only the reference image remains visible.", "Starting the experiment…" for
+# a plan only drafted, judged "preliminary narration", after three rounds of prompt rules against them). Measured on
+# Will's voice journeys.
+PARTNER_SPEAKS = {
+    o.id: o
+    for o in [
+        Option("acknowledges", "Says it is on it at once",
+               "a direct answer said once decided; work it hands over acknowledged at once in a few words, never a "
+               "result, then its outcome (Will's try-out, 30 Oct: deciding silently left 8-13 s with no words and "
+               "felt blocking)"),
+        Option("after-deciding", "Decides before it speaks",
+               "nothing said before work is handed over; a direct answer is said word for word once decided, one "
+               "more response before its first words"),
+        Option("as-it-decides", "Speaks as it decides",
+               "the soonest first words; may say what it is about to do before handing work over (judged "
+               "\"preliminary narration\" on the 30 Oct journeys)"),
+    ]
+}
+
+# The live partner's close look (voice/partner_tools.py look_hard): naming a thing exactly, when a few seconds is fine,
+# with the wait said. The vision bench of 2026-10-29 (docs/bench/vision-2026-10-29.md): Gemini 4 Argon named most
+# exactly (80% exact on a click, at 5-9 s); Claude Opus 5.5 is the other choice (about 5 s). The quick look is VISION.
+LOOK_HARD = {k: VISION[k] for k in ("gemini-4-argon", "claude-opus-5-5")}
+
+# The frontier mind behind the one-brain voice (voice/think.py; part-2.5 architecture, item 2): a hard question, many
+# steps, a comparison or a close look, handed over with the user's words and both pictures. On τ-Voice a fast voice with
+# a frontier backend scored 74.5% where the speech model alone scored 45.7%. Measured on the journey bench (pending).
+THINK = {
+    o.id: o
+    for o in [
+        Option("claude-opus-5-5", "Claude Opus 5.5", "the strongest on Hooke's own pictures; refusals said as refusals",
+               model="claude-opus-5-5"),
+        Option("gpt-6.1-sol", "GPT-6.1 Sol", "OpenAI's frontier model; the other choice when Opus refuses",
+               model="gpt-6.1-sol"),
     ]
 }
 
@@ -192,6 +246,16 @@ TALK_KEY = {
     ]
 }
 
+# The sign it heard you, as you let go of the talk key (the live partner spec, decision 1: a subtle sound or a visual
+# cue, never a canned word; apps/studio/src/heard.ts). The studio plays it on the server's `heard` (voice/partner.py).
+HEARD_CUE = {
+    o.id: o
+    for o in [
+        Option("tone", "Ring and a soft tone", "the hold ring settles and a very soft tone plays"),
+        Option("ring", "Ring only", "the hold ring settles, silently"),
+    ]
+}
+
 # How the brain uses its tools (orchestrator/brain/loop.py, docs/bench/brain.md). Both send
 # one model call for a plain question.
 BRAIN = {
@@ -216,10 +280,31 @@ DISSECT = {
 RESEARCH_ENGINE = {
     o.id: o
     for o in [
+        # The default since 2026-10-30 (Will: "claude opus 5.5 set to default with same KEY"): the Messages API with its
+        # web search and the researcher's own tools (research_worker/engines.ClaudeEngine), ANTHROPIC_API_KEY.
+        Option("claude-opus-5-5", "Claude Opus 5.5 + web search",
+               "writes whole reports, slides and small interactive visuals from the session's data; web search; $4/$20 per MTok",
+               model="claude-opus-5-5"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol + web search", "S5: searched 3/3 with real sources, 9-12 s, ~$0.04-0.05 a lookup", model="gpt-6.1-sol"),
         Option("gemini-3.8-flash", "Gemini 3.8 Flash + Google Search", "S5: 3-6 s, ~$0.002, but often answers from memory without searching", model="gemini-3.8-flash"),
     ]
 }
+
+
+def research_engine_with_key(name: str) -> str:
+    """The researchers' model to run: the one set, or, when its key is missing and another listed one has its key, the
+    first of those (Will, 30 Oct: researchers "default opus5.5 but can use openai"; never refused for a key another
+    model here has). Only between the frontier ones (RESEARCH_FALLBACK): Gemini Flash "often answers from memory", so a
+    Google key alone is still told plainly what to add. A model this app does not list, or one needing no key, is run as
+    named."""
+    option = RESEARCH_ENGINE.get(name)
+    if option is None or not option.needs or os.environ.get(option.needs) or name not in RESEARCH_FALLBACK:
+        return name
+    return next((i for i in RESEARCH_FALLBACK if RESEARCH_ENGINE[i].needs and os.environ.get(RESEARCH_ENGINE[i].needs)),
+                name)
+
+
+RESEARCH_FALLBACK = ("claude-opus-5-5", "gpt-6.1-sol")
 
 # What draws researchers' pictures (spike S4).
 PRESENTATION = {o.id: o for o in [
@@ -465,6 +550,18 @@ NAMING = {
     ]
 }
 
+# Which model names an outline (Agent.identify): the close look (LOOK_HARD, Gemini 4 Argon) or the quick look
+# (VISION). Will's own click on his June 14 leaf footage, 29 Oct (scratchpad naming test, 7 runs each): Argon named the
+# oval "stoma" 7 of 7, likely, at 4-6 s; Claude Opus 5.5 fast picked stoma too but marked it unsure in 5 of 7, so the
+# broad group ("plant cell") showed. The 29 Oct vision bench: naming on a click, Argon 80% exact, Opus about 60%.
+NAMING_MODEL = {
+    o.id: o
+    for o in [
+        Option("close-look", "The close look names it", "the close-look model (Gemini 4 Argon): stoma 7 of 7 on Will's click, ~5 s"),
+        Option("quick-look", "The quick look names it", "the quick-look model (Claude Opus 5.5 fast): stoma, unsure, 5 of 7, ~1.5 s"),
+    ]
+}
+
 OUTLINE_REPAIR = {
     o.id: o
     for o in [
@@ -580,16 +677,29 @@ CLAIM_CHECK = {
     ]
 }
 
-# Where reference photos are searched for (orchestrator/reference.py; bench/reference_bench.py, 2026-10-11, 20
-# subjects asked for live, each photo judged by GPT-6.1 Sol): the grounded web search alone found 20/20, 18 right, p50
-# 10.7 s; Wikimedia Commons' catalogue found 11/20, all right, ~5 s; raced, 20/20 right, p50 6.2 s. Every candidate goes
-# through the same pixel check, which sees the original request (a request for another site refuses Commons).
+# Where reference photos are searched for (orchestrator/reference.py). Every candidate, from either, is looked at the
+# same way (retrieval.look_at_photo: its pixels against the whole request) and the first one accepted wins.
+# bench/reference_bench.py, 2026-10-11, 20 subjects asked live, each photo judged by GPT-6.1 Sol only as "a real
+# photograph of <subject>" (no count, kind of view or "a different one"): the web alone 20/20 found, 18 right, p50
+# 10.7 s; Commons' catalogue 11/20, all right, ~5 s; the race, computed from the two run apart, 20/20, p50 6.2 s.
+# The web has been the default since 2026-10-29: raced, the catalogue (about 0.5 s) wins whenever one of its photos
+# passes, so it is Commons first, and the founder expects the open web first ("why wiki commons?? we have the web");
+# its bench lead was measured by a judge that would have passed the cross-section shown at 17:16 for "just a single
+# stoma"; and that day every catalogue search answered HTTP 403 (Wikimedia's robot policy refused our User-Agent,
+# since fixed in safe_fetch), so it added nothing. The 17:16 cross-section itself came from the web search's own
+# Commons result; the look at its pixels is what now turns such a picture down (checked 2026-10-29 on the saved
+# picture: "cross-section view rather than surface view"). After the fix, "a single stoma, surface view, light
+# microscopy" and the founder's own words, twice each: 4/4 right single-stoma surface views by eye, 11-19 s.
 REFERENCE_SEARCH = {
     o.id: o
     for o in [
-        Option("web+commons", "Web and Commons together", "bench: 20/20 right, p50 6.2 s (Commons first when it has one)",
-               uses=("gemini-api", "wikimedia-commons")),
-        Option("web", "Web search", "bench: 18/20 right, p50 10.7 s (as before 2026-10-11)", uses=("gemini-api",)),
+        Option("web", "Web search", "the open web first; bench 2026-10-11: 18/20 right (subject only), p50 10.7 s; live "
+               "2026-10-29: 2 of 3 right (the third turned down now by the look); with the look, 2/2 single-stoma "
+               "surface views, 11-19 s", uses=("gemini-api",)),
+        Option("web+commons", "Web and Commons together", "Commons raced beside the web, first accepted wins (in effect "
+               "Commons first); bench 2026-10-11: 20/20 right (subject only), p50 6.2 s; live 2026-10-29: its catalogue "
+               "refused 2/2 (HTTP 403); with the look, 2/2 single-stoma surface views, 13-19 s, both from the web (the "
+               "catalogue had none)", uses=("gemini-api", "wikimedia-commons")),
     ]
 }
 
@@ -784,13 +894,30 @@ LIBRARY_LOOKS = {
     ]
 }
 
+# The watcher (orchestrator/view_watch.py): what happens in the view, noticed without being asked, on the settled view
+# from numbers the hub already measures (no model call). Each kind of event has one delivery rule per choice
+# (view_watch.DELIVERY): "quiet" tells the voice a slide move silently and says a focus drift or a counted population's
+# change when nobody is talking; "chatty" says the slide's moves too; "off" watches nothing. A division (no detector
+# yet) would be said at once. bench/watch_bench.py, synthetic eyepiece footage through the hub's own analysis: a pan, a cut
+# and a defocus one event each (0.7, 1.9 and 3.0 s after), a halved light and the knob none, 0 false alarms in an hour.
+WATCH = {
+    o.id: o
+    for o in [
+        Option("quiet", "Quiet", "says when the focus drifts or counted cells change; a move of the slide is only noted; "
+                                 "synthetic bench: 0 false alarms in an hour"),
+        Option("chatty", "Chatty", "also says when the slide settles on a new place"),
+        Option("off", "Off", "watches nothing: speaks only when asked (as before)"),
+    ]
+}
+
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "partner_speaks": PARTNER_SPEAKS, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "naming_model": NAMING_MODEL, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
-          "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS}
+          "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
+          "watch": WATCH}
 
 # A group's choices change while the app runs (your models turned on or off: mine.register; contributed entries proven
 # or withdrawn: kinds.register), on worker threads, while the loop reads them (catalogue, resolve, the shelf). So a
@@ -913,13 +1040,16 @@ class Settings:
                 return chosen[name]  # this request's own choice (contract 7)
         return object.__getattribute__(self, name)
 
-    vision: str = "gemini-3.8-flash"  # camera vision; the fast notes/action path stays separate
+    # The live partner's stack is the default (the live partner spec, section 4): the quick look Claude Opus 5.5 in fast
+    # mode (grounding 44/45 at 0.94 s, best calibrated; docs/bench/vision-2026-10-29.md), the voice gpt-realtime-2.1, the
+    # mind behind it Claude Opus 5.5, the close look Gemini 4 Argon. Typed chat's camera look uses the same eyes.
+    vision: str = "claude-opus-5-5-fast"  # camera vision; the fast notes/action path stays separate
     pointing: str = "box"
     outline: str = "edgetam"
-    voice: str = "gpt-live-1"
+    voice: str = "gpt-realtime-2.1"  # the live partner (VOICE)
     brain: str = "json-actions"
     dissect: str = "grid"
-    research: str = "gpt-6.1-sol"
+    research: str = "claude-opus-5-5"  # researchers think with Opus 5.5 (RESEARCH_ENGINE); "use GPT" picks gpt-6.1-sol
     presentation: str = 'auto'  # qualified retained-input producer; Standard layout only remains an explicit preference
     sight: str = "gemini-3.8-flash"
     fast: str = "gemini-3.8-flash"  # correctness comparison and prior timing evidence: BRAIN_FAST
@@ -940,6 +1070,11 @@ class Settings:
     voicelink: str = "webrtc"  # native browser media; explicit relay preferences remain supported (VOICELINK)
     talk: str = "hold"  # how the one-brain voice knows a turn (TALK)
     talk_key: str = "control-option"  # the key held to talk with it (TALK_KEY)
+    heard_cue: str = "tone"  # the sign it heard you (HEARD_CUE)
+    partner_acts: str = "brain"  # how the live partner gets things done in Hooke (PARTNER_ACTS)
+    partner_speaks: str = "acknowledges"  # when the live partner speaks in a turn (PARTNER_SPEAKS)
+    think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
+    look_hard: str = "gemini-4-argon"  # the live partner's close look (LOOK_HARD)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
     taught: str = "on"  # matching the labels the user teaches (TAUGHT; measured)
     lesson_check: str = "check"  # are lessons' steps answerable without the picture? (LESSON_CHECK; measured)
@@ -947,9 +1082,10 @@ class Settings:
     # How sourced points are checked on their pages (CLAIM_CHECK; docs/bench/claims.md). "model" since 2026-10-11, the
     # user's call on the bench's trade: "words" passed every negated point as found (57/57).
     claim_check: str = "model"
-    reference_search: str = "web+commons"  # where reference photos are searched for (REFERENCE_SEARCH)
+    reference_search: str = "web"  # where reference photos are searched for (REFERENCE_SEARCH); the open web first
     outline_repair: str = "same"  # what the outline check's redraw draws with (OUTLINE_REPAIR)
     naming: str = "one"  # how every outline the app draws is named (NAMING)
+    naming_model: str = "close-look"  # which model names an outline (NAMING_MODEL)
     seen: str = "on"  # telling naming the outline named earlier today most like this one (SEEN; measured)
     coach: str = "lens"  # the focus meter tells the phone refocusing from the knob (COACH; measured)
     closeup: str = "single"  # close-ups when naming a click (CLOSEUP; measured)
@@ -961,6 +1097,7 @@ class Settings:
     row_provenance: str = "off"  # which models made each outline, in the brain's rows (ROW_PROVENANCE; off until measured)
     orb_every: str = "1"  # how often feature matches vote on the slide's move (MOTION_ORB_EVERY; measured)
     library_looks: str = "off"  # whether new assets' pictures are sent to be filed by look (LIBRARY_LOOKS; off by default)
+    watch: str = "quiet"  # what the watcher says unasked (WATCH; view_watch.DELIVERY)
     # USD a day for all researchers, or None: unlimited (the default; ADR 0004). Set in the
     # studio, by voice or chat (set_research_cap), or MICROMIND_RESEARCH_CAP; kept until changed.
     research_cap: float | None = field(default_factory=lambda: _cap_from_env())
@@ -1032,7 +1169,8 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "partner_speaks": self.partner_speaks, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "naming_model": self.naming_model, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "watch": self.watch,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
 

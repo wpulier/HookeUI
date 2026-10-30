@@ -1,0 +1,75 @@
+{
+ "id": "will-experiment",
+ "about": "Will's experiment on the real June 14 leaf recording (Part 2.5, W5: \"experiments: a planner, workflows, long-running work, researchers auditing\"; the live partner spec's 4.8, horizontals 2 and 4). The request is planned first: Hooke drafts the plan from what can run here (Cellpose-SAM and micro-sam by their catalog names, frames of this footage, each model on every frame, the comparison, a researcher's audit and what it may cost), shows it as a card and asks once; nothing runs before the yes. \"Yes, run it\" starts exactly that plan as a workflow in the background (the experiment's card shows it working; the live view and the voice never wait on it). \"How is the experiment going?\" is answered from its records while it runs. When it lands, its results open in a Tab of their own (the comparison table, the outlines side by side on a frame, the researcher's audit) and the outcome is said once; the result step's window spans the run (waitFor experiment). Both models run on this Mac (Cellpose-SAM and micro-sam must be installed); the audit is a quick researcher, at most $0.25. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "experiment-plan",
+   "kind": "act",
+   "say": "I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it.",
+   "from": "Will, 29 October: \"I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it\" (W5)",
+   "wait": 30,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "experiment",
+     "think"
+    ],
+    "visible": "the experiment's plan as a card under the request: Cellpose-SAM and micro-sam, the frames of this footage it holds, each model on every frame, the comparison, the researcher's audit and what it may cost, with Run it",
+    "judge": "drafts one plan and says it in a few plain words (the two models, frames of this footage, comparing them frame by frame, a researcher auditing the run, and that the models cost nothing on this Mac and the audit at most a little), then asks once whether to run it; nothing is started yet and nothing is said to be running or done; no ids, step names or tool names are said"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "experiment-yes",
+   "kind": "act",
+   "say": "Yes, run it.",
+   "wait": 30,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "experiment",
+     "think"
+    ],
+    "visible": "the experiment's card working: holding the frames, then each model on each frame",
+    "outcome": true,
+    "judge": "starts exactly the plan just shown (no other models, frames or steps), and says once, briefly, that it has started and that its results open in a Tab when it finishes; never says it is finished, never gives numbers it does not have yet"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "experiment-going",
+   "kind": "ask",
+   "say": "How is the experiment going?",
+   "wait": 30,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "experiment_status"
+    ],
+    "toolRequired": false,
+    "judge": "says how far the experiment has got, from its records, in a few plain words: which part it is on (holding frames, a model on a frame, the comparison, or the researcher auditing), how many of the runs are done and any counts it already has; invents no number and never says it is finished while it is still working"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "experiment-result",
+   "kind": "idle",
+   "waitFor": {
+    "experiment": "done"
+   },
+   "wait": 1500,
+   "expect": {
+    "visible": "a Tab of its own holding the experiment's results: the comparison table (a row per frame and model), the two models' outlines side by side on a frame, and the researcher's audit",
+    "outcome": true,
+    "judge": "once the experiment has finished and its results Tab is shown, says its outcome once: how Cellpose-SAM's and micro-sam's cell counts compared across the frames and how many cells both found, that the researcher's audit is in it (or why it is not), and that the results are in their own Tab; agreement between the models is never said as which one is right; nothing about the result is said before it landed, and it is not said twice",
+    "researchers": 1
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

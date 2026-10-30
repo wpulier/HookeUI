@@ -256,6 +256,7 @@ def _valid_expectation(e: Record) -> bool:
         return (len(targets) == 1 and (values.get("above") == [] or _ids(values.get("above"), 64))
                 and targets[0] not in values["above"]
                 and (("scope" not in values and "hostId" not in values)
+                     or (values.get("scope") == "tab-windows" and "hostId" not in values)
                      or (values.get("scope") == "workspace-windows" and isinstance(values.get("hostId"), str) and 0 < len(values["hostId"]) <= 256)))
     if predicate == "evidence_on_live":
         return (len(targets) == 1 and isinstance(values.get("populationId"), str) and bool(values["populationId"])
@@ -348,6 +349,12 @@ def _ready(item: Record, ack: Record, required: str) -> _Mismatch | None:
     if required == "drawn" and (not item.get("drawRef") or not ack.get("drawRef")):
         return _Mismatch("REPORT_STALE", "observe", "No actual content draw is recorded.", pending=True)
     return None
+
+
+def tab_window(item: Record) -> bool:
+    """A window a person places on a Tab: a native window (w-…) or a document window (document:…). Never the Tab
+    strip, a panel or the specimen, whose stacking is not the windows' own."""
+    return str(item.get("id") or "").startswith(("w-", "document:"))
 
 
 def _visible(item: Record, report: Record | None = None) -> bool:
@@ -447,6 +454,19 @@ def _view_issue(e: Record, pid: str, i: Record, ack: Record, lease: Record, repo
         if any(abs(a - b) > _CONTROL_TOLERANCE for a, b in zip(values, expected)):
             return _Mismatch("CONTROL_UNAVAILABLE", "draw", "The actual view does not show the requested value.", actual)
     else:
+        if wanted.get("scope") == "tab-windows":
+            # A window inside the Project workspace's study artifacts (present._window_expectations): in front of every
+            # window shown on its Tab, by the z the studio measured for each there. A window opened since that sits
+            # over it counts too; one closed since is no longer over it.
+            for other in report.get("items", ()):
+                if other.get("id") == pid or not _visible(other, report):
+                    continue
+                if other.get("id") in wanted["above"] or (tab_window(other) and other.get("sourceRef")):
+                    if not _number(other.get("z")):
+                        pending = pending or _Mismatch("VERIFICATION_UNAVAILABLE", "observe", "A window's order on its Tab is unknown.", pending=True)
+                    elif other["z"] >= actual:
+                        return _Mismatch("TOPOLOGY_MISMATCH", "draw", "The requested window is not in front of the other windows on its Tab.", actual)
+            return pending
         if wanted.get("scope") == "workspace-windows":
             scope = report.get("foreground")
             if (not isinstance(scope, Mapping) or scope.get("scope") != wanted["scope"]
@@ -622,6 +642,11 @@ def _live_issue(e: Record, pid: str, i: Record, ack: Record, lease: Record, repo
     return None
 
 
+def _held_frame(ref):
+    """A live drawing's sample: the current one, or the held one a stopped window shows ({"held": sample})."""
+    return ref["held"] if isinstance(ref, Mapping) and set(ref) == {"held"} else ref
+
+
 def _target_predicate(e: Record, pid: str, i: Record | None, ack: Record, lease: Record,
                       report: Record) -> _Mismatch | None:
     name, values = e["predicate"], e["expected"]
@@ -644,11 +669,13 @@ def _target_predicate(e: Record, pid: str, i: Record | None, ack: Record, lease:
         if not _source_equal(wanted, actual):
             return _Mismatch("SOURCE_MISMATCH", "draw", "The actual producing source differs from the request.", actual)
         if wanted["kind"] == "live":
-            frame = i.get("drawRef")
+            # A held window shows its source's last verified frame ({"held": sample}, Screen._completion): that is
+            # its own drawing of this source, of this run and stream, though not the current one (will-tabs, 30 Oct:
+            # every control on a close-up whose object left the frame was refused here).
+            frame, ack_frame = (_held_frame(i.get("drawRef")), _held_frame(ack.get("drawRef")))
             if (not isinstance(frame, Mapping) or frame.get("run") != wanted["identity"].get("run")
                     or not frame.get("boot") or type(frame.get("seq")) is not int):
                 return _Mismatch("SOURCE_MISMATCH", "draw", "The live sample has no matching drawn-frame identity.", frame)
-            ack_frame = ack.get("drawRef")
             if (not isinstance(ack_frame, Mapping) or ack_frame.get("run") != frame["run"]
                     or ack_frame.get("boot") != frame["boot"] or type(ack_frame.get("seq")) is not int
                     or ack_frame["seq"] > frame["seq"]):

@@ -375,6 +375,11 @@ class Catalogue:
         exact = [i for i in infos if i.id == text]
         if exact:
             return exact
+        # A session called exactly that, and only one: it (the partner bench of 2026-10-29: "Open the Nuclei project"
+        # also matched another session that had looked at nuclei, and nothing was opened).
+        named = [i for i in infos if " ".join(str(i.name or "").lower().split()) == text]
+        if len(named) == 1:
+            return named
         others = [i for i in infos if i.id != current]
         if text in ("previous", "the previous one", "the last one", "last one", "the other one", "before"):
             return others[:1]

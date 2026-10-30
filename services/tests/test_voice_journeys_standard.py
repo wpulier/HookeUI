@@ -50,6 +50,11 @@ def tool(n, name, start, end, *, report=None, screen=False, ok=True, **more):
             "reportT": T0 + report if report is not None else None, **more}
 
 
+def shown(t, state, n=0, pill=False, assistant=True):
+    """What the studio showed of the voice at t (harness.js voice-shown)."""
+    return {"t": ms(t), "e": "voice-shown", "state": state, "n": n, "pill": pill, "assistant": assistant}
+
+
 def line(lid, at, text):
     return {"type": "chat", "role": "assistant", "voice": True, "lineId": lid, "at": T0 + at, "text": text}
 
@@ -82,6 +87,15 @@ def good():
                {"t": ms(70.85), "e": "mark", "on": True, "id": "m2", "target": "researcher:2"},
                {"t": ms(73.0), "e": "mark", "on": False, "id": "m2", "target": "researcher:2"},
                {"t": ms(80.0), "e": "fault", "fault": "close-provider"}]
+    # The voice's state as the studio showed it: listening while held, thinking from the release to the first words,
+    # speaking, then live (idle) once quiet.
+    events.append(shown(-1, "idle"))
+    for down, up, first, quiet in [(0, 1.6, 2.0, 4.5), (10, 12.1, 12.5, 15.0), (20, 23.1, 23.5, 26.0), (30, 31.6, 32.0, 34.0),
+                                   (40, 41.6, 42.0, None), (44.0, 45.6, 46.0, 47.0), (55, 57.1, 57.5, 63.0)]:
+        events += [shown(down, "listening"), shown(up, "thinking"), shown(first, "speaking")]
+        if quiet is not None:
+            events.append(shown(quiet, "idle"))
+    events += [shown(70.8, "speaking"), shown(72.0, "idle")]
     bench = {"plan": "synthetic", "voice": "gpt-realtime-2.1", "talk": "hold", "steps": steps, "events": events}
     conv = [line("L1", 2.0, "Outlining the nuclei now."), line("L2", 2.95, "Done: 42 nuclei outlined."),
             line("L3", 12.5, "Opening the table in a new tab."), line("L4", 13.6, "The table is in the Measurements tab."),
@@ -104,11 +118,19 @@ def good():
              {"kind": "partner-proactive", "t": T0 + 70.2, "event": "researcher-done", "ref": "r2", "eventT": T0 + 70.0,
               "userBusy": False, "responseCreatedT": T0 + 70.2, "markTarget": "researcher:2"},
              {"kind": "partner-reconnect", "t": T0 + 81.2, "reason": "bench", "closedT": T0 + 80.05,
-              "readyT": T0 + 81.2, "ms": 1150, "midSpeech": False}]
-    verdicts = {"outline": {"claims_on_screen": [1], "answered": True},
-                "table": {"claims_on_screen": [1], "answered": True},
-                "researcher": {"claims_on_screen": [], "answered": True},
-                "multi": {"claims_on_screen": [2], "answered": True}}
+              "readyT": T0 + 81.2, "ms": 1150, "midSpeech": False},
+             # Hands: the table opened with its cue first; the user took over during the multi step, in 60 ms.
+             {"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
+              "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
+             {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
+              "version": 3, "revision": 10, "result": "verified", "expected": "verified"},
+             {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
+              "atServer": T0 + 75.06}]
+    # A sign it heard you, 0.15 s after each release (decision 1).
+    inter += [{"kind": "partner-heard", "n": n, "cueT": T0 + up + 0.15}
+              for n, up in enumerate([1.6, 12.1, 23.1, 31.6, 41.6, 45.6, 57.1], start=1)]
+    verdicts = {sid: {"answered": True, "meets_expectation": True, "partner_quality": 3}
+                for sid in ("outline", "table", "researcher", "multi")}
     return bench, conv, inter, verdicts
 
 
@@ -119,7 +141,10 @@ def board(bench, conv, inter, verdicts=None, plan=PLAN, voice=None, baseline=Non
 
 
 def result(lines, name):
-    return lines[name]["result"]
+    """A line's result; a timing line is reported (spec #80), "reported: within" or "reported: over", read here as the
+    measurement's pass or FAIL."""
+    got = lines[name]["result"]
+    return {"reported: within": "pass", "reported: over": "FAIL"}.get(got, got)
 
 
 def test_a_run_that_meets_the_standard_passes_every_line():
@@ -147,12 +172,38 @@ def shift_audio_on(bench, at, to):
             e["t"] = ms(to)
 
 
-def test_slow_first_audio_fails():
+def test_slow_first_meaningful_words_fail():
+    """Decision 1: the first meaningful words, not the first audio, at most 1.2 s median and 1.8 s p95."""
     bench, conv, inter, verdicts = good()
-    for at in (2.0, 12.5, 23.5, 32.0):  # four of seven first words at 2.4 s
-        shift_audio_on(bench, at, at + 2.0)
-    _, summary, lines = board(bench, conv, inter, verdicts)
-    assert result(lines, "Release to first audio") == "FAIL"
+    for lid in ("L1", "L3", "L5", "L7"):  # four of seven answers start 2.5 s later
+        for c in conv:
+            if c["lineId"] == lid:
+                c["at"] += 2.5
+    assert result(board(bench, conv, inter, verdicts)[2], "First meaningful words") == "FAIL"
+
+
+def test_filler_first_words_are_not_meaningful():
+    """"Mm, okay..." at once, the content 0.7 s later: the first meaningful words are the content's."""
+    bench, conv, inter, verdicts = good()
+    conv[0] = line("L1", 1.8, "Mm, okay. Outlining the nuclei now.")
+    bench["events"] += [{"t": ms(1.8), "e": "line", "id": "L1", "text": "Mm, okay."},
+                        {"t": ms(2.5), "e": "line", "id": "L1", "text": "Mm, okay. Outlining the nuclei now."}]
+    row = {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["outline"]
+    assert row["meaningfulS"] == pytest.approx(2.5 - 1.6)
+    assert standard.meaningful("Mm, okay.") is False and standard.meaningful("Okay, 42 nuclei.") is True
+
+
+def test_a_sign_it_heard_you_within_300_ms_every_turn():
+    bench, conv, inter, verdicts = good()
+    assert result(board(bench, conv, inter, verdicts)[2], "A sign it heard you") == "pass"
+    slow = [{**r, "cueT": r["cueT"] + 0.3} if r.get("kind") == "partner-heard" and r["n"] == 1 else r for r in inter]
+    assert result(board(bench, conv, slow, verdicts)[2], "A sign it heard you") == "FAIL"
+    missing = [r for r in inter if not (r.get("kind") == "partner-heard" and r["n"] == 2)]
+    assert result(board(bench, conv, missing, verdicts)[2], "A sign it heard you") == "FAIL"  # a turn without one
+    none = [r for r in inter if r.get("kind") != "partner-heard"]
+    assert result(board(bench, conv, none, verdicts)[2], "A sign it heard you").startswith("not measured")
+    bench["events"].append({"t": ms(1.7), "e": "ws-in", "m": {"type": "heard"}})  # the studio's own cue counts too
+    assert {r["id"]: r for r in board(bench, conv, none, verdicts)[0]["steps"]}["outline"]["heardS"] == pytest.approx(0.1)
 
 
 def test_barge_in_that_is_not_silent_in_time_fails():
@@ -253,26 +304,32 @@ def test_wrong_first_tool_fails():
     assert result(lines, "Right tool on the first try") == "FAIL"
 
 
-def test_do_in_hooke_over_five_percent_fails():
+def test_do_in_hooke_share_is_reported_never_a_gate():
+    """Handing the work to Hooke's brain is the design (PARTNER_ACTS "brain"): its share is reported, never a FAIL."""
     bench, conv, inter, verdicts = good()
     inter.append(tool(5, "do_in_hooke", 41.8, 43.0))
     plan = copy.deepcopy(PLAN)
     plan["steps"][4]["expect"] = {"tools": ["do_in_hooke"], "toolRequired": False}
     _, summary, lines = board(bench, conv, inter, verdicts, plan)
-    assert summary["doInHooke"]["calls"] == 1 and result(lines, "do_in_hooke share") == "FAIL"
+    assert summary["doInHooke"]["calls"] == 1 and result(lines, "do_in_hooke share") == "reported"
 
 
-def test_false_done_fails():
+def test_false_done_is_a_verified_receipt_the_app_does_not_back():
+    """The spec: false "done" is counted from receipts and app state, never judged. A receipt saying verified for the
+    table with no studio report of it is one."""
     bench, conv, inter, verdicts = good()
-    verdicts["table"]["claims_on_screen"] = [0, 1]  # "Opening the table" judged a claim, said before the report
-    conv[2] = line("L3", 12.5, "The table is up.")
-    assert result(board(bench, conv, inter, verdicts)[2], 'False "done"') == "FAIL"
+    for r in inter:
+        if r.get("kind") == "partner-tool" and r.get("name") == "show_measurements":
+            r["confirmed"], r["reportT"] = False, None
+    run, _, lines = board(bench, conv, inter, verdicts)
+    assert {r["id"]: r for r in run["steps"]}["table"]["falseDone"] == 1 and result(lines, 'False "done"') == "FAIL"
 
 
-def test_false_done_unmeasured_without_the_judge():
-    bench, conv, inter, _ = good()
-    assert result(board(bench, conv, inter, None)[2], 'False "done"') == "not measured"
-    assert not meets(scoreboard(board(bench, conv, inter, None)[1]))
+def test_false_done_needs_receipts_not_the_judge():
+    bench, conv, inter, verdicts = good()
+    assert result(board(bench, conv, inter, None)[2], 'False "done"') == "pass"  # no judge: still scored
+    no_receipts = [r for r in inter if r.get("kind") != "partner-hands"]
+    assert result(board(bench, conv, no_receipts, verdicts)[2], 'False "done"') == "not measured: no receipts (no Hands)"
 
 
 def test_two_researchers_from_one_request_fail():
@@ -421,7 +478,8 @@ def test_markdown_names_the_failed_steps():
     summary = summarise([run])
     text = standard.markdown({"about": {"voice": "gpt-realtime-2.1", "talk": "hold", "plan": "synthetic"},
                               "summary": summary, "scoreboard": scoreboard(summary), "runs": [run]})
-    assert "Standard met: no" in text and "outcome said 2 times" in text and "| Feel | Release to first audio |" in text
+    assert "Standard met: no" in text and "outcome said 2 times" in text and "| Feel | First meaningful words |" in text
+    assert f"Scorer {standard.SCORER_VERSION}." in text
 
 
 def test_a_request_that_cannot_succeed_is_said_once_and_changes_nothing():
@@ -450,20 +508,15 @@ def test_an_idle_wait_has_no_first_audio_and_needs_no_answer():
     assert result(lines, "Event spoken when idle") == "pass"
 
 
-def test_a_claim_is_timed_by_when_its_words_were_said():
+def test_an_outcome_is_timed_by_when_its_words_were_said():
     """GPT-Live, 2026-10-29 bench: one long line began before the outlines were confirmed and said "The outlines are
     on" after; the journal keeps only when a line began, the page saw its words arrive."""
     bench, conv, inter, verdicts = good()
     conv[1] = line("L2", 2.3, "I'm outlining them now. The outlines are on: 42 nuclei.")
     bench["events"] += [{"t": ms(2.3), "e": "line", "id": "L2", "text": "I'm outlining them now."},
                         {"t": ms(2.9), "e": "line", "id": "L2", "text": "I'm outlining them now. The outlines are on: 42 nuclei."}]
-    verdicts["outline"] = {"claims_on_screen": [{"line": 1, "words": "The outlines are on"}], "answered": True}
-    run, _, lines = board(bench, conv, inter, verdicts)
-    row = {r["id"]: r for r in run["steps"]}["outline"]
-    assert row["falseDone"] == 0 and row["spokenS"] == pytest.approx(2.9 - 1.6) and row["outcomesSaid"] == 1
-    bench["events"][-1]["t"] = ms(2.35)  # the same words 0.35 s before the report at 2.7 s
-    run, _, lines = board(bench, conv, inter, verdicts)
-    assert {r["id"]: r for r in run["steps"]}["outline"]["falseDone"] == 1 and result(lines, 'False "done"') == "FAIL"
+    row = {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["outline"]
+    assert row["spokenS"] == pytest.approx(2.9 - 1.6) and row["outcomesSaid"] == 1
 
 
 def test_server_audio_spans_end_at_partner_audio():
@@ -646,16 +699,15 @@ def test_an_idle_wait_or_a_restart_is_nobody_talking():
 
 
 
-def test_partner_quality_is_reported_on_the_overall_line_never_a_gate():
-    """Will, 2026-10-29: the bar is a sharp, dynamic colleague (HeyClicky), not only timings. The judge's 0-3 per step
-    is reported as its mean and the steps under 2; the standard is met or not on its own lines."""
+def test_partner_quality_gates_the_overall_line():
+    """The spec, section 1: the judge's partner quality, a mean of at least 2.5 and no step under 2."""
     bench, conv, inter, verdicts = good()
-    for sid, q in (("outline", 3), ("table", 3), ("researcher", 1), ("multi", 2)):
+    assert result(board(bench, conv, inter, verdicts)[2], "Partner quality (0-3, judged)") == "pass"
+    for sid, q in (("outline", 3), ("table", 3), ("researcher", 1), ("multi", 3)):
         verdicts[sid]["partner_quality"] = q
     run, summary, lines = board(bench, conv, inter, verdicts)
     line = lines["Partner quality (0-3, judged)"]
-    assert line["result"] == "reported" and line["value"] == "mean 2.25 over 4 steps; under 2: 1 (researcher)"
-    assert meets(list(lines.values()))  # a low quality never fails the standard by itself
+    assert line["result"] == "FAIL" and line["value"] == "mean 2.50 over 4 steps; under 2: 1 (researcher)"
     verdicts["outline"]["partner_quality"] = "great"  # not a number: not counted
     assert board(bench, conv, inter, verdicts)[1]["quality"]["n"] == 3
 
@@ -668,7 +720,6 @@ def test_a_status_step_can_name_the_researcher_the_user_named():
     run, _, _ = board(bench, conv, inter, verdicts, plan)
     row = {r["id"]: r for r in run["steps"]}["status"]
     assert row["statusExpected"] == 1 and row["statusRight"] is False  # it said researcher 2
-
 
 
 def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
@@ -698,9 +749,9 @@ def test_think_is_a_hand_off_whose_result_belongs_to_the_step_that_asked():
     assert "Done: 42 nuclei" not in " ".join(rows["after"]["lines"])
     # think is the intended route for multi-step work: never on the fallback's 5% cap, reported by kind of step.
     assert rows["multi"]["toolRight"] is True and summary["doInHooke"]["calls"] == 0
-    assert result(lines, "do_in_hooke share") == "pass"
+    assert result(lines, "do_in_hooke share") == "reported"
     assert lines["think share"]["result"] == "reported" and lines["think share"]["value"] == "1 of 5 (20%); by step kind: act 1 of 5"
-    assert all(l.get("gate", True) for l in lines.values() if l["line"] not in ("think share", "Partner quality (0-3, judged)"))
+    assert lines["think share"].get("gate") is False  # think's share is reported, never a gate
 
 
 def test_think_on_a_quick_step_is_the_wrong_tool():
@@ -732,34 +783,30 @@ def test_a_status_step_can_name_the_first_researcher_a_step_started():
     assert rows["status"]["statusExpected"] == 1 and rows["status"]["statusRight"] is True
 
 
-def test_a_claim_after_a_tool_that_changes_nothing_on_screen_needs_its_success_not_a_report():
-    """think-broad-2: "Researcher 2 got the message" after researcher_note, "Done." after set_default: no screen
-    change, so no studio report can come; the claim stands on the call having succeeded (and fails if it did not)."""
+def test_a_receipt_for_a_note_needs_its_success_not_a_studio_report():
+    """think-broad-2: "Researcher 2 got the message" after researcher_note: no studio report can come; the receipt
+    stands on the call having succeeded (and is false if it did not)."""
     bench, conv, inter, verdicts = good()
-    inter.append(tool(5, "researcher_note", 41.7, 41.9))
-    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
-    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
-    run, _, _ = board(bench, conv, inter, verdicts)
-    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 0
-    inter[-1]["ok"] = False
-    run, _, _ = board(bench, conv, inter, verdicts)
-    assert {r["id"]: r for r in run["steps"]}["explain"]["falseDone"] == 1
+    inter += [tool(5, "researcher_note", 41.7, 41.9),
+              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified", "expected": "verified"}]
+    row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
+    assert row()["falseDone"] == 0
+    inter[-2]["ok"] = False
+    assert row()["falseDone"] == 1
 
 
-def test_a_note_or_a_setting_claim_is_backed_by_the_apps_own_state():
-    """The coordinator: confirm such calls by their result and the state the app reports (/api/research's notes, the
-    settings the studios are sent), not by a studio report that can't come."""
+def test_a_note_or_a_setting_receipt_is_backed_by_the_apps_own_state():
+    """Confirmed by the state the app reports (/api/research's notes, the settings the studios are sent)."""
     bench, conv, inter, verdicts = good()
-    inter.append(tool(5, "researcher_note", 41.7, 41.9))
-    conv[7] = line("L8", 42.0, "Researcher 2 got the message.")
-    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "got the message"}], "answered": True}
+    inter += [tool(5, "researcher_note", 41.7, 41.9),
+              {"kind": "partner-hands", "t": T0 + 41.95, "intent": "note", "tool": "researcher_note", "result": "verified", "expected": "verified"}]
     rows = lambda notes: {"rows": [{"source": "api", "rid": "r2", "number": 2, "created": T0 + 23.9, "notes": notes}]}
     bench["events"] += [{"t": ms(41.0), "e": "researchers", **rows(0)}, {"t": ms(41.95), "e": "researchers", **rows(1)}]
     row = lambda: {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]
     assert row()["falseDone"] == 0
     bench["events"][-1].update(rows(0))  # ok said, but no note reached the researcher
     assert row()["falseDone"] == 1
-    inter[-1]["name"] = "set_default"
+    inter[-2]["name"], inter[-1]["tool"] = "set_default", "set_default"
     bench["events"] += [{"t": ms(-5), "e": "settings", "first": True, "changed": ["brain"]},
                         {"t": ms(41.9), "e": "settings", "first": False, "changed": ["brain"]}]
     assert row()["falseDone"] == 0
@@ -767,14 +814,20 @@ def test_a_note_or_a_setting_claim_is_backed_by_the_apps_own_state():
     assert row()["falseDone"] == 1
 
 
-def test_a_hand_off_does_not_back_a_claim_by_its_ok():
-    """think-broad-2: after a think that changed nothing confirmed, "the reference image is still there" is a claim
-    about the screen; the hand-off's own ok says nothing about it."""
+def test_a_verified_receipt_for_a_visible_change_needs_the_studios_report():
     bench, conv, inter, verdicts = good()
-    inter.append({**tool(5, "think", 41.7, 41.9), "callId": "c5"})
-    conv[7] = line("L8", 42.0, "The reference image is still there.")
-    verdicts["explain"] = {"claims_on_screen": [{"line": 0, "words": "still there"}], "answered": True}
+    inter += [tool(5, "highlight", 41.7, 41.9, screen=True),  # no report came
+              {"kind": "partner-hands", "t": T0 + 42.0, "intent": "highlight", "tool": "highlight", "target": "outline:o3",
+               "result": "verified", "expected": "verified"}]
     assert {r["id"]: r for r in board(bench, conv, inter, verdicts)[0]["steps"]}["explain"]["falseDone"] == 1
+
+
+def test_rescoring_a_kept_run_with_the_same_scorer_gives_the_same_result():
+    """The spec: the scorer is fixed and versioned per run; a kept run scored twice gives the same result."""
+    bench, conv, inter, verdicts = good()
+    first = json.dumps(score_run(copy.deepcopy(bench), conv, inter, PLAN, copy.deepcopy(verdicts)), sort_keys=True)
+    again = json.dumps(score_run(copy.deepcopy(bench), conv, inter, PLAN, copy.deepcopy(verdicts)), sort_keys=True)
+    assert first == again
 
 
 def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step_that_asked():
@@ -797,3 +850,435 @@ def test_a_background_call_is_done_when_its_result_lands_and_belongs_to_the_step
     rows = {r["id"]: r for r in run["steps"]}
     assert rows["table"]["visibleS"] == pytest.approx(21.0 - 12.1) and rows["table"]["outcomesSaid"] == 1
     assert "Here's a dividing nucleus" not in " ".join(rows["researcher"]["lines"])
+
+
+def drive_records(stale=False, slow=False, hidden=False):
+    out = [{"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
+            "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
+           {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
+            "version": 3, "revision": 10, "result": "verified", "expected": "verified"},
+           {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
+            "atServer": T0 + (75.3 if slow else 75.06)}]
+    if hidden:
+        out.append({"kind": "partner-drive", "id": "d2", "intent": "highlight", "tool": "highlight", "target": "outline:o3",
+                    "sentT": T0 + 30.0, "shownT": None, "ok": False, "why": "hidden"})
+    if stale:
+        out.append({"kind": "partner-hands", "t": T0 + 76.0, "intent": "close", "tool": "present", "version": 3, "result": "verified", "expected": "verified"})
+    return out
+
+
+HANDS = ("partner-drive", "partner-hands", "partner-takeover")
+
+
+def test_drive_gates_a_cue_for_every_action_and_nothing_after_a_takeover():
+    """The spec (part-2.5-live-partner-spec.md, section 1): every action visible as it happens, a takeover stops it
+    within 150 ms, no queued action runs after. Actions verified and cues never ended are details within the line."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] += [{"t": ms(12.4), "e": "ws-in", "m": {"type": "drive", "id": "d1"}},
+                        {"t": ms(13.6), "e": "ws-in", "m": {"type": "drive-end", "id": "d1", "outcome": "verified"}}]
+    inter = [r for r in inter if r.get("kind") not in HANDS]
+    line = lambda **k: board(bench, conv, inter + drive_records(**k), verdicts)[2]["Drive"]
+    good_line = line()
+    assert good_line["result"] == "pass" and "studio to server max 0.06 s" in good_line["value"]
+    assert "actions verified 1 of 1" in good_line["value"]
+    assert line(stale=True)["result"] == "FAIL" and line(hidden=True)["result"] == "FAIL"
+    slow = line(slow=True)  # the takeover's milliseconds are reported (spec #80), the line still passes
+    assert slow["result"] == "pass" and "studio to server max 0.30 s, reported" in slow["value"]
+    no_takeover = board(bench, conv, inter + drive_records()[:2], verdicts)[2]["Drive"]
+    assert no_takeover["result"] == "not measured: no takeover in the run"
+    assert board(bench, conv, inter + drive_records(), verdicts, voice="gpt-live-1")[2]["Drive"]["result"] == \
+        "not applicable to this voice"
+
+
+def test_a_takeover_step_is_scored_on_stopping():
+    bench, conv, inter, verdicts = good()
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][4]["expect"] = {"tools": [], "toolRequired": False, "takeover": True}
+    row = lambda i: {r["id"]: r for r in board(bench, conv, i, verdicts, plan)[0]["steps"]}["explain"]
+    assert "no takeover reached the server" in row(inter)["failures"]
+    taken = [{"kind": "partner-takeover", "t": T0 + 42.2, "why": "mouse", "version": 5, "atStudio": T0 + 42.1, "atServer": T0 + 42.18}]
+    assert row(inter + taken)["takeover"] == [0.08] and not row(inter + taken)["failures"]
+
+
+
+def test_the_gates_come_first_and_every_timing_is_reported():
+    """Spec #80 (Will: "our benchmark subjective matters most"): the gates, in order, are partner quality, false
+    "done" from receipts, receipts, and Drive's truthful parts; every timing is reported, never a gate."""
+    bench, conv, inter, verdicts = good()
+    for at in (2.0, 12.5, 23.5, 32.0):
+        shift_audio_on(bench, at, at + 2.0)
+    for c in conv:
+        c["at"] += 3.0  # every answer slow
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    board_ = scoreboard(summary)
+    assert [l["line"] for l in board_[:4]] == ["Partner quality (0-3, judged)", 'False "done"', "Receipts", "Drive"]
+    for name in standard.TIMING_LINES:
+        assert lines[name].get("gate") is False and lines[name]["result"].startswith(("reported", "not measured")), name
+    assert lines["First meaningful words"]["result"] == "reported: over"
+    assert meets(board_) is (all(l["result"] == "pass" for l in board_ if l.get("gate", True)))
+
+
+def test_receipts_gate_every_action_ending_in_a_checked_receipt():
+    bench, conv, inter, verdicts = good()
+    assert result(board(bench, conv, inter, verdicts)[2], "Receipts") == "pass"
+    unreceipted = inter + [{"kind": "partner-drive", "id": "d9", "intent": "close", "tool": "present", "target": "window:w1",
+                            "sentT": T0 + 30.0, "shownT": T0 + 30.2, "ok": True}]
+    assert result(board(bench, conv, unreceipted, verdicts)[2], "Receipts") == "FAIL"
+    unchecked = [{k: v for k, v in r.items() if k != "expected"} if r.get("kind") == "partner-hands" else r for r in inter]
+    assert result(board(bench, conv, unchecked, verdicts)[2], "Receipts") == "FAIL"
+
+
+# --- the watcher (orchestrator/view_watch.py) ------------------------------------------------------------------------
+WATCH_PLAN = {**PLAN, "steps": PLAN["steps"] + [{"id": "watch-pan", "expect": {"watch": ["slide-moved"]}},
+                                                {"id": "watch-steady", "expect": {"watch": []}}]}
+
+
+def watched(spoken_at=1.4, false_alarms=0, raised=True):
+    """good() with two idle watch steps after it: the slide moved (one event said) and ten steady minutes."""
+    bench, conv, inter, verdicts = good()
+    bench["steps"] += [{"id": "watch-pan", "kind": "idle", "say": "", "start": ms(100), "end": ms(125), "idle": True},
+                       {"id": "watch-steady", "kind": "idle", "say": "", "start": ms(130), "end": ms(730), "idle": True}]
+    if raised:
+        inter += [{"kind": "watch-event", "t": T0 + 110, "event": "slide-moved", "id": "v1", "eventT": T0 + 110.0,
+                   "sinceT": T0 + 109.4, "delivery": "idle", "to": "voice", "pointAt": ["frame"]},
+                  {"kind": "partner-proactive", "t": T0 + 110.1, "event": "slide-moved", "ref": "v1",
+                   "eventT": T0 + 110.05, "userBusy": False, "responseCreatedT": T0 + 110.1, "markTarget": "frame"}]
+        bench["events"] += audio(110 + spoken_at, 112.8)
+    for k in range(false_alarms):
+        inter.append({"kind": "watch-event", "t": T0 + 200 + k, "event": "focus-drifted", "id": f"f{k}",
+                      "eventT": T0 + 200.0 + 30 * k, "delivery": "context", "to": "voice"})
+    return bench, conv, inter, verdicts
+
+
+def test_the_watch_lines_pass_when_the_event_is_said_within_two_seconds_and_nothing_else_is_raised():
+    run, summary, lines = board(*watched(), plan=WATCH_PLAN)
+    assert result(lines, "Watch: an event said when idle") == "pass"
+    assert result(lines, "Watch: false alarms per hour") == "pass"
+    assert summary["watch"]["spokenMax"] == pytest.approx(1.4) and summary["watch"]["steadyMinutes"] == 10.0
+    assert summary["watch"]["falsePerHour"] == 0.0
+
+
+def test_a_watch_event_said_late_unsaid_or_missed_fails():
+    assert result(board(*watched(spoken_at=2.6), plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    bench, conv, inter, verdicts = watched()
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    assert result(board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2], "Watch: an event said when idle") == "FAIL"
+    _, summary, lines = board(*watched(raised=False), plan=WATCH_PLAN)
+    assert summary["watch"]["missed"] == ["watch-pan: slide-moved"]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"
+
+
+def test_events_on_a_steady_stretch_are_false_alarms_per_hour():
+    _, summary, lines = board(*watched(false_alarms=2), plan=WATCH_PLAN)
+    assert summary["watch"]["falseAlarms"] == 2 and summary["watch"]["falsePerHour"] == pytest.approx(12.0)
+    assert result(lines, "Watch: false alarms per hour") == "FAIL"
+
+
+def test_a_plan_without_watch_steps_has_no_watch_lines_and_gpt_live_is_not_measured_on_saying_them():
+    lines = board(*good())[2]
+    assert not [name for name in lines if name.startswith("Watch:")]
+    bench, conv, inter, verdicts = watched()
+    bench["voice"] = "gpt-live-1"
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN, voice="gpt-live-1")[2]
+    assert result(lines, "Watch: an event said when idle") == "not applicable to this voice"
+    assert result(lines, "Watch: false alarms per hour") == "pass"  # the watcher is the app's, whichever voice
+
+
+def test_with_watch_quiet_a_slide_move_told_silently_is_no_said_line_but_a_missed_one_still_fails():
+    """part-2.5-broad runs with the default WATCH quiet: the slide's move is told silently (the judge asks what changed);
+    the said line appears only when something was to be said, or an expected event was never raised."""
+    bench, conv, inter, verdicts = watched()
+    for r in inter:
+        if r.get("kind") == "watch-event":
+            r["delivery"] = "context"
+    inter[:] = [r for r in inter if r.get("kind") != "partner-proactive" or r.get("ref") != "v1"]
+    lines = board(bench, conv, inter, verdicts, plan=WATCH_PLAN)[2]
+    assert "Watch: an event said when idle" not in lines and result(lines, "Watch: false alarms per hour") == "pass"
+    lines = board(*watched(raised=False), plan=WATCH_PLAN)[2]
+    assert result(lines, "Watch: an event said when idle") == "FAIL"
+
+
+def test_an_event_cut_off_and_brought_back_is_one_line():
+    """voice/events.py: a result the user cut off comes back once ("as I started to say…"); its second record says
+    `again`, and it is the same line, not a second one. Two first sayings still fail (test_event_said_twice_fails)."""
+    bench, conv, inter, verdicts = good()
+    first = [r for r in inter if r.get("kind") == "partner-proactive"][0]
+    first["eventId"] = "ev-1"
+    inter.append({**first, "t": T0 + 75, "responseCreatedT": T0 + 75.0, "eventT": T0 + 75.0, "again": 1})
+    inter.append({"kind": "partner-response", "t": T0 + 77, "cause": "proactive", "firstAudioT": T0 + 75.3,
+                  "audioEndT": T0 + 76.5, "events": ["ev-1"], "transcript": "As I started to say, two size groups."})
+    bench["events"] += audio(75.3, 76.5)
+    run, _, lines = board(bench, conv, inter, verdicts)
+    assert [e["lines"] for e in run["proactive"]] == [1], "one event, one line"
+    assert result(lines, "Never over the user, one line, pointing") == "pass"
+
+
+def test_a_think_result_cut_off_and_brought_back_is_said_once():
+    """A think result whose first saying the user cut off and that came back in the next pause: two lines, one
+    outcome. The line that brought it back is matched by the events its response carried."""
+    bench, conv, inter, verdicts = good()
+    inter = [r for r in inter if not (r.get("kind") == "partner-tool" and r.get("n") == 7)]
+    inter += [{**tool(7, "think", 57.3, 57.4), "callId": "c-think"},
+              {"kind": "partner-think", "task": "t1", "callId": "c-think", "n": 7, "ok": True, "doneT": T0 + 59.0,
+               "tools": [{"name": "outline_cells", "ok": True, "confirmed": True},
+                         {"name": "measure", "ok": True, "confirmed": True}]},
+              {"kind": "partner-think-said", "task": "t1", "n": 7, "eventId": "ev-t1", "responseCreatedT": T0 + 59.5,
+               "again": 0},
+              {"kind": "partner-response", "responseId": "th1", "cause": "think", "firstAudioT": T0 + 59.8,
+               "audioEndT": T0 + 60.3, "events": ["ev-t1"], "transcript": "Done: 42 nuclei"},
+              {"kind": "partner-think-said", "task": "t1", "n": 7, "eventId": "ev-t1", "responseCreatedT": T0 + 61.0,
+               "again": 1},
+              {"kind": "partner-response", "responseId": "th2", "cause": "think", "firstAudioT": T0 + 61.2,
+               "audioEndT": T0 + 63.0, "events": ["ev-t1"],
+               "transcript": "As I started to say, the median area is 210 square microns."}]
+    conv = [c for c in conv if c["lineId"] not in ("L10", "L11", "L12")]
+    conv += [line("L12a", 59.8, "Done: 42 nuclei"),
+             line("L12b", 61.2, "As I started to say, the median area is 210 square microns.")]
+    bench["events"] = [e for e in bench["events"] if not (e.get("e") == "audio" and ms(57.4) <= e["t"] <= ms(63.1))]
+    bench["events"] += audio(59.8, 60.3) + audio(61.2, 63.0)
+    plan = copy.deepcopy(PLAN)
+    plan["steps"][6]["expect"]["tools"] = ["outline_cells", "measure", "think"]
+    verdicts["multi"] = {"claims_on_screen": [], "answered": True}
+    run, _, lines = board(bench, conv, inter, verdicts, plan)
+    row = {r["id"]: r for r in run["steps"]}["multi"]
+    assert row["outcomesSaid"] == 1, row
+    assert not [f for f in row["failures"] if "outcome said" in f]
+
+
+def test_a_hand_offs_row_gives_the_brains_steps_and_when_the_studio_confirmed_them():
+    """will-workspace, 29 Oct: the brain outlined the stoma and the studio confirmed it, but the bench read only the
+    voice's own calls and chat-action cards, so the step was "first tool do_in_hooke" and "not confirmed on screen". A
+    hand-off row's steps are the brain's tools, confirmed when the row settled; a step sent but not seen is not."""
+    from bench.voice_journeys.standard import card_calls
+
+    conv = [{"type": "handoff", "at": 10.0, "state": "working", "steps": None, "startedAt": 5.0},
+            {"type": "handoff", "at": 12.0, "state": "done", "startedAt": 5.0, "steps": [
+                {"tool": "find", "ok": True, "actionId": "a1"},
+                {"tool": "present", "ok": True, "actionId": "a2",
+                 "outcome": {"status": "unobserved", "failure": {"code": "STUDIO_UNREPORTED"}}},
+                {"tool": "outline_cells", "ok": None, "actionId": "a3"}]},
+            {"type": "chat-action", "at": 20.0, "tool": "outline_cells", "ok": True, "actionId": "a3"}]
+    calls = {c.name: c for c in card_calls(conv, 0, 30)}
+    assert [c.name for c in card_calls(conv, 0, 30)][0] == "find", "the brain's first step is the first tool"
+    assert calls["find"].confirmed_at == 12.0
+    assert calls["present"].confirmed_at is None, "sent but not seen on screen is not confirmed"
+    assert calls["outline_cells"].ok is True and calls["outline_cells"].confirmed_at == 20.0, "a late step by its card"
+
+
+# --- alive and available (W3): the voice's state as the studio showed it -------------------------------------------
+
+ALIVE = "Alive: a state shown in every wait"
+
+
+def handed(hid, working, ended, *, row=True):
+    """A hand-off the server filed (partner-handoff records, working then done) and, unless `row` is False, its row in
+    the chat as the page saw it (harness handoff-row)."""
+    inter = [{"kind": "partner-handoff", "id": hid, "state": "working", "long": False, "settling": False,
+              "label": "Video about stomata", "t": T0 + working},
+             {"kind": "partner-handoff", "id": hid, "state": "done", "long": True, "settling": False,
+              "label": "Video about stomata", "t": T0 + ended}]
+    events = [{"t": ms(working + 0.05), "e": "handoff-row", "id": hid, "state": "working"},
+              {"t": ms(ended + 0.05), "e": "handoff-row", "id": hid, "state": "done"}] if row else []
+    return inter, events
+
+
+def alive_line(bench, conv, inter, verdicts):
+    run, summary, lines = board(bench, conv, inter, verdicts)
+    return run["alive"], summary["alive"], lines[ALIVE]
+
+
+def test_alive_passes_when_every_wait_shows_a_state():
+    _, pooled, line_ = alive_line(*good())
+    assert line_["result"] == "pass" and pooled["measured"] and pooled["gaps"] == 0, line_
+    assert line_["value"].startswith("gaps covered 0 of 0; rows 0 of 0; presence 0 of 0")
+    assert ALIVE not in standard.TIMING_LINES and ALIVE not in standard.ONE_BRAIN_ONLY  # a gate, for both voices
+
+
+def test_a_hand_off_waiting_three_seconds_with_nothing_shown_fails_and_working_covers_it():
+    """Hooke's brain works on a hand-off from 5 s to 8 s while nothing plays: the studio said "live" (idle) the whole
+    time, a silent gap; with "working · 1" shown it is covered."""
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["gaps"] == 1, line_
+    assert alive_run["uncovered"] == [{"atS": 5.0, "s": 3.0, "shown": ["idle"]}]
+    assert "uncovered at 5.0 s (3.0 s, shown idle)" in line_["value"]
+    bench["events"] += [shown(5.0, "working", n=1), shown(8.0, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and alive_run["gaps"] == 1 and not alive_run["uncovered"], line_
+
+
+def test_a_wait_from_release_to_first_words_needs_thinking_shown():
+    """The status step's answer comes 3.4 s after the release: thinking shown until it covers the wait; the studio
+    going back to idle before the words leaves a silent gap."""
+    bench, conv, inter, verdicts = good()
+    for e in bench["events"]:
+        if e.get("e") == "audio" and e["t"] == ms(32.0):
+            e["t"] = ms(35.0)
+        elif e.get("e") == "audio" and e["t"] == ms(34.0):
+            e["t"] = ms(37.0)
+        elif e.get("e") == "voice-shown" and e["t"] in (ms(32.0), ms(34.0)):
+            e["t"] += 3000
+    alive_run, _, line_ = alive_line(copy.deepcopy(bench), conv, inter, verdicts)
+    assert alive_run["gaps"] == 1 and not alive_run["uncovered"] and line_["result"] == "pass", line_
+    bench["events"].append(shown(32.5, "idle"))
+    alive_run, _, line_ = alive_line(bench, conv, inter, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["uncovered"][0]["shown"] == ["idle", "thinking"], line_
+
+
+def test_an_idle_flicker_between_two_states_is_not_a_gap():
+    """will-alive, 29 Oct: "idle" shown for 0 ms as a hand-off's row ended and the voice began its outcome counted the
+    whole 7.6 s wait as uncovered. A state shown for less than ALIVE_FLICKER_S is a flicker, not a gap."""
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows + [shown(5.0, "working", n=1), shown(7.9, "idle"), shown(7.9, "thinking"), shown(8.5, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and not alive_run["uncovered"], line_
+    bench["events"] += [shown(6.0, "idle"), shown(6.8, "working", n=1)]  # 0.8 s of idle in the wait: uncovered
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["uncovered"], line_
+
+
+def test_a_short_idle_gap_is_not_a_silent_wait():
+    bench, conv, inter, verdicts = good()
+    more, rows = handed("h1", 5.0, 6.5)  # 1.5 s: under the 2 s the finish line names
+    bench["events"] += rows
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "pass" and alive_run["gaps"] == 0 and alive_run["handoffs"] == 1, line_
+
+
+def test_a_hand_off_without_its_row_fails():
+    bench, conv, inter, verdicts = good()
+    more, _ = handed("h7", 5.0, 8.0, row=False)
+    bench["events"] += [shown(5.0, "working", n=1), shown(8.0, "idle")]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["missingRows"] == ["h7"] and "no row for h7" in line_["value"], line_
+
+
+def test_the_presence_pill_must_show_while_the_assistant_is_closed():
+    """Talk on and the Assistant closed from 5 s to 9 s: the pill within a second, kept until it reopens."""
+    bench, conv, inter, verdicts = good()
+    closed = [shown(5.0, "idle", assistant=False), shown(9.0, "idle")]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + closed}, conv, inter, verdicts)
+    assert line_["result"] == "FAIL" and alive_run["closed"] == 1 and alive_run["presenceMissed"] == [{"atS": 5.0, "s": 4.0}]
+    assert "presence 0 of 1" in line_["value"] and "no pill at 5.0 s" in line_["value"]
+    with_pill = closed[:1] + [shown(5.3, "idle", pill=True, assistant=False)] + closed[1:]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + with_pill}, conv, inter, verdicts)
+    assert line_["result"] == "pass" and alive_run["closed"] == 1 and not alive_run["presenceMissed"], line_
+    late = closed[:1] + [shown(6.4, "idle", pill=True, assistant=False)] + closed[1:]
+    assert alive_line({**bench, "events": bench["events"] + late}, conv, inter, verdicts)[2]["result"] == "FAIL"
+    gone = with_pill[:2] + [shown(7.0, "thinking", pill=False, assistant=False)] + closed[1:]  # the pill went while closed
+    assert alive_line({**bench, "events": bench["events"] + gone}, conv, inter, verdicts)[2]["result"] == "FAIL"
+    off = [shown(5.0, "off", assistant=False), shown(9.0, "off")]  # Talk off: no presence to show
+    assert alive_line({**bench, "events": bench["events"] + off}, conv, inter, verdicts)[0]["closed"] == 0
+
+
+def test_a_run_without_the_shown_state_is_not_measured():
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "voice-shown"]
+    alive_run, pooled, line_ = alive_line(bench, conv, inter, verdicts)
+    assert not alive_run["measured"] and not pooled["measured"]
+    assert line_["result"] == "not measured: the studio's shown voice state was not recorded"
+    assert not meets(list(board(bench, conv, inter, verdicts)[2].values()))
+
+
+def test_the_voice_state_messages_stand_in_when_the_page_recorded_none():
+    """An older harness with no voice-shown events: the server's voice-state messages the page received are read
+    instead, then the server's own partner-state log (an acoustic run with no page)."""
+    bench, conv, inter, verdicts = good()
+    bench["events"] = [e for e in bench["events"] if e.get("e") != "voice-shown"]
+    more, rows = handed("h1", 5.0, 8.0)
+    bench["events"] += rows
+
+    def msg(t, state, n=0):
+        return {"t": ms(t), "e": "ws-in", "m": {"type": "voice-state", "state": state, "n": n}}
+
+    sent = [msg(-1, "idle"), msg(5.0, "working", 1), msg(8.0, "idle")]
+    alive_run, _, line_ = alive_line({**bench, "events": bench["events"] + sent}, conv, inter + more, verdicts)
+    assert alive_run["source"] == "voice-state messages" and line_["result"] == "pass", line_
+    assert "(from the voice-state messages)" in line_["value"]
+    idle = [msg(-1, "idle")]
+    assert alive_line({**bench, "events": bench["events"] + idle}, conv, inter + more, verdicts)[2]["result"] == "FAIL"
+    logged = [{"kind": "partner-state", "state": "idle", "n": 0, "t": T0 - 1},
+              {"kind": "partner-state", "state": "working", "n": 1, "t": T0 + 5.0},
+              {"kind": "partner-state", "state": "idle", "n": 0, "t": T0 + 8.0}]
+    alive_run, _, line_ = alive_line(bench, conv, inter + more + logged, verdicts)
+    assert alive_run["source"] == "server log" and line_["result"] == "pass", line_
+
+
+def test_the_alive_plan_closes_and_reopens_the_assistant_while_work_runs():
+    from bench.voice_journeys import stack
+
+    plan = stack.load_plan("will-alive")
+    steps = {s["id"]: s for s in plan["steps"]}
+    assert list(steps) == ["slow", "meanwhile", "closed", "reopen"]
+    assert steps["slow"]["wait"] <= 10  # the next words come while the search still runs
+    assert steps["closed"]["assistant"] == "close" and steps["reopen"]["assistant"] == "open"
+    assert all(s["footage"] == "real/2026-06-14-leaf-epidermis-23s.mp4" for s in plan["steps"])
+
+
+def test_a_called_tools_outcome_said_when_it_landed_belongs_to_its_step():
+    """will-leaf, 29 Oct: "Outline every cell." was handed over, and its outcome ("158 outlines now visible") came as
+    the bus's tool-done line within the step; the scorer dropped every event line as unprompted, so the step had "the
+    outcome was not said". A tool-done line for a call is that call's step's, and no other step's."""
+    from bench.voice_journeys.standard import outcome_spans, unprompted_spans
+
+    inter = [{"kind": "partner-proactive", "event": "tool-done", "ref": "call_A", "eventId": "ev-1"},
+             {"kind": "partner-response", "cause": "proactive", "firstAudioT": 100.0, "events": ["ev-1"],
+              "transcript": "158 outlines now visible."},
+             {"kind": "partner-proactive", "event": "notice", "ref": None, "eventId": "ev-2"},
+             {"kind": "partner-response", "cause": "proactive", "firstAudioT": 200.0, "events": ["ev-2"],
+              "transcript": "A researcher finished."}]
+    inter += [{"kind": "partner-proactive", "event": "researcher-done", "ref": "r27", "eventId": "ev-3"},
+              {"kind": "partner-response", "cause": "proactive", "firstAudioT": 300.0, "events": ["ev-3"],
+               "transcript": "Researcher 2 finished: the five models disagree on a third of the cells."}]
+    owned = outcome_spans(inter)
+    assert sorted(owned) == ["call_A", "r27"] and owned["call_A"][0][0] < 100.0, "a researcher's outcome by its id"
+    spans = unprompted_spans(inter)
+    assert len(spans) == 1 and spans[0][0] < 200.0 < spans[0][1], "a notice stays unprompted; the outcome does not"
+
+
+def test_the_last_steps_window_ends_with_its_run():
+    """will-workspace, 30 Oct: close-all was the last step, and its 40 s tail took in the next run's opener ("That
+    central bright oval looks like a stoma…"), counted as a second outcome and judged an unasked offer."""
+    from bench.voice_journeys.standard import windows
+
+    steps = [{"down": 10.0, "start": 10.0, "up": 12.0}, {"down": 20.0, "start": 20.0, "up": 22.0}]
+    assert windows(steps)[-1][1] > 60.0, "no end known: the tail"
+    assert windows(steps, 40.0)[-1] == (20.0, 40.0), "the run's end closes the last step"
+    assert windows(steps, 5.0)[-1][1] >= 22.0, "never before its own words"
+
+
+def test_an_event_line_drops_only_its_own_line():
+    """will-experiment, 30 Oct: an event line's span (its audio's end unrecorded: 10 s) swallowed the answer to "How is
+    the experiment going?" said 2.5 s later, and the step was judged as never answered."""
+    from bench.voice_journeys.standard import step_lines, unprompted_spans
+
+    inter = [{"kind": "partner-response", "cause": "proactive", "firstAudioT": 103.9, "events": ["ev-1"],
+              "responseId": "r-event", "transcript": "Experiment 3 did not finish."},
+             {"kind": "partner-response", "cause": "turn", "firstAudioT": None, "t": 108.1,
+              "responseId": "r-turn", "transcript": "It's done running, but it didn't finish."}]
+    conv = [{"type": "chat", "role": "assistant", "voice": True, "lineId": "a", "at": 103.7,
+             "text": "Experiment 3 did not finish."},
+            {"type": "chat", "role": "assistant", "voice": True, "lineId": "b", "at": 106.4,
+             "text": "It's done running, but it didn't finish."}]
+    spans = unprompted_spans(inter)
+    lines = step_lines(conv, inter, 100.0, 130.0, spans)
+    assert [l["text"] for l in lines] == ["It's done running, but it didn't finish."]
+
+
+def test_a_researchers_own_result_is_not_its_start_said_twice():
+    """will-research, 30 Oct: "Researcher 2 is testing five classifiers" when it started, then 150 s later "Researcher 2
+    finished the comparison…" when it landed: the start's outcome said once, and the researcher's own, once. The scorer
+    counted them as one outcome said twice."""
+    bench, conv, inter, verdicts = good()
+    for r in inter:
+        if r.get("kind") == "partner-proactive" and r.get("ref") == "r2":
+            r["eventId"] = "ev-r2"
+        if r.get("kind") == "partner-response" and r.get("cause") == "proactive":
+            r["events"] = ["ev-r2"]
+    run, _, _ = board(bench, conv, inter, verdicts)
+    row = {r["id"]: r for r in run["steps"]}["researcher"]
+    assert any("Researcher 2 is done" in l for l in row["lines"]), "its result is this step's"
+    assert row["outcomesSaid"] == 1 and "outcome said 2 times" not in row["failures"]

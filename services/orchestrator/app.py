@@ -311,6 +311,9 @@ class App:
                       tags=lambda: {"day": day.sid, "thread": day.active_id})
         if started_with:
             agent.log(started_with)
+        # Classifying's vision models (classify.py) are the agent's own clients: one key change drops them all, and a
+        # stand-in agent stands in for them too. Read at each call, so a replaced `agent.vision` is the one used.
+        hub.vision_for = lambda option: agent.vision(option)
         # Labels the user teaches (taught.py, option TAUGHT): the user's, from every session (ADR 0017), written per
         # date with the session they were taught in; every new outline cropped as it appears and, while TAUGHT is
         # on, matched on the heavy GPU worker.
@@ -421,6 +424,30 @@ class App:
                       log=agent.log)
         hub.on_frame.append(coach.frame)
         hub.coach = coach
+        # The watcher (view_watch.py): what happens in the view (the slide settling on a new place, the focus drifting,
+        # counted cells no longer where they were), noticed unasked from what the hub already measures, each kind told to
+        # the one-brain voice by its rule (option WATCH); GPT-Live has no lines of this kind. Every event is logged.
+        from .view_watch import ViewWatch
+
+        def watch_told(event, rule: str) -> str:
+            happened = getattr(getattr(brain, "voice", None), "happened", None) if brain is not None else None
+            if not callable(happened):
+                return "no voice"
+            task = asyncio.get_running_loop().create_task(happened(
+                event.kind, event.text(), ref=event.id, delivery=rule, marks=event.marks(), frame=event.frame_ref()))
+            task.add_done_callback(lambda t: t.cancelled() or t.exception())  # a closed voice says nothing; never raised
+            return "voice"
+
+        def um_per_px():
+            reading = hub.scale_reading()
+            return reading.um_per_px if reading is not None else None
+
+        view_watch = ViewWatch(hub, deliver=watch_told, quiet=lambda: hub.settings.quieter or hub.settings.user_leads,
+                               sweep=lambda: None if coach.sweeping_since is None else ("phone" if coach.phone else "knob"),
+                               um_per_px=um_per_px, log=agent.log,
+                               schedule=lambda read: asyncio.get_running_loop().call_soon(read))
+        hub.on_frame.append(view_watch.frame)  # after the coach's: its sweep for this frame is known
+        hub.view_watch = view_watch
         # The frames of the last turn of the focus knob, for a focus stack (sweep.py, enhance.py).
         sweep = SweepBuffer(hub.source.get)
         hub.on_frame.append(sweep.frame)
@@ -857,6 +884,8 @@ class App:
                                                 {'analysis': analyze, 'graph': graph})
         from .workspace_tabs import WorkspaceTabs
         hub.workspace_tabs = WorkspaceTabs(app)
+        from .experiments import experiments_of
+        experiments_of(hub, day, app)  # experiments (Part 2.5, W5): their plans' cards, their runs and their results
         from .capabilities import Verdicts
 
         app.verdicts = Verdicts(paths.verdicts)
@@ -1020,11 +1049,21 @@ class App:
         profile = self.hub.screen._profile(socket)
         ctx = self.workspace_context(socket, request_id=profile.ref.connection_epoch, owner="server:metadata")
         lease = None
+        store = self.services.prepared_sources
         try:
-            lease = self.services.prepared_sources.resolve(SourceRef.from_wire(supplied), context=ctx)
+            lease = store.resolve(SourceRef.from_wire(supplied), context=ctx)
             return lease.source
-        except PresentationError:
-            raise ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection") from None
+        except PresentationError as error:
+            refused = ObservationError("SOURCE_UNRESOLVED", "no exact prepared source grant for this connection")
+            # Ended, not wrong: nothing is granted under this key for this connection any more (its window was
+            # closed and its pin released, or it was never granted here; or a live source whose close took its
+            # visibility, pinned only by that close's read-only borrow, so its live check fails `delivery_revoked`).
+            # Screen leaves that window out of the report. Facts differing from a source still prepared, and a live
+            # window still claiming to draw from a producer that stopped (its visibility owner is still there; the
+            # studio says it failed, then `_workspace_failed_source` takes it), stay refused.
+            refused.ended = (error.code in ("source_not_prepared", "delivery_revoked")
+                             and not store.prepared_key(supplied.get("key"), ctx))
+            raise refused from None
         finally:
             if lease is not None and lease.release is not None:
                 lease.release()  # only this synchronous metadata borrow; window owns its pin
@@ -1770,6 +1809,8 @@ class App:
                        "why": event.get("why")}
             self.hub.broadcast(cleared)
             self.dialogue.marker(dict(cleared))
+            for wire in self.experiments_wire():  # the Project opened's experiments, as its cards
+                self.hub.broadcast(wire)
             if event.get("why") == "switch":
                 self.say_resumed()
         if kind == "quiz-outcome":
@@ -1786,6 +1827,10 @@ class App:
                 elif voice is not None and not voice.closed:
                     asyncio.ensure_future(voice.inject(self.brain.voice_recap(), respond=False, source="recap",
                                                        facts={"why": kind}))
+                    # The one-brain voice's Project brief follows at once (voice/partner.py project_changed).
+                    changed = getattr(voice, "project_changed", None)
+                    if kind == "session-opened" and asyncio.iscoroutinefunction(changed):
+                        asyncio.ensure_future(changed())
         # The sessions list (the header chip's menu and the sessions rail): at once when a session opens or is named,
         # and, when what the open session holds changes (a product, a source, a researcher, a conversation), at most
         # every 2 s.
@@ -2395,7 +2440,19 @@ class App:
                 *([self.slidemap.wire()] if self.slidemap is not None else []), self.subjects.wire(),
                 *([self.datasets.wire()] if self.datasets is not None else []),
                 *([self.rig.wire()] if self.rig is not None else []),
-                self.research_list(), self.day.wire(), self.dialogue.history(), self.execution_wire()]
+                self.research_list(), *self.experiments_wire(), self.day.wire(), self.dialogue.history(),
+                self.execution_wire()]
+
+    def experiments_wire(self) -> list[dict]:
+        """The open Project's experiments, as cards (experiments.py); none when there are none."""
+        experiments = getattr(self.hub, "experiments", None)
+        if experiments is None:
+            return []
+        try:
+            wire = experiments.wire_list(self.day.sid)
+        except Exception:  # noqa: BLE001 - a store that cannot be read never fails a studio's connect
+            return []
+        return [wire] if wire["experiments"] else []
 
     def layer_wires(self) -> list[dict]:
         """The population and the motion tracks shown over the live view (if any) and their layers' state, as

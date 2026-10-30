@@ -100,7 +100,11 @@ class ScientificSteps:
                 if node['kind']=='tool':
                     s=node['settings']
                     if s['mode']=='automatic':
-                        if s['capability']=='basic-bright-objects':
+                        from . import experiment_steps
+                        if experiment_steps.owns(s):
+                            # A live model (an experiment's): its pinned generation and that it can run here now.
+                            experiment_steps.validate(self.hub,node)
+                        elif s['capability']=='basic-bright-objects':
                             if s['generation']!=bright_generation():raise InvalidProject('The pinned generation is unavailable; explicitly update a new workflow version')
                             if len(node['needs'])!=1:raise InvalidProject('Bright regions takes one source')
                             self.parameters(s['parameters'])
@@ -120,7 +124,7 @@ class ScientificSteps:
                             if not accepts(p.m):raise InvalidProject('This tool does not declare scientific controls')
                 if node['kind']=='researcher':
                     from .workflow_research import readiness
-                    readiness(node['settings'])
+                    readiness(node['settings'],hub=self.hub)
                 if node['kind'] in ('review','measure','export','compare') and node['settings']:
                     raise InvalidProject('This step has no configurable settings')
                 if node['kind']=='tool' and node['settings']['mode']=='automatic' and node['settings']['capability']=='basic-bright-objects' and node['needs']==['input']:
@@ -158,6 +162,31 @@ class ScientificSteps:
             data[tuple(slice(i,i+n) for i,n in zip(origin,block.shape))]=block
         return data,geometry
 
+    def on_loop(self,claim):
+        """Steps that run on the event loop (awaiting the app's own runner or researchers, never blocking it): a live
+        model step and a researcher step through this app's researchers (experiment_steps)."""
+        from . import experiment_steps
+        node=claim['node']
+        return (node['kind']=='tool' and node['settings'].get('mode')=='automatic' and experiment_steps.owns(node['settings'])
+                or node['kind']=='researcher' and experiment_steps.is_local(node['settings']))
+
+    async def execute_on_loop(self,claim):
+        from . import experiment_steps
+        self.check(claim);node=claim['node']
+        if node['kind']=='researcher':
+            return await experiment_steps.start_local(self,claim)
+        saved=await experiment_steps.run_model(self,claim)
+        import asyncio
+        return await asyncio.to_thread(self.completed,claim,saved)
+
+    def completed(self,claim,saved):
+        """The shared tail: the output associated with its producing run and attempt, then the completed outcome."""
+        node=claim['node'];doc=saved.document
+        doc['state']['workflowOutput']={'run':claim['run'],'attempt':claim['attempt'],'inputs':claim['inputs'],'node':node}
+        saved=self.store.save(saved.id,saved.session,doc,expected_revision=saved.revision,
+                              transaction=token({'workflowOutput':claim['attempt'],'run':claim['run'],'base':identity(saved)}))
+        return {'status':'completed','output':identity(saved)}
+
     def execute(self,claim):
         self.check(claim);node=claim['node'];s=node['settings']
         sources=[exact(self.store,r,claim['session']) for r in claim['inputs']];source=sources[0]
@@ -166,6 +195,8 @@ class ScientificSteps:
             from .scientific_tools import fork
             working=fork(self.store,source,s['capability'],s['generation'],token(claim['attempt']),recipe=s['parameters'],check=lambda:self.check(claim))
             return {'status':'awaiting-controls','working':identity(working),'output':None}
+        if self.on_loop(claim):
+            raise InvalidProject('This step runs with the app\'s own models and researchers, through its workflow driver')
         if node['kind']=='tool' and s['mode']=='automatic' and s['capability']!='basic-bright-objects':
             from .matrix_capability_runs import descriptor, run_matrix
             declared=descriptor(s['capability']);ports=[p['id'] for p in declared['inputs']]
@@ -217,11 +248,7 @@ class ScientificSteps:
             from .workflow_research import start
             return start(self.workflows,claim)
         else:raise InvalidProject('This step has no scientific execution adapter')
-        doc=saved.document
-        doc['state']['workflowOutput']={'run':claim['run'],'attempt':claim['attempt'],'inputs':claim['inputs'],'node':node}
-        saved=self.store.save(saved.id,saved.session,doc,expected_revision=saved.revision,
-                              transaction=token({'workflowOutput':claim['attempt'],'run':claim['run'],'base':identity(saved)}))
-        return {'status':'completed','output':identity(saved)}
+        return self.completed(claim,saved)
 
     def compare(self,claim,sources):
         if self.hub is None:raise InvalidProject('Comparison needs the scientific host')

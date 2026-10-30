@@ -109,8 +109,15 @@ class SourceRef:
                 _fail("invalid_action", f"source requires {key}")
         for key in ("key", "kind", "media", "availability"):
             _text(value[key], "source " + key)
-        if value["kind"] not in ("live", "saved-image", "video", "lesson", "written", "composite"):
+        if value["kind"] not in ("live", "saved-image", "video", "lesson", "written", "composite", "web-page"):
             _fail("invalid_action", "source kind is not declared")
+        # A web page or video from the web (web_hosts.py): only an allowed host's framed address, never another page.
+        if value["kind"] == "web-page" or (value["kind"] == "video" and value.get("provenance", {}).get("basis") == "web"):
+            from .web_hosts import framed
+
+            url = value["identity"].get("url") if isinstance(value.get("identity"), dict) else None
+            if not isinstance(url, str) or not framed(url, value["kind"]):
+                _fail("invalid_action", "a web source must be an allowed host's framed address")
         # P5 media words remain intact; the source contract's richer lineage words
         # are accepted without deriving either classification from a title.
         if value["media"] not in ("capture", "labelled", "reference", "generated", "lesson", "written", "unknown",

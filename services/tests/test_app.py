@@ -3,6 +3,7 @@ day starts afresh. Before, replies, late results and narrated results could be f
 whichever conversation was open, and the day was reset three different ways."""
 import pytest
 import asyncio
+import inspect
 import json
 import re
 from pathlib import Path
@@ -74,7 +75,14 @@ def test_every_command_the_studio_sends_has_a_handler():
             continue  # tests send unknown commands on purpose (to check the type check refuses them)
         text = path.read_text()
         sent |= set(re.findall(r"send\(\{ ?type: '([a-z-]+)'", text)) | set(re.findall(r"request\('([a-z-]+)'", text))
-    assert sent and sent <= set(COMMANDS), sent - set(COMMANDS)
+    # The live partner's messages go on the voice's own socket (voice.ts tellVoice), and the partner handles them
+    # (voice/partner.py Partner.command), not commands.py: each one the studio may send must be one the partner takes.
+    from orchestrator.voice.partner import Partner
+    union = re.search(r"export type PartnerCommand =(.+?)\n\n", (STUDIO / "protocol.ts").read_text(), re.S).group(1)
+    partner = set(re.findall(r"type: '([a-z-]+)'", union))
+    taken = set(re.findall(r'kind == "([a-z-]+)"', inspect.getsource(Partner.command)))
+    assert partner and partner <= taken, partner - taken
+    assert sent and sent <= set(COMMANDS) | partner, sent - set(COMMANDS) - partner
 
 
 # --- which conversation a line belongs to ----------------------------------------------------

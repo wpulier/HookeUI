@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import contextlib
 import copy
 import hashlib
 import io
@@ -92,8 +93,11 @@ TAKES = {
     "sessions": ("open", "close"),  # the sessions list: the session's title's menu (session-menu.ts), its own item
 }
 WHY_NOT = {  # a verb a kind does not take, said with the reason and what to do instead
-    ("live", "hide"): ("the live view is never hidden: it is the microscope", "dim it instead (opacity)"),
-    ("live", "close"): ("the live view is never closed: it is the microscope", "dim it instead (opacity)"),
+    # In a Tab the live view is the specimen, which tabs floats or hides (never on Main): present only dims it.
+    ("live", "hide"): ("the live view is never hidden: it is the microscope",
+                       "dim it instead (opacity); to float or hide it in a Tab, tabs action specimen"),
+    ("live", "close"): ("the live view is never closed: it is the microscope",
+                        "dim it instead (opacity); to float or hide it in a Tab, tabs action specimen"),
     ("viewer", "move"): ("the result viewer sits in the side column and does not move", "close it, or open it again"),
     ("viewer", "resize"): ("the result viewer takes the side column's width", "close it to give the view its room"),
     ("tracks", "fill"): ("tracks are lines, not areas: they can't be filled", "colour them, fade them or keep the fast ones"),
@@ -181,6 +185,12 @@ NAMES = {"document": "the Project document", "live": "the live view", "populatio
 REPORT_NEXT = "ask again in a moment: saved work is kept, and the next report is read"
 CONFIRM_S = 4.0  # how long a change waits for the report that shows it
 REPORT_FRESH_S = 30.0  # a studio that has not reported for this long is not counted as showing anything
+REFRESH_S = 0.5  # a request with no report of its own waits at most this for the studio's report now (Screen.refresh)
+REFRESH_ASK_EVERY_S = 0.25
+REFRESH_FRESH_S = 0.15  # a report taken this recently is already what the studio shows now
+# A request whose studio has not reported for REPORT_FRESH_S asks it for a report and waits this long for one before
+# its steps run, so its tools read what it shows now instead of failing as "stale" (live 2026-10-29).
+STALE_REFRESH_S = 2.0
 
 
 @dataclass
@@ -244,6 +254,10 @@ class Screen:
         self._looks: dict[str, Any] = {}  # legacy futures or client-bound pending acquisitions
         self._accepted: dict[Any, _AcceptedWorkspace] = {}
         self._capture_work: set[asyncio.Task] = set()  # owned decode jobs, never observer/model jobs
+        self._partial: dict[Any, dict | None] = {}  # client -> what its last report left out (Screen.partial)
+        # client -> {item id: when a report first showed it open}: "the newest window opened" is a recorded fact (the
+        # last result "explain that" means: board.last_result), never a guess from the stacking order.
+        self._opened: dict[Any, dict[str, float]] = {}
 
     @property
     def clock(self):
@@ -368,6 +382,62 @@ class Screen:
                 return None
         return rows
 
+    @staticmethod
+    def _without_sources(wire, keys):
+        """The normalized report without the windows showing `keys`, and without what points at them (targets, edges,
+        the pointer and focus on them): an incomplete report of the rest, its omitted counts raised so its totals still
+        add up. Nothing of the left-out windows is kept, so they can confirm nothing."""
+        wire = copy.deepcopy(wire)
+        dropped = {item["id"] for item in wire["items"] if item.get("sourceKey") in keys}
+        controls = {control["id"] for item in wire["items"] if item["id"] in dropped for control in item["controls"]}
+        roots = {item.get("rootId") for item in wire["items"] if item["id"] in dropped}
+        targets = {target["id"] for target in wire["targets"]
+                   if target.get("presentationId") in dropped or target.get("sourceKey") in keys
+                   or target.get("controlId") in controls}
+        gone = dropped | controls | targets | set(keys)
+        kept = {"items": [item for item in wire["items"] if item["id"] not in dropped],
+                "sources": [source for source in wire["sources"] if source["key"] not in keys],
+                "targets": [target for target in wire["targets"] if target["id"] not in targets],
+                "edges": [edge for edge in wire["edges"] if edge["from"] not in gone and edge["to"] not in gone]}
+        omitted = dict(wire.get("omitted") or {})
+        for key, rows in kept.items():
+            # `sources` lost the unresolved keys before this call (they were never authorised): they are omitted too.
+            left_out = len(keys) if key == "sources" else len(wire[key]) - len(rows)
+            omitted[key] = int(omitted.get(key, 0)) + left_out
+            wire[key] = rows
+        wire["omitted"], wire["complete"] = omitted, False
+        interaction = wire.get("interaction") or {}
+        changed = False
+        selected = [ref for ref in interaction.get("selected", []) if ref not in targets]
+        changed |= selected != interaction.get("selected", [])
+        interaction["selected"] = selected
+        for point in [interaction.get("pointer"), *interaction.get("contacts", [])]:
+            if not isinstance(point, dict):
+                continue
+            hits = [ref for ref in point.get("hitPath", []) if ref not in gone]
+            candidates = [ref for ref in point.get("targetCandidates", []) if ref not in targets]
+            if hits != point.get("hitPath", []) or candidates != point.get("targetCandidates", []):
+                point["hitPath"], point["targetCandidates"], changed = hits, candidates, True
+            for key in ("presentationId", "sourceKey", "capturedBy"):
+                if point.get(key) is not None and point[key] in gone:
+                    point[key], changed = None, True
+                    if key == "presentationId":
+                        point.pop("sourceGeneration", None)
+        focus = interaction.get("focus") or {}
+        if focus.get("presentationId") in dropped or focus.get("controlId") in controls:
+            focus["presentationId"], focus["controlId"], changed = None, None, True
+        if changed:
+            interaction.setdefault("unknown", []).append("source-unresolved")
+        if "foreground" in wire:
+            wire["foreground"] = {**wire["foreground"], "complete": False,
+                                  "roots": [root for root in wire["foreground"]["roots"] if root["rootId"] not in roots]}
+        return wire
+
+    def partial(self, client):
+        """What the last report from `client` left out, and why (windows whose source has no grant here); None when
+        it was whole."""
+        return copy.deepcopy(self._partial.get(client))
+
     def _normalize_workspace(self, message, client):
         profile = self._profile(client)
         received = self._observation_clock()
@@ -380,7 +450,7 @@ class Screen:
                                       received_at=received, previous=None if retransmitted else previous,
                                       limits=profile.limits)
         wire = first.wire()
-        authoritative = []
+        authoritative, unresolved = [], []
         for supplied in wire["sources"]:
             try:
                 closed_rows = self._closed_source_rows(wire, supplied["key"]) if profile.closed_source_resolver else None
@@ -400,6 +470,16 @@ class Screen:
                         source.get("kind") != supplied["kind"] or source.get("identity") != supplied["identity"]):
                     _workspace_error("SOURCE_UNRESOLVED", "source authority returned another identity")
             except ObservationError as exc:
+                if exc.code == "SOURCE_UNRESOLVED" and getattr(exc, "ended", False):
+                    # A window whose grant has ended here (its pin released when it was closed, or never granted to
+                    # this connection) is left out of this report, never the whole report: refusing it froze what
+                    # Hooke knew of the screen, and every later action failed as "stale" while the studio kept
+                    # reporting (live 2026-10-29 17:17-17:26: two closes, a highlight, a table, a researcher's
+                    # result). That window is not represented, so it grants nothing; the rest of the screen is.
+                    # Facts that differ from a source still prepared here (a changed digest, provenance or
+                    # metadata) are a report that is wrong, and are still refused whole.
+                    unresolved.append({"sourceKey": supplied["key"], "reason": str(exc)[:300]})
+                    continue
                 if exc.code == "SOURCE_UNRESOLVED":
                     # Display correlation only, after bounded original report/origin
                     # validation. The obsolete open/media report remains refused.
@@ -408,9 +488,15 @@ class Screen:
                 raise
             authoritative.append(source)
         wire["sources"] = authoritative
+        if unresolved:
+            wire = self._without_sources(wire, {row["sourceKey"] for row in unresolved})
+            for row in unresolved:
+                row["items"] = [item["id"] for item in first.wire()["items"] if item.get("sourceKey") == row["sourceKey"]]
         observed = normalize_observation(wire, client=profile.ref, app_run_id=profile.app_run_id,
                                         received_at=received, previous=None if retransmitted else previous,
                                         limits=profile.limits)
+        self._partial[client] = {"client": profile.ref.wire(), "appRunId": profile.app_run_id, "seq": wire["seq"],
+                                 "unresolved": unresolved} if unresolved else None
         if retransmitted:
             current_facts = json.dumps(observed.wire(), allow_nan=False, sort_keys=True, separators=(",", ":"))
             prior_facts = json.dumps(previous.wire(), allow_nan=False, sort_keys=True, separators=(",", ":"))
@@ -764,11 +850,17 @@ class Screen:
                 _workspace_error("INVALID_REPORT", "structural user change needs its exact target and property")
             pid, prop = _workspace_id(entry["id"]), _workspace_id(entry["prop"])
             item, old = items.get(pid), prior.get(pid)
-            if prop not in properties or not self._same_structural_root(old, item):
+            if prop not in properties:
                 _workspace_error("INVALID_REPORT", "user change has no represented original structural property")
+            # A change there is no accepted original to own against (its item was in a report not taken here), or
+            # one that changed nothing, is left unowned, never a reason to refuse the whole report: the studio judges
+            # ownership against the last report it sent, not the last one taken (live 2026-10-29: "User change has
+            # no represented original structural property" in Activity, and the screen's report refused).
+            if not self._same_structural_root(old, item):
+                continue
             was, now = self._structural_property(old, prop), self._structural_property(item, prop)
             if was == now:
-                _workspace_error("INVALID_REPORT", "user ownership needs an actual observed change")
+                continue
             if (pid, prop) not in seen:
                 changes.append((pid, prop, copy.deepcopy(was)))
                 seen.add((pid, prop))
@@ -795,6 +887,7 @@ class Screen:
             ownership = self._structural_events(wire, client, profile, projected)
             self._reports[client] = {"observation": observed, "at": self.clock(),
                 "visible": wire["viewport"]["visible"], "applied": set(wire["applied"][:ITEMS_MAX])}
+            self._saw(client, projected.get("items") or [])
             if client is self._current_client():
                 for pid, prop, was in ownership:
                     self._own(pid, prop, "user", was)
@@ -820,6 +913,7 @@ class Screen:
         applied.update(str(c)[:40] for c in (message.get("applied") or [])[:ITEMS_MAX])
         self._reports[client] = {"items": items, "viewport": message.get("viewport"), "seq": message.get("seq"),
                                  "at": self.clock(), "visible": message.get("visible", True) is not False, "applied": applied}
+        self._saw(client, items)
         if client is self._current_client():
             for change in (message.get("user") or [])[:ITEMS_MAX]:
                 if isinstance(change, dict) and change.get("id") and change.get("prop"):
@@ -828,6 +922,18 @@ class Screen:
                     was = (before_item.get("style") or {}).get(change["prop"], before_item.get(change["prop"]))
                     self._own(str(change["id"])[:60], str(change["prop"])[:40], "user", was)
         self._notify()
+
+    def _saw(self, client, items: list[dict]) -> None:
+        """When each item was first reported open by this studio; one that closed or went is forgotten, so opening it
+        again is a new opening."""
+        before = self._opened.get(client) or {}
+        now = self.clock()
+        self._opened[client] = {str(i["id"]): before.get(str(i["id"]), now) for i in items[:ITEMS_MAX]
+                                if isinstance(i, dict) and i.get("id") and i.get("open", True) is not False}
+
+    def opened_at(self, pid: str) -> float | None:
+        """When the studio whose report counts first reported `pid` open (its wall clock), or None."""
+        return (self._opened.get(self._current_client()) or {}).get(pid)
 
     def _notify(self):
         latest = self.latest
@@ -861,6 +967,8 @@ class Screen:
     def gone(self, client: Any) -> None:
         """A studio disconnected: its report no longer counts."""
         self._reports.pop(client, None)
+        self._partial.pop(client, None)
+        self._opened.pop(client, None)
         profile = self._accepted.pop(client, None)
         if profile is not None:
             for binding in profile.changes.values():
@@ -1056,6 +1164,89 @@ class Screen:
             if binding is not None:
                 self._finish_change(binding, ok)
                 self._prune_changes(binding.profile, binding.client)
+
+    async def refresh(self, client, timeout: float = REFRESH_S, *, newer: bool = False) -> bool:
+        """Ask the studio on `client` for a report now and wait (at most `timeout`) for one newer than its last taken:
+        a request that arrives without one of its own (a voice hand-off, a tool the voice calls) is pinned to what
+        the studio shows now, as a typed Send is (its inline report), not to the last periodic report. Whether a
+        newer one came; without one the last report stands, as before. `newer`: the last report disagrees with the
+        app about something, so however recent it is, only a later one will do."""
+        try:
+            before = self.observation(client)
+        except ObservationError:
+            return False
+        if not newer and before is not None and self._observation_clock() - before.received_at < REFRESH_FRESH_S:
+            return True  # taken a moment ago: that is what it shows now
+        seq = before._data["seq"] if before is not None else -1
+        ask = json.dumps({"type": "screen-ask"})
+        offer = getattr(client, "offer", None)
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while True:
+            if callable(offer):
+                with contextlib.suppress(Exception):
+                    offer(ask)
+            else:
+                self.broadcast({"type": "screen-ask"})
+            asked = loop.time()
+            while loop.time() - asked < REFRESH_ASK_EVERY_S:
+                try:
+                    now = self.observation(client)
+                except ObservationError:
+                    return False
+                if now is not None and now._data["seq"] > seq:
+                    return True
+                if loop.time() >= deadline:
+                    return False
+                await asyncio.sleep(0.01)
+
+    async def current_report(self, client=None, *, now: bool = False, timeout: float | None = None) -> bool:
+        """One way in (the live partner spec, 4.8 horizontal 1): before any actor's request acts, the report it reads
+        is current, asked for by Hooke itself, never failed as stale by each tool in turn and never the user's to
+        repeat. Every request comes through here (`fresh_report`): a typed Send's steps (`ActionRunner`), a voice
+        hand-off and every voice tool (`now`), a researcher showing its work (`Announcer._open_beside`) and a
+        connected agent's run through the door (`commands.run_tool`).
+        - `now`: what the studio shows at this moment, for a request that carries no report of its own (the voice):
+          asked for unless one came in the last REFRESH_FRESH_S.
+        - otherwise only a report older than REPORT_FRESH_S (a studio that stopped reporting for a while, or whose
+          reports were not taken) is asked for again.
+        `client`: the studio the request came from; None for one no studio sent (the door's runs): the accepted studio
+        whose report counts, else the accepted one that reported last. Waits at most `timeout` (REFRESH_S for one
+        current already, STALE_REFRESH_S for a stale one). Whether a current report is there now; without one the last
+        stands and the request goes on, its changes uncertain until a report shows them (present's STUDIO_UNREPORTED)."""
+        if client is None:
+            client = self._asked_studio()
+            if client is None:
+                return await self._legacy_current(now=now, timeout=timeout)
+        try:
+            observed = self.observation(client)
+        except ObservationError:
+            return False
+        current = self._current_observation(observed)
+        if current and not now:
+            return True
+        wait = timeout if timeout is not None else (REFRESH_S if current else STALE_REFRESH_S)
+        return await self.refresh(client, timeout=wait)
+
+    def _asked_studio(self):
+        """The accepted studio a request no studio sent is answered by: the one whose report counts, else the accepted
+        one that reported last (its report gone stale)."""
+        current = self.current_accepted()
+        if current is not None:
+            return current
+        reported = [(r["at"], c) for c, r in self._reports.items() if c in self._accepted]
+        return max(reported, key=lambda x: x[0])[1] if reported else None
+
+    async def _legacy_current(self, *, now: bool, timeout: float | None) -> bool:
+        """A studio that reports without an accepted workspace (an older studio, a test's fixture): asked by broadcast
+        when its last report no longer counts (or `now`); nothing is waited for when no studio has reported at all."""
+        if not self._reports:
+            return False
+        if self.latest is not None and not now:
+            return True
+        before = max(r["at"] for r in self._reports.values())
+        return await self.until(lambda report: True, before,
+                                timeout=timeout if timeout is not None else (REFRESH_S if now else STALE_REFRESH_S))
 
     async def until(self, check: Callable[[dict], bool], after: float, timeout: float | None = None) -> bool:
         """Whether a report made after `after` (a `reported_at` read before the change) shows `check`
@@ -1519,6 +1710,19 @@ async def image_shown(magnifier, url: str, label: str, credit: str = "", object_
     magnifier.show_image(url, label, credit=credit, object_id=object_id, kind_of=kind_of)
     await on_screen(hub, magnifier_arrangement(url, magnifier.displayed_object, [url]), after, "the picture is not shown in the magnifier",
                     "look at the magnifier, or ask again")
+
+
+async def fresh_report(hub, client=None, *, now: bool = False, timeout: float | None = None) -> bool:
+    """The one way every actor's request gets its current report (`Screen.current_report`): a typed Send, a voice
+    hand-off or voice tool (`now`), a researcher's own studio action, a connected agent's run. A hub without a Screen
+    (a test's stand-in) has nothing to ask: False, and the request goes on as before."""
+    screen = getattr(hub, "screen", None)
+    if not isinstance(screen, Screen):
+        return False
+    try:
+        return bool(await screen.current_report(client, now=now, timeout=timeout))
+    except Exception:  # asking for a report never breaks the request: the last report stands
+        return False
 
 
 def screen_of(hub) -> Screen:

@@ -12,6 +12,11 @@ from .research.efforts import Efforts, KEY, FINAL
 UNAVAILABLE = 'This workflow researcher node requires a managed research service; use a local or connected researcher to drive capability workflows'
 
 def validate(settings):
+    from .experiment_steps import is_local, validate_local
+    if is_local(settings):
+        # The app's own researchers (experiment_steps): an option beside the managed service, which stays optional.
+        validate_local(settings)
+        return
     if (type(settings) is not dict or set(settings)!={'question','criteria','provider','maximumUsd','seconds','tools','output'}
             or any(type(settings[k]) is not str or not 0<len(settings[k])<=8000 for k in ('question','criteria'))
             or settings['provider']!='gemini-google' or settings['tools']!=[] or settings['output']!='report'
@@ -20,8 +25,12 @@ def validate(settings):
         raise InvalidProject('Research steps require a Gemini evidence report, no executable tools, explicit criteria, a positive allowance up to $100 and a 1–3600 second limit')
 
 
-def readiness(settings):
+def readiness(settings, hub=None):
     validate(settings)
+    from .experiment_steps import is_local, readiness_local
+    if is_local(settings):
+        readiness_local(hub, settings)
+        return
     raise InvalidProject(UNAVAILABLE)
 
 
@@ -29,7 +38,10 @@ def start(workflows, claim):
     readiness(claim['node']['settings'])
 
 
-def collect(workflows, claim, research, stopping=False):
+def collect(workflows, claim, research, stopping=False, hub=None):
+    from .experiment_steps import LOCAL, collect_local
+    if research.get('provider')==LOCAL:
+        return collect_local(hub, workflows, claim, research, stopping)
     service=Efforts(workflows.store)
     saved=service.read(research['id'],claim['session'])
     task=saved.document['state'][KEY]['tasks'].get(research['request'])

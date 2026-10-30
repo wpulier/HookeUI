@@ -17,13 +17,14 @@ from orchestrator.research.policy import ResearchRefused
 from tests.fakes import research_tools
 from tests.test_research import FakeHub
 
-SAYS = "GPT-6.1 Sol, the model researchers use, needs your OpenAI key"
+SAYS = "Claude Opus 5.5, the model researchers use, needs your Anthropic key"  # the default since 2026-10-30
+SOL_SAYS = "GPT-6.1 Sol, the model researchers use, needs your OpenAI key"
 NEXT = "add it in Models › Keys, then try again"
 
 
 def manager_with(tmp_path, research: str | None = None):
     hub = FakeHub()
-    hub.settings = Settings()  # researchers think with the default model, GPT-6.1 Sol
+    hub.settings = Settings()  # researchers think with the default model, Claude Opus 5.5
     if research is not None:
         hub.settings.research = research
     manager = ResearchManager(hub, root=tmp_path, today=lambda: "2026-10-26")
@@ -71,25 +72,25 @@ def test_the_assistant_is_told_the_key_and_where_to_add_it_and_no_researcher_is_
 
 def test_a_key_from_the_keys_file_starts_it_as_before(tmp_path, monkeypatch):
     keys = tmp_path / "keys.txt"
-    keys.write_text("OPENAI_API_KEY=test-openai-key\n")
+    keys.write_text("ANTHROPIC_API_KEY=test-anthropic-key\n")
     load_keys(keys)  # as the app does at its start
-    assert sources(keys)["OPENAI_API_KEY"] == "file"  # the keys file is where it is, nothing else
+    assert sources(keys)["ANTHROPIC_API_KEY"] == "file"  # the keys file is where it is, nothing else
     manager = manager_with(tmp_path / "research")
     session = asyncio.run(manager.start("what is this stoma", effort="quick", words="look into what this is"))
-    assert session.status == "queued" and session.engine == "gpt-6.1-sol"
+    assert session.status == "queued" and session.engine == "claude-opus-5-5"
     assert list(manager.sessions) == [session.rid] and manager.queue == [session.rid]
 
 
 def test_a_key_saved_in_the_keychain_starts_it_as_before(tmp_path, monkeypatch):
     saved = tmp_path / "keychain.json"
-    saved.write_text(json.dumps({"OPENAI_API_KEY": "test-openai-key"}))
+    saved.write_text(json.dumps({"ANTHROPIC_API_KEY": "test-anthropic-key"}))
     monkeypatch.setenv("MICROMIND_KEYCHAIN", f"file:{saved}")  # a stand-in Keychain, never this Mac's
     monkeypatch.setattr(keychain, "_read", {})
     load_keys(tmp_path / "no-keys-file.txt")
-    assert sources(tmp_path / "no-keys-file.txt")["OPENAI_API_KEY"] == "keychain"  # the Keychain is where it is
+    assert sources(tmp_path / "no-keys-file.txt")["ANTHROPIC_API_KEY"] == "keychain"  # the Keychain is where it is
     manager = manager_with(tmp_path / "research")
     session = asyncio.run(manager.start("what is this stoma", effort="quick", words="look into what this is"))
-    assert session.status == "queued" and session.engine == "gpt-6.1-sol"
+    assert session.status == "queued" and session.engine == "claude-opus-5-5"
 
 
 def test_the_model_that_runs_decides_which_key(tmp_path, monkeypatch):
@@ -101,7 +102,7 @@ def test_the_model_that_runs_decides_which_key(tmp_path, monkeypatch):
     monkeypatch.setenv("MICROMIND_RESEARCH_ENGINE", "gemini-3.8-flash")
     assert engine_key_refusal("gpt-6.1-sol") is None
     monkeypatch.setenv("MICROMIND_RESEARCH_ENGINE", "gpt-6.1-sol")
-    assert str(engine_key_refusal("gemini-3.8-flash")) == SAYS
+    assert str(engine_key_refusal("gemini-3.8-flash")) == SOL_SAYS
     monkeypatch.delenv("GEMINI_API_KEY")
     monkeypatch.delenv("MICROMIND_RESEARCH_ENGINE")
     gemini = engine_key_refusal("gemini-3.8-flash")

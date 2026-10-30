@@ -259,6 +259,15 @@ YOUR_LABEL = Operation(
           note="within one model's looks; a label only from that model's measured floor, none where it has none"),),
     output=("values",),
 )
+# Classifying (Part 2.5, W5; orchestrator/classify.py): each member named from a list of classes by one model, so the
+# names of several models for the same cells can be compared from their runs (model_comparison.py). Every vision option
+# is an implementation (its id and name), then MedSigLIP on this Mac; no setting picks one: a request names its models.
+from .classify import implementations as _classifiers  # noqa: E402 - it builds on _model, defined above
+
+CLASSIFY = Operation(
+    "classify", "Name each member from a list of classes", "labels/1", None, _classifiers(),
+    output=("labels",),
+)
 # The operations and their adapters change while the app runs (entries proven or withdrawn: kinds.register, on the loop
 # and in capability_runs' thread; your models turned on or off: mine.register, in App.sync_mine's thread) while readers
 # anywhere iterate them (catalogue through option_not_installed, kinds.register itself, label_of, names). So neither is
@@ -351,7 +360,7 @@ class Registry(MutableMapping):
 
 
 OPERATIONS: Registry = Registry((op.id, op) for op in (OUTLINE, CELLS, FIND_LIKE, TRACK, MOTION, LINK, LOOKS, GROUPS, LIGHT,
-                                                        NAMES, YOUR_LABEL))
+                                                        NAMES, YOUR_LABEL, CLASSIFY))
 
 
 @dataclass
@@ -708,8 +717,12 @@ def availability(hub, impl: Impl) -> str:
         if problem:
             return problem
         if impl.worker == "interactive" and not getattr(client, "ready", False):
-            return "the outline model is still loading"
+            return STILL_LOADING
     return ""
+
+
+STILL_LOADING = "the outline model is still loading"
+LOADING_WAIT_S = 45.0  # a model loading waits this long for it (EdgeTAM loads in 4-5 s; under load, longer)
 
 
 GPU_WORKERS = ("interactive", "analysis", "follow", "molmo")
@@ -825,7 +838,7 @@ class Runner:
             source = getattr(capture, 'source_image', None) or {}
             actual = ({'resource': source['resource']} if source.get('resource') is not None
                       else {'source': source.get('asset') or 'live'})
-            if expected != actual:
+            if not same_input(expected, actual):
                 raise Unavailable('The input changed before dispatch; the admitted work was not retargeted.', next='review the input and run again')
         if origin not in ORIGINS:
             raise ValueError(f"origin {origin!r}")
@@ -835,15 +848,25 @@ class Runner:
             # marked used (a choice nothing used is said when the request ends).
             origin = chosen.get("origin") or origin
             chosen["used"] = True
-        try:
-            op, impl, policy, selection = self.choose(operation, prompt, choice, policy, origin, ticket if chosen else None)
-        except Unavailable as exc:
-            exc.execution = self._record(Execution(operation, choice or "default", policy or ("raw" if choice else "route"),
-                                                   origin, getattr(capture, "id", None), "explicit" if choice else "settings",
-                                                   attempts=[Attempt(choice or "default", False, error=str(exc), why="unavailable",
-                                                                     not_run="unavailable")],
-                                                   trial=trial, subject=self._subject()), ticket, reused=False)
-            raise
+        loading_until = time.monotonic() + LOADING_WAIT_S
+        while True:
+            try:
+                op, impl, policy, selection = self.choose(operation, prompt, choice, policy, origin,
+                                                          ticket if chosen else None)
+                break
+            except Unavailable as exc:
+                if STILL_LOADING in str(exc) and time.monotonic() < loading_until:
+                    # Its model is loading (a start, a restart after a crash): the work waits for it, as a person
+                    # would, rather than ask the user to wait and ask again (live, 30 Oct: "the local outline model is
+                    # still loading ... or we can wait a moment").
+                    await asyncio.sleep(0.5)
+                    continue
+                exc.execution = self._record(Execution(operation, choice or "default", policy or ("raw" if choice else "route"),
+                                                       origin, getattr(capture, "id", None), "explicit" if choice else "settings",
+                                                       attempts=[Attempt(choice or "default", False, error=str(exc), why="unavailable",
+                                                                         not_run="unavailable")],
+                                                       trial=trial, subject=self._subject()), ticket, reused=False)
+                raise
         params = dict(params or {})
         if impl.weights:
             # Fine-tuned weights: the version this job runs is fixed when it is keyed, so a version written meanwhile
@@ -1138,6 +1161,8 @@ class Runner:
                       "ticket": getattr(ticket, "id", None), "trial": record.trial})
         except Exception:
             pass
+        if not reused and record.trial is None:
+            _used(record)
         first = record.made_by().get("fallbackFrom")
         if first and not reused and record.trial is None:
             # The default did not run and another did in its place: said in the meter's panel (fallbacks.py).
@@ -1205,6 +1230,7 @@ class Runner:
         record = self.get(execution_id)
         if record is not None:
             record.revealed = True
+            _used(record)  # a blind trial's run is real use once its vote is in
             try:
                 self.log({"kind": "execution-revealed", **record.wire(), "trial": record.trial})
             except Exception:
@@ -1223,6 +1249,21 @@ class Runner:
 
     def get(self, execution_id: str | None) -> Execution | None:
         return self.executions.get(execution_id) if execution_id else None
+
+
+def _used(record: Execution) -> None:
+    """Each catalog entry an execution ran, as real use here (observed.py "use"): it ran and returned, or it ran and
+    failed with its own error. What never reached the model (cancelled, busy, unavailable, refused in words) says nothing;
+    the app's own check (origin "check") keeps its own record (model_checks.py)."""
+    if record.origin == "check":
+        return
+    from . import observed
+
+    for attempt in record.attempts:
+        key = IMPL_MODEL.get(attempt.impl)
+        if key and (attempt.ok or (attempt.error and not attempt.not_run)):
+            with contextlib.suppress(Exception):  # keeping the record never breaks a run
+                observed.used(key, attempt.ok, attempt.error)
 
 
 def _request_choice(ticket, operation: str, from_context: bool = True) -> dict | None:
@@ -1778,3 +1819,22 @@ def _enrichments() -> None:
 
 
 _enrichments()
+
+
+def _classifying() -> None:
+    from . import classify
+
+    classify.register()  # its adapters (Part 2.5, W5)
+
+
+_classifying()
+
+
+def same_input(expected: dict, actual: dict) -> bool:
+    """Whether a request's work still runs on the input it was admitted for. A saved resource (or a volume) must be that
+    same one; the camera feed is one input whatever plays into it (the live camera, or test footage or a recording the
+    bridge plays as the camera, invisible downstream), so nothing named on stage and "live" are the same (Will's
+    try-out, 30 Oct: every typed "outline the stoma" was refused "the input changed before dispatch" on the feed)."""
+    def feed(value) -> bool:
+        return isinstance(value, dict) and set(value) == {"source"}
+    return expected == actual or (feed(expected) and feed(actual))

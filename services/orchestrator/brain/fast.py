@@ -162,12 +162,30 @@ class FastDecision:
     basis_supplied: bool = False
     relation: str = "new"  # "correction": the words correct or replace the user's previous request (the model's judgment)
     stated: list | None = None  # a completion round's: the ids (p1, c1) its answer tells the user about (loop.stated_block)
+    # The words ask about the last result the user saw or heard ("explain that", "what is it?"): the model's judgment,
+    # declared as "about_last" when its notes name a last result (context._last_result_words). Its record is then read
+    # for the answer (`reading_last_result`), so it is explained from that, never from the status of what made it.
+    about_last: bool = False
 
     def observation_data(self) -> dict:
         data = {'observation_scope': self.observation_scope, 'input_refs': self.input_refs}
         if self.basis_supplied:
             data['observation_basis'] = self.observation_basis
         return data
+
+
+def reading_last_result(actions: list) -> list:
+    """A request about the last result ("I don't understand that, explain that"; the model's `about_last`) with that
+    thing's record read: `resources` with id "that" (board.last_result, that_facts) after its own steps, a query, so the
+    answer is written from the record (the query round). will-research, 30 Oct (measure-c4acc90): every run answered
+    from its notes with no tool, the status of the step that placed the graphic or stomata in general."""
+    from .registry import Action, action_number
+    from .toolbox.resources import THAT
+
+    if any(name == "resources" and str((args or {}).get("id") or "").strip().lower() in THAT for name, args in actions):
+        return list(actions)
+    after = max((action_number(action, i) for i, action in enumerate(actions, 1)), default=0)
+    return [*actions, Action("resources", {"id": "that"}, number=after + 1)]
 
 
 POINT_ONLY = """
@@ -281,7 +299,8 @@ async def decide(moment, question: str, vision, tools: str, model: str, point_on
                     "input_refs": data.get("input_refs", []),
                     "observation_basis": data.get("observation_basis"),
                     "basis_supplied": "observation_basis" in data,
-                    "stated": data.get("stated") if isinstance(data.get("stated"), list) else None}
+                    "stated": data.get("stated") if isinstance(data.get("stated"), list) else None,
+                    "about_last": data.get("about_last") is True and not point_only and not followup}
         actions = allowed(actions, intent=intent, user_leads=user_leads, point_only=point_only)  # the model's intent (brain/intent.py)
         # Neither lenient extraction nor intent filtering may shift a desired ordinal.
         declared_goal = data.get("goal")
@@ -293,6 +312,6 @@ async def decide(moment, question: str, vision, tools: str, model: str, point_on
     if intent in ("unfinished", "cancel"):
         # Nothing to do yet (more is coming), or nothing to do at all (called off).
         return FastDecision(needs_look=False, answer=answer, actions=[], ms=result.latency_ms, model=model, view=view,
-                            intent=intent, **evidence)
+                            intent=intent, **{**evidence, "about_last": False})
     return FastDecision(needs_look=needs is not False, answer=answer, actions=actions,
                         ms=result.latency_ms, model=model, view=view, intent=intent, **evidence)

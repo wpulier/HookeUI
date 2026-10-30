@@ -9,10 +9,16 @@
 //   frames  the live view on /ws each second: frames per second and their delay p50/p90 (MMF1 headers)
 //   mark    each mark the studio drew (svg#voice-marks .voice-mark), its rect and its target's, and when it cleared
 //   line    the voice's lines as they grow on /ws (when each part of a line was said, not only when it began)
+//   takeover  the person's mouse or Escape while the partner acted (a plan step's "takeover")
 //   staged  the bench put the specimen back on an empty stage (Use live camera, then the bridge plays the still)
 //   researchers  the Project's researchers from the orchestrator (/api/research; the board only when that fails),
 //           when they change; key, fault, check, recovered (the bench put the journey back where it belongs)
 //   frames also say whether the stage had a source ("source") or showed the empty stage ("empty": nothing to view)
+//   voice-shown  the voice's state as the studio shows it (body data-voice-state and data-voice-working), whether the
+//           presence pill is in the Working strip (.strip-pill[data-id="voice:presence"], its words) and whether the
+//           Assistant is open (.study-agent-toggle pressed), each time any of them changes
+//   handoff-row  a hand-off's row in the chat (li.chat-handoff[data-handoff]) appearing or changing state
+//   assistant-set  the bench closed or opened the Assistant before a step's words (a plan step's "assistant")
 // The scorer (standard.py) reads these with the stack's own logs; this file decides nothing.
 (() => {
   if (window.__bench || window.top !== window) return; // the studio's own page, once (not its frames)
@@ -24,10 +30,11 @@
   // --- the voice socket, both ways ----------------------------------------------------------------------------------
   const KEEP_IN = new Set(['model', 'ready', 'interrupted', 'turn_complete', 'error', 'closed', 'tool_call', 'tool_result', 'answer']);
   const KEEP_TYPES = new Set(['talk', 'snapshot', 'snapshot-request', 'marks', 'marks-shown', 'marks-clear', 'bench', 'text', 'mute',
-    'voice-phase', 'offer', 'reoffer']);
+    'voice-phase', 'offer', 'reoffer', 'control', 'drive', 'drive-shown', 'drive-end', 'voice-state']);
   function brief(message) {
     const m = {};
-    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase'])
+    for (const key of ['type', 'kind', 'id', 'n', 'down', 'cancel', 'name', 'callId', 'how', 'until', 'fault', 'w', 'h', 'at', 'phase',
+      'version', 'owner', 'ok', 'why', 'outcome', 'intent', 'state', 'seq', 'turn'])
       if (message[key] !== undefined) m[key] = message[key];
     if (message.marks) m.marks = message.marks;
     if (message.resolved) m.resolved = message.resolved;
@@ -256,6 +263,46 @@
   setInterval(() => { void pollResearchers(); }, 1500);
   const newest = () => researchers().filter((r) => r.number != null).sort((a, b) => b.number - a.number)[0];
 
+  // --- the voice's state as shown, the presence pill, the Assistant, and the hand-off rows, sampled ----------------
+  // On every change of the body's voice attributes, and every 250 ms (the pill and the Assistant's toggle have no one
+  // attribute to watch): one voice-shown event whenever what is shown changes; one handoff-row per row and state.
+  const agentToggle = () => document.querySelector('.study-agent-toggle');
+  const assistantOpen = () => { const t = agentToggle(); return t ? t.getAttribute('aria-pressed') === 'true' : null; };
+  let shownKey = '';
+  const rowStates = new Map();
+  function sampleShown() {
+    if (!document.body) return;
+    const pill = document.querySelector('.strip-pill[data-id="voice:presence"]');
+    const visible = !!pill && !pill.hidden && pill.getClientRects().length > 0;
+    const n = Number(document.body.dataset.voiceWorking);
+    const now = { state: document.body.dataset.voiceState || null, n: Number.isFinite(n) ? n : null, pill: visible,
+      pillWords: visible ? (pill.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80) : '', assistant: assistantOpen() };
+    const key = JSON.stringify(now);
+    if (key !== shownKey) { shownKey = key; ev({ e: 'voice-shown', ...now }); }
+    for (const row of document.querySelectorAll('li.chat-handoff[data-handoff]')) {
+      const id = row.dataset.handoff, at = row.dataset.state || '';
+      if (rowStates.get(id) === at) continue;
+      rowStates.set(id, at);
+      ev({ e: 'handoff-row', id, state: at });
+    }
+  }
+  setInterval(sampleShown, 250);
+  const watchBody = () => {
+    if (!document.body) { setTimeout(watchBody, 50); return; }
+    new MutationObserver(sampleShown).observe(document.body, { attributes: true, attributeFilter: ['data-voice-state', 'data-voice-working'] });
+    sampleShown();
+  };
+  watchBody();
+  // A plan step's "assistant": "close" | "open", before its words: the Assistant's own toggle, pressed only when it
+  // differs, then a moment for the panel (and the presence pill) to settle.
+  async function setAssistant(want, stepId) {
+    const open = want === 'open', toggle = agentToggle();
+    if (toggle && assistantOpen() !== open) toggle.click();
+    await sleep(600);
+    sampleShown();
+    ev({ e: 'assistant-set', step: stepId, want, ok: assistantOpen() === open });
+  }
+
   // The open Project, from the orchestrator (/api/sessions).
   async function openProject() {
     const listing = await (await fetch('/api/sessions', { cache: 'no-store' })).json().catch(() => ({}));
@@ -273,11 +320,26 @@
     new MutationObserver(() => { lastChange = Date.now(); }).observe(log, { childList: true, subtree: true, characterData: true });
   }
   const lastAudio = () => { const a = [...state.events].reverse().find((e) => e.e === 'audio'); return a ? (a.on ? Date.now() : a.t) : 0; };
-  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all).
-  async function quiet(quietMs, maxMs, minMs) {
+  // At least `minMs` after the words, then until the chat and the voice have been quiet for `quietMs` (or `maxMs` in all),
+  // and no tool the voice called is still running (Talk's working dot): a voice that waits quietly on a long tool is
+  // not done (the smoke run of 29 Oct ended a step 4 s into Cellpose, and the stack's teardown stopped its worker).
+  // A hand-off's row saying "Hooke is working" is work under way too, as the user sees it: they wait for its outcome
+  // before the next words (will-workspace, 29 Oct: Cellpose's outcome landed in the next step), for at most HANDOFF_MS.
+  const HANDOFF_MS = 120000;
+  // `hold`: false when the next words are meant to come while Hooke still works (the next step's "during": "actually,
+  // stop that" during a search, a question asked meanwhile); the hand-off's row then never holds them back.
+  async function quiet(quietMs, maxMs, minMs, hold = true) {
     const t0 = Date.now();
-    const busy = () => Date.now() - t0 < minMs || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
-    while (Date.now() - t0 < maxMs && busy()) await sleep(200);
+    const handing = () => hold && !!document.querySelector('[data-role="handoff"][data-state="working"]');
+    // The voice about to answer (heard you, thinking: the studio's shown state) is not quiet either.
+    const working = () => document.getElementById('talk')?.dataset.working !== undefined || handing()
+      || ['heard', 'thinking'].includes(document.body?.dataset.voiceState || '');
+    const busy = () => Date.now() - t0 < minMs || working() || Date.now() - Math.max(lastChange, lastAudio(), t0) < quietMs;
+    // Once a hand-off has worked in this wait, its step's limit stays long: its outcome is said after its row ends
+    // (will-leaf, 29 Oct: the row ended past the step's own limit, and the next words cut its outcome off).
+    let handed = false;
+    const limit = () => ((handed = handed || handing()) ? Math.max(maxMs, HANDOFF_MS) : maxMs);
+    while (Date.now() - t0 < limit() && busy()) await sleep(200);
   }
   // Until the voice has been audible for `afterMs` (an interruption comes in the middle of an answer), at most `maxMs`.
   // Until the answer has been under way for `afterMs` from its first audio after `since` (the request's release; a
@@ -353,9 +415,20 @@
     return Date.now();
   }
 
-  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one).
+  // An experiment's card (experiment-card.ts) that has ended: its results landed, or it said why not.
+  const ENDED = new Set(['done', 'failed', 'stopped', 'expired']);
+  const endedExperiments = () => [...document.querySelectorAll('.chat-xcard[data-experiment]')]
+    .filter((c) => ENDED.has(c.dataset.state)).map((c) => `x:${c.dataset.experiment}`);
+  // What is known before a step: its researchers and the experiments already ended (so a wait is for a new one).
+  const known = () => new Set([...researchers().map((r) => r.rid), ...endedExperiments()]);
+
+  // What a step waits for besides quiet: a researcher done ("done": any finished; "latest-done": the newest one), or
+  // an experiment ended ("experiment": "done", its card's state done, failed or stopped).
   function satisfied(waitFor, before) {
     if (!waitFor) return false;
+    if (waitFor.experiment === 'done') return endedExperiments().some((id) => !before.has(id));
+    // Hooke's own work done: no request's row in the chat still working (a search still finding its photos).
+    if (waitFor.handoffs === 'idle') return !document.querySelector('[data-role="handoff"][data-state="working"]');
     const rows = researchers();
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
     if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }
@@ -437,7 +510,9 @@
         if (from === 0 && !setup) await sleep(baselineMs); // the live view before Talk: the baseline
         if (from > 0 && steps[from - 1]?.kind === 'restart') await checks(steps[from - 1]);
         const spokenAhead = steps.slice(from).some((s) => !['typed', 'idle', 'restart', 'stage'].includes(s.kind));
-        if (spokenAhead) { await connect(true); await sleep(3000); }
+        // Connected, it may talk first (its opening line, one-brain voice): the first step waits until it is quiet,
+        // so its first press never cuts that line and the line is never taken for the step's answer.
+        if (spokenAhead) { await connect(true); await sleep(3000); await quiet(2500, 20000, 0); }
         for (let i = from; i < steps.length; i++) {
           const step = steps[i], next = steps[i + 1];
           if (step.footage) {
@@ -460,7 +535,7 @@
             return JSON.parse(JSON.stringify(state));
           }
           if (step.kind === 'idle') {
-            const at = Date.now(), before = new Set(researchers().map((r) => r.rid));
+            const at = Date.now(), before = known();
             const limit = (step.wait ?? 120) * 1000;
             while (Date.now() - at < limit && !satisfied(step.waitFor, before)) await sleep(500);
             await quiet(quietMs, 30000, 8000); // the event's one line, if it is told
@@ -480,7 +555,7 @@
           if (step.kind === 'typed') {
             // Asked in the chat after the talking (the demo's memory question); setup is typed before Talk.
             if (!setup && talkButton()?.dataset.state === 'live') { await connect(false); await sleep(2000); }
-            const before = new Set(researchers().map((r) => r.rid));
+            const before = known();
             const at = await typed(step.say);
             state.steps.push({ id: step.id, kind: step.kind, say: step.say, start: at, end: at, setup });
             const limit = (step.wait ?? maxMs / 1000) * 1000;
@@ -490,8 +565,11 @@
             await stageSpecimen(plan, base, step.id);
             continue;
           }
+          if (step.assistant) await setAssistant(step.assistant, step.id);
           const record = { id: step.id, kind: step.kind, say: step.say };
           if (step.interrupt) record.interrupt = true;
+          const startedBefore = step.waitFor ? known() : null;
+          if (step.assistant) record.assistant = step.assistant;
           if (mode === 'hold') {
             record.down = await hold(true);
             await sleep(150);
@@ -501,11 +579,38 @@
           if (mode === 'hold') { await sleep(200); record.up = await hold(false); }
           state.steps.push(record);
           if (step.kind === 'restart') continue;
+          if (step.takeover) { // the person takes over while the partner acts: at its first cue (a drive) after release
+            const from = Date.now();
+            let cue = null;
+            while (Date.now() - from < (step.takeover.waitMs ?? 20000) && !cue) {
+              cue = state.events.find((e) => e.e === 'ws-in' && (e.m || {}).type === 'drive' && e.t >= (record.up ?? record.end));
+              if (!cue) await sleep(20);
+            }
+            if (!cue) ev({ e: 'takeover', step: step.id, how: step.takeover.how, skipped: 'no cue to take over from' });
+            else {
+              await sleep(step.takeover.afterMs ?? 100);
+              const how = step.takeover.how || 'mouse';
+              let at;
+              if (typeof window.__benchTakeover === 'function') at = await window.__benchTakeover(how);
+              else {
+                if (how === 'escape') window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+                else window.dispatchEvent(new MouseEvent('mousemove', { clientX: 760, clientY: 490, bubbles: true }));
+                at = Date.now();
+              }
+              ev({ e: 'takeover', step: step.id, how, at, cue: (cue.m || {}).id });
+            }
+          }
           if (next && next.interrupt) { // the next words come in the middle of this answer
             await speaking(next.interrupt.afterMs ?? 4500, 30000, record.up ?? record.end);
             continue;
           }
-          await quiet(quietMs, (step.wait ?? maxMs / 1000) * 1000, minMs);
+          if (step.waitFor) { // a spoken request whose work lands later (a researcher): its window spans that work,
+            // so what is said and done when it lands (a kept later step, will-research) is judged with the request
+            const from = record.up ?? record.end, limit = (step.wait ?? 600) * 1000;
+            while (Date.now() - from < limit && !satisfied(step.waitFor, startedBefore)) await sleep(1000);
+            await quiet(quietMs * 2, 120000, 20000); // the kept step's hand-off runs, then its outcome is said
+          }
+          await quiet(quietMs, step.waitFor ? 30000 : (step.wait ?? maxMs / 1000) * 1000, minMs, !(next && next.during));
           if (step.ensure) await ensure(step);
           await stageSpecimen(plan, base, step.id);
         }

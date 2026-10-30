@@ -54,6 +54,6 @@ describe('the studio wires it and reports at once', () => {
   });
   it('says the Tab in front by its title in the Tab strip’s report', () => {
     expect(main).toMatch(/work-tab-\$\{tab\}`\)\?\.querySelector\('\.workspace-tab-label'\)/);
-    expect(main).toMatch(/workspace:\{project,tab,\.\.\.\(tabTitle\?\{tabTitle\}:\{\}\)\}/);
+    expect(main).toMatch(/workspace:\{project,tab,\.\.\.\(tabTitle\?\{tabTitle\}:\{\}\),/); // then the open Tabs (Hands' verifier)
   });
 });

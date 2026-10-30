@@ -4,13 +4,14 @@ import {scientificViewPreferences,type ScientificViewPreferences} from './scient
 import {sameStudyResource} from './workspace-study-restoration';
 import {studyArtifacts} from './workspace-study-artifacts';
 import {legacyResearcher} from './legacy-output-tab';
-import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,setTabKind,bumpForSchema5,pruneLanes,renewPlacements,mainLayout,tileRects,undoArrange,readerItem,readerView,layoutForServer,type LayoutSchema,type WorkspaceLayout,type WorkspaceView,type WorkspaceTabInput,type Rect,type ReaderTabItem} from './workspace-views-model';
+import {LAYOUT_SCHEMA,LAYOUT_SCHEMAS,setTabKind,bumpForSchema5,pruneLanes,renewPlacements,mainLayout,tileRects,undoArrange,readerItem,readerView,layoutForServer,specimenState,floatingSpecimen,type LayoutSchema,type WorkspaceLayout,type WorkspaceView,type WorkspaceTabInput,type Rect,type ReaderTabItem,type SpecimenState,rebasedLayout} from './workspace-views-model';
 import {NoteState,RecoveryStore,noteStatusLine,type Note,type Recovery} from './workspace-note-state';
 import type {StudyRetainedView,StudyRecovery,StudyOpenOptions} from './workspace-study-restoration';
 import {fitTabRow,measureTabRow,type TabRowParts} from './tab-row-fit';
 import {holdUntilLanded} from './side-motion';
 import {flyTo} from './tab-close-motion';
 import {tabMark,type TabMark} from './tab-marks';
+import {tabItems,holds,listedWindow,LIST_ITEMS,type TabItemFact} from './workspace-model';
 import './workspace-views.css';
 interface Options {
  /** More things "+" can add beside a Tab (a researcher, a study), each opening as a Tab of its own. Without them "+" adds a Tab. */
@@ -52,13 +53,28 @@ interface Options {
 /** A row of All Tabs (⌄) that another owner provides: a researcher's or Study's Tab, or a study to open as one. */
 export interface MenuTab {id:string;name:string;title?:string;mark?:Element|null;act:()=>void}
 /** A researcher's or Study's Tab as the Assistant's Tab report lists it beside the work Tabs. */
-export interface ResearchTabReport {id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft'}
+export interface ResearchTabReport {id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft';shows?:import('./workspace-model').ResearchShows[]}
 const el=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',text='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=text;return n;};
 /** The drag type a Data card carries: its Project and resource, re-checked on drop. */
 export const ENTRY_DRAG='application/x-hooke-entry';
 interface TabOwner {session:string;generation:number}
 interface DraggedEntry {day?:string;id:string;version?:number|null}
 /** A drop resolves only the captured card revision in its original Project opening. */
+/** The name an item is saved under: its own title, else the title its window shows ("Reference photo"), else "Saved
+ * work", at most 512 characters. A window the Assistant opened without a title (live 2026-10-29: a reference photo)
+ * saved an empty name, and the server refused the whole arrangement ("a tab needs a bounded name and identity"). */
+export function savedTitle(title:unknown,root?:Pick<HTMLElement,'querySelector'>|null):string {
+ const own=typeof title==='string'?title.trim():'';
+ const shown=own?'':(root?.querySelector('.workspace-window-title,.study-window-title,header [class*=title]')?.textContent??'').trim();
+ return (own||shown||'Saved work').slice(0,512);
+}
+/** An internal check of the Project's arrangement that did not pass (a revision met twice, a bounded name): for
+ * Activity, never a notice over the work. main.ts files it with the app's other diagnostics. */
+export const LAYOUT_DIAGNOSTIC='workspace-layout-diagnostic';
+export function layoutDiagnostic(error:unknown):void {
+ const text=error instanceof Error?error.message:String(error??'');
+ if(typeof window!=='undefined')window.dispatchEvent(new CustomEvent(LAYOUT_DIAGNOSTIC,{detail:`The Tab layout was not saved: ${text}`}));
+}
 export function draggedEntry<T extends DraggedEntry>(data:string,owner:TabOwner,entries:T[]):T|null {
  if(data.length>16384)return null;
  try {
@@ -107,9 +123,25 @@ export class WorkspaceViews {
  private serverSchema:LayoutSchema=LAYOUT_SCHEMA;private sessionReaders=new Map<string,WorkspaceView[]>();
  private schemaNow():LayoutSchema{return this.serverSchema??LAYOUT_SCHEMA;}
  private wire(layout:WorkspaceLayout){return layoutForServer(layout,this.schemaNow());}
+ private rebases=0;
+ /** This window's arrangement on top of the newer one saved since its base: the Tabs, items and notes added there
+  * (and not here) are kept, everything this window shows stays as it is, and the next save uses the newer revision.
+  * False when the reply carries nothing to rebase on. */
+ private rebase(current:any):boolean{
+  if(!current||typeof current.revision!=='number'||!current.layout||!LAYOUT_SCHEMAS.includes(current.layout.schema))return false;
+  const server=current.layout as {views:WorkspaceView[]},known=(()=>{try{return JSON.parse(this.lastSaved) as {views?:WorkspaceView[]};}catch{return {views:[]};}})();
+  const next=rebasedLayout(this.layout,server,known);
+  this.layout=next;this.revision=current.revision;this.lastSaved=JSON.stringify(this.wire({...server,active:next.active} as WorkspaceLayout));
+  this.dirty=true;this.conflict=false;this.cache();clearTimeout(this.timer);this.timer=window.setTimeout(()=>void this.flush(),0);
+  return true;
+ }
 private revision=0;private generation=0;private revealSequence=0;
  private queuedReveal?:{id:string;tab?:string;version?:number|null;session:string;generation:number;sequence:number};
  private completionRestores=new Set<string>();
+ /** The Tabs whose specimen is an empty new Tab's minimized live feed (Will, 30 Oct: picture-in-picture, small in its
+  * corner), not one asked for there: it goes away once something is placed in the Tab (feedAway). Kept for the session. */
+ private pip?:Set<string>;
+ private pips(){return this.pip??=new Set<string>();} // made on first use: test doubles built from the prototype have it too
  private openingInput=false;
  private loaded=new Set<string>();private changing=false;private navigating=false;private dirty=false;
  private saving:Promise<void>|null=null;private timer=0;private lastSaved='';private conflict=false;
@@ -166,10 +198,10 @@ private revision=0;private generation=0;private revealSequence=0;
   this.stage.before(this.strip,this.stageBar);
   // Said by an attribute, not :has() (workspace-feel.css): a :has() on the Stage block re-styled all of it on every change inside (b041).
   this.strip.parentElement?.setAttribute('data-view-strip','');
-  const float=()=>{if(!this.active())return;this.active()!.specimen.rect=this.active()!.specimen.rect?null:[12,40,480,380];this.specimen.dataset.front='true';this.applySpecimen();this.changed();};
+  const float=()=>{const v=this.active();if(v)this.setSpecimen(v,v.specimen.rect?'fill':'float');};
   const size=button('Float',float);
   // Main is home: its specimen can float but never leaves it. Other Tabs may hide theirs, and keep a way back (below).
-  const hideSpecimen=()=>{const v=this.active();if(v&&!this.isHome(v.id)){v.specimen.visible=false;this.applySpecimen();this.changed();}};
+  const hideSpecimen=()=>{const v=this.active();if(v&&!this.isHome(v.id))this.setSpecimen(v,'hide');};
   const hide=button('×',hideSpecimen);hide.setAttribute('aria-label','Hide specimen from this Tab');hide.title='Hide the specimen from this Tab (Main always keeps it)';
   this.specimenSize=size;this.specimenHide=hide;
   // The Stage bar names the specimen with the same Float or Fill and Hide (the floating window keeps its own bar).
@@ -190,6 +222,8 @@ private revision=0;private generation=0;private revealSequence=0;
   this.specimenReturn.append(el('span','','Specimen hidden in this Tab'),button('Show as backdrop',()=>this.showSpecimen()));this.specimenReturn.hidden=true;
   window.addEventListener('workspace-new-tab',()=>void this.addView());
   window.addEventListener('workspace-tabs-request',event=>{const detail=(event as CustomEvent).detail;detail.result=this.agentCommand(detail.session,detail.action,detail.check);});
+  // The screen report's Tab strip (main.ts) asks each Tab's specimen here, as the Stage shows it.
+  window.addEventListener('workspace-specimen-report',event=>{const detail=(event as CustomEvent).detail;detail.specimens=this.specimenReport();detail.holds=this.holdsReport();});
   // ⌘T, ⌘W, ⌘⇧T, ⌘1–9, ⌘⇧[ and ⌘⇧] (Ctrl off a Mac). In the Mac app its Tab menu claims these keys first and calls
   // hookeTabCommand, except ⌘T: the focused scientific view gets its existing transpose shortcut first.
   // Unclaimed keys reach this fallback; a browser keeps most for its own tabs.
@@ -263,6 +297,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(root.dataset.project&&root.dataset.project!==this.session){root.dataset.workspaceHidden='true';return;}
   if(!this.active())return;
   root.dataset.workspaceView??=this.layout.active;root.dataset.placementId??=uuid();root.dataset.project=this.session;
+  if(root.dataset.dismissed!=='true'&&!root.hidden)this.feedAway(this.layout.views.find(v=>v.id===root.dataset.workspaceView));
   const bar=root.querySelector<HTMLElement>(':scope > header');if(bar&&!bar.querySelector('.workspace-send')){
    // One way to put a window in another Tab: "Add to Tab…" (Add, or Move this view instead; every Tab or a new one). Native image
    // windows keep it in their tools menu so narrow titles and Close stay reachable; "Also in" says which other Tabs show it.
@@ -314,7 +349,7 @@ private revision=0;private generation=0;private revealSequence=0;
      JSON.parse(other.dataset.studyRetained).resource,JSON.parse(root.dataset.studyRetained!).resource)))continue;
    const placementId=root.dataset.placementId??=uuid();
    if(root.dataset.noteId){v.notes.push({id:root.dataset.noteId,placementId,rect:this.rect(root)});continue;}
-   if(root.dataset.studyRetained){const {coordinates:_,...item}=JSON.parse(root.dataset.studyRetained) as StudyRetainedView;const r=this.rect(root);const actual=native.find(n=>n.placementId===placementId);v.items.push({...item,...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),placementId,position:r.slice(0,2),size:r.slice(2)});}
+   if(root.dataset.studyRetained){const {coordinates:_,...item}=JSON.parse(root.dataset.studyRetained) as StudyRetainedView;const r=this.rect(root);const actual=native.find(n=>n.placementId===placementId);v.items.push({...item,title:savedTitle(item.title,root),...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),placementId,position:r.slice(0,2),size:r.slice(2)});}
   }
   // A user edit during a Result restore cannot erase its not-yet-mounted placement.
   for(const item of pending)if(!v.items.some(n=>n.placementId===item.placementId))v.items.push(item);
@@ -346,7 +381,17 @@ private revision=0;private generation=0;private revealSequence=0;
   const session=this.session,g=this.generation,draft=this.layoutDraft;this.say('Saving…');this.retry.hidden=true;this.retry.textContent='Retry save';this.retry.onclick=()=>void this.flush();
   this.saving=(async()=>{try{
    const reply=await this.opts.request('workspace-layout',{session,schema:this.schemaNow(),base:this.revision,layout:JSON.parse(serialized)});if(g!==this.generation)return;
-   if(!reply.ok){this.conflict=reply.code==='conflict'||reply.code==='unsupported-schema';this.say(reply.code==='unsupported-schema'?'Reload required':'Not saved');this.retry.hidden=this.conflict;this.recover.hidden=false;this.opts.notice(reply.error);return;}
+   if(!reply.ok){
+    // A newer revision saved elsewhere (another window of this Project, a result the app placed) is the app's to
+    // resolve: this Tab arrangement is rebased on it and saved again, at most twice in a row, never a toast
+    // (2026-10-29: "This project layout changed before this save…" over the Talk bar).
+    if(reply.code==='conflict'&&this.rebases<2&&this.rebase(reply.current)){this.rebases++;this.say('Saving…');return;}
+    this.conflict=reply.code==='conflict'||reply.code==='unsupported-schema';this.say(reply.code==='unsupported-schema'?'Reload required':'Not saved');this.retry.hidden=this.conflict;this.recover.hidden=false;
+    // An internal check of the arrangement (a bounded name, a revision) is said on the layout line, with Retry, and
+    // in Activity; it is never a notice over the work (ADR 0006, no error cards).
+    if(reply.code==='validation'||reply.code==='conflict')layoutDiagnostic(reply.error);else this.opts.notice(reply.error);
+    return;}
+   this.rebases=0;
    if(reply.completionAdditions?.length){
     // Apply only the server-proven additions, never replace edits made during this request.
     const next=structuredClone(this.layout),added:StudyRetainedView[]=[];
@@ -565,6 +610,13 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  /** A Tab is opening or the Project is changing: arrangement gestures wait, rather than act on half a Tab. */
  private busy(){return this.changing||this.navigating||this.openingInput;}
+ /** Waits, at most `ms`, for the workspace's own work in progress (a Tab opening, a save, a dialog) to end. */
+ private async settle(check:()=>void,ms=4000){
+  const until=Date.now()+ms;
+  while((this.busy()||this.navigating||this.changing||this.saving||document.querySelector('dialog:modal'))&&Date.now()<until){
+   await new Promise(resolve=>setTimeout(resolve,50));check();
+  }
+ }
  /** Main (the Project's first Tab) is home: always open, never removed, and its specimen always shown. */
  private isHome(id:string){return id===(this.layout.views.find(v=>v.id==='main')??this.layout.views[0])?.id;}
  private applySpecimen(){const v=this.active();if(v&&this.isHome(v.id)&&!v.specimen.visible){v.specimen.visible=true;v.specimen.rect=null;this.changed();}
@@ -579,9 +631,83 @@ private revision=0;private generation=0;private revealSequence=0;
   const s=v?.specimen;this.specimen.hidden=!s?.visible;document.body.dataset.workspaceSpecimenVisible=String(!!s?.visible);this.specimen.classList.toggle('workspace-specimen-full',!s?.rect);if(s?.rect)this.specimen.dataset.savedRect=JSON.stringify(s.rect);else delete this.specimen.dataset.savedRect;if(s?.visible&&s.rect){this.specimenShell.resizeTo(s.rect[2],s.rect[3]);this.specimenShell.moveTo(s.rect[0],s.rect[1]);}}
  /** Shows the Tab's specimen on the Stage, as its backdrop when it was hidden (the Assistant's specimen chip, Tabs…). */
  showInput(){this.showSpecimen();}
- private showSpecimen(){if(!this.active())return;const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
- private async addView(title?:string,activate=true){if(this.changing||this.navigating||this.openingInput)return;const session=this.session,generation=this.generation;if(this.layout.views.length>=24){this.opts.notice('24 Tabs are saved. Remove one you no longer use to make room; its Data stays.');this.manage();return;}
-  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:{visible:true,rect:null},items:[],notes:[]};this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
+ private showSpecimen(){if(!this.active())return;this.pips().delete(this.active()!.id);const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
+ /** The one way a Tab's specimen changes, for its Float or Fill and Hide and for the Assistant (tabs specimen): filling
+  * the Stage behind the Tab's windows, floating as a small window (where it last floated, else the corner), or hidden.
+  * Main always keeps it: it floats, never hides. */
+ private setSpecimen(v:WorkspaceView,want:'fill'|'float'|'hide'){
+  this.pips().delete(v.id); // asked for there: it stays as asked when something is placed in the Tab
+  if(want==='hide'){if(this.isHome(v.id))throw new Error('Main always keeps the specimen: it can float, never hide.');v.specimen.visible=false;}
+  else{v.specimen.visible=true;v.specimen.rect=want==='fill'?null:v.specimen.rect??this.floatingRect();}
+  if(v.id===this.layout.active){if(want==='float')this.specimen.dataset.front='true';this.applySpecimen();}
+  this.changed();
+ }
+ /** Whether a Tab shows the live feed, in the Tabs list's words: an empty Tab's minimized feed in its corner, the
+  * specimen filling the Tab or floating as a window there, or none (what it holds fills it). */
+ private feedWords(v:WorkspaceView):'minimized'|'filling'|'floating'|'none'{
+  const state=specimenState(v.specimen);
+  return state==='hidden'?'none':state==='fill'?'filling':this.pips().has(v.id)?'minimized':'floating';
+ }
+ private floatingRect():Rect{return floatingSpecimen(this.stage?.clientWidth??0,this.stage?.clientHeight??0);}
+ /** Something was placed in Tab `v`: when its specimen is an empty new Tab's minimized feed, the feed goes away, so what
+  * the Tab is now for fills it (Will, 30 Oct: "a new tab that isn't empty, made for or from something, doesn't need
+  * that there"). A specimen asked for there (tabs specimen, Float or Fill, Show specimen) stays; Main always keeps it. */
+ private feedAway(v:WorkspaceView|undefined){
+  if(!v||!this.pips().delete(v.id)||this.isHome(v.id))return;
+  v.specimen.visible=false;v.specimen.rect=null;if(v.id===this.layout.active)this.applySpecimen();this.changed();
+ }
+ /** Each Tab's specimen for the screen report's Tab strip (main.ts; workspace_observation): the Tab in front's as the
+  * Stage shows it (hidden, filling it, or floating at its place in workspace px), another's as its arrangement keeps it
+  * (its saved place, from the Stage's corner). */
+ specimenReport():Record<string,{state:SpecimenState;rect?:Rect;minimized?:true}>{
+  const out:Record<string,{state:SpecimenState;rect?:Rect;minimized?:true}>={},stage=this.stage.getBoundingClientRect();
+  for(const v of this.layout.views){
+   if(v.id===this.layout.active){
+    const box=this.specimen.getBoundingClientRect(),state:SpecimenState=this.specimen.hidden?'hidden':this.specimen.classList.contains('workspace-specimen-full')?'fill':'float';
+    out[v.id]=state==='float'&&box.width>0&&box.height>0?{state,rect:[box.left,box.top,box.width,box.height].map(Math.round) as Rect}:{state};
+    if(state==='float'&&this.pips().has(v.id))out[v.id].minimized=true; // an empty Tab's minimized live feed
+    continue;
+   }
+   const state=specimenState(v.specimen),r=v.specimen.rect;
+   out[v.id]=state==='float'&&r?{state,rect:[stage.left+r[0],stage.top+r[1],r[2],r[3]].map(Math.round) as Rect}:{state};
+   if(state==='float'&&this.pips().has(v.id))out[v.id].minimized=true;
+  }
+  return out;
+ }
+ /** Only these on the Tab in front (`keep`: placement or window ids): every other window there closed through its
+  * own ×, as a person's click closes it (a document's Data is kept; a native window's close goes to the server as
+  * theirs), the specimen hidden, or on Main floated small in its corner (Main always keeps it), and the kept window
+  * fitted to the room left. Done is the report showing it (workspace_tabs.py). */
+ private only(v:WorkspaceView,keep:string[]){
+  const kept=new Set(keep),roots=this.visibleRoots(),stay=roots.filter(root=>kept.has(root.dataset.placementId??'')||kept.has(root.dataset.presentationId??''));
+  if(keep.length&&!stay.length)throw new Error('That window is not open on this Tab. List the Tabs again.');
+  for(const root of roots){
+   if(stay.includes(root))continue;
+   const close=root.querySelector<HTMLButtonElement>(':scope > header .workspace-window-close, :scope > header button[aria-label^="Close"]');
+   close?.click();
+  }
+  const home=this.isHome(v.id);this.pips().delete(v.id);
+  v.specimen.visible=home;v.specimen.rect=home?this.floatingRect():null;if(v.id===this.layout.active)this.applySpecimen();
+  const width=this.stage.clientWidth,height=this.stage.clientHeight-60;
+  if(stay.length===1&&width>0&&height>0){
+   const left=home&&v.specimen.rect?v.specimen.rect[0]+v.specimen.rect[2]+12:12;
+   this.changing=true;try{this.place(stay[0],[left,12,Math.max(240,width-left-12),Math.max(180,height-24)]);}finally{this.changing=false;}
+  }
+  this.capture();this.changed();
+ }
+ /** What each Tab holds, counted by kind, for the screen report's Tab strip (main.ts; workspace_observation `holds`), and
+  * each Tab's kind (work, output, compare, reader). */
+ holdsReport():Record<string,{kind:string;holds:Partial<Record<TabItemFact['kind'],number>>}>{
+  const out:Record<string,{kind:string;holds:Partial<Record<TabItemFact['kind'],number>>}>={},roots=this.roots();
+  for(const v of this.layout.views)out[v.id]={kind:v.kind??'work',holds:holds(tabItems(v,roots,this.loaded.has(v.id)))};
+  return out;
+ }
+ /** A new Tab. An empty one ("+", ⌘T, New Tab, the Assistant's tabs create) shows a minimized live feed of the main
+  * input, small in its corner, which goes away once something is placed there (Will, 30 Oct; feedAway). A Tab made for
+  * or from something passes its specimen: hidden, so what it holds fills it; a run's result Tab filling, as it draws
+  * there. */
+ private async addView(title?:string,activate=true,specimen?:WorkspaceView['specimen']){if(this.changing||this.navigating||this.openingInput)return;const session=this.session,generation=this.generation;if(this.layout.views.length>=24){this.opts.notice('24 Tabs are saved. Remove one you no longer use to make room; its Data stays.');this.manage();return;}
+  this.capture();await this.flush();if(session!==this.session||generation!==this.generation||this.changing||this.navigating||this.openingInput||this.dirty||this.conflict)return;const input=this.opts.captureInput?.();const v:WorkspaceView={...(input?{input:{...input}}:{}),id:uuid(),title:(title?.trim()||`Tab ${this.layout.views.length+1}`).slice(0,80),specimen:specimen??{visible:true,rect:this.floatingRect()},items:[],notes:[]};if(!specimen)this.pips().add(v.id);this.layout.views.push(v);this.openIds.push(v.id);this.loaded.add(v.id);this.changed();if(activate)await this.activate(v.id);else{this.navSave();this.render();}return v.id;
  }
  private render(){
   this.renderCompletions();
@@ -681,14 +807,14 @@ private revision=0;private generation=0;private revealSequence=0;
   if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
   this.capture();await this.flush();
   if(!this.ownsTabChoice(owner)||this.dirty||this.conflict)throw new Error('The layout isn’t saved. Use Retry on the layout line, then add it again.');
-  const id=to??await this.addView(tabName(item.title),false);
+  const id=to??await this.addView(tabName(item.title),false,{visible:false,rect:null});
   const target=id?this.layout.views.find(v=>v.id===id):undefined;
   if(!target||!this.ownsTabChoice(owner))throw new Error('That Tab is no longer in this Project. Nothing was added.');
   if(target.kind==='reader')throw new Error('That Tab shows one thing on its own. Choose another Tab.');
   if(target.items.length>=64)throw new Error('That Tab is full. Choose another Tab.');
   let placed=target.items.find(i=>sameStudyResource(i.resource,item.resource)&&i.presentation===item.presentation)?.placementId;
   if(!placed){
-   placed=uuid();target.items.push({...structuredClone(item),placementId:placed});
+   placed=uuid();target.items.push({...structuredClone(item),placementId:placed});this.feedAway(target);
    if(target.id===this.layout.active)this.completionRestores.add(placed);
    this.loaded.delete(target.id);this.changed();await this.flush();
   }
@@ -975,7 +1101,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(!current()||root.dataset.workspaceUnsaved==='true')return;
   const {session,generation}=owner;
   // A new Tab is named after what it holds, kept short: a result's first words ("Bright regions"), not its full line.
-  const to=target.to??await this.addView(tabName(target.title??''),false);if(!to||!current())return;
+  const to=target.to??await this.addView(tabName(target.title??''),false,{visible:false,rect:null});if(!to||!current())return;
   // Undo may restore this move's comparison lanes, but never overwrite a later comparison edit.
   const beforeMove=!copy?structuredClone(this.layout.views.find(v=>v.id===from)!):undefined;
   const afterMove=beforeMove?structuredClone(beforeMove):undefined;
@@ -1010,16 +1136,26 @@ private revision=0;private generation=0;private revealSequence=0;
   this.flashNote.hidden=false;this.flashTimer=window.setTimeout(()=>this.clearFlash(),10000);
  }
  private clearFlash(){clearTimeout(this.flashTimer);this.flashNote.hidden=true;this.flashNote.replaceChildren();}
- /** One window's placement from one Tab to another, as data: a move keeps its placement id, a copy gets a new one. */
+ /** One window's placement from one Tab to another, as data: a move keeps its placement id, a copy gets a new one. A
+  * window the Tab lists but its arrangement does not save (the live magnifier, a web page) moves as itself: its root is
+  * put on the other Tab, and nothing is saved for it (will-tabs, 30 Oct: "move that new enlargement into a new Tab" was
+  * refused "That exact placement is no longer in the named source Tab"; a person's Move said "Retain this item"). */
  private relocate(pid:string|undefined,fromId:string,toId:string,copy:boolean):string|null{
   const source=this.layout.views.find(v=>v.id===fromId),target=this.layout.views.find(v=>v.id===toId);
   if(!pid||!source||!target||source===target)return null;
   const note=source.notes.find(n=>n.placementId===pid),item=source.items.find(n=>n.placementId===pid),next=copy?uuid():pid;
   if(note){target.notes.push({...structuredClone(note),placementId:next});if(!copy)source.notes=source.notes.filter(n=>n!==note);}
   else if(item){target.items.push({...structuredClone(item),placementId:next});if(!copy)source.items=source.items.filter(n=>n!==item);}
-  else return null;
+  else{const loose=copy?undefined:this.looseRoot(source.id,pid);if(!loose)return null;loose.dataset.workspaceView=target.id;this.visibility();return pid;}
   if(!copy)pruneLanes(source);
+  this.feedAway(target);
   return next;
+ }
+ /** The open window on Tab `tab` with placement `pid` that the Tab lists but its arrangement does not save. */
+ private looseRoot(tab:string,pid:unknown):HTMLElement|undefined{
+  if(typeof pid!=='string'||!pid)return undefined;
+  return this.roots().find(root=>root.dataset.project===this.session&&root.dataset.workspaceView===tab&&root.dataset.placementId===pid
+   &&root.dataset.dismissed!=='true'&&root.dataset.windowOpen!=='false'&&!root.dataset.studyRetained&&!root.dataset.noteId&&listedWindow(root));
  }
  private async move(root:HTMLElement,to:string,copy:boolean):Promise<string|null>{
   if(this.busy())return null;this.capture();const source=this.active(),target=this.layout.views.find(v=>v.id===to);if(!source||!target||source===target)return null;
@@ -1030,9 +1166,13 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  private place(root:HTMLElement,rect:Rect){
   if(root.matches('.workspace-window')&&root.dataset.studyRetained){const saved=JSON.parse(root.dataset.studyRetained) as StudyRetainedView,actual=this.opts.captureItems().find(v=>v.placementId===root.dataset.placementId);this.opts.placeItem({...saved,...(actual?{zoom:actual.zoom,pan:actual.pan}:{}),coordinates:'stage',position:rect.slice(0,2),size:rect.slice(2)});}
+  // A native window with no retained resource (the live magnifier) has no shell of the study artifacts' own: it is
+  // placed through its own fenced resize and move, as a person's drag would (main.ts, WorkspaceWindows.placeWindow).
+  // Left out, Arrange tiled everything else and its tile still lay under it (will-workspace, 30 Oct).
+  else if(root.matches('.workspace-window')&&root.dataset.presentationId)window.dispatchEvent(new CustomEvent('workspace-place-window',{detail:{id:root.dataset.presentationId,rect:[...rect]}}));
   else studyArtifacts().place(root,rect);
  }
- private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
+ private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);if(roots.length)this.feedAway(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
  private fit(){this.capture();const roots=this.visibleRoots(),rects=tileRects(roots.length,this.stage.clientWidth,this.stage.clientHeight-60);this.changing=true;try{roots.forEach((root,i)=>{root.dataset.savedRect=JSON.stringify(this.rect(root));this.place(root,rects[i]);});}finally{this.changing=false;}this.opts.notice('Windows fitted temporarily. Saved desktop positions are unchanged. Use Arrange to save a new arrangement.');}
  locations(id:string){return this.layout.views.filter(v=>v.items.some(i=>i.resource.id===id)||v.notes.some(n=>n.id===id)).map(v=>v.title);}
  /** The Tabs showing a saved result at this revision (or a note), each with whether it is open: Data's "In" chips. */
@@ -1044,11 +1184,17 @@ private revision=0;private generation=0;private revealSequence=0;
  async agentCommand(session:string,args:Record<string,any>,original=()=>true):Promise<Record<string,unknown>>{
   const owner=this.tabOwner(),check=()=>{if(!original()||session!==owner.session||!this.ownsTabChoice(owner))throw new Error('The Project changed. Ask again in its workspace.');};
   // Researcher and Study Tabs are reported beside the work Tabs; while one is in front, no work Tab is the selected one.
-  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected);return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
-   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>({id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',omittedItems:Math.max(0,v.items.length-(args.tab?64:8)),items:v.items.slice(0,args.tab?64:8).map(i=>({placement:i.placementId,resource:i.resource,title:i.title}))})),
+  // Each Tab with what it holds, by kind (workspace-model.ts): its items (saved windows, then the windows open on it the
+  // arrangement does not save), counted by kind in `holds`, its input and its specimen; a researcher's or Study's Tab
+  // with what it shows. "Which Tab has the measurements?" is answered from these kinds, never from a title.
+  const report=()=>{const research=this.opts.research?.report()??[],front=research.some(t=>t.selected),roots=this.roots(),limit=args.tab?LIST_ITEMS:this.layout.views.length>12?4:8;/* within the reply's 64 KiB; holds counts them all */return {ok:true,session:this.session,studioVisible:!document.hidden,tabs:[
+   ...this.layout.views.filter(v=>args.action!=='list'||!args.tab||v.id===args.tab).map(v=>{const items=tabItems(v,roots,this.loaded.has(v.id));return {id:v.id,title:v.title,open:this.openIds.includes(v.id),selected:!front&&v.id===this.layout.active,kind:v.kind??'work',specimen:specimenState(v.specimen),feed:this.feedWords(v),
+    ...(v.input?{input:{source:v.input.source,kind:this.opts.describeInput?.(v.input.source)??'live'}}:{}),holds:holds(items),omittedItems:Math.max(0,items.length-limit),items:items.slice(0,limit)};}),
    ...research.filter(t=>args.action!=='list'||!args.tab||t.id===args.tab).map(t=>({...t,omittedItems:0,items:[]}))]};};
   try{
-   check();if(this.busy()||this.navigating||this.changing||document.querySelector('dialog:modal'))throw new Error('Finish the current workspace action first.');
+   // A Tab still opening, a save under way or a dialog up is waited for (bounded), then the action goes on: it is the
+   // app's own state, never the user's to repeat (2026-10-29, "Finish its current action and ask again").
+   check();await this.settle(check);if(this.busy()||this.navigating||this.changing||document.querySelector('dialog:modal'))throw new Error('Finish the current workspace action first.');
    if(args.action==='list')return report();
    if(typeof args.tab==='string'&&/^(research|study|draft):/.test(args.tab)){
     // A researcher's or Study's Tab: it can be put in front or closed (closing stops nothing; it stays in Researchers).
@@ -1057,11 +1203,22 @@ private revision=0;private generation=0;private revealSequence=0;
     if(args.action==='close'){if(!this.opts.research.close(args.tab))throw new Error('The researcher Tab could not close.');check();return report();}
     throw new Error('A researcher’s Tab can only be shown or closed; its work is in Researchers.');
    }
-   this.capture();await this.flush();check();if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
-   if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace changed while saving. Finish its current action and ask again.');
-   const target=this.layout.views.find(v=>v.id===args.tab);
-   if(args.action!=='create'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
-   if(args.action==='create'){
+   this.capture();await this.flush();check();
+   if(this.dirty&&!this.conflict){await this.settle(check);await this.flush();check();} // a save rebased on a newer revision goes again
+   if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
+   await this.settle(check);if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace is still busy with another action.');
+   const target=this.layout.views.find(v=>v.id===args.tab);let loose=false; // a move of a window the arrangement does not save
+   if(args.action!=='create'&&args.action!=='reader'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
+   if(args.action==='reader'){
+    // Open in new Tab, as a person's: one saved item in a Tab of its own, the Data reader full width (an item that has
+    // one goes to it). The Assistant's document opens so (orchestrator/documents.py); done once the report shows it.
+    const item=args.item as ReaderTabItem|undefined,resource=item?.resource;
+    if(!resource||resource.day!==session||typeof resource.id!=='string'||!resource.id)throw new Error('Choose a saved item in this Project.');
+    if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+    const title=String(item?.title??'').trim().slice(0,80)||resource.id;
+    if(!await this.openReaderTab({resource:{day:resource.day,id:resource.id,version:typeof resource.version==='number'?resource.version:null},title},owner))throw new Error('Its Tab did not open. Open it from Data.');
+    check();
+   }else if(args.action==='create'){
     const id=await this.addView(String(args.title).trim().slice(0,80));check();if(!id)throw new Error('No Tab was created. Check the workspace.');
    }else if(args.action==='rename'){
     target!.title=String(args.title).trim().slice(0,80);this.changed();this.render();
@@ -1074,24 +1231,44 @@ private revision=0;private generation=0;private revealSequence=0;
     await this.closeTab(target!.id);check();if(this.openIds.includes(target!.id))throw new Error('The Tab could not close. Save or finish its work first.');
    }else if(args.action==='move'){
     const source=this.layout.views.find(v=>v.id===args.from);
-    if(!source||!source.items.some(i=>i.placementId===args.placement)&&!source.notes.some(i=>i.placementId===args.placement))throw new Error('That exact placement is no longer in the named source Tab.');
-    if(source.id!==target!.id){
+    loose=!!source&&!!this.looseRoot(source.id,args.placement);
+    if(!source||!loose&&!source.items.some(i=>i.placementId===args.placement)&&!source.notes.some(i=>i.placementId===args.placement))throw new Error('That exact placement is no longer in the named source Tab.');
+    if(loose&&source.id!==target!.id){
+     // Moved as itself (relocate): the same window, live view and all, shown on the Tab asked for; nothing to save.
+     if(!this.relocate(args.placement,source.id,target!.id,false))throw new Error('The placement could not move.');
+    }else if(source.id!==target!.id){
      if(!this.relocate(args.placement,source.id,target!.id,false))throw new Error('The placement could not move.');
      for(const root of this.roots())if(root.dataset.placementId===args.placement)root.dataset.workspaceView=target!.id;
      if(target!.id===this.layout.active){const moved=target!.items.find(i=>i.placementId===args.placement);if(moved)this.completionRestores.add(args.placement);}
      this.loaded.delete(target!.id);this.changed();this.visibility();
     }
+   }else if(args.action==='specimen'){
+    // The same change as the Tab's own Float or Fill and Hide (setSpecimen), on the Tab named.
+    if(!['fill','float','hide'].includes(args.specimen))throw new Error('Say fill, float or hide for the specimen.');
+    if(target!.kind==='reader'||legacyResearcher(target!))throw new Error('This Tab shows one thing on its own; its specimen stays as it is.');
+    this.setSpecimen(target!,args.specimen);
+   }else if(args.action==='arrange'||args.action==='only'){
+    // The placement vocabulary's beside and only (docs/architecture/on-screen.md "Placing things"), by the Tab's own
+    // gestures: beside is its Arrange (its windows and its specimen side by side, tiled); only closes every other
+    // window through its own × and hides the specimen (Main's floats small: it always keeps it).
+    if(target!.kind==='reader'||legacyResearcher(target!))throw new Error('This Tab shows one thing on its own.');
+    if(target!.id!==this.layout.active){
+     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+     if(!await this.goTo(target!.id,owner))throw new Error('The target Tab did not open. Check its input and saved work.');check();
+    }
+    if(args.action==='arrange')this.arrange();
+    else this.only(target!,Array.isArray(args.keep)?args.keep.map(String):[]);
    }else if(args.action==='add'){
     const item=args.item as StudyRetainedView;
     if(!item?.resource||item.resource.day!==session||!item.resource.id||target!.items.length>=64)throw new Error('Choose a retained resource in this Project and a Tab with room.');
     if(!target!.items.some(i=>sameStudyResource(i.resource,item.resource)&&i.presentation===item.presentation)){
-     const added={...structuredClone(item),placementId:uuid()};target!.items.push(added);
+     const added={...structuredClone(item),placementId:uuid()};target!.items.push(added);this.feedAway(target!);
      if(target!.id===this.layout.active)this.completionRestores.add(added.placementId);
      this.loaded.delete(target!.id);this.changed();
     }
    }else throw new Error('This Tab action is not supported.');
    await this.flush();check();if(this.dirty||this.conflict)throw new Error('The change is not confirmed saved. Check Retry save or Review recovery.');
-   if(['add','move'].includes(args.action)&&target!.id===this.layout.active){
+   if(['add','move'].includes(args.action)&&!loose&&target!.id===this.layout.active){
     if(!await this.activate(target!.id,true))throw new Error('The placement was saved but its Tab could not reopen. Reopen it from Data.');check();
    }
    this.render();return report();
@@ -1109,7 +1286,7 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  async newRunOrigin(run:string,title:string,session:string){
   const owner=this.tabOwner();if(session!==owner.session||this.busy())throw new Error('Finish opening this Project before running.');
-  const id=await this.addView(title,false);
+  const id=await this.addView(title,false,{visible:true,rect:null});
   if(!id||!this.ownsTabChoice(owner)||this.busy())throw new Error('The result Tab did not open. No analysis was started.');
   await this.activate(id,false,false,false,true);
   if(!this.ownsTabChoice(owner)||this.layout.active!==id||this.busy())throw new Error('The result Tab did not open. No analysis was started.');
@@ -1124,7 +1301,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(selections.length<2||selections.length>3||new Set(selections.map(s=>s.resource.id)).size!==selections.length||
    selections.some(s=>s.resource.day!==owner.session||!s.inputKey||s.inputKey!==selections[0].inputKey))throw new Error('Choose two or three retained results from the same captured input.');
   const blocked=studyArtifacts().blockReason(this.session);if(blocked)throw new Error(blocked);
-  const id=await this.addView('Compare methods',false);
+  const id=await this.addView('Compare methods',false,{visible:false,rect:null});
   if(!id||!this.ownsTabChoice(owner)||this.busy())throw new Error('The comparison Tab could not be created. Check its saved arrangement.');
   const view=this.layout.views.find(v=>v.id===id)!;
   view.specimen.visible=false;

@@ -4,11 +4,27 @@ from __future__ import annotations
 import time
 
 import asyncio
+from collections import OrderedDict
+import hashlib
 
 from ...day.sid import session_of
 from ...magnifier import comparison_picture, crop_jpeg, object_box_in, padded_rect, parse_level, region_sharpness, sharpest_frame, side_by_side
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 from .common import OBJECT, describe, in_view, log_measurement, resolve_object, visible_object
+
+
+def picture_size(jpeg: bytes) -> tuple[int, int]:
+    """A picture's width and height, read from its header (4:3 when it cannot be read: the room made is then only
+    approximate, and the fit before its first paint is still the window's own)."""
+    import io
+
+    from PIL import Image
+
+    try:
+        with Image.open(io.BytesIO(jpeg)) as picture:
+            return picture.size
+    except Exception:  # an unreadable header leaves only the room's estimate rough (rule 4)
+        return 4, 3
 
 
 def _member_meant(hub, ref, magnifier_open: bool = False, open_obj=None, asked=None, pointed=None):
@@ -53,6 +69,43 @@ def _member_meant(hub, ref, magnifier_open: bool = False, open_obj=None, asked=N
     population = evidence_of(hub).get(cell[0]) if cell else layer_of(hub).population()
     member = population.members.get(selected) if population is not None else None
     return (population, member) if member is not None else None
+
+
+def model_said(model: str) -> str:
+    """A model's one name as the user hears it ("Gemini 3.8 Flash"), else its id."""
+    from ...options import VISION
+
+    option = VISION.get(model)
+    return option.label if option is not None else model
+
+
+def shown_in_project(hub, ctx) -> list[dict]:
+    """The reference photos already kept in the Project the request was asked in, oldest first (at most 12): each
+    one's page, title, the digest of its pixels and, when a look at those pixels described it, what it showed. Facts
+    from the app for "a different one than you have been"; the web's words cross only as capped lines."""
+    from ...untrusted import inline
+
+    results = getattr(getattr(hub, "resources", None), "results", None)
+    if results is None:
+        return []
+    asked = getattr(ctx, "asked", None)
+    try:
+        entries = results.entries(getattr(asked, "session", None) or None)
+    except Exception:
+        return []  # an unreadable store leaves the request's own view as the only record of earlier ones
+    out = []
+    for entry in entries:
+        web = entry.get("web") if entry.get("media") == "reference" else None
+        if not isinstance(web, dict) or not web.get("page"):
+            continue
+        source = entry.get("source") if isinstance(entry.get("source"), dict) else {}
+        digests = entry.get("digests") or []
+        row = {"page": inline(web["page"], 1000), "title": inline(web.get("title"), 200),
+               "digest": digests[0] if digests else None}
+        if source.get("describedBy") and source.get("description"):  # seen by a look, never a caller's own words
+            row["shows"] = inline(source["description"], 300)
+        out.append(row)
+    return out[-12:]
 
 
 def on_screen_words(services, ctx) -> str:
@@ -258,9 +311,15 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                     outcome = await _native_present(services, ctx, {'do': 'zoom',
                         'instance': {'instanceId': made.get('instanceId')}, 'zoom': zoom_value})
             else:
+                from .present import _its_tab_in_front
+
                 value = parse_level(level or 'more')
                 zoom_value = ({'fit': True} if value == 'fit' else {'factor': .5 if value == 'less' else 2}
                               if value in ('less', 'more') else {'level': 32 if value == 'max' else value})
+                # Its Tab comes to the front first, the person's own Tab click: a zoom is seen, and confirmed, only
+                # where it is drawn (will-tabs, 30 Oct: "zoom in" on the close-up left on Main while another Tab was in
+                # front was never confirmed).
+                await _its_tab_in_front(services, ctx, shown.id)
                 outcome = await _native_present(services, ctx, {'do': 'zoom', 'instance': shown.id, 'zoom': zoom_value})
             hub.scene.select(obj.id)
             ctx.pointed = obj.id
@@ -424,7 +483,7 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         prior_references = []
         native_beside = (args.get("beside") is True and args.get("show") is not False
                          and getattr(services, 'presentations', None) is not None and ctx.client is not None)
-        beside_anchor = None
+        beside_anchor, beside_why = None, ''
         if native_beside and ctx.request_snapshot is not None:
             # Boolean compatibility means the source this browser showed when
             # asked, not whichever window happens to be newest after web I/O.
@@ -441,6 +500,11 @@ def add_magnifier_tools(registry: Registry, services) -> None:
             choices = matching if matching else candidates
             if len(choices) == 1:
                 beside_anchor = choices[0]['id']
+            elif choices:
+                # Several windows and none pointed at: the one in front, by the z the studio measured, and the
+                # receipt says so; never the user's to name (spec 4.8, horizontal 3).
+                front = max(choices, key=lambda row: row.get('z') if isinstance(row.get('z'), (int, float)) else -1)
+                beside_anchor, beside_why = front['id'], f"beside {inline(str(front.get('title') or front['id']), 80)}, the window in front"
         if not services.find_reference and ctx.question:
             lookup_args["request_context"] = ctx.question
         on_screen = on_screen_words(services, ctx)
@@ -464,6 +528,17 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                         'picture': resource.get('picture'), 'page': inline(web['page'], 1000)})
             if sources:
                 lookup_args['previous_sources'] = sources[:12]
+        if not services.find_reference:
+            # "A different one than you have been": every reference photo already kept in this Project, not only the
+            # ones open in a window when asked (live 2026-10-29 17:16), with what its own look saw in it.
+            earlier = shown_in_project(hub, ctx)
+            if earlier:
+                open_now = {(p.get('digest'), p.get('page')): p for p in lookup_args.get('previous_sources', [])}
+                for row in earlier:
+                    if (row.get('digest'), row.get('page')) in open_now:  # open in a window too: one row, with its look
+                        open_now[(row.get('digest'), row.get('page'))].update({k: v for k, v in row.items() if k == 'shows'})
+                merged = [p for p in earlier if (p.get('digest'), p.get('page')) not in open_now]
+                lookup_args['previous_sources'] = (lookup_args.get('previous_sources', []) + merged)[-12:]
         if "search_terms" in args:
             try:
                 lookup_args["search_terms"] = reference.normalize_search_terms(args["search_terms"])
@@ -472,6 +547,11 @@ def add_magnifier_tools(registry: Registry, services) -> None:
         n = args.get("n") if isinstance(args.get("n"), int) and not isinstance(args.get("n"), bool) else 1
         settings = getattr(getattr(services, "hub", None), "settings", None)
         sources = getattr(settings, "reference_search", "web") if settings is not None else "web"  # option REFERENCE_SEARCH
+        from ..registry import CURRENT_RUN
+
+        searching = CURRENT_RUN.get()
+        if searching is not None:  # what it is doing now, in its own words, for a progress line
+            searching.report_progress(f"searching the web for a real photo of {inline(subject, 80)} and checking it")
         try:
             found = await asyncio.to_thread(services.find_reference or reference.find_blocking, subject, n, **lookup_args,
                                             sources=sources)
@@ -479,22 +559,65 @@ def add_magnifier_tools(registry: Registry, services) -> None:
             attach(values={"referenceLookup": {"status": "failed"}})
             raise ToolFailed(f"no reference photo of {subject} returned by this lookup: {exc}",
                              next="try a broader search if useful") from None
+        # Photos searched for side by side in one request (Tool.alongside) are different photos: one a step beside it
+        # took first is searched again past it (live, 30 Oct: "two photos of stomata" showed the same photo twice).
+        taken = _taken_in(ctx)
+        if hashlib.sha256(found.jpeg).hexdigest() in taken:
+            past = {**lookup_args, "previous_sources": (lookup_args.get("previous_sources") or [])
+                    + [{"digest": d} for d in taken]}
+            try:
+                found = await asyncio.to_thread(services.find_reference or reference.find_blocking, subject,
+                                                max(2, n), **past, sources=sources)
+            except reference.NotFound as exc:
+                raise ToolFailed(f"only one photo of {subject} was found; no different second one: {exc}",
+                                 next=None) from None  # no next: the message says what was found
+        taken.add(hashlib.sha256(found.jpeg).hexdigest())
         # The web's words (title, author, licence) cross only as a capped line (untrusted.inline).
-        title, credit = inline(found.title, 80) or subject, inline(found.credit, 120)
         host = urlparse(found.page).hostname
         site = reference.SITE if host == 'commons.wikimedia.org' else host or 'the web'
-        description = inline(args.get("description"), 600)
+        title, credit = inline(found.title, 80) or f"Photo from {site}", inline(found.credit, 120)
+        # What the picture shows is what a look at its pixels saw (reference.retrieve), never the request's words nor
+        # the caller's own description written before anyone saw it (live 2026-10-29 17:16: "Microscope reference
+        # photograph showing a single stoma." beneath a tissue cross-section). The caller's text is kept as its note.
+        shows = inline(getattr(found, "shows", ""), 600)
+        looked_by = getattr(found, "looked_by", "")
+        differs = inline(getattr(found, "differs", ""), 200)
+        note = inline(args.get("description"), 600)
         attach(values={"media": REFERENCE, "subject": subject, "searched": found.searched, "n": found.n,
                        **({"onScreen": on_screen} if on_screen else {}),
                        **({'referencesAtRequest': prior_references[:12]} if prior_references else {}),
-                       **({"description": description} if description else {}),
+                       **({"description": shows, "describedBy": looked_by or "a look at its pixels"} if shows else {}),
+                       **({"note": note} if note else {}),
+                       **({"differs": differs} if differs else {}),
                        "seconds": found.seconds, "web": {"site": site, "page": found.page, "title": title,
                                                          "licence": inline(found.licence, 60), "author": inline(found.author, 80),
                                                          "credit": credit}})
+        seen = (f"what it shows, from a look at its pixels{' by ' + model_said(looked_by) if looked_by else ''}: {shows}"
+                if shows else "what it shows was not checked: nothing looked at its pixels")
+        if differs:  # none found was all that was asked: this is the nearest, and what it misses is said with it
+            # A request only partly met gets a next step (will-workspace, 30 Oct: "shows three stomata, rather than just
+            # a single stoma", judged as no next step to get one).
+            seen = (f"the nearest found, not exactly what was asked ({differs}): say how it differs and offer to look "
+                    f"again for exactly {subject}; {seen}")
         if args.get("show") is False:
             attach(picture_bytes=found.jpeg)
-            return (f"retained a reference photo of {subject}: a real photo from {site}, not this slide "
-                    f"({title}; {credit}); the existing magnifier is unchanged")
+            # Kept now, by its id, as this request's own result: a later step ("put them in the new Tab") places it by
+            # that id or by this step, and nothing has to be named again (Will, 30 Oct: two photos kept, never placed,
+            # "name what to place").
+            from ..registry import CURRENT_RUN, record_output
+
+            kept = ""
+            run_now = CURRENT_RUN.get()
+            results = getattr(getattr(hub, "resources", None), "results", None)
+            # Kept now where this app keeps results (a storage failure fails the step, as the registry's own keeping
+            # would); with no store, kept as before once the step ends.
+            entry = results.from_run(run_now, ctx, hub, produced=True) if run_now is not None and results is not None else None
+            if entry is not None:
+                record_output(ctx, {"kind": "resource", "resource": {"day": session_of(entry, entry["day"]),
+                                                                     "id": entry["id"], "version": None}})
+                kept = f" in Data as {entry['id']}"
+            return (f"retained a reference photo{kept}: a real photo from {site}, not this slide ({title}; {credit}); "
+                    f"{seen}; asked for: {subject}; the existing magnifier is unchanged")
         if getattr(services, 'presentations', None) is not None and ctx.client:
             from ..registry import CURRENT_RUN
             from .present import _native_present
@@ -507,24 +630,48 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                 'day': session_of(entry, entry['day']), 'id': entry['id'], 'version': None, 'picture': 0}, 'title': title}
             if native_beside:
                 if beside_anchor is None:
-                    raise ToolFailed(f"the reference photo is retained as {entry['id']}, but its original beside window is ambiguous or unavailable",
-                                     next="name the exact window to place the retained photo beside")
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}, but no window of this "
+                                     "workspace was open in view to put it beside when it was asked for",
+                                     next=f"present open {entry['id']} shows it on its own")
                 opening['relation'] = {'kind': 'beside', 'reference': beside_anchor}
+            room = ''
             try:
                 shown = await _native_present(services, ctx, opening)
             except ToolFailed as exc:
                 if not native_beside:
                     raise
-                raise ToolFailed(f"the reference photo is retained as {entry['id']}, but could not be placed beside the original window: {exc}",
-                                 next="make room or select the original window, then open the retained photo beside it") from exc
+                # No room beside it is Hooke's to make, as a person would: it moves that window over (and narrows it
+                # only when moving is not enough), then places the photo beside it (will-workspace, 30 Oct: "make room
+                # or select the original window" was handed to the user). Only a visible area too small for both is
+                # said, plainly.
+                failure = ((run.outcome or {}).get('failure') or {}) if run is not None else {}
+                made = None
+                if failure.get('code') == 'CONSTRAINT_CONFLICT':
+                    from ...placement import make_room_beside
+                    made = await make_room_beside(services, ctx, beside_anchor, picture_size(found.jpeg))
+                if made is None:
+                    why = ('the visible area is too small to hold both side by side'
+                           if failure.get('code') == 'CONSTRAINT_CONFLICT' else str(exc))
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}, but not shown beside the "
+                                     f"window it was asked next to: {why}",
+                                     next=None) from exc  # no next: what was kept and why it is not beside is said
+                try:
+                    shown = await _native_present(services, ctx, opening)
+                except ToolFailed as again:
+                    raise ToolFailed(f"the reference photo is kept in Data as {entry['id']}; {made}, but it is still "
+                                     f"not shown beside it: {again}", next=None) from again  # no next: said in full
+                room = f'; {made}' if made else ''
+            if beside_why:
+                room = f'; {beside_why}{room}'
+            shown += f'{room}; {seen}; asked for: {subject}'
             if prior_references:
                 import json
                 shown += '; references already open when requested: ' + json.dumps(prior_references[:12], separators=(',', ':'))
             return shown
         await picture_shown(magnifier, found.jpeg, f"Reference photo: {title} ({site})", kind_of=REFERENCE,
                             credit=credit, **({"beside": True} if args.get("beside") is True else {}))
-        return (f"showing a reference photo of {subject} in the magnifier: a real photo from {site}, not this "
-                f"slide ({title}; {credit})")
+        return (f"showing a reference photo in the magnifier: a real photo from {site}, not this slide "
+                f"({title}; {credit}); {seen}; asked for: {subject}")
 
     registry.add(Tool("reference_photo", "Retrieve a real photo directly into its own window, usually within seconds: a "
                       "reference photo with its source and available attribution, not this slide (\"show me a real "
@@ -536,15 +683,19 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                       "show=false fetches and retains without changing the current "
                       "magnifier or motion view; its source output 0 lets a later step use present do=open "
                       "source={step:N,output:0} for this step N, without predicting an ID. Alternatively use the returned resource's exact day/id, "
-                      "version=null and picture=0 to open an independent window. description is your bounded explanation "
-                      "of the topic, kept with its web credit and displayed beneath the native image. You have not seen the retrieved image yet: do not assert its magnification, visible features or that it satisfies a detail the source has not established. Default/"
+                      "version=null and picture=0 to open an independent window. Every photo found is looked at, its pixels against "
+                      "the whole request (subject, how many, kind of view, imaging, a different one from those already in this Project); "
+                      "one that fails is never returned, and the receipt says what the returned photo shows from that look: describe the "
+                      "photo only in those words, never as what was asked. description is an optional note on the topic, kept as a note, "
+                      "never as what the photo shows. Default/"
                       "show=true opens its independent window, retaining the magnification and other work. In a native workspace, with default "
                       "show=true, beside=true fits the new photo beside the original requesting browser's pointed window "
-                      "(or its sole visible window) before its first paint, leaving that anchor fixed; ambiguity or no room is reported. "
+                      "(or its sole visible window, else the one in front) before its first paint; with no room beside it, "
+                      "Hooke first moves that window over (narrowing it only when moving is not enough) and says so. "
                       "For an explicit anchor, use show=false then present(do=open,source={step:N,output:0}, "
                       "relation={kind:beside,reference:{instanceId:the exact observed window ID}}) for initial fitting. "
                       "Arranging an already-open window preserves its current size and may not fit. "
-                      "n: another match (2, 3...) when asked for another one.",
+                      "n: another match (2, 3...) when asked for another or a different one; photos already kept in this Project are then never returned.",
                       schema({"subject": {"type": "string", "description": "the full requested photo, including imaging method or magnification constraints"},
                               "search_terms": {"anyOf": [{"type": "string", "minLength": 1, "maxLength": 600},
                                                {"type": "array", "minItems": 1, "maxItems": 2,
@@ -552,9 +703,9 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                                                "description": "optional web search terms that retain the requested subject and imaging constraints"},
                               "n": {"type": "integer", "description": "which match, 1-based (default 1)"},
                               "show": {"type": "boolean", "description": "default true; false retains the photo for a separate native window and preserves the current view"},
-                              "description": {"type": "string", "maxLength": 600, "description": "your explanation/caption, kept as data with the original web source and licence"},
-                              "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed or sole visible window, before first paint; anchor unchanged. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
-                      reference_photo, inline_ms=1500, family="magnifier"))
+                              "description": {"type": "string", "maxLength": 600, "description": "optional note on the topic, kept as a note; the photo's description comes from a look at its pixels"},
+                              "beside": {"type": "boolean", "description": "with default show=true, initial fit beside the original requesting browser's pointed, sole visible or front window, before first paint; that window is moved over first when there is no room beside it. show=false only retains; choose an exact anchor with present open+relation"}}, ["subject"]),
+                      reference_photo, inline_ms=1500, family="magnifier", alongside=True))
 
     async def hold(ctx: ToolContext, args: dict) -> str:
         from ...screen import magnifier_source, on_screen, screen_of
@@ -828,3 +979,16 @@ def add_magnifier_tools(registry: Registry, services) -> None:
                               "of": {"type": "string", "description": "a population id (e3) or \"@n\", to count its members"}},
                              ["label"]), count,
                       kind="query", inline_ms=4000, family="measuring"))
+
+
+_TAKEN: "OrderedDict[object, set[str]]" = OrderedDict()  # per request, the photos its reference steps have taken
+
+
+def _taken_in(ctx) -> set[str]:
+    """The digests of the reference photos this request's steps have kept so far (`reference_photo`)."""
+    key = getattr(getattr(ctx, "admission", None), "request_id", None) or getattr(ctx, "request_id", None) or id(ctx)
+    taken = _TAKEN.setdefault(key, set())
+    _TAKEN.move_to_end(key)
+    while len(_TAKEN) > 64:
+        _TAKEN.popitem(last=False)
+    return taken

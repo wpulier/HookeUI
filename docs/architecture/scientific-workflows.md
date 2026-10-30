@@ -63,6 +63,37 @@ identity and allowance until the original service reconciles them; an unavailabl
 An already completed report can still be inspected and reviewed. A tool-enabled researcher drives successive
 frozen capability workflows from outside the graph. Paid recursive researcher launch remains refused.
 
+## Experiments: live models and this app's researchers as steps
+
+Part 2.5, W5 (`orchestrator/experiments.py`, `orchestrator/experiment_steps.py`; Will, 29 Oct: "I want to run an
+experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it"). Each piece is an option
+beside the steps above; none of them changes.
+
+- **A frame as an input** (`experiment_steps.keep_frame`): a frame of the live view kept as a scene whose one intensity
+  array is its grey plane on its own grid (pixel units, the scene as its coordinate space), the camera's JPEG kept as a
+  source file beside it and the view's facts (`population.view_facts`: size, disc, epoch, offset, the bridge's numbers,
+  the run). Retried with the same request, the same frame comes back.
+- **A live model as a tool step**: capability `model:<operation>/<impl>` (`cells` today), pinned by its generation (the
+  implementation, its catalog entry and version: a model that changed is refused before it runs), one parameter
+  `policy` (raw or route). Readiness asks `operations.availability` (edition, key, installed, worker). It runs on the
+  event loop through `population.segment` at research priority (the GPU worker serves it only when nothing of the app's
+  own waits), made for the experiment, its cells kept in Data as a population; its exclusive label map is published as
+  the step's `instance-labels` output on the frame's grid (`BuiltinOutputSave`, as bright regions), so the
+  `measure` and `compare` steps read it unchanged. The output keeps what ran (`experimentModelRun`: the runner's
+  execution, what ran, time, reuse, the population and its count and boxes). A Project switched away from refuses it
+  ("open this experiment's Project to go on"), never files cells in another Project.
+- **A researcher step through this app's researchers** (provider `local-researcher`: question, criteria, a quick or
+  standard `effort`, an allowance of at least that effort's cap, no tools, a report). Readiness needs the research
+  manager and its model's key. It starts one researcher (`ResearchManager.start`, `confirmed`: the plan the user
+  approved admits it; no camera snapshot; origin `experiment`), its brief the question and criteria with the records to
+  read by id. The attempt waits `awaiting-research`; the driver collects it: done or partial completes the step with a
+  `research-findings` document (`accepted` false: not reviewed by anyone), a failure or stop fails it with its words, a
+  researcher that is not loaded is `uncertain` (nothing replayed). The managed provider stays refused in the core.
+  Study workflows still refuse researcher nodes (their allowance is not qualified there).
+- **The experiment** is two frozen runs: the models' (a frame per item: each model, its measurement, the comparison)
+  and, when audited, the audit's (one item: the run's record as a JSON source file, then the researcher step). The
+  comparison table is built from the attempts' outputs only (`Experiments._comparison`); the results are one document.
+
 ## File capabilities and named inputs
 
 `source-file` is an accepted exact retained file, not a path or an in-memory table. A tool declares its pinned

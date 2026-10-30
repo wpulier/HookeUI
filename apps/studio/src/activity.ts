@@ -365,11 +365,25 @@ function strip(entry: Building): ActivityEntry {
 }
 
 /** Steps that did not work and were not tried again successfully in the same request: a retry that worked
- * (the same tool, later) settles the earlier failure, so a fixed request is never shown as failed. */
+ * (the same tool, later) settles the earlier failure, so a fixed request is never shown as failed; a step skipped only
+ * because a step it waited on did not succeed is settled once every failure before it is (the server's
+ * claims.standing: will-research, 30 Oct, a Tab switch skipped after a refused place that the brain made again). */
 export function unresolvedFailures(actions: ToolRun[]): ToolRun[] {
-  return actions.filter((action, n) => action.ok === false
-    && !actions.slice(n + 1).some(later => later.tool === action.tool && later.ok === true));
+  const out: ToolRun[] = [];
+  actions.forEach((action, n) => {
+    if (action.ok !== false) return;
+    if (actions.slice(n + 1).some(later => later.tool === action.tool && later.ok === true)) return;
+    if (DEPENDENCY_SKIPPED.test(action.summary ?? '')) {
+      const earlier = actions.slice(0, n).filter(before => before.ok === false);
+      if (earlier.length && !earlier.some(before => out.includes(before))) return;
+    }
+    out.push(action);
+  });
+  return out;
 }
+
+/** The brain's own words for a step it never ran because a step it waited on did not succeed (brain/actions.py). */
+const DEPENDENCY_SKIPPED = /^step \d+ skipped: dependency \d+ did not succeed\b/;
 
 /** The models of a request on one line, for the hover over its answer: "Gemini 3.8 Flash · drawn by EdgeTAM · 4.8 s". */
 export function hoverLine(entry: ActivityEntry | undefined, line?: Pick<LogLine, 'model' | 'thinkMs'>): string {

@@ -1,8 +1,7 @@
-"""What code can't time in a partner step, judged by a model (standard.py reads its verdicts): which spoken lines claim
-that something is now on screen or done (checked there against the studio's reports, so a false "done" is the judge's
-reading of the words and the app's record of the screen together), how many lines state the request's outcome, whether
-the request was answered, whether the answer meets the step's expectation, and how much it felt like a sharp
-colleague (`partner_quality`, 0-3: reported on the scoreboard's Overall line, never a gate). The judge sees the camera picture the
+"""What only judgement can score in a partner step, the answer's quality (the spec, section 2: "the model judge scores
+only what needs judgement"): whether the request was answered, whether the answer meets the step's expectation, and how
+much it felt like a sharp colleague (`partner_quality`, 0-3: the scoreboard's Overall line). Everything the app records
+(false "done" from receipts, what opened, which researcher, outcomes said) is scored by standard.py, never here. The judge sees the camera picture the
 plan names (the bundled still), the user's words, the voice's lines and the tools with their confirmations.
 
 The judge is a choice (`--judge`): GPT-6.1 Sol (the default, so new runs compare with the old ones), Claude Opus 5.5
@@ -20,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .standard import load_bench, released, step_view, thinks, unprompted_spans, windows
+from .standard import load_bench, outcome_spans, released, step_view, thinks, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
 # Each judge: its key, and a judged step's worst cost (one image, about 3,000 tokens in; its output cap, thinking
@@ -148,15 +147,8 @@ What the voice said afterwards, in order (seconds after the user finished):
 {lines}
 What the app did (seconds after the user finished; "confirmed" = the studio reported the change on screen):
 {actions}
-
+{rows}
 Judge from these facts only:
-- claims_on_screen: each claim that a change is now on screen or complete (open, shown, highlighted, outlined, done),
-  as {{"line": its line's number (1-based), "words": the few words of the line that make the claim, exactly as said}}.
-  Not claims: a description of the specimen; a promise or a preamble ("opening it now", "outlining the nuclei");
-  a statement that work is still under way ("it's still outlining"); and a researcher's state ("Researcher 2 is
-  still running", "I started a researcher"), which the bench checks against the app's own list of researchers.
-- outcome_mentions: how many separate lines state the request's outcome (its result, or its failure). A preamble
-  ("pulling that up") is not an outcome; a line that says the same outcome again counts again.
 - answered: true if, by the end, the user got what they asked for (or was told plainly why not and what to do next).
 - meets_expectation: true if the answer does what "a good answer does here" says; null if that says nothing.
 - partner_quality: 0-3, how much the reply felt like a sharp, dynamic colleague at the microscope. 3: specific to what
@@ -172,23 +164,70 @@ Judge from these facts only:
 - why: one sentence.
 
 Reply with JSON only:
-{{"claims_on_screen": [{{"line": 2, "words": "the table is open"}}], "outcome_mentions": 1, "answered": true,
- "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
+{{"answered": true, "meets_expectation": true, "partner_quality": 2, "why": ""}}"""
+
+
+def receipt(text: str, limit: int = 420) -> str:
+    """A receipt's words for the judge: one line, without window or source ids, bounded."""
+    text = re.sub(r"\b(?:w-[0-9a-f-]{8,}|[0-9a-f]{8}-[0-9a-f-]{27,})\b", "", " ".join(str(text).split()))
+    return text[:limit] + ("…" if len(text) > limit else "")
 
 
 def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     """Each scored step's words, lines and actions, relative to its release (what PROMPT is given)."""
     bench = load_bench(bench)
+    # Each called tool's and started researcher's outcome, said when it landed, is its step's wherever it falls, as the
+    # scorer reads it (will-research, 30 Oct: the made video's "The animation is ready…", said after the step's window,
+    # was unseen by the judge, and the step judged as never announced).
+    bench["_outcomes"] = outcome_spans(inter)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     out, unprompted, tasks = [], unprompted_spans(inter), thinks(inter)
-    for i, (step, (start, end)) in enumerate(zip(steps, windows(steps))):
+    for i, (step, (start, end)) in enumerate(zip(steps, windows(steps, bench.get("ended")))):
         if step.get("kind") in ("idle", "restart"):
             continue
         release = released(step)
         # The next request interrupted this answer on purpose (the plan's barge-in): judge what was said before it.
         cut = steps[i + 1] if i + 1 < len(steps) and steps[i + 1].get("interrupt") else None
         _, calls, _, lines = step_view(bench, conv, inter, (start, end), unprompted, tasks)
+        # The requests Hooke had in its rows in the chat as the user spoke, each in its latest state then (what the user
+        # sees): "is the video search done?" is judged against the search's own row, however many steps back it was.
+        latest: dict[str, dict] = {}
+        for r in conv:
+            if r.get("type") == "handoff" and isinstance(r.get("at"), (int, float)) and r["at"] <= release + 0.5:
+                latest[str(r.get("id"))] = r
+        rows = [f'- "{r.get("label") or r.get("request") or ""}": {r.get("state")}'
+                + (f' ({receipt(r.get("answer"), 160)})' if r.get("answer") and r.get("state") != "working" else "")
+                for r in latest.values()][-6:]
+        # What each researcher this step started made, by its own record (its completion notice), so a spoken result
+        # ("Researcher 2 finished: only eight outlines got the same label from every model") is checked against it
+        # (will-research, 29 Oct: judged "no record supports" while the record said exactly that).
+        started = {c.rid for c in calls if c.name == "start_researcher" and c.rid}
+        results = []
+        for r in conv:
+            facts_ = r.get("facts") if r.get("type") == "app-notice" and r.get("event") == "completed" else None
+            if isinstance(facts_, dict) and facts_.get("researchId") in started:
+                result = facts_.get("result") if isinstance(facts_.get("result"), dict) else {}
+                results.append(f'- {facts_.get("name") or "A researcher"} ({facts_.get("status")}): '
+                               + receipt(result.get("summary") or result.get("one_liner") or facts_.get("cause") or "", 500))
+        # What the page showed of the voice while the Assistant was closed (the presence pill), as the user saw it.
+        shown = [e for e in bench.get("events") or [] if e.get("e") == "voice-shown"
+                 and start - 1.0 <= (e.get("t") or 0) < end and e.get("assistant") is False]  # loaded: seconds
+        if shown:
+            rows = rows + [f"The Assistant was closed during this step; the presence pill "
+                           f"{'showed' if any(e.get('pill') for e in shown) else 'did not show'} ("
+                           + ", ".join(dict.fromkeys(str(e.get("pillWords") or e.get("state")) for e in shown))[:160] + ")."]
+        # What the voice pointed at, as the page drew it (the harness's mark events): a close look's box on the frame
+        # comes with its answer, not as a tool call (will-alive, 30 Oct: the stoma was boxed as the voice named it, and
+        # the judge, shown only tool calls, said it "did not point to it").
+        drawn: dict[str, dict] = {}
+        for e in bench.get("events") or []:
+            if e.get("e") == "mark" and e.get("on") and e.get("id") and start <= (e.get("t") or 0) < end:
+                drawn.setdefault(str(e["id"]), e)
+        pointed = [f"- (+{e['t'] - release:.1f} s) pointed: a {e.get('style') or 'mark'} drawn on "
+                   + ("the live view" if str(e.get("target") or "") == "frame" else f"{e.get('target')}")
+                   for e in sorted(drawn.values(), key=lambda e: e["t"])]
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
+                    "rows": rows + (["Researchers started in this step, by their own records:"] + results if results else []),
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
                     "actions": [f"- (+{c.start - release:.1f} s) {c.name}: "
@@ -197,13 +236,18 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
                                    ", not confirmed" if c.screen_change else "")
                                 + (f" ({c.error[:120]})" if c.error else "")
                                 + (f"; behind it: {', '.join(str(t.get('name')) for t in c.inner)}" if c.inner else "")
-                                for c in calls]})
+                                # What the app's own receipt says it did, so a claim ("a new Tab called Cell results")
+                                # is checked against it (will-display, 29 Oct: the receipt said so; the judge saw
+                                # only "ok, confirmed" and called the claim unsupported).
+                                + (f'; its receipt: "{receipt(c.summary)}"' if c.summary else "")
+                                for c in calls] + pointed})
     return out
 
 
 async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict, picture: bytes | None,
-                   model=None, name: str = DEFAULT_JUDGE, only: set | None = None) -> dict:
-    """{step id: verdict} for every scored step (claims_on_screen as 0-based line indices, as standard.py reads), and
+                   model=None, name: str = DEFAULT_JUDGE, only: set | None = None,
+                   pictures: dict[str, bytes] | None = None) -> dict:
+    """{step id: verdict} for every scored step (answered, meets_expectation, partner_quality, why), and
     "_judge": the judge's name."""
     if model is None:
         name, model = await achoose(name)
@@ -214,9 +258,12 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
     for step in facts(bench, conv, inter):
         expect = expects.get(step["id"], {})
         # The two turns before, so "that one" and "the second researcher" can be judged as references.
-        earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}\n'
-                          for say, said in history[-2:])
-        history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"]))
+        # ...and what the app did then, so "is it done?" is judged against the earlier work's own record.
+        earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}'
+                          + (f'; the app did: {" ".join(did)[:400]}' if did else "") + "\n"
+                          for say, said, did in history[-2:])
+        history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"],
+                        [a.lstrip("- ") for a in step["actions"]]))
         if only is not None and step["id"] not in only:
             continue
         interrupted = ("" if step["interruptedS"] is None else
@@ -228,27 +275,49 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
                                expect=expect.get("judge") or (f"shows {expect['visible']}" if expect.get("visible") else
                                                               "answers what was asked"),
                                lines="\n".join(step["lines"]) or "(nothing)",
-                               actions="\n".join(step["actions"]) or "(nothing)")
-        result = await model.ask([picture] if picture else [], prompt, max_output_tokens=600)
+                               actions="\n".join(step["actions"]) or "(nothing)",
+                               rows=("Requests in Hooke's chat when the user spoke (their rows, latest state):\n"
+                                     + "\n".join(step["rows"]) + "\n") if step.get("rows") else "")
+        seen = picture or (pictures or {}).get(step["id"])
+        result = await model.ask([seen] if seen else [], prompt, max_output_tokens=600)
         data = result.data if isinstance(getattr(result, "data", None), dict) else None
         if data is None:
             out[step["id"]] = {"error": (getattr(result, "error", None) or getattr(result, "raw_text", ""))[:200]}
             continue
-        claims = []
-        for claim in data.get("claims_on_screen") or []:  # 1-based from the judge, 0-based for standard.py
-            if isinstance(claim, int) and claim >= 1:
-                claims.append(claim - 1)
-            elif isinstance(claim, dict) and isinstance(claim.get("line"), int) and claim["line"] >= 1:
-                claims.append({"line": claim["line"] - 1, "words": str(claim.get("words") or "")})
-        out[step["id"]] = {**data, "claims_on_screen": claims}
+        # Answer quality only: what the app records (false "done", what opened, which researcher, outcomes said) is
+        # scored from receipts and app state (standard.py), never from the judge's reading.
+        out[step["id"]] = {k: data[k] for k in ("answered", "meets_expectation", "partner_quality", "why") if k in data}
+    return out
+
+
+def step_pictures(bench: dict, inter: list[dict], logs: Path | None) -> dict[str, bytes]:
+    """What the camera showed at each step, for a plan played from footage (no still): the newest frame the app kept
+    at or just after the user spoke (a brain turn's view, the running look's), from the stack's logs. Without it the
+    judge saw no picture and guessed (will-alive, 29 Oct: a stoma on the leaf footage judged "a fluorescent cell")."""
+    if logs is None:
+        return {}
+    kept = sorted((r["t"], logs / r["image"]) for r in inter if r.get("kind") in ("turn", "sight")
+                  and isinstance(r.get("t"), (int, float)) and isinstance(r.get("image"), str))
+    kept += sorted((p.stat().st_mtime, p) for p in (logs / "crops").rglob("*-sight-*.jpg")) if (logs / "crops").exists() else []
+    kept.sort()
+    out = {}
+    for step in [s for s in load_bench(bench)["steps"] if not s.get("setup")]:
+        release = released(step)
+        if not isinstance(release, (int, float)):
+            continue
+        chosen = [p for t, p in kept if t <= release + 8.0 and p.exists()]
+        if chosen:
+            out[step["id"]] = chosen[-1].read_bytes()
     return out
 
 
 def judge_run(bench: dict, conv: list[dict], inter: list[dict], plan: dict, checkout: Path, *, name: str = DEFAULT_JUDGE,
-              model=None, only: set | None = None) -> dict:
+              model=None, only: set | None = None, logs: Path | None = None) -> dict:
     still = (plan.get("camera") or {}).get("still")
     picture = (checkout / still).read_bytes() if still and (checkout / still).exists() else None
-    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name, only=only))
+    pictures = {} if picture else step_pictures(bench, inter, logs)
+    return asyncio.run(verdicts(bench, conv, inter, plan, picture, model=model, name=name, only=only,
+                                pictures=pictures))
 
 
 def judged_by(verdicts: dict | None) -> str | None:

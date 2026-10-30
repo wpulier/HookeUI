@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+from orchestrator.reference import WEB_SEARCHES
+
 from research_worker import safe_fetch
 from orchestrator.ticket import issue
 from tests.test_workspace_actions_app import (
@@ -21,6 +23,9 @@ from tests.waiting import HANG_S
 
 
 DESCRIPTION = 'Two guard cells surround the pore; this is a reference example, not the current slide.'
+# What the scripted look at the pixels says they show (retrieval.look_at_photo): the picture's description, never the
+# caller's DESCRIPTION, which is written before anyone has seen the picture (live 2026-10-29 17:16).
+SHOWS = 'a surface view of one stoma between two guard cells, light microscopy'
 PAGE = 'https://commons.wikimedia.org/wiki/File:Leaf_pore.jpg'
 WEB = {'site': 'Wikimedia Commons', 'page': PAGE, 'title': 'Leaf pore',
        'licence': 'CC BY-SA 4.0', 'author': 'A. Botanist',
@@ -30,8 +35,8 @@ WEB = {'site': 'Wikimedia Commons', 'page': PAGE, 'title': 'Leaf pore',
 @pytest.fixture
 def retained_reference(tmp_path, monkeypatch):
     app, studio = built(tmp_path)
-    # How a photo is kept and shown, on the web's own path: Commons raced beside it (the default) is
-    # test_the_default_race_keeps_one_photo_with_its_own_source, below.
+    # How a photo is kept and shown, on the web's own path (the default since 2026-10-29): Commons raced beside it
+    # is test_the_race_keeps_one_photo_with_its_own_source, below.
     app.hub.settings.reference_search = 'web'
     pixels = jpeg(103)
     external = {'searches': [], 'fetches': [], 'available': True}
@@ -99,7 +104,7 @@ def test_default_reference_still_shows_and_retains_one_original_photo(retained_r
     asyncio.run(go())
 
 
-def test_the_default_race_keeps_one_photo_with_its_own_source(retained_reference):
+def test_the_race_keeps_one_photo_with_its_own_source(retained_reference):
     # Option REFERENCE_SEARCH "web+commons": the web and Commons' catalogue are searched at once, and
     # whichever photo passes the check first is the one kept, once, credited to the page it came from.
     app, studio, pixels, external = retained_reference
@@ -198,7 +203,7 @@ def test_another_lookup_receives_reference_sources_from_the_request_pin(retained
                           asked=app.day.here(), request_snapshot=pin)
         runs, _ = await plan(app, [('reference_photo', {'subject': 'stoma', 'n': 2})], ctx=ctx)
         assert runs[0].ok is False
-        assert len(queries) == 2
+        assert len(queries) == WEB_SEARCHES
         assert all(PAGE in q and digest(pixels) in q for q in queries)
         assert all('a different one from somewhere else online' in q for q in queries)
         assert len(app.services.presentations.list(WORKSPACE)) == 1
@@ -237,7 +242,9 @@ def test_hidden_reference_preserves_existing_magnifier_and_native_window(retaine
         assert app.services.magnifier.pictures == magnifier_bytes
         assert controlled_state(studio.store().get(WORKSPACE, iid)) == before
         assert_retained(app, entry, pixels)
-        assert run.values['description'] == DESCRIPTION
+        assert run.values['description'] == SHOWS and run.values['describedBy'] == 'gemini-3.8-flash'
+        assert run.values['note'] == DESCRIPTION  # the caller's words are its note, not what the picture shows
+        assert SHOWS in run.summary and 'Gemini 3.8 Flash' in run.summary
         assert 'showing' not in run.summary.lower(), 'retention alone is not a display receipt'
         assert len(app.hub.resources.results.entries(entry.day)) == 2
         json.dumps(run.wire(full=True))  # private producing bytes never enter public activity
@@ -250,7 +257,7 @@ def test_exact_hidden_reference_opens_independent_native_windows_with_original_p
     async def go():
         _, _, entry = await fetch_reference(app, show=False, description=DESCRIPTION)
         assert_retained(app, entry, pixels)
-        assert entry.source['web'] == WEB and entry.source['description'] == DESCRIPTION
+        assert entry.source['web'] == WEB and entry.source['description'] == SHOWS
         first, _, _ = await open_window(app, entry)
         second, _, _ = await open_window(app, entry)
         assert first != second
@@ -261,7 +268,8 @@ def test_exact_hidden_reference_opens_independent_native_windows_with_original_p
                 'day': entry.day, 'id': entry.id, 'version': None, 'picture': 0}
             assert source['media'] == 'reference' and source['digest'] == digest(pixels)
             assert source['provenance']['web'] == WEB
-            assert source['provenance']['description'] == DESCRIPTION
+            assert source['provenance']['description'] == SHOWS
+            assert source['provenance']['describedBy'] == 'gemini-3.8-flash'
             assert all(source['provenance'].get(key) is None for key in ('frame', 'seq', 'boot'))
             assert studio.items[iid]['load']['state'] == 'drawn'
         assert studio.items[first]['rootId'] != studio.items[second]['rootId']
@@ -276,10 +284,11 @@ def test_reference_description_is_bounded_without_replacing_web_credit(retained_
     async def go():
         _, _, entry = await fetch_reference(app, show=False, description=DESCRIPTION + ' x' * 800)
         assert_retained(app, entry, pixels)
-        text = entry.source['description']
-        assert text.startswith(DESCRIPTION) and len(text) <= 600
+        assert entry.source['description'] == SHOWS  # what the look saw, never the caller's caption
         assert entry.source['web'] == WEB
-        assert app.hub.resources.results.values(entry.id, entry.day)['description'] == text
+        values = app.hub.resources.results.values(entry.id, entry.day)
+        assert values['description'] == SHOWS
+        assert values['note'].startswith(DESCRIPTION) and len(values['note']) <= 600
     asyncio.run(go())
 
 
@@ -434,9 +443,9 @@ def test_presentation_output_cannot_masquerade_as_produced_source(retained_refer
 @pytest.fixture(autouse=True)
 def scripted_photo_pixel_check(monkeypatch):
     from research_worker import retrieval
-    async def matches_photo(query, jpeg):
-        return True
-    monkeypatch.setattr(retrieval, 'matches_photo', matches_photo)
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(True, SHOWS)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look_at_photo)
 
 
 def test_made_today_research_reopens_retained_report_without_broadcast(retained_reference, monkeypatch):
@@ -488,7 +497,30 @@ def test_native_reference_beside_opens_in_initial_composition(retained_reference
     asyncio.run(go())
 
 
-@pytest.mark.parametrize('change', ['move', 'close', 'ambiguous', 'no-room', 'foreign-pin'])
+def test_a_photo_beside_one_of_several_windows_none_pointed_at_goes_beside_the_one_in_front(retained_reference):
+    """Two windows open and none pointed at: Hooke picks the one in front and says so, never "name the exact window"
+    (the live partner spec 4.8, horizontal 3)."""
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+
+    async def go():
+        original, _ = saved_picture(app)
+        await open_window(app, original)
+        second, _ = saved_picture(app, value=140)
+        front, _, _ = await open_window(app, second)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'bring up a reference photo beside it', asked=app.day.here(),
+                          request_snapshot=pin)
+        runs, _ = await plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx)
+        succeeded(runs[0])
+        child = [w for w in app.services.presentations.list(WORKSPACE) if w.geometry_intent.relation_json]
+        assert len(child) == 1 and json.loads(child[0].geometry_intent.relation_json)['reference'] == front
+        assert 'the window in front' in runs[0].summary
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize('change', ['move', 'close', 'no-room', 'foreign-pin'])
 def test_native_beside_failure_retains_photo_without_rearranging_existing_windows(retained_reference, change):
     from orchestrator.brain.registry import ToolContext
     from orchestrator.workspace_observation import ClientRef
@@ -522,7 +554,8 @@ def test_native_beside_failure_retains_photo_without_rearranging_existing_window
                           asked=app.day.here(), request_snapshot=pin)
         runs, _ = await plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx)
         run = runs[0]
-        assert run.ok is False and 'retained' in run.summary
+        assert run.ok is False and 'kept in Data' in run.summary
+        assert 'make room' not in run.summary and 'ask again' not in run.summary
         assert [controlled_state(w) for w in app.services.presentations.list(WORKSPACE)] == before
         assert run.resource
         entry = app.hub.resources.get(run.resource['id'], run.resource['day'])
@@ -598,4 +631,194 @@ def test_native_beside_ignores_anchor_repaint_during_source_prepare(retained_ref
         child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
         assert json.loads(child.geometry_intent.relation_json)['reference'] == anchor
         assert runs[0].outcome['status'] == 'confirmed'
+    asyncio.run(go())
+
+
+def _on_a_back_tab(studio, monkeypatch, anchor, *, front_title='Reference'):
+    """The studio once the person's next request put a new Tab in front (live 2026-10-29 18:54:35): the anchor stays
+    open on the Main Tab, laid out nowhere (display:none, a 0x0 rect, not visible), and the Tab strip says which Tab is
+    in front. Only the studio's DOM facts change; the Core's window is untouched."""
+    from orchestrator.commands import COMMANDS
+
+    row = studio.items[anchor]
+    row.update(visible=False, rect=[0, 0, 0, 0], contentRect=[0, 0, 0, 0], clipRect=[0, 0, 0, 0],
+               drawRef=None, viewDrawRef=None, visibility='unknown')
+    row['load'] = {**row['load'], 'state': 'loaded', 'drawToken': None}
+    row['view'] = {**row['view'], 'arrangement': {'project': 'project-a', 'tab': 'main', 'placement': 'p-anchor',
+                                                  'focused': False}}
+    screen = COMMANDS['screen']
+
+    async def with_strip(app, client, report):
+        report = {**report, 'items': [*report['items'], {
+            'id': 'workspace-tabs', 'rootId': 'tabs-root', 'workspaceId': WORKSPACE, 'kind': 'panel',
+            'lifetimeGeneration': 'tabs-lifetime', 'sourceGeneration': 1, 'load': {'state': 'unknown'},
+            'revision': report['seq'], 'open': True, 'connected': True, 'visible': True,
+            'view': {'legacy': {'schema': 'studio-surface-v1', 'scope': 'dom-observation', 'workspace': {
+                'project': 'project-a', 'tab': 'reference', 'tabTitle': front_title,
+                'tabs': [{'id': 'main', 'title': 'Main', 'front': False},
+                         {'id': 'reference', 'title': front_title, 'front': True}]}}}}]}
+        return await screen(app, client, report)
+    monkeypatch.setitem(COMMANDS, 'screen', with_strip)
+
+
+def test_a_photo_asked_for_beside_a_window_now_on_a_back_tab_opens_where_the_person_is_and_says_why(
+        retained_reference, monkeypatch):
+    """Live 2026-10-29 18:53:56-18:54:43: "pull up an image from online of a single stoma and put it next to the
+    magnification", then, while the web lookup ran (42 s), "open a new tab called Reference". When the photo came the
+    magnifier was open on the Main Tab, laid out nowhere; the fence lumped that with a changed window ("beside needs both
+    exact current window rectangles and owners"), so the photo was kept as d1 and never shown, and the person was told to
+    make room. Nobody changed the magnifier: the photo opens where the person is, and the receipt says why it is not
+    beside it, from the report."""
+    import threading
+    from research_worker import retrieval
+    from orchestrator.brain.registry import ToolContext
+    app, studio, pixels, _ = retained_reference
+    entered, release = threading.Event(), threading.Event()
+    lookup = retrieval.lookup
+
+    async def gated(*args, **kwargs):
+        entered.set()
+        assert await asyncio.to_thread(release.wait, HANG_S)
+        return await lookup(*args, **kwargs)
+    monkeypatch.setattr(retrieval, 'lookup', gated)
+
+    async def go():
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'pull up an image from online and put it next to the magnification',
+                          asked=app.day.here(), request_snapshot=pin)
+        before = controlled_state(app.services.presentations.get(WORKSPACE, anchor))
+        request = asyncio.create_task(plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx))
+        try:
+            assert await asyncio.to_thread(entered.wait, HANG_S)
+            _on_a_back_tab(studio, monkeypatch, anchor)
+            await studio.send_report()
+            release.set()
+            runs, _ = await request
+        finally:
+            release.set()
+        run = runs[0]
+        succeeded(run)
+        assert run.outcome['status'] == 'confirmed'
+        assert controlled_state(app.services.presentations.get(WORKSPACE, anchor)) == before, 'the anchor is untouched'
+        child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
+        assert child.open and child.geometry_intent.relation_json is None, 'opened plainly, never against a 0x0 rect'
+        assert f'not beside window {anchor}' in run.summary
+        assert '"Main" Tab' in run.summary and '"Reference" Tab is in front' in run.summary
+        assert 'ask again' not in run.summary and 'make room' not in run.summary
+        assert any(o.get('kind') == 'presentation' for o in run.outputs)
+        entry = app.hub.resources.get(run.resource['id'], run.resource['day'])
+        assert_retained(app, entry, pixels)
+    asyncio.run(go())
+
+
+def test_a_report_behind_the_window_a_photo_goes_beside_is_asked_again_never_refused(retained_reference, monkeypatch):
+    """The studio's last report, when the photo came, did not show the anchor (a report taken without it, as one with an
+    ended grant is), while the app's window was unchanged and still open. That is the report being behind, Hooke's to
+    resolve: it asks the studio for a report now, looks again once, and places the photo beside the anchor."""
+    import threading
+    from research_worker import retrieval
+    from orchestrator.brain.registry import ToolContext
+    app, studio, _, _ = retained_reference
+    entered, release = threading.Event(), threading.Event()
+    lookup = retrieval.lookup
+
+    async def gated(*args, **kwargs):
+        entered.set()
+        assert await asyncio.to_thread(release.wait, HANG_S)
+        return await lookup(*args, **kwargs)
+    monkeypatch.setattr(retrieval, 'lookup', gated)
+
+    async def go():
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        await studio.send_report()
+        pin = app.hub.screen.pin(studio, request_id='beside-photo', timing='client-send')
+        ctx = ToolContext('chat', 2, None, 'pull up an image from online and put it next to the magnification',
+                          asked=app.day.here(), request_snapshot=pin)
+        asked = sum(m.get('type') == 'screen-ask' for m in studio.messages)
+        request = asyncio.create_task(plan(app, [('reference_photo', {'subject': 'leaf pore', 'beside': True})], ctx=ctx))
+        try:
+            assert await asyncio.to_thread(entered.wait, HANG_S)
+            row = studio.items.pop(anchor)
+            await studio.send_report()  # the report that is behind: the anchor left out of it
+            studio.items[anchor] = row
+            assert all(i['id'] != anchor for i in app.hub.screen.observation(studio).wire()['items'])
+            release.set()
+            runs, _ = await request
+        finally:
+            release.set()
+        succeeded(runs[0])
+        assert runs[0].outcome['status'] == 'confirmed'
+        assert sum(m.get('type') == 'screen-ask' for m in studio.messages) > asked, 'Hooke asked the studio again'
+        child = next(w for w in app.services.presentations.list(WORKSPACE) if w.id != anchor)
+        assert json.loads(child.geometry_intent.relation_json)['reference'] == anchor, 'placed beside, as asked'
+        assert 'not beside' not in runs[0].summary
+    asyncio.run(go())
+
+
+def test_what_a_window_is_to_a_placement_is_said_by_the_check_that_failed(retained_reference, monkeypatch):
+    """The placement fence names why a window cannot anchor, from the report and the app: laid out in a studio in the
+    background (nothing is painted there) it still anchors, as completion counts it shown; open on a Tab not in front
+    it is "hidden", with where it is; the report behind the app "disagrees" (asked again before it is said); closed in
+    the app it is "gone". The old lump reason ("beside needs both exact current window rectangles and owners") said
+    none of these."""
+    import dataclasses
+    from orchestrator.brain.toolbox.present import _placement_observation
+    from orchestrator.presentations import PresentationError
+    app, studio, _, _ = retained_reference
+
+    def why(report):
+        try:
+            _placement_observation(states, report, (anchor,))
+        except PresentationError as exc:
+            return exc.placement, exc.why
+        return None
+
+    async def go():
+        nonlocal states, anchor
+        original, _ = saved_picture(app)
+        anchor, _, _ = await open_window(app, original)
+        states = {anchor: app.services.presentations.get(WORKSPACE, anchor)}
+        await studio.send_report()
+        assert why(app.hub.screen.completion_report(studio)) is None
+        studio.visible = False
+        await studio.send_report()
+        background = app.hub.screen.completion_report(studio)
+        assert next(i for i in background['items'] if i['id'] == anchor)['visible'] is False
+        assert why(background) is None, 'laid out in a studio in the background: still there to be beside'
+        studio.visible = True
+        behind = app.hub.screen.completion_report(studio)
+        behind['items'] = [{**i, 'propertyOwners': {**i['propertyOwners'], 'rect': 'someone-else'}}
+                           if i['id'] == anchor else i for i in behind['items']]
+        assert why(behind) == ('disagrees', "the studio's report has another owner of its rect than the app")
+        _on_a_back_tab(studio, monkeypatch, anchor)
+        await studio.send_report()
+        assert why(app.hub.screen.completion_report(studio)) == (
+            'hidden', 'it is on the "Main" Tab, and the "Reference" Tab is in front')
+        states[anchor] = dataclasses.replace(states[anchor], open=False)
+        assert why(app.hub.screen.completion_report(studio)) == ('gone', 'it was closed')
+
+    states, anchor = {}, None
+    asyncio.run(go())
+
+
+def test_the_nearest_photo_says_how_it_differs_and_offers_to_look_again(retained_reference, monkeypatch):
+    """will-workspace, 30 Oct: "a single stoma" found only a photo of three; the answer said so but offered no next
+    step, judged as leaving the user stuck. The nearest photo's receipt asks for the difference and an offer to look
+    again for exactly what was asked."""
+    from research_worker import retrieval
+    app, studio, pixels, external = retained_reference
+
+    async def look_at_photo(query, jpeg):
+        return retrieval.PhotoLook(False, 'three stomata between guard cells, light microscopy',
+                                   unmet='shows three stomata, not one', subject=True)
+    monkeypatch.setattr(retrieval, 'look_at_photo', look_at_photo)
+
+    async def go():
+        run, _, entry = await fetch_reference(app)
+        assert 'the nearest found, not exactly what was asked' in run.summary
+        assert 'offer to look again for exactly leaf pore' in run.summary
     asyncio.run(go())

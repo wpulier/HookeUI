@@ -20,6 +20,14 @@ body[data-workspace-study=true] #example-guide :is(.example-words,.example-statu
    "Find bright objects" reported its outlines shown, behind the specimen). Level with it and later in the stage,
    they sit above it, as .stage-status does, and below the artifacts' windows (35). */
 body[data-workspace-study=true] #stage>:is(#session-home,#magnifier,.stage-corner){z-index:30}
+/* The details card (notes.ts, #description) was left at style.css's z 4, so it opened behind that window and showed
+   only once the specimen was floated small (Will, 2026-10-29). It describes a thing on the specimen and opens from a
+   click on it, so it goes with the specimen: while the specimen was pressed last (its data-front, which a press in the
+   artifacts' layer clears), in front of the artifacts' windows (35) and a floated specimen (36); after a press on one
+   of those windows, level with the specimen and later in the stage, so still above it. :where() keeps these at one
+   ID's specificity, so the phone's bottom-sheet card (studio-shell.css, z 80) and an agent's `front` (inline) hold. */
+:where(body[data-workspace-study=true] #stage)>#description{z-index:30}
+:where(body[data-workspace-study=true] #stage>.workspace-specimen[data-front=true])~#description{z-index:37}
 
 html[data-workspace-study=true],body[data-workspace-study=true]{overflow:clip;height:100dvh}
 body[data-workspace-study=true] #stage{overflow:hidden}

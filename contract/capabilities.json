@@ -569,7 +569,9 @@
         "closeup",
         "quality",
         "zeroshot",
-        "naming"
+        "naming",
+        "naming_model",
+        "look_hard"
       ],
       "pair": "outline-a-thing",
       "evidence": [
@@ -1417,7 +1419,7 @@
       "family": "magnifier",
       "actor": "agent",
       "title": "Compare named models",
-      "what": "Runs the models you name on one view, side by side",
+      "what": "Runs two to six models you name on one input",
       "how": {
         "tool": "compare_models",
         "say": "compare EdgeTAM and SAM 2.1 on that"
@@ -1429,7 +1431,32 @@
       "parts": [
         "runner",
         "comparison",
+        "model-comparison",
         "magnifier"
+      ]
+    },
+    {
+      "id": "compare-classifiers",
+      "family": "magnifier",
+      "actor": "agent",
+      "title": "Compare classifying models",
+      "what": "Several models name the same cells; agreement, counts, time, cost",
+      "how": {
+        "tool": "compare_models",
+        "args": {
+          "operation": "classify"
+        },
+        "say": "compare Gemini, GPT and MedSigLIP at classifying these cells"
+      },
+      "evidence": [
+        "services/tests/test_classify_comparison.py"
+      ],
+      "parts": [
+        "runner",
+        "classify",
+        "model-comparison",
+        "evidence",
+        "resources"
       ]
     },
     {
@@ -2132,6 +2159,28 @@
       ]
     },
     {
+      "id": "write-document",
+      "family": "memory",
+      "actor": "agent",
+      "title": "Write up the findings",
+      "what": "Writes a document from the Project's records, each paragraph cited",
+      "how": {
+        "tool": "write_document",
+        "say": "write out the interesting findings so far and open it in a new tab"
+      },
+      "evidence": [
+        "services/tests/test_documents.py"
+      ],
+      "roles": [
+        "vision"
+      ],
+      "parts": [
+        "resources",
+        "day",
+        "workspace-tabs"
+      ]
+    },
+    {
       "id": "inspect-camera",
       "family": "memory",
       "actor": "agent",
@@ -2310,6 +2359,11 @@
         "voicelink",
         "talk",
         "talk_key",
+        "heard_cue",
+        "partner_acts",
+        "partner_speaks",
+        "think",
+        "look_hard",
         "fixed:voice-words",
         "fast",
         "speculate",
@@ -2343,6 +2397,30 @@
             "to": "sam3.1-fal"
           }
         }
+      ]
+    },
+    {
+      "id": "speaks-up",
+      "family": "conversation",
+      "actor": "auto",
+      "title": "Speaks up when things change",
+      "what": "Says when the slide moves, focus drifts or counted cells change",
+      "how": {
+        "process": "orchestrator.view_watch"
+      },
+      "roles": [
+        "watch",
+        "voice"
+      ],
+      "needs": {
+        "voice": "gpt-realtime-2.1"
+      },
+      "parts": [
+        "view-watch",
+        "slide-tracker",
+        "frame-quality",
+        "coach",
+        "population-layer"
       ]
     },
     {
@@ -2765,6 +2843,31 @@
         "slide-tracker",
         "runner",
         "motion-tracks"
+      ]
+    },
+    {
+      "id": "research-classify",
+      "family": "researchers",
+      "actor": "researcher",
+      "title": "Compare classifiers for itself",
+      "what": "Runs several classifying models on cells and compares their records",
+      "how": {
+        "deliverable": "research",
+        "say": "have a researcher run five classifying models on these cells and compare them"
+      },
+      "roles": [
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_classify_comparison.py"
+      ],
+      "parts": [
+        "research-worker",
+        "research-hands",
+        "runner",
+        "classify",
+        "model-comparison",
+        "resources"
       ]
     },
     {
@@ -4285,6 +4388,26 @@
       ]
     },
     {
+      "id": "web-video",
+      "family": "display",
+      "actor": "agent",
+      "title": "A video from the web",
+      "what": "Finds a video or page and opens it in its own window",
+      "how": {
+        "tool": "show_web",
+        "say": "find a YouTube video about stomata and open it"
+      },
+      "evidence": [
+        "services/tests/test_workspace_display.py"
+      ],
+      "roles": [
+        "fixed:retrieval"
+      ],
+      "parts": [
+        "reference-photos"
+      ]
+    },
+    {
       "id": "saved-tabs",
       "family": "display",
       "actor": "agent",
@@ -4324,6 +4447,64 @@
         "say": "run this workflow on these images"
       },
       "roles": [],
+      "parts": [
+        "scientific-workflows"
+      ]
+    },
+    {
+      "id": "experiment",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Plan and run experiments",
+      "what": "Plans a model comparison on footage, runs it on your yes",
+      "how": {
+        "tool": "experiment",
+        "say": "compare Cellpose and micro-sam on this footage and have a researcher audit it"
+      },
+      "roles": [
+        "cells",
+        "research"
+      ],
+      "evidence": [
+        "services/tests/test_experiments.py"
+      ],
+      "parts": [
+        "scientific-workflows",
+        "runner",
+        "comparison",
+        "model-comparison",
+        "research-worker",
+        "resources",
+        "workspace-tabs"
+      ]
+    },
+    {
+      "id": "experiment-status",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "How an experiment goes",
+      "what": "Says how an experiment is going, from its records",
+      "how": {
+        "tool": "experiment_status",
+        "say": "how is the experiment going?"
+      },
+      "roles": [],
+      "evidence": [
+        "services/tests/test_experiments.py"
+      ],
+      "parts": [
+        "scientific-workflows"
+      ]
+    },
+    {
+      "id": "experiment-card",
+      "family": "researchers",
+      "actor": "you",
+      "title": "Run an experiment's plan",
+      "what": "Run it, Stop or Open results on an experiment's card",
+      "how": {
+        "command": "experiment"
+      },
       "parts": [
         "scientific-workflows"
       ]
@@ -4411,10 +4592,10 @@
       "id": "fixed:video",
       "kind": "model",
       "title": "Video",
-      "label": "Veo 3.1 Fast",
+      "label": "Gemini Omni 1.1 Flash",
       "purpose": "Makes researchers' videos",
-      "source": "research_worker.researcher:VIDEO_MODEL",
-      "model": "veo-3.1-fast",
+      "source": "research_worker.video:MODEL",
+      "model": "gemini-omni-flash",
       "uses": [
         "gemini-api"
       ]
@@ -4579,6 +4760,55 @@
       "title": "Talk key",
       "purpose": "The key you hold to talk",
       "hint": "Control+Option, or Right Option with VoiceOver on"
+    },
+    {
+      "id": "partner_acts",
+      "kind": "policy",
+      "title": "How it acts",
+      "purpose": "Whether Hooke's brain or the voice itself does what you ask by voice",
+      "hint": "Hooke's brain does it (the default), or the voice calls Hooke's tools itself"
+    },
+    {
+      "id": "partner_speaks",
+      "kind": "policy",
+      "title": "When it speaks",
+      "purpose": "Whether the voice decides silently before it speaks, says at once that it is on work it hands over, or speaks as it decides",
+      "hint": "decides, then says it is on it (the default: a few words at once for work handed over, then its outcome), decides before it speaks, or speaks as it decides"
+    },
+    {
+      "id": "naming_model",
+      "kind": "policy",
+      "title": "Naming model",
+      "purpose": "Which model names what is outlined",
+      "hint": "the close look (most exact) or the quick look (fastest)"
+    },
+    {
+      "id": "heard_cue",
+      "kind": "policy",
+      "title": "Heard you",
+      "purpose": "The sign it heard you as you let go of the talk key",
+      "hint": "the ring settles with a soft tone, or the ring alone"
+    },
+    {
+      "id": "think",
+      "kind": "model",
+      "title": "Thinking behind the voice",
+      "purpose": "Takes hard questions and many steps from the one-brain voice",
+      "hint": "the frontier mind the voice hands work to"
+    },
+    {
+      "id": "look_hard",
+      "kind": "model",
+      "title": "Looking closely",
+      "purpose": "Names a thing exactly for the voice when a few seconds is fine",
+      "hint": "the voice says what it found once; the screen shows it thinking meanwhile"
+    },
+    {
+      "id": "watch",
+      "kind": "policy",
+      "title": "Speaking up",
+      "purpose": "What it says unasked when the view changes",
+      "hint": "quiet: focus and counted cells; chatty: the slide's moves too; or off"
     },
     {
       "id": "fixed:voice-words",
@@ -5083,6 +5313,13 @@
       "source": "services/orchestrator/watcher.py"
     },
     {
+      "id": "view-watch",
+      "title": "Noticing changes",
+      "kind": "algorithm",
+      "purpose": "Notices slide moves, focus drift and counted cells changing",
+      "source": "services/orchestrator/view_watch.py"
+    },
+    {
       "id": "slidemap",
       "title": "Slide map",
       "kind": "algorithm",
@@ -5424,6 +5661,20 @@
       "kind": "app",
       "purpose": "Draws what named models made side by side and measures how they agree",
       "source": "services/orchestrator/comparing.py"
+    },
+    {
+      "id": "model-comparison",
+      "title": "N-model comparison",
+      "kind": "app",
+      "purpose": "Compares two to six models' runs on the same input from their records: one table",
+      "source": "services/orchestrator/model_comparison.py"
+    },
+    {
+      "id": "classify",
+      "title": "Classifying",
+      "kind": "app",
+      "purpose": "Each vision model or MedSigLIP names a population's cells from the same classes",
+      "source": "services/orchestrator/classify.py"
     },
     {
       "id": "resources",

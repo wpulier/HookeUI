@@ -1,0 +1,146 @@
+{
+ "id": "will-workspace",
+ "about": "Will's try-out of 29 Oct, as a journey on the real June 14 leaf recording: segment and enlarge the stoma, a web photo of a single stoma beside the magnifier, a named Tab with the photo as its main item, only the image in it (the specimen floated or hidden), what models there are and could be, outline every cell on Main, a table of the results, and close everything on a Tab. Each step failed in his session for a reason in the live partner spec's 4.8; any internal language spoken fails it (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "segment",
+   "kind": "act",
+   "say": "Segment the stoma in the middle.",
+   "expect": {
+    "tools": [
+     "find"
+    ],
+    "visible": "the stoma in the middle outlined",
+    "outcome": true,
+    "judge": "outlines the oval in the middle, names it a stoma, and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "enlarge",
+   "kind": "act",
+   "say": "Enlarge it.",
+   "expect": {
+    "tools": [
+     "zoom"
+    ],
+    "visible": "a magnifier on the outlined stoma",
+    "outcome": true,
+    "judge": "opens a close-up of the stoma it just outlined and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "reference-beside",
+   "kind": "act",
+   "say": "Pull up an image from online of a single stoma and put it next to the magnification.",
+   "expect": {
+    "tools": [
+     "reference_photo"
+    ],
+    "visible": "a real web photo of one stoma in surface view beside the magnifier",
+    "outcome": true,
+    "judge": "shows a real photo of a single stoma in surface view from the web, says where it is from and what it shows truthfully, and never calls a cross-section a single stoma"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "new-tab",
+   "kind": "act",
+   "say": "Open a new tab called Reference and put that photo in it as the main item.",
+   "expect": {
+    "tools": [
+     "tabs",
+     "present"
+    ],
+    "visible": "a Tab named Reference with the photo as its main item and the specimen small",
+    "outcome": true,
+    "judge": "makes a Tab named Reference holding the photo as its main item, says so once, and claims nothing that did not happen"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "only-image",
+   "kind": "act",
+   "say": "Only have the image open in that tab and close everything else.",
+   "expect": {
+    "tools": [
+     "tabs",
+     "present"
+    ],
+    "visible": "only the photo in the Reference Tab, the specimen floated or hidden",
+    "outcome": true,
+    "judge": "leaves only the photo in that Tab (the live specimen floated or hidden too) and says what is open truthfully"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "models",
+   "kind": "view",
+   "say": "What segmentation models do we have, and what others could we add?",
+   "expect": {
+    "tools": [
+     "capabilities",
+     "models",
+     "models_in_use"
+    ],
+    "toolRequired": false,
+    "judge": "says which segmentation models are ready now and names models it could add from its catalogue, each with what it needs (a download and its size, a key, a setup); the full list may be left to the chat; invents none"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "outline-all",
+   "kind": "act",
+   "say": "Back on the main tab, outline every cell.",
+   "expect": {
+    "tools": [
+     "tabs",
+     "outline_cells"
+    ],
+    "visible": "the cells outlined as a layer on Main",
+    "outcome": true,
+    "judge": "switches to Main, outlines the cells and says how many, once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "table",
+   "kind": "act",
+   "say": "Open a table of its results.",
+   "expect": {
+    "tools": [
+     "show_measurements",
+     "present",
+     "tabs"
+    ],
+    "visible": "the measurements table open",
+    "outcome": true,
+    "judge": "opens the table of the cells' measurements and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "close-all",
+   "kind": "act",
+   "say": "Can you close everything on this tab?",
+   "expect": {
+    "tools": [
+     "clear",
+     "close_magnifier",
+     "present",
+     "tabs"
+    ],
+    "visible": "nothing open on the Tab but the specimen",
+    "outcome": true,
+    "judge": "closes every window on the Tab and says plainly what is left (on Main the live view always stays, floating small); never asks the user to ask again"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

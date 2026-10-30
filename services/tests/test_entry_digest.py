@@ -57,7 +57,8 @@ def scratch_catalog(tmp_path, monkeypatch):
     catalog.manifests.cache_clear()
 
 
-@pytest.mark.parametrize("key", sorted(k for k in BEFORE_FORMAT_2 if k not in {"dark-spots", "fiji-analyze-particles"}))
+@pytest.mark.parametrize("key", sorted(k for k in BEFORE_FORMAT_2
+                                     if k not in {"dark-spots", "fiji-analyze-particles", "medsiglip"}))
 def test_a_bundled_entry_unchanged_since_format_2_keeps_its_digest(key, scratch_catalog):
     assert envs.entry_digest(catalog.manifests()[key]) == BEFORE_FORMAT_2[key]
 
@@ -73,6 +74,18 @@ def test_fiji_particle_contract_change_has_a_new_digest_and_keeps_old_contract_i
     historical = replace(current, requires={}, operation="", category="", search_aliases=(), inputs=(), outputs=(),
                          implements=(catalog.Implements("cells", current.id, "image.2d.rgb8", "labels.instance.2d"),))
     assert envs.entry_digest(historical) == BEFORE_FORMAT_2[current.key]
+
+
+def test_medsiglip_classifying_is_a_new_digest_and_its_names_contract_keeps_the_old(scratch_catalog):
+    """Part 2.5, W5: MedSigLIP also implements classify (each cell's first-ranked class), an intentional change of its
+    operational manifest; without that row it is exactly the entry it was."""
+    from dataclasses import replace
+
+    current = catalog.manifests()["medsiglip"]
+    assert [i.operation for i in current.implements] == ["names", "classify"]
+    assert envs.entry_digest(current) != BEFORE_FORMAT_2["medsiglip"]
+    historical = replace(current, implements=tuple(i for i in current.implements if i.operation != "classify"))
+    assert envs.entry_digest(historical) == BEFORE_FORMAT_2["medsiglip"]
 
 
 def test_a_contributed_format_1_entry_keeps_its_digest(tmp_path):

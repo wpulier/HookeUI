@@ -67,7 +67,8 @@ ROLES = {
     "bookmark": "other", "calibration": "other", "taught-label": "other", "project": "other",
     "member": None, "outcome": None, "fact": None, "job": None,  # not listed in Data (as before)
 }
-RESULT_ROLES = {"reference": "source"}  # a result's media -> its role (media.REFERENCE: a photo from the web)
+RESULT_ROLES = {"reference": "source",  # a result's media -> its role (media.REFERENCE: a photo from the web)
+                "document": "writeup"}  # a document write_document wrote from the Project's records (documents.py)
 
 # Kinds the brain's `resources` tool and a researcher's listing leave out unless asked for by kind (or one read by
 # its id): a researcher's sources, tables, charts and other work are many entries, and context earns its place
@@ -93,7 +94,9 @@ PRODUCT_KINDS = frozenset({"population", "tracks", "research", "recording", "boo
 # A result entry is a product only when its producer made a picture to keep that is not one of the user's sources (a
 # reference photo); counts, measurements, comparisons and where-is answers are answers. A clearer picture (enhance)
 # and a snapshot's own "result" entry are sources (library.py), not products.
-PRODUCT_RESULTS = frozenset({"reference_photo"})
+PRODUCT_RESULTS = frozenset({"reference_photo", "show_web",  # a reference photo, a video or page from the web
+                             "write_document",  # a document written from the Project's records
+                             "experiment"})  # an experiment's results and its comparison table (experiments.py)
 
 
 # What a researcher makes: its report (`research`) and the rest of its work, read from its research session (S4).
@@ -166,6 +169,12 @@ TOOLS = {
     "focus_check": "result",
     "show_in_magnifier": "none: shows a picture that exists",
     "reference_photo": "result",  # a reference photo from the web, kept with its source and licence (media.REFERENCE)
+    "show_web": "result",  # a video or web page from the web, kept with its source and link, opened in a window
+    "write_document": "result",  # a document written from the Project's records, kept under Write-ups (documents.py)
+    # An experiment (experiments.py): its frames, workflow runs and the models' cells, then its comparison table and its
+    # results document (Write-ups), kept when it finishes; planning it makes only its plan.
+    "experiment": "project, population, result",
+    "experiment_status": "none: reads an experiment's records",
     "close_magnifier": "none: closes the magnifier",
     "enhance": "result",
     "snapshot": "snapshot, result",  # its file, and with native windows the result a window opens by its id
@@ -237,6 +246,9 @@ COMMANDS = {
     "research-presentation": "research",
     "research-open-capture": "none: opens the original retained frame without acquisition or analysis",
     "research-cancel": "none: stops a researcher",
+    # An experiment's card (experiments.py): Run it makes what the experiment tool's run makes; Stop and Open results
+    # make nothing new.
+    "experiment": "project, population, result",
     "dataset": "dataset",
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",
@@ -276,6 +288,7 @@ COMMANDS = {
     "observe-confirm": "none: keeps the user's word that they accepted a licence (observed.py)",
     "page-opened": "none: the studio says it shows a page the agent opened (open_models)",
     "table-window-result": "none: the studio says whether it opened the table window an agent asked for (table_window.py)",
+    "web-window-result": "none: the studio says whether it opened the web page or video window Hooke asked for (web_window.py)",
     "model-download-cancel": "none: stops a download; what it fetched stays in its staging folder for next time",
     "model-install": "none: makes a model's own Python in the catalog's envs folder (envs.py); said in Activity",
     "model-prepare": "none: prepares candidate dependencies for private review, without operation activation or qualification",

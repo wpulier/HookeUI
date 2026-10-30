@@ -20,7 +20,8 @@ def _hands_words() -> str:
     """What a researcher's hands run (research/hands.py, budget.RUN_OPERATIONS), in a few words, for
     start_researcher's description (kind (c): a request that needs them gets a researcher that has them)."""
     words = {"workflow": "run saved scientific workflows", "segment": "segment every cell", "enhance": "make a clearer picture", "motion": "measure what moves",
-             "measure_saved_objects": "measure saved labels"}
+             "measure_saved_objects": "measure saved labels",
+             "classify": "classify cells with several models and compare them"}
     said = [words.get(op, op) for op in RUN_OPERATIONS]
     return said[0] if len(said) == 1 else ", ".join(said[:-1]) + " or " + said[-1]
 
@@ -28,7 +29,7 @@ def _hands_words() -> str:
 HANDS_WORDS = _hands_words()
 
 from ...research.desk import made, named
-from ...research.policy import CHOOSABLE, DELIVERABLES, NeedsTheirWords, ResearchRefused
+from ...research.policy import CHOOSABLE, DELIVERABLES, NeedsTheirWords, ResearchRefused, default_effort
 from ...research.run import Delivery
 from ...untrusted import block
 from ..registry import CURRENT_RUN, Registry, Tool, ToolContext, ToolFailed, record_made, record_output, schema, typed_step_output
@@ -36,7 +37,7 @@ from .common import OBJECT, RESEARCHER, describe, resolve_object
 
 RECENT_SPEECH_S = 30.0  # the explicit request may have come a moment earlier, in other words
 SUMMARY_MAX = 6000  # characters of summarize_research's whole lines (newest first); the rest are counted
-MAKING = {"research": "a research note", "report": "a report", "lesson": "a lesson", "video": "a short video", "annotated_image": "a labelled picture", "image": "a picture"}
+MAKING = {"research": "its write-up (with any slides or visual asked for)", "report": "a report", "lesson": "a lesson", "video": "a short video", "annotated_image": "a labelled picture", "image": "a picture"}
 
 
 def _effort_words() -> str:
@@ -250,13 +251,16 @@ def add_research_tools(registry: Registry, services) -> None:
             ids = [i for i in [*ctx.objects, getattr(ctx, "pointed", None), selected] if i in hub.scene.objects]
             obj = hub.scene.objects[ids[0]] if ids else None
         if deliverable == "annotated_image" and obj is None:
-            raise ToolFailed("an annotated picture needs an outlined object", next="click the thing first, then ask")
+            # The model's choice, said to the model to correct (will-research, 29 Oct: "a small labeled graphic of a
+            # stoma" was refused here and the user was told to click the thing first).
+            raise ToolFailed("annotated_image draws labels on a photo of the user's own outlined thing, and nothing is "
+                             "outlined", next="choose image for a made picture, labelled or not; outline their own thing to label it", argument=True)
         day = services.day
         # It belongs to the conversation the request was made in (even if the user has switched
         # since); its results are written there.
         thread = day.thread_for(ctx.asked) if day is not None else None
         try:
-            session = await manager.start(str(args.get("brief") or ctx.question), effort=str(args.get("effort") or "quick"),
+            session = await manager.start(str(args.get("brief") or ctx.question), effort=str(args.get("effort") or default_effort(deliverable)),
                                           deliverable=deliverable, object_id=obj.id if obj else None,
                                           origin=origin(ctx, thread=thread), words=authorized_words,
                                           asked_with=str(args.get("asked_with") or ""), delivery=delivery(ctx), dependencies=dependencies,
@@ -300,9 +304,11 @@ def add_research_tools(registry: Registry, services) -> None:
         "standard. Deep requires an explicit request for thorough/deep research. "
         "For an explicitly requested handoff, inputs names exact earlier step outputs: wait for those original runs, then use only their completed inputs. "
         "deliverable: research (default; from quick up it can chart or animate a saved table such as the measurements, "
-        "drawn from the table's own values), annotated_image "
-        "(labels on the object's photo), image (an AI illustration, never a real photo: for a real photo use "
-        "reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the "
+        "drawn from the table's own values, and write a slide presentation or a small interactive or animated visual "
+        "of the data as a page the user opens rendered: ask for those in the brief, never say it can't), annotated_image "
+        "(labels drawn on a photo of the user's own outlined thing on this slide), image (a made AI illustration or "
+        "diagram of a kind of thing, labelled or not, needing nothing outlined; never a real photo: for a real photo "
+        "use reference_photo), report, video (an AI-generated video from the photo, never of data) or lesson (only when the "
         "user explicitly asks for one). "
         "Honor the user's effort limit: never increase it to fit a format. Video needs standard or deep, a lesson quick or more; "
         "image/annotated_image need quick or above. For a quick explanation or teaching, use research: it can "

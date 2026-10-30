@@ -129,9 +129,11 @@ def scale_line(words: str) -> str:
 
 
 def identify_reading(data: dict) -> dict:
-    """What naming a click shows, from the model's reply (shared with bench/naming): when it is
-    sure, its specific name; when it says it is not ("unsure", the model's own call), the broad
-    group, with the specific name and the alternatives offered as "maybe"."""
+    """What naming a click shows, from the model's reply (shared with bench/naming): its specific name, its best guess;
+    when it says it is not sure ("unsure", the model's own call), that name marked unsure, with the alternatives offered
+    as "maybe" and the broad group kept beside it. Will's try-out, 30 Oct: a stoma on a soft frame (Argon "stoma", 0.65,
+    unsure) was shown as "plant structure", and "it used to always know this was a stoma"; the best guess is the name,
+    and the doubt is said with it."""
     name = " ".join(str(data.get("label") or "").split())[:60]
     group = " ".join(str(data.get("group") or "").split())[:60]
     conf = data.get("confidence")
@@ -143,10 +145,13 @@ def identify_reading(data: dict) -> dict:
             alternatives.append(alt_name)
     unsure = bool(data.get("unsure"))
     observations = [" ".join(str(o).split())[:120] for o in data.get("observations") or [] if str(o).strip()][:3]
+    if unsure and group and not name:
+        return {"label": group, "status": "unsure", "maybe": alternatives[:3], "confidence": confidence,
+                "observations": observations, "specific": name, "group": group}
     if unsure and group:
-        maybe = [n for n in [name, *alternatives] if n and label_key(n) != label_key(group)]
-        return {"label": group, "status": "unsure", "maybe": maybe[:3], "confidence": confidence,
-                "observations": observations, "specific": name}
+        maybe = [n for n in alternatives if label_key(n) not in (label_key(group), label_key(name))]
+        return {"label": name, "status": "unsure", "maybe": maybe[:3], "confidence": confidence,
+                "observations": observations, "specific": name, "group": group}
     return {"label": name or group, "status": "unsure" if unsure else "likely",
             "maybe": [a for a in alternatives if label_key(a) != label_key(name)][:2] if unsure else [],
             "alternatives": alternatives[:2], "confidence": confidence, "observations": observations, "specific": name}
@@ -898,6 +903,16 @@ class Agent:
         return data, {"option": option, "model": result.model, "latency_ms": result.latency_ms}
 
     # --- identify --------------------------------------------------------------------
+    def naming_option(self) -> str:
+        """The vision option that names an outline (option NAMING_MODEL): the close look's model (LOOK_HARD) by default,
+        else the quick look's (VISION); the quick look's when the close look's key is missing, so a name still comes."""
+        settings = self.hub.settings
+        if getattr(settings, "naming_model", "close-look") == "close-look":
+            hard = getattr(settings, "look_hard", None)
+            if hard in VISION and key_needed(hard) is None:
+                return hard
+        return settings.vision
+
     @execution.traced("name")
     async def identify(self, object_id: str, quiet: bool = False) -> dict:
         """Name something the user outlined by clicking, or any outline the app drew (option NAMING, Will's decision of
@@ -905,7 +920,7 @@ class Agent:
         model answers (never "Looking..." meanwhile, so a highlight is never slower to read)."""
         obj = self.hub.scene.objects.get(object_id)
         execution.bind(object_id=object_id)
-        execution.note(selected=self.hub.settings.vision, selection="settings")
+        execution.note(selected=self.naming_option(), selection="settings")
         if obj is None:
             raise tools.ToolError("that outline is gone", next="click the thing again")
         from .apply import apply, next_for
@@ -952,7 +967,7 @@ class Agent:
         pts = np.array([p for poly in polygons for p in poly], dtype=float)
         bbox = (float(pts[:, 0].min()), float(pts[:, 1].min()), float(pts[:, 0].max()), float(pts[:, 1].max()))
         view_jpeg, close_jpeg = identify_images(image, polygons, crop, bbox)
-        option = self.hub.settings.vision
+        option = self.naming_option()
         # The user's own examples and the most alike outline named earlier today, as data (taught.py,
         # seen.py; one embedding, waited for together): the model decides the name; code never sets it.
         # MedSigLIP's zero-shot ranking of the subject's candidate names, beside them (zeroshot.py, option

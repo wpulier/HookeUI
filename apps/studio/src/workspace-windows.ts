@@ -71,6 +71,9 @@ interface WindowRow {
   allowSmall: boolean; dismissed: boolean; sizeEstablished: boolean; liveSample: LiveSample | null; heldSample: LiveSample | null; liveHeld: boolean; disposed: boolean; layoutStamp: string | null; viewPaint: ViewPaint | null;
   /** The newest live frame waiting for the next animation frame; what is on screen until then is the last paint. */
   queuedLive: { frame: LiveFrame; sample: LiveSample } | null;
+  /** The sample of the live frame the window holds now, painted or not: a paint skipped while its Tab was not in front
+   *  (or the studio was away) paints that frame later with its own sample, though no newer frame comes (a held source). */
+  shownSample: LiveSample | null;
 }
 type LiveFrame = { image: HTMLImageElement; sample: unknown; held?: boolean; sourceToken: string; sourceGeneration: number; lifetimeGeneration: string };
 const CHROME = 42; // The shared design header; controls stay inside it.
@@ -81,9 +84,16 @@ const contextKeys = ['workspaceId', 'clientId', 'pageEpoch', 'connectionEpoch', 
 const supportedSources = new Set(['live', 'saved-image', 'video', 'lesson', 'written', 'composite']);
 const pictureSources = new Set(['live', 'saved-image', 'composite']);
 const clampUnit = (value: number) => Math.max(0, Math.min(1, value));
+const PLACE_TRIES = 4; // an Arrange's tile, sent at most this often for one window before it is left where it is
 const displayKinds: Record<string, string> = { live: 'magnifier', 'saved-image': 'image', composite: 'comparison' };
 const buttonLabels: Record<string, string> = { 'zoom-in': '+', 'zoom-out': '−', 'zoom-fit': 'Fit', front: '↑', close: '×', hide: '−', ungroup: '↔', retry: 'Retry' };
 const derivedKind = (source: WindowSource) => displayKinds[source.kind] ?? source.kind;
+/** A window's name: its own title, else what it shows ("Live magnification", "Reference photo", "Saved work"). The
+ * same name is shown and saved with the Project's arrangement (an empty one was refused there, live 2026-10-29). */
+export function windowTitle(state: Pick<WindowState, 'title' | 'source'>): string {
+  return state.title?.trim() || (state.source.kind === 'live' ? 'Live magnification'
+    : ['reference', 'external-reference'].includes(state.source.media) ? 'Reference photo' : 'Saved work');
+}
 function urlKey(url: string): string {
   return new URL(url, document.baseURI || 'http://localhost/').href;
 }
@@ -178,6 +188,7 @@ export class WorkspaceWindows {
   private phoneStamp = '';
   private restoring = new Set<string>();
   private restoreFailures = new Map<string, string>();
+  private placing = new Map<string, { rect: string; tries: number }>(); // placeWindow's commands for one tile
   private readonly shelf = document.createElement('div');
 
   constructor(options: WindowOptions) {
@@ -231,6 +242,25 @@ export class WorkspaceWindows {
     if(command){this.restoring.add(row.state.id);this.dispatchUser({...command,instance:row.state.id});return false;}
     this.restoring.delete(row.state.id);
     return true;
+  }
+  /** A tile for a native window with no retained resource (the live magnifier), from the Tab's Arrange: its size, then
+   *  its place, each the person's own resize and move, one at a time (each accepted descriptor fences the next, as in
+   *  restorePresentation). `rect` is in the host's coordinates. True once it has both, or when there is nothing to place
+   *  (gone, closed) or it was refused PLACE_TRIES times (left where it is). */
+  placeWindow(id: string, rect: readonly number[]): boolean {
+    const row = this.rows.get(id);
+    if (!row || row.disposed || !row.state.open || row.dismissed) { this.placing.delete(id); return true; }
+    if (row.pending.size) return false;
+    const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+    const size = [rect[2], rect[3]], host = this.opts.host.getBoundingClientRect();
+    const position = [rect[0] + host.left, rect[1] + host.top];
+    const command = !same(row.state.geometryIntent.size, size) ? { action: 'resize', values: { size } }
+      : !same(row.state.geometryIntent.position, position) ? { action: 'move', values: { position } } : null;
+    const key = JSON.stringify(rect), tries = this.placing.get(id)?.rect === key ? this.placing.get(id)!.tries : 0;
+    if (!command || tries >= PLACE_TRIES) { this.placing.delete(id); return true; }
+    this.placing.set(id, { rect: key, tries: tries + 1 });
+    this.dispatchUser({ ...command, instance: id });
+    return false;
   }
   restore(id: string, foreground = true): void {
     const row = this.row(id);
@@ -289,6 +319,10 @@ export class WorkspaceWindows {
     this.syncPhone();
     for (const state of applied) {
       const row = this.rows.get(state.id)!;
+      // A window this command closed is not presented: its owner would mount it again (main.ts puts presented
+      // windows in the Project's artifacts container), and a closed window still in the page is reported connected
+      // with live controls, never the closed window the server takes and its close confirms (live 2026-10-29 18:57).
+      if (!state.open) continue;
       this.opts.onPresentation?.(state.id, row.root, () => row.state.title, !this.opts.background?.(batch.requestId) && ['open', 'restore', 'front'].includes(batch.op ?? '') && state.open && !state.view.hidden, batch.requestId);
       if (row.root.classList.contains('study-inline-result')) this.layoutMedia(row);
     }
@@ -318,6 +352,7 @@ export class WorkspaceWindows {
       row.root.dataset.phoneHidden = String(tucked);
       if (tucked) row.root.hidden = true;
       else if (was && !row.pending.has('open') && !row.pending.has('hidden')) row.root.hidden = row.dismissed || !row.state.open || !!row.state.view.hidden;
+      row.root.dataset.windowOpen = String(!row.dismissed && row.state.open);
       row.shell.frame(); this.layoutMedia(row);
     }
     this.refreshShelf();
@@ -340,8 +375,10 @@ export class WorkspaceWindows {
   }
   private create(state: WindowState, batch: WindowBatch): WindowRow {
     const root = document.createElement('section'); root.className = 'workspace-window'; root.dataset.presentationId = state.id;
+    // What it shows, for the workspace model (workspace-model.ts nativeKind): a magnifier, a reference photo, a video...
+    root.dataset.sourceKind = state.source.kind; root.dataset.sourceMedia = state.source.media;
     const retained = studyResourceReference(state.source.identity.resource);
-    if(retained)root.dataset.studyRetained=JSON.stringify({resource:retained,title:state.title,zoom:1,pan:[.5,.5]});
+    if(retained)root.dataset.studyRetained=JSON.stringify({resource:retained,title:windowTitle(state),zoom:1,pan:[.5,.5]});
     root.dataset.staged = 'true'; // actual media preparation, independent of backend transaction staging
     root.id = `presentation-${uuid()}`; root.setAttribute('aria-label', state.title); root.setAttribute('role', 'region');
     Object.assign(root.style, { position: 'absolute', boxSizing: 'border-box' });
@@ -362,7 +399,7 @@ export class WorkspaceWindows {
       opener: batch.op === 'open' && document.activeElement instanceof HTMLElement ? document.activeElement : null,
       pending: new Map(), expectedUrl: null, decodeJob: null, decodedToken: null, beforeUser: null, allowSmall: batch.op === 'resize', dismissed: false,
       sizeEstablished: state.geometryIntent.relation?.kind === 'beside' && !!state.geometryIntent.size,
-      liveSample: null, heldSample: null, liveHeld: false, disposed: false, layoutStamp: null, viewPaint: null, queuedLive: null,
+      liveSample: null, heldSample: null, liveHeld: false, disposed: false, layoutStamp: null, viewPaint: null, queuedLive: null, shownSample: null,
     };
     const controlsToggle = document.createElement('button');
     controlsToggle.type = 'button'; controlsToggle.className = 'workspace-window-options';
@@ -473,10 +510,10 @@ export class WorkspaceWindows {
     else { this.layoutMedia(row); if (row.load.state === 'loaded' || row.load.state === 'drawn') this.scheduleDraw(row, row.liveSample ?? row.heldSample); }
   }
   private reflect(row: WindowRow): void {
-    const title = row.state.title || (row.state.source.kind === 'live' ? 'Live magnification'
-      : ['reference', 'external-reference'].includes(row.state.source.media) ? 'Reference photo' : 'Saved work');
+    const title = windowTitle(row.state);
     row.title.textContent = title; row.title.title = title; row.root.setAttribute('aria-label', title);
     if (!row.pending.has('open') && !row.pending.has('hidden')) row.root.hidden = row.dismissed || !row.state.open || !!row.state.view.hidden || row.root.dataset.phoneHidden === 'true';
+    row.root.dataset.windowOpen = String(!row.dismissed && row.state.open);
     row.root.dataset.group = row.state.view.group ?? '';
     if (!row.pending.has('opacity')) row.root.style.opacity = String(row.state.view.opacity ?? 1);
     if (!row.state.open) row.root.remove();
@@ -648,7 +685,7 @@ export class WorkspaceWindows {
       row.view.pan = values.center.slice(); this.layoutMedia(row); this.emit(row, action, values, 'pan');
     } else if (action === 'close') {
       const focused = row.root.contains(document.activeElement);
-      row.dismissed = true; row.root.hidden = true; this.emptyMedia(row);
+      row.dismissed = true; row.root.hidden = true; row.root.dataset.windowOpen = 'false'; this.emptyMedia(row);
       if (focused) this.restoreFocus(row);
       this.emit(row, action, values, 'open');
     }
@@ -701,7 +738,7 @@ export class WorkspaceWindows {
     }, { signal: row.events.signal });
   }
   private loadMedia(row: WindowRow): void {
-    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.mediaEvents = new AbortController();
+    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.shownSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.mediaEvents = new AbortController();
     row.root.dataset.staged = 'true';
     row.picture.replaceChildren(); row.media = null; row.image = null; row.fit = null; row.expectedUrl = null;
     row.load = { state: 'empty', drawToken: null, naturalSize: null }; row.message.hidden = false;
@@ -789,10 +826,10 @@ export class WorkspaceWindows {
   private mediaError(row: WindowRow, detail: string, code: string): void {
     row.decodedToken = null;
     row.load = { state: 'error', drawToken: null, naturalSize: null, error: detail, errorCode: code };
-    row.liveSample = null; row.heldSample = null; row.message.hidden = false; row.message.textContent = detail;
+    row.liveSample = null; row.heldSample = null; row.shownSample = null; row.message.hidden = false; row.message.textContent = detail;
   }
   private emptyMedia(row: WindowRow): void {
-    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.picture.replaceChildren();
+    row.decodeJob = null; row.decodedToken = null; row.liveSample = null; row.heldSample = null; row.shownSample = null; row.liveHeld = false; row.mediaEvents?.abort(); row.picture.replaceChildren();
     row.image = null; row.media = null; row.fit = null; row.expectedUrl = null;
     row.load = { state: 'empty', drawToken: null, naturalSize: null }; row.message.hidden = true;
     if (row.root.hidden) row.root.remove();
@@ -832,6 +869,9 @@ export class WorkspaceWindows {
     const stamp = JSON.stringify([rect(row.root.getBoundingClientRect()), row.viewport.style.width, row.viewport.style.height, row.picture.style.width, row.picture.style.height, row.picture.style.left, row.picture.style.top, row.image?.style.transform]);
     const changed = stamp !== row.layoutStamp; row.layoutStamp = stamp;
     if (changed && row.load.state === 'drawn') { const sample = row.liveSample ?? row.heldSample; row.heldSample = null; row.load.state = 'loaded'; row.load.drawToken = null; row.liveSample = null; this.scheduleDraw(row, sample); }
+    // A live frame that arrived while the window was out of sight is painted once its layout changes (its Tab in front, a
+    // zoom): a held source sends no newer frame to do it (will-tabs, 30 Oct).
+    else if (changed && row.load.state === 'loaded' && row.state.source.kind === 'live' && row.image && row.shownSample) this.scheduleDraw(row, row.shownSample);
   }
   private observedZ(row: WindowRow): number | null {
     const value = getComputedStyle(row.root).zIndex;
@@ -877,7 +917,10 @@ export class WorkspaceWindows {
     // A front command can already be satisfied. Its fresh settled frame still
     // observes actual order, tied to this admitted occurrence. Other view
     // commands continue to require changed pixels/geometry; replay never enters here.
-    if (row.load.state === 'loaded') { row.load.state = 'drawn'; row.load.drawToken = `draw-${uuid()}`; row.liveSample = row.liveHeld ? null : drawnSample; row.heldSample = row.liveHeld ? drawnSample : null; }
+    // A live window paints the frame it holds: the sample handed with it, else that frame's own (a paint skipped while it was
+    // out of sight, done now with no newer frame to come).
+    const sample = drawnSample ?? (row.state.source.kind === 'live' ? row.shownSample : null);
+    if (row.load.state === 'loaded') { row.load.state = 'drawn'; row.load.drawToken = `draw-${uuid()}`; row.liveSample = row.liveHeld ? null : sample; row.heldSample = row.liveHeld ? sample : null; }
     row.root.dataset.staged = row.state.staged === true ? 'true' : 'false';
     if (!row.pending.size && row.state.staged !== true && this.observedZ(row) !== null && (!image || this.observedView(row) !== null)) {
       if (!row.viewPaint || row.viewPaint.view !== view || settledFront && row.viewPaint.binding !== binding) row.viewPaint = { ref: `view-${uuid()}`, view, binding, job, media };
@@ -905,7 +948,7 @@ export class WorkspaceWindows {
       if (!waiting) requestAnimationFrame(() => this.flushLive(row));
       return;
     }
-    row.queuedLive = null; this.applyLive(row, frame); this.scheduleDraw(row, sample);
+    row.queuedLive = null; this.applyLive(row, frame, sample); this.scheduleDraw(row, sample);
   }
   private liveBinds(row: WindowRow, frame: LiveFrame): boolean {
     return row.state.source.kind === 'live' && frame.sourceToken === row.state.delivery.sourceToken
@@ -914,16 +957,16 @@ export class WorkspaceWindows {
   private flushLive(row: WindowRow): void {
     const queued = row.queuedLive; row.queuedLive = null;
     if (!queued || this.disposed || row.disposed || row.dismissed || !row.state.open || !this.liveBinds(row, queued.frame)) return;
-    if (row.load.state !== 'drawn') { this.applyLive(row, queued.frame); this.scheduleDraw(row, queued.sample); return; }
+    if (row.load.state !== 'drawn') { this.applyLive(row, queued.frame, queued.sample); this.scheduleDraw(row, queued.sample); return; }
     // Swapped and painted inside this one animation frame, so no report sees it half done.
-    this.applyLive(row, queued.frame);
+    this.applyLive(row, queued.frame, queued.sample);
     this.paint(row, Object.freeze({ ...queued.sample }), false, row.decodeJob, row.image, row.media, this.viewBinding(row), this.paintedView(row));
   }
-  private applyLive(row: WindowRow, frame: LiveFrame): void {
+  private applyLive(row: WindowRow, frame: LiveFrame, sample: LiveSample): void {
     row.decodeJob = {}; row.root.dataset.staged = 'true'; row.image = frame.image; row.media = frame.image; row.expectedUrl = urlKey(frame.image.currentSrc); row.picture.replaceChildren(frame.image);
     Object.assign(frame.image.style, { position: 'absolute', maxWidth: 'none', width: '100%', left: '0%', top: '0%', height: 'auto', transformOrigin: '0 0' });
     row.fit = fitPicture({ width: frame.image.naturalWidth, height: frame.image.naturalHeight, disc: this.discFor(row), bounds: { min: 240, usual: 360, max: 640 } });
-    row.load = { state: 'loaded', drawToken: null, naturalSize: [frame.image.naturalWidth, frame.image.naturalHeight] }; row.liveSample = null; row.heldSample = null; row.liveHeld = frame.held === true; this.reflect(row);
+    row.load = { state: 'loaded', drawToken: null, naturalSize: [frame.image.naturalWidth, frame.image.naturalHeight] }; row.liveSample = null; row.heldSample = null; row.shownSample = Object.freeze({ ...sample }); row.liveHeld = frame.held === true; this.reflect(row);
     row.message.hidden = true; fitPanel(row.root, row.picture, frame.image, this.discFor(row)); this.layoutMedia(row);
   }
   private arrange(states: WindowState[]): void {

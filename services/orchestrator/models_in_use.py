@@ -18,6 +18,8 @@ from . import options
 JOBS: tuple[tuple[str, str, str], ...] = (
     ("brain", "Thinking (the brain)", "vision"),
     ("voice", "Talking (the voice)", "voice"),
+    ("think", "Thinking behind the voice", "think"),  # the one-brain voice's hard questions and many steps (think.py)
+    ("look_hard", "Looking closely (for the voice)", "look_hard"),  # the partner's close look (partner_tools.look_hard)
     ("vision", "Seeing (the eyes)", "vision"),
     ("sight", "Running look", "sight"),
     ("fast", "Quick decisions", "fast"),
@@ -35,7 +37,7 @@ WHERE = {"cloud": "cloud", "mac": "this Mac", "both": "cloud and this Mac", "": 
 
 def _api_names(option) -> list[str]:
     """The names its calls are recorded under (api_usage.attempt's model): the spec's model ("gemini:gemini-3.8-flash@low"),
-    the catalog entry's API version ("veo-3.1-fast-generate-preview") and its key."""
+    the catalog entry's API version ("gemini-omni-1.1-flash") and its key."""
     from gpu_worker.manifests import get
 
     names = []
@@ -85,9 +87,11 @@ def rows(settings) -> list[dict]:
         if role == "fixed:video":
             from gpu_worker.manifests import get
 
-            entry = get("veo-3.1-fast")
-            row = {"role": role, "title": title, "model": entry.name if entry else "Veo 3.1 Fast", "runs": "cloud",
-                   "setting": None, "speed": _speed([entry.version if entry else "", "veo-3.1-fast"])}
+            from research_worker import video
+
+            entry = get(video.ENTRY)  # the video model researchers use (research_worker/video.py)
+            row = {"role": role, "title": title, "model": entry.name if entry else video.NAME, "runs": "cloud",
+                   "setting": None, "speed": _speed([entry.version if entry else video.MODEL, video.ENTRY])}
         else:
             chosen = current[group]
             group_options = options.GROUPS[group]
@@ -143,4 +147,5 @@ def text(settings) -> str:
         note = f"; {row['note']}" if row.get("note") else ""
         lines.append(f"- {row['title']}: {model}{how}{note}; {row['speedWords']}; change: {row['change']}")
     return ("The models doing each job now (the settings in force; speeds are this app's own calls in the last 10 "
-            "minutes). The voice hears and speaks, and hands every request to the brain:\n" + "\n".join(lines))
+            "minutes). GPT-Live hears and speaks and hands every request to the brain; the one-brain voice sees and acts "
+            "itself and hands hard questions and many steps to its thinking:\n" + "\n".join(lines))

@@ -35,7 +35,10 @@ MAX_BYTES = 8 * 1024 * 1024
 MAX_REDIRECTS = 3
 TIMEOUT_S = 8.0
 MAX_SIDE = 2048
-USER_AGENT = "ObservationUI/0.1 (research assistant; developer preview)"
+# Wikimedia's robot policy (https://w.wiki/4wJS) wants a contact in the User-Agent: without one, every Commons search
+# and upload.wikimedia.org download answered HTTP 403 (live 2026-10-29, both reference lookups; checked again with
+# httpx the same day: 403 without the address, 200 with it).
+USER_AGENT = "HookeUI/0.6 (https://hookeui.org; reference photos and research sources) python-httpx"
 
 
 class FetchRefused(Exception):
