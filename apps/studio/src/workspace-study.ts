@@ -1275,6 +1275,19 @@ const appMenu = new WorkspaceAppMenu({
         stop: async operation => { const r = await bridge.request('project-copy-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return workingCopyOperation(r.operation); },
         reveal: async operation => { const r = await bridge.request('project-copy-reveal', {session: owner.session, operation}); if (!r.ok) throw new Error(r.error ?? 'The working copy could not be revealed.'); },
       }),
+      recordActions: {
+        list: async () => {
+          const response = await fetch('/api/datasets', {cache: 'no-store'});
+          if (!response.ok) throw new Error('Recorded datasets could not be read.');
+          const value = await response.json();
+          if (!Array.isArray(value.datasets)) throw new Error('Recorded dataset listing is unavailable.');
+          return value.datasets;
+        },
+        review: async dataset => { const r = await bridge.request('project-record-review', {session: owner.session, dataset}); if (!r.review) throw new Error('Recording review is unavailable.'); return r.review; },
+        start: async (dataset, reviewDigest, requestKey) => { const r = await bridge.request('project-record-include', {session: owner.session, dataset, reviewDigest, requestKey, includeWholeDataset: true}); if (!r.operation) throw new Error('Inclusion was not acknowledged. Retry this request.'); return r.operation; },
+        read: async operation => { const r = await bridge.request('project-record-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Inclusion status is unavailable.'); return r.operation; },
+        stop: async operation => { const r = await bridge.request('project-record-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
+      },
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});

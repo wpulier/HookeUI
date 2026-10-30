@@ -2784,7 +2784,11 @@
      "project-copy-restore",
      "project-copy-status",
      "project-copy-stop",
-     "project-copy-reveal"
+     "project-copy-reveal",
+     "project-record-review",
+     "project-record-include",
+     "project-record-status",
+     "project-record-stop"
     ],
     "command": "session",
     "control": "session"

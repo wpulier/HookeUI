@@ -1,0 +1,131 @@
+import {afterEach, expect, test, vi} from 'vitest';
+import {recordInclusion, type RecordActions, type RecordOperation, type RecordReview} from './project-record-inclusion';
+import {syntheticDOM} from './workspace-windows.test-support';
+
+afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+function setup() {
+  vi.stubGlobal('document', syntheticDOM().document);
+  const memory = new Map<string, string>();
+  vi.stubGlobal('localStorage', {getItem: (key: string) => memory.get(key), setItem: (key: string, value: string) => memory.set(key, value)});
+  const done: RecordOperation = {id: 'op-1', project: 'project-1', state: 'succeeded', outcome: {inclusion: {reference: {session: 'project-1', id: 'retained-1', revision: 1, digest: 'digest'}}}};
+  const actions: RecordActions = {
+    list: vi.fn(async () => [{id: 'ds-1', status: 'complete', name: 'Shared capture'}]),
+    review: vi.fn(async (id: string): Promise<RecordReview> => ({session: 'project-1', origin: 'origin-1', dataset: id, title: 'Shared capture', scope: 'whole-record-folder', reviewDigest: 'hash', files: 6, bytes: 2000, requiredFreeBytes: 6000, captureCheck: {ok: false, problems: ['Missing interval']}, reason: 'Includes work from other Projects.'})),
+    start: vi.fn(async () => done), read: vi.fn(async () => done), stop: vi.fn(async () => done),
+  };
+  return {actions, memory, done};
+}
+function click(element: HTMLElement, title: string) {
+  const button = Array.from(element.querySelectorAll('button')).find(row => row.textContent === title);
+  expect(button, title).toBeDefined(); button!.dispatchEvent(new Event('click'));
+}
+async function review(element: HTMLElement) {
+  click(element, 'Choose recording');
+  await vi.waitFor(() => expect(element.querySelector('select')).toBeTruthy());
+  element.querySelector('select')!.value = 'ds-1';
+  click(element, 'Review inclusion');
+  await vi.waitFor(() => expect(element.textContent).toContain('Missing interval'));
+}
+
+test('requires whole-dataset review and explicit inclusion; retains original errors as context', async () => {
+  const {actions} = setup();
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await review(view.element);
+  expect(actions.start).not.toHaveBeenCalled();
+  expect(view.element.textContent).toContain('other Projects');
+  click(view.element, 'Include whole dataset');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Recorded dataset copied'));
+  expect(actions.start).toHaveBeenCalledWith('ds-1', 'hash', expect.any(String));
+  expect(view.element.textContent).toContain('retained-1'); view.dispose();
+});
+
+test('lost reply keeps the same confirmed identity across closing and reopening', async () => {
+  const {actions} = setup(); vi.mocked(actions.start).mockRejectedValueOnce(new Error('Reply lost'));
+  const first = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await review(first.element); click(first.element, 'Include whole dataset');
+  await vi.waitFor(() => expect(first.element.textContent).toContain('Reply lost'));
+  const original = vi.mocked(actions.start).mock.calls[0]; first.dispose();
+  const second = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  expect(actions.start).toHaveBeenCalledTimes(1);
+  click(second.element, 'Retry this inclusion');
+  await vi.waitFor(() => expect(second.element.textContent).toContain('Recorded dataset copied'));
+  expect(vi.mocked(actions.start).mock.calls[1]).toEqual(original); second.dispose();
+  const third = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await vi.waitFor(() => expect(actions.read).toHaveBeenCalledWith('op-1'));
+  expect(actions.start).toHaveBeenCalledTimes(2); third.dispose();
+});
+
+test('navigation during review cannot offer inclusion in a different Project', async () => {
+  const {actions} = setup(); let current = true;
+  let finish!: (value: Awaited<ReturnType<RecordActions['review']>>) => void;
+  const actual = await actions.review('ds-1');
+  vi.mocked(actions.review).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => current);
+  click(view.element, 'Choose recording');
+  await vi.waitFor(() => expect(view.element.querySelector('select')).toBeTruthy());
+  view.element.querySelector('select')!.value = 'ds-1'; click(view.element, 'Review inclusion');
+  current = false; finish(actual);
+  await Promise.resolve();
+  expect(view.element.textContent).not.toContain('Include whole dataset');
+  expect(actions.start).not.toHaveBeenCalled(); view.dispose();
+});
+
+test('unavailable browser recovery storage refuses admission before copying', async () => {
+  const {actions} = setup();
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await review(view.element);
+  vi.stubGlobal('localStorage', {getItem: () => null, setItem: () => { throw new Error('Quota exceeded'); }});
+  click(view.element, 'Include whole dataset');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('No copy was started'));
+  expect(actions.start).not.toHaveBeenCalled(); view.dispose();
+});
+
+test('polling pauses during Stop and cannot overwrite its terminal receipt', async () => {
+  const {actions, memory, done} = setup(); vi.useFakeTimers();
+  memory.set('hooke.record-inclusion.origin-1', JSON.stringify({operation: 'op-1', requestKey: 'confirmed', selection: 'ds-1', digest: 'hash'}));
+  const running = {...done, state: 'running', outcome: undefined};
+  vi.mocked(actions.read).mockResolvedValue(running);
+  let finish!: (row: RecordOperation) => void;
+  vi.mocked(actions.stop).mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Stop inclusion'));
+  click(view.element, 'Stop inclusion');
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(actions.read).toHaveBeenCalledTimes(1);
+  finish({...done, state: 'cancelled', outcome: {says: 'Copy stopped'}});
+  await Promise.resolve(); await vi.advanceTimersByTimeAsync(2000);
+  expect(view.element.textContent).toContain('Copy stopped');
+  expect(actions.read).toHaveBeenCalledTimes(1); view.dispose();
+});
+
+test('a poll already in flight cannot replace a later Stop receipt', async () => {
+  const {actions, memory, done} = setup(); vi.useFakeTimers();
+  memory.set('hooke.record-inclusion.origin-1', JSON.stringify({operation: 'op-1', requestKey: 'confirmed', selection: 'ds-1', digest: 'hash'}));
+  const running = {...done, state: 'running', outcome: undefined};
+  let late!: (row: RecordOperation) => void;
+  vi.mocked(actions.read).mockResolvedValueOnce(running).mockImplementationOnce(() => new Promise(resolve => { late = resolve; }));
+  vi.mocked(actions.stop).mockResolvedValue({...done, state: 'cancelled', outcome: {says: 'Stopped'}});
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Stop inclusion'));
+  await vi.advanceTimersByTimeAsync(1000);
+  click(view.element, 'Stop inclusion'); await Promise.resolve();
+  late(running); await Promise.resolve();
+  expect(view.element.textContent).toContain('Stopped');
+  expect(view.element.textContent).not.toContain('Stop inclusion'); view.dispose();
+});
+
+
+test('capture notes remain visible before confirming even when capture checks pass', async () => {
+  const {actions} = setup();
+  const plan = await actions.review('ds-1');
+  vi.mocked(actions.review).mockResolvedValue({...plan, captureCheck: {ok: true, notes: ['Includes captured work from a second Project.']}});
+  const view = recordInclusion(actions, 'project-1', 'origin-1', () => true);
+  click(view.element, 'Choose recording');
+  await vi.waitFor(() => expect(view.element.querySelector('select')).toBeTruthy());
+  view.element.querySelector('select')!.value = 'ds-1';
+  click(view.element, 'Review inclusion');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Include whole dataset'));
+  expect(view.element.textContent).toContain('Includes captured work from a second Project.');
+  expect(actions.start).not.toHaveBeenCalled();
+  view.dispose();
+});

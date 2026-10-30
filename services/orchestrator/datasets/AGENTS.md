@@ -84,3 +84,5 @@ other files.
     (`at_start`).
   - A fact entered while one collects is appended as `rigEnteredAfter`, never written into what it
     started with.
+
+Owner whole-record inclusion is exposed through Project folder review. project_record_inclusion.py resolves only a host dataset identity, rechecks its reviewed digest, and uses collect_record unchanged. It preserves all cross-Project capture material and capture warnings. The four project-record commands remain owner-only/default-denied to agents; an operation keeps its admitted Project through navigation. This is explicit whole-dataset inclusion, not complete external dependency closure.

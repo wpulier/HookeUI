@@ -3,11 +3,11 @@ peak are measured by (docs/design/2026-10-11-model-runtime.md)."""
 import mmap
 import os
 import sys
-import time
 
 import pytest
 
 from gpu_worker.footprint import Peak, footprint_mb, peak_mb
+from tests.waiting import until
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="the footprint is macOS's count")
 
@@ -34,8 +34,10 @@ def test_a_peak_sees_what_a_block_held_and_let_go_of_before_it_ended():
     with Peak(every_s=0.01) as peak:
         start = peak.mb
         block = touched(200)
-        time.sleep(0.05)
-        block.close()
+        try:
+            until(lambda: peak.mb - start > 150, what="background sampler observes the held allocation")
+        finally:
+            block.close()
     assert peak.mb - start > 150 and peak.mb - footprint_mb() > 150
 
 

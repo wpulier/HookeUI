@@ -3366,6 +3366,69 @@ async def project_copy_reveal(app, client, msg) -> dict:
     return {'ok': True, 'path': str(path)}
 
 
+@command('project-record-review')
+async def project_record_review(app, client, msg) -> dict:
+    from .project_record_inclusion import prepare
+    day, generation, session = app.day, app.day.generation, msg.get('session')
+    if session != day.sid:
+        raise tools.ToolError('The Project changed.', next='review the recording from its destination Project')
+    _, value = await asyncio.to_thread(prepare, day, app.hub.resources.projects,
+        app.paths.datasets, session, msg.get('dataset'))
+    if app.day is not day or not day.current(generation):
+        raise tools.ToolError('The Project changed.', next='review the recording from its destination Project')
+    from .door.schema import check
+    check(value, 'project-record-review')
+    return {'ok': True, 'review': value}
+
+
+@command('project-record-include')
+async def project_record_include(app, client, msg) -> dict:
+    from .project_record_inclusion import include
+    from .project_export import owned_export
+    day, session = app.day, msg.get('session')
+    if session != day.sid or msg.get('includeWholeDataset') is not True:
+        raise tools.ToolError('Review and confirm the whole recorded dataset.', next='review inclusion in this Project')
+    stores, datasets = app.hub.resources.projects, app.paths.datasets
+    identity, digest = msg.get('dataset'), msg.get('reviewDigest')
+    async def work(record, progress):
+        def check():
+            if record.get('state') == 'cancelRequested':
+                raise ValueError('Recorded dataset inclusion stopped before publication')
+        def perform():
+            value = include(day, stores, datasets, session, identity, digest, record['id'], check=check)
+            from .door.schema import check as validate
+            validate(value, 'project-record-inclusion')
+            return {'inclusion': value}
+        def stop(): record['state'] = 'cancelRequested'
+        await progress(0, 1, 'Verifying and copying the whole recorded dataset')
+        return await owned_export(perform, stopped=stop)
+    operation, made = await app.agent_operations.admit(by='user', label='You', tool='project.record.include',
+        project=session, input_revision=None, generation='whole-record-inclusion-v1',
+        params={'dataset': identity, 'reviewDigest': digest, 'includeWholeDataset': True},
+        request_key=msg.get('requestKey'), work=work)
+    return {'ok': True, 'operation': operation, 'made': made}
+
+
+def _project_record_operation(app, msg):
+    if msg.get('session') != app.day.sid:
+        raise tools.ToolError('The Project changed.', next='return to the Project receiving the recording')
+    record = app.agent_operations.get(msg.get('operation'))
+    if record['project'] != msg['session'] or record['tool'] != 'project.record.include':
+        raise tools.ToolError('This is not a recording inclusion for this Project.', next='choose its owning Project')
+    return record
+
+
+@command('project-record-status')
+async def project_record_status(app, client, msg) -> dict:
+    return {'ok': True, 'operation': _project_record_operation(app, msg)}
+
+
+@command('project-record-stop')
+async def project_record_stop(app, client, msg) -> dict:
+    record = _project_record_operation(app, msg)
+    return {'ok': True, 'operation': await app.agent_operations.cancel(record['id'])}
+
+
 # --- researchers --------------------------------------------------------------------------------
 @command('research-open-capture')
 async def research_open_capture(app, client, msg) -> dict:

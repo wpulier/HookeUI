@@ -1629,6 +1629,10 @@ export type ClientCommand =
   | { type: 'project-copy-status'; session: string; operation: string }
   | { type: 'project-copy-stop'; session: string; operation: string }
   | { type: 'project-copy-reveal'; session: string; operation: string }
+  | { type: 'project-record-review'; session: string; dataset: string }
+  | { type: 'project-record-include'; session: string; dataset: string; reviewDigest: string; requestKey: string; includeWholeDataset: true }
+  | { type: 'project-record-status'; session: string; operation: string }
+  | { type: 'project-record-stop'; session: string; operation: string }
   | { type: 'dataset-trash'; id: string } // after the user confirmed: moved to datasets/.trash/
   | { type: 'rig'; field: string; value: string | number | null } // a fact about the microscope
   // researchers
@@ -1709,6 +1713,10 @@ interface Replies {
   'project-copy-status': {operation: import('./project-export').WorkingCopyOperation};
   'project-copy-stop': {operation: import('./project-export').WorkingCopyOperation};
   'project-copy-reveal': {path: string; error?: string};
+  'project-record-review': {review: import('./project-record-inclusion').RecordReview};
+  'project-record-include': {operation: import('./project-record-inclusion').RecordOperation};
+  'project-record-status': {operation: import('./project-record-inclusion').RecordOperation};
+  'project-record-stop': {operation: import('./project-record-inclusion').RecordOperation};
   'onboarding-models': { offer: import('./starter-models').StarterAnswer };
   'model-add': { model: string; kind: string; says: string };
   'volume-add': { says: string }; // what was added, in words (registrations.py words)
