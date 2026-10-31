@@ -13,6 +13,7 @@ class Stack:
 
     def __init__(self, *, total=6683, fps=30., observed=2654, seek_ok=True):
         self.status = dict(totalFrames=total, fps=fps, latestSourceFrame=observed, worldFrame=observed)
+        self.status.update(video='/synthetic/recording.mp4', captureStarts=[dict(at=1., sourceFrame=2650)])
         self.seek_ok = seek_ok
         self.seeks = []
 
@@ -55,9 +56,44 @@ def test_crossing_loop_boundary_stays_a_failure(monkeypatch):
     monkeypatch.setattr(media_timing, 'time', SimpleNamespace(monotonic=lambda: 105.))
     out = Outcome('synthetic')
     window = dict(started=100., sourceFrame=6600, worldFrame=6602, totalFrames=6683, fps=30.)
-    media_timing.finish(window, out)
+    stack = Stack(observed=6660)
+    window['identity'] = media_timing.source_identity(stack.status)
+    asyncio.run(media_timing.finish(stack, window, out))
     assert not out.passed
     assert out.observations[-1]['elapsedS'] == 5.
+
+
+@pytest.mark.parametrize('change', ['capture', 'source', 'wrap', 'missing'])
+def test_unexpected_ending_state_fails_even_inside_elapsed_bound(monkeypatch, change):
+    monkeypatch.setattr(media_timing, 'time', SimpleNamespace(monotonic=lambda: 101.))
+    stack = Stack()
+    window = dict(started=100., sourceFrame=2654, worldFrame=2654, totalFrames=6683,
+                  fps=30., identity=media_timing.source_identity(stack.status))
+    if change == 'capture': stack.status['captureStarts'] = [dict(at=100., sourceFrame=2654)]
+    if change == 'source': stack.status['video'] = '/synthetic/another.mp4'
+    if change == 'wrap': stack.status.update(latestSourceFrame=10, worldFrame=11)
+    if change == 'missing': stack.status.pop('captureStarts')
+    out = Outcome('synthetic')
+    asyncio.run(media_timing.finish(stack, window, out))
+    assert not out.passed
+
+
+def test_status_delivery_delay_is_counted_conservatively(monkeypatch):
+    clock = [100.]
+    monkeypatch.setattr(media_timing, 'time', SimpleNamespace(monotonic=lambda: clock[0]))
+    stack = Stack()
+    original = stack.sim_status
+    calls = [0]
+
+    async def delayed_status():
+        calls[0] += 1
+        if calls[0] == 2: clock[0] += 2.
+        return await original()
+
+    stack.sim_status = delayed_status
+    window = asyncio.run(media_timing.prepare(stack, Outcome('synthetic')))
+    assert window['started'] == 100.
+    assert clock[0] == 102.
 
 
 def test_media_scenario_does_not_start_work_after_source_refusal(monkeypatch):

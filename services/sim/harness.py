@@ -643,7 +643,7 @@ async def scenario_media_load(stack: Stack, viewer: Viewer) -> Outcome:
     out.check("every thumbnail made", made == len(names), f"{made} of {len(names)} in {load_s:.0f} s")
     out.check("the upload is listed under Added here", upload.get("ok") and (upload.get("item") or {}).get("group") == "Added here",
               f"{upload.get('status')} {upload.get('error') or (upload.get('item') or {}).get('name')} ({upload.get('megabytes', 0):.0f} MB)")
-    media_timing.finish(window, out)
+    await media_timing.finish(stack, window, out)
     return out
 
 
