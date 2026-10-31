@@ -100,8 +100,10 @@ def test_what_it_is_used_for_is_one_line_per_job():
     assert len(outlining) == 1 and outlining[0]["current"] and len(outlining[0]["options"]) >= 2  # EdgeTAM and the chains
     follow = rows({})["edgetam-video"]["usedFor"]
     assert [u["title"] for u in follow] == ["Outlines follow"] and follow[0]["current"]
-    lessons = rows({})["claude-sonnet-5-5"]["usedFor"]
-    assert lessons[0]["fixed"] and lessons[0]["role"] == "fixed:lesson-writer"
+    sonnet = rows({})["claude-sonnet-5-5"]["usedFor"]  # the lessons it writes, and a choice for seeing (not current)
+    lessons = next(u for u in sonnet if u["role"] == "fixed:lesson-writer")
+    seeing = next(u for u in sonnet if u["role"] == "vision")
+    assert lessons["fixed"] and not seeing["current"]
 
 
 def test_a_download_in_progress_is_on_its_row():

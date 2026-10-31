@@ -881,3 +881,19 @@ with a frontier backend scored 74.5% where the speech model alone scored 45.7%.
 - Records: `partner-think` (task, model, rounds, tools with confirmed, checked, refused, ms, tokens) and
   `partner-think-said`.
 
+## Claude as the brain (BRAIN `fc` with a Claude vision option)
+
+With BRAIN "fc" and a Claude option for the vision model (`claude-opus-5-5`, `claude-opus-5-5-fast`, `claude-sonnet-5-5`),
+the brain's tool-calling turn goes to Claude (`brain/llm.py` `_anthropic`) over the look's own Messages API client
+(`vision.AnthropicVision.http_client`: httpx, server-side fallbacks on, fast mode's beta for the fast option). The
+registry's tools go as Anthropic tools (`Registry.anthropic_tools`: name, description, the same input schema with
+`after_steps`), `outline` first; the frame and the prompt with the spec's effort (low), adaptive thinking and no
+sampling setting. Tool calls are read in the order made (one whose input is not an object keeps its slot as a missing
+call) and the text blocks are the answer. Anthropic's own reason for an error is said, a refusal is said as one, and a
+missing key in its words ("Claude Sonnet 5.5 needs your Anthropic key; add it in Models › Keys, then ask again"). An
+acting arm: `--arm claude:vision=claude-sonnet-5-5,brain=fc`. No default changed.
+
+Smoke, 2026-10-29 (the real app over stand-in GPU workers, a synthetic picture of three round cells, Sonnet 5.5, $0.11
+at list price): "Outline the big round cell in the middle and tell me what it might be" made one call with 101 tools and
+the frame (47.6K tokens in, 202 out) in **3.7 s**, its answer a text block before the `outline` call; the outline was
+drawn and the whole turn, with the outline check and the answer written from what happened, took **6.6 s**.

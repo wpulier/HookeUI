@@ -227,7 +227,7 @@
   "kind": "effect",
   "name": "use",
   "params": {
-   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: claude-opus-5-5 = Claude Opus 5.5 + web search; gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click | think: claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | look_hard: gemini-4-argon = Gemini 4 Argon; claude-opus-5-5 = Claude Opus 5.5. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot and think and look_hard: from now on only (set_default).",
+   "description": "Models by operation or setting, id = name. outline: edgetam = EdgeTAM; sam2.1-tiny = SAM 2.1 tiny; sam3.1-local = SAM 3.1 (this Mac); sam3.1-fal = SAM 3.1 (cloud); micro-sam-lm = micro-sam (light microscopy); edgetam>sam3.1-fal = EdgeTAM then SAM 3.1 (cloud); edgetam>sam3.1-local = EdgeTAM then SAM 3.1 (this Mac) | cells: cellpose-sam = Cellpose-SAM; cellpose-sam-tuned = Cellpose-SAM fine-tuned on your corrections; micro-sam-lm = micro-sam (light microscopy); fiji-analyze-particles = Analyze Particles (Fiji); basic-bright-objects = Bright objects; edgetam-automask = EdgeTAM automatic masks | find-like: sam3.1-all = SAM 3.1 every match (cloud) | looks: dinov2-small = DINOv2 small; bioclip-2 = BioCLIP 2; dinov3-small = DINOv3 small | vision: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.8-flash-hires = Gemini 3.8 Flash (high resolution); gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gpt-6-luna = GPT-6 Luna; gpt-6.1-sol = GPT-6.1 Sol; claude-opus-5-5 = Claude Opus 5.5; claude-opus-5-5-fast = Claude Opus 5.5 (fast mode); claude-sonnet-5-5 = Claude Sonnet 5.5; gemini-4-argon = Gemini 4 Argon | fast: gemini-3.5-flash = Gemini 3.5 Flash; gpt-5.6-luna-priority = GPT-5.6 Luna (priority); gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Always look first | outline_check: off = No check; check = Check and log; fix = Check and fix | research: claude-opus-5-5 = Claude Opus 5.5 + web search; gpt-6.1-sol = GPT-6.1 Sol + web search; gemini-3.8-flash = Gemini 3.8 Flash + Google Search | image: gpt-image-2.5-flare = GPT Image 2.5 Flare; gpt-image-2.5-sunburst = GPT Image 2.5 Sunburst; gemini-3.1-flash-image = Gemini 3.1 Flash Image | presentation: off = Standard layout only; auto = Auto; claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | sight: gemini-3.8-flash = Gemini 3.8 Flash; gemini-3.5-flash-lite = Gemini 3.5 Flash-Lite; off = Off | zeroshot: off = Off; medsiglip-subject = MedSigLIP for blood and Pap smears; medsiglip-always = MedSigLIP on every click | think: claude-opus-5-5 = Claude Opus 5.5; gpt-6.1-sol = GPT-6.1 Sol | look_hard: gemini-4-argon = Gemini 4 Argon; claude-opus-5-5 = Claude Opus 5.5. A family named alone means its default: SAM 3.1 = sam3.1-fal; EdgeTAM then SAM 3.1 = edgetam>sam3.1-fal; Cellpose-SAM = cellpose-sam; DINO = dinov2-small. sight and zeroshot and think and look_hard: from now on only (set_default).",
    "properties": {
     "by": {
      "description": "who chose it: the user named it, or you did",
@@ -265,6 +265,7 @@
       "gpt-6.1-sol",
       "claude-opus-5-5",
       "claude-opus-5-5-fast",
+      "claude-sonnet-5-5",
       "gemini-4-argon",
       "off",
       "check",
@@ -354,6 +355,7 @@
        "gpt-6.1-sol",
        "claude-opus-5-5",
        "claude-opus-5-5-fast",
+       "claude-sonnet-5-5",
        "gemini-4-argon",
        "medsiglip-448"
       ],
@@ -451,6 +453,7 @@
       "gpt-6.1-sol",
       "claude-opus-5-5",
       "claude-opus-5-5-fast",
+      "claude-sonnet-5-5",
       "gemini-4-argon",
       "off",
       "check",

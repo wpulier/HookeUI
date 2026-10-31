@@ -97,6 +97,10 @@ VISION = {
         Option("claude-opus-5-5-fast", "Claude Opus 5.5 (fast mode)",
                "grounding 44/45, p50 0.94 s (3.5 Flash 45/45, 1.46 s); naming 60% exact (3.5 Flash 54-58%), ECE 0.12-0.15 against 0.36, no blank disc named, 2.0 s; twice the price",
                "anthropic:claude-opus-5-5@low+fast", "ANTHROPIC_API_KEY", model="claude-opus-5-5"),
+        # Claude Sonnet 5.5 (the same adapter): a cheaper Claude for the brain with tools (BRAIN "fc"). Not benched as a look.
+        Option("claude-sonnet-5-5", "Claude Sonnet 5.5",
+               "not yet benched; smoke 2026-10-29: a brain turn with 101 tools 3.7 s to its outline call, 6.6 s whole",
+               "anthropic:claude-sonnet-5-5@low", "ANTHROPIC_API_KEY", model="claude-sonnet-5-5"),
         Option("gemini-4-argon", "Gemini 4 Argon",
                "grounding 45/45, p50 4.6 s, p95 11 s; naming 80% exact on a click, 69% looking (the most), at 5.2-9.2 s",
                "gemini:gemini-4-argon@low", "GEMINI_API_KEY", model="gemini-4-argon"),

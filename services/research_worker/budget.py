@@ -30,7 +30,9 @@ PRICES = {
     # Its successor, per second at 720p: 5,792 output tokens a second at $17.50 a million (Google's pricing page, read
     # 2026-10-29: "approximately $0.10 per second"). research_worker/video.py.
     "gemini-omni-flash": 0.10,
-    "claude-sonnet-5-5": {"in": 3.00, "out": 15.00},  # lessons, when ANTHROPIC_API_KEY is set
+    # Lessons when ANTHROPIC_API_KEY is set, and a brain choice. Anthropic's pricing page, read 2026-10-29: $2/$10 (it was
+    # priced here at an older Sonnet's $3/$15).
+    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00},
     "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations and vision; fast mode is twice this (vision.py)
     "gemini-4-argon": {"in": 4.00, "out": 20.00},  # vision; $2/$10 until 2026-11-30, priced at the list price after it
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
@@ -132,7 +134,7 @@ CLASSIFIERS = {"gemini-3.8-flash": "Gemini 3.8 Flash", "gemini-3.8-flash-hires":
                "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite", "gemini-3.5-flash": "Gemini 3.5 Flash",
                "gpt-5.6-luna-priority": "GPT-5.6 Luna (priority)", "gpt-6-luna": "GPT-6 Luna", "gpt-6.1-sol": "GPT-6.1 Sol",
                "claude-opus-5-5": "Claude Opus 5.5", "claude-opus-5-5-fast": "Claude Opus 5.5 (fast mode)",
-               "gemini-4-argon": "Gemini 4 Argon", "medsiglip-448": "MedSigLIP 448"}
+               "claude-sonnet-5-5": "Claude Sonnet 5.5", "gemini-4-argon": "Gemini 4 Argon", "medsiglip-448": "MedSigLIP 448"}
 MAX_CLASSIFIERS = 6  # orchestrator/model_comparison.MAX_MODELS
 
 

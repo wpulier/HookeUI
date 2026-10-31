@@ -697,6 +697,11 @@ class Registry:
         return self._declarations("openai", lambda t: {"type": "function", "name": t.name, "description": t.description,
                                                        "parameters": call_schema(t.params), "strict": False})
 
+    def anthropic_tools(self) -> list[dict]:
+        """The same tools as Anthropic's Messages API takes them (name, description, input_schema)."""
+        return self._declarations("anthropic", lambda t: {"name": t.name, "description": t.description,
+                                                          "input_schema": call_schema(t.params)})
+
     # --- running ------------------------------------------------------------------------
     def _log_failure(self, name: str, run: "ToolRun", ctx: "ToolContext") -> bool:
         """An unexpected failure's real error, written to the log when it happens. Whether it was written: only

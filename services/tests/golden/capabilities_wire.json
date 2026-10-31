@@ -9616,6 +9616,48 @@
      "why": "needs ANTHROPIC_API_KEY"
     },
     {
+     "available": false,
+     "id": "claude-sonnet-5-5",
+     "label": "Claude Sonnet 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet benched; smoke 2026-10-29: a brain turn with 101 tools 3.7 s to its outline call, 6.6 s whole",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Sonnet 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
+    {
      "available": true,
      "id": "gemini-4-argon",
      "label": "Gemini 4 Argon",

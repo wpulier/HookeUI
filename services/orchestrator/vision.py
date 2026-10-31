@@ -328,11 +328,17 @@ class AnthropicVision(_Client):
         self._make_client()
 
     def _new_client(self):
+        return self.http_client(self._key, self.fast)
+
+    @classmethod
+    def http_client(cls, key: str, fast: bool = False):
+        """The Messages API client the look and the brain's tool calls share (brain/llm.py `_anthropic`): fallbacks on,
+        and fast mode's beta when asked."""
         import httpx
 
-        betas = self.BETAS + ("," + self.FAST_BETA if self.fast else "")
+        betas = cls.BETAS + ("," + cls.FAST_BETA if fast else "")
         return httpx.AsyncClient(base_url="https://api.anthropic.com", timeout=60.0, headers={
-            "x-api-key": self._key, "anthropic-version": "2023-06-01", "anthropic-beta": betas})
+            "x-api-key": key, "anthropic-version": "2023-06-01", "anthropic-beta": betas})
 
     @execution.traced("vision")
     async def ask(self, images: list[bytes], prompt: str, max_output_tokens: int = 1500) -> VisionResult:
