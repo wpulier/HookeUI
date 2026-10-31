@@ -229,3 +229,23 @@ identify the cause nor change generation, scientific thresholds or previous repo
 comparison produces a new retained report through the same capability and workflow path.
 
 Matrix-inspect v4 has one bounded document-preview exception: the positional first 10 observations × 10 variables and at most 10 annotation columns per axis. No full matrix is transported in document JSON. Unsafe integer values are decimal text with explicit encoding metadata; this preserves numeric identifiers beyond JavaScript’s safe integer range. Preview is never representative sampling.
+
+## Optional dispersion estimator
+
+`response-predict` v2 keeps `normalized-moments-v1` as its default dispersion estimator.
+The explicit alternative `depth-scaled-poisson-v1` changes only the Poisson-noise
+subtraction before the existing nonnegative projection and shrinkage. For observed
+counts Y, row depth d and median depth L, both methods compute population moments
+of Z = L Y / d. The default subtracts mean(Z) from Var(Z). The alternative subtracts
+mean((L/d)^2 Y), retaining the row-specific scaling of Poisson variance. Both divide
+by max(mean(Z)^2, 1e-12) and project negative estimates to zero. Equal row depths
+give the same estimator. Row reads remain bounded; no full dense matrix is formed.
+
+This is a candidate moment estimator, not an unbiasedness claim: observed depths
+are themselves count-derived, population variance has finite-sample bias, and cell
+heterogeneity may violate the conditional negative-binomial assumptions. The
+probabilities, depth sampling, response conversion, shrinkage and keyed sampler
+are unchanged. Every new output records `dispersionEstimator`; older outputs lack
+that field and retain their original provenance. A newly frozen workflow must
+explicitly select the alternative. Numeric qualification does not establish an
+improvement on real data, which must be measured separately.
