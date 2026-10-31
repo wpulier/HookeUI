@@ -883,3 +883,13 @@ cache writes; this isolates saved scientific state, not the whole filesystem.
 No new model installation or provider request is made by this preparation.
 `test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
 qualify model performance.
+
+The steady-state media-load scenario qualifies its source window before measuring:
+models are resident, the recording is explicitly positioned away from its loop,
+and the observed source/clock frame leaves at least 30 seconds. The existing 6-second
+baseline, 8-second media workload and all latency/cadence limits are unchanged.
+Crossing the recording boundary still fails; no slow sample is retried or removed.
+This separates media contention from the finite simulated recording's decoder-loop
+pause. The loop pause is not repaired or qualified as live hardware behavior.
+`test_media_timing_window.py` covers synthetic source admission and refusal; actual
+near-end/safe-position probes and full-sequence results are separate evidence.
