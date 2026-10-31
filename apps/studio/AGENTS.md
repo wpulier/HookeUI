@@ -1012,7 +1012,9 @@ does not run work. The composer gives context (its chip line), typing (the field
 Talk, Send) separate rows, so a long Project/input label cannot collapse the input.
 
 Talk resumes both audio contexts within the user gesture and connects the capture
-worklet through a silent output. Listening requires a captured microphone chunk
+worklet through a silent output. It listens with the system's default input, except that a nearby iPhone or iPad
+macOS made the default (Continuity, often while the phone is the camera) gives way to the Mac's own microphone, or
+else another real one; a headset or USB microphone the user chose is kept (`mic-choice.ts`). Listening requires a captured microphone chunk
 and provider acknowledgement; the model-name announcement is not readiness.
 Pending permission, connection timeout, capture stalls and blocked playback have
 actionable states. End releases the session without cancelling delegated work.

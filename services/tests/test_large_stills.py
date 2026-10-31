@@ -126,13 +126,15 @@ def test_a_still_at_or_under_the_working_size_is_still_analysed_without_resampli
 
     async def go():
         await handle(built, Client(), {"type": "source", "requestId": "open", "open": aid})
-        return await population.segment(built.hub, choice="cellpose-sam")
+        result = await population.segment(built.hub, choice="cellpose-sam")
+        # Read before saving lets the masks go (evidence._release_pixels): on a slow machine the save wins the race.
+        return result, [m.mask.scale for m in result.live()]
 
-    result = asyncio.run(go())
+    result, scales = asyncio.run(go())
     assert worker.inputs == [(120, 160)]
     assert "workingInput" not in result.producer
     assert result.transformations["input"] == "the original imported image, decoded without resizing"
-    assert all(m.mask.scale == 1 for m in result.live())
+    assert scales and all(scale == 1 for scale in scales)
 
 
 def test_a_12_megapixel_photo_is_outlined_within_the_apps_own_allowances_and_lets_them_go_once_saved(
