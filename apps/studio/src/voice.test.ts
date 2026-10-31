@@ -487,3 +487,37 @@ test('the voice\'s speaking phase goes to the server as it changes ({type:"voice
     t.voice.stop();
   } finally { vi.useRealTimers(); }
 });
+
+test("Talk listens with the Mac's own microphone when macOS made a nearby iPhone the default input", async () => {
+  class Socket { static OPEN = 1; readyState = 1; onopen: (() => void) | null = null; send() {} close() {} }
+  vi.stubGlobal('WebSocket', Socket);
+  vi.stubGlobal('location', { protocol: 'http:', host: 'localhost:8770' });
+  vi.stubGlobal('AudioContext', class {
+    sampleRate = 24000;
+    audioWorklet = { addModule: async () => {} };
+    resume() { return Promise.resolve(); }
+    destination = {};
+    createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }
+    createMediaStreamSource() { return { connect() {} }; }
+    close() { return Promise.resolve(); }
+  });
+  vi.stubGlobal('AudioWorkletNode', class { port = { onmessage: null }; connect() {} disconnect() {} });
+  const stream = (label: string, stop = vi.fn()) => ({ getTracks: () => [{ stop }], getAudioTracks: () => [{ label, addEventListener() {} }], stop });
+  const phone = stream('Will’s iPhone Microphone');
+  const mac = stream('MacBook Pro Microphone');
+  const asked: unknown[] = [];
+  vi.stubGlobal('navigator', { mediaDevices: {
+    getUserMedia: async (constraints: { audio: { deviceId?: unknown } }) => { asked.push(constraints.audio.deviceId); return constraints.audio.deviceId ? mac : phone; },
+    enumerateDevices: async () => [
+      { kind: 'audioinput', deviceId: 'default', label: 'Default - Will’s iPhone Microphone' },
+      { kind: 'audioinput', deviceId: 'phone-id', label: 'Will’s iPhone Microphone' },
+      { kind: 'audioinput', deviceId: 'mac-id', label: 'MacBook Pro Microphone' },
+    ],
+  } });
+  const voice = new VoiceClient(vi.fn(), vi.fn(), vi.fn());
+  await voice.start({});
+  expect(asked).toEqual([undefined, { exact: 'mac-id' }]);
+  expect(phone.stop).toHaveBeenCalledOnce();
+  expect(mac.stop).not.toHaveBeenCalled();
+  voice.stop();
+});
