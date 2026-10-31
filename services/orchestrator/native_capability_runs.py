@@ -31,10 +31,12 @@ class NativeOutput(FileIntake):
     """Atomic independent native output via existing intake/publication transaction."""
     def __init__(self, store, saved, request, labels, descriptor, producer):
         self.base = saved
-        self.producer = frozen(producer)
+        record = frozen(producer)
         self.descriptor = copy.deepcopy(descriptor)
-        body = _json(self.producer)
+        body = _json(record)
         super().__init__(store, saved.session, request, name='execution.json', size=len(body), max_bytes=32 << 10)
+        # After FileIntake's own constructor, which sets its importer `producer` (None here): this is the run's record.
+        self.producer = record
         try:
             self.write(body)
             seed = self.private.read(self.target, saved.session)
