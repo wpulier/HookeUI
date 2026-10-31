@@ -93,9 +93,14 @@ def test_the_cells_clicks_scenario_uses_the_same_edition_as_the_app(monkeypatch,
 
     class CameraStack:
         async def wait(self, predicate, *args):
-            health = {"state": "live", "motion": {"tracked": True},
-                      "workers": [{"ready": True, "resident": ["cellpose-sam"]}]}
-            return bool(predicate(health)), health
+            # Workers as /api/health names them (GpuClient.wire), with the default models resident, so the timing
+            # admission (harness.prepare_timing) is met and the scenario goes on to look for click spots.
+            health = {"state": "live", "motion": {"tracked": True}, "workers": [
+                {"name": "micromind-gpu", "ready": True, "hung": "", "loading": {}, "resident": ["edgetam"]},
+                {"name": "micromind-gpu-follow", "ready": True, "hung": "", "loading": {}, "resident": ["edgetam-video"]},
+                {"name": "micromind-gpu-heavy", "ready": True, "hung": "", "loading": {},
+                 "resident": ["cellpose-sam", "dinov2-small"]}]}
+            return bool(predicate(health)), 0.0
 
     # No cameras, processes or GPU calls: synthetic selected/resident model state lets
     # an admitted edition report missing click spots rather than silently passing a skip.
@@ -107,6 +112,7 @@ def test_the_cells_clicks_scenario_uses_the_same_edition_as_the_app(monkeypatch,
         assert [(check.what, check.ok) for check in outcome.checks] == [
             ("selected cells model is Cellpose-SAM", True),
             ("selected Cellpose is resident before admission", True),
+            ("default models and requested follower ready before timing", True),
             ("candidate spots inside the view", False),
         ]
         assert not outcome.passed

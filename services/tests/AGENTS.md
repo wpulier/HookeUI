@@ -152,6 +152,19 @@ with cancellation and a failed send. Another live endpoint must retain its held 
 disconnect must clear it. These deterministic lifecycle probes complement the two-Studio TestClient
 case; they do not establish the cause of an earlier uninstrumented CI failure or installed-app acceptance.
 
+Owned non-cloud simulations isolate provider environment keys, file/Keychain lookup and
+research extensions in both child processes. Explicit cloud scenarios require `--cloud`;
+`--attach` cannot isolate an externally managed stack. Steady-state timing admission
+waits for actual default-model residency before seeding outlines, then a fresh follower
+step after the final seed reply when requested, with a bounded timeout that fails. It never waits for a favorable latency sample.
+Preparation is recorded separately from the unchanged cold/load timing phases.
+Cells-clicks uses the same default-residency and fresh-follower boundaries before
+its existing cells RPC; all measured clicks and exact-RPC overlap checks remain.
+Following tests retain chronological click round trips and optional existing worker
+diagnostics after measurement; slow samples remain failures.
+`test_sim_admission.py` covers synthetic credential isolation and readiness refusals;
+those tests are not model-performance evidence.
+
 The `model-load` scenario retains its existing per-phase frame headers/receipt times, raw click times,
 before/after bridge counts and orchestrator health samples in `Outcome.observations`, including failed gates.
 These expose source sequence gaps, skipped/reconnect counters and analysis tails without extra polling,
@@ -859,3 +872,14 @@ Working-copy restoration tests use actual isolated Project stores and immutable 
 test_project_record_inclusion covers owner scope confirmation, hashed shared Record membership, changed identity/bytes and symlink/path refusal, exact retained references, request retries and Project switching using real stores with synthetic capture bytes. project-record-inclusion.test.ts checks review-before-admission and lost-reply/status recovery in the synthetic DOM. Actual recording/browser and full dependency collection remain separate evidence gates.
 
 Material overview regressions distinguish bounded synthetic previews, exact-reference projection, and real connected-agent/browser evidence. Material-question tests cover changed revisions, foreign Projects and lost-reply identity. The manual capability test exercises both standalone and Study-linked admission against the same workflow/output stores.
+
+Owned simulations also use a fresh catalog containing independent copies of the
+bundled models' available published weights and verification/device cache records.
+On macOS these are APFS clones. Source symlinks are refused; personal entries and
+channel catalogs are excluded. Missing weights remain missing and the production
+pinned legacy-cache resolver remains available. Prepared Python environments and
+tools are reused at their installed paths, including ordinary interpreter/dependency
+cache writes; this isolates saved scientific state, not the whole filesystem.
+No new model installation or provider request is made by this preparation.
+`test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
+qualify model performance.
