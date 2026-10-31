@@ -29,7 +29,8 @@ REPO = Path(__file__).resolve().parents[2]
 
 RUNTIME = (
     "services/orchestrator/", "services/research_worker/", "services/gpu_worker/", "services/env_worker/",
-    "services/fiji_worker/", "services/noncommercial/", "services/vendor/", "services/pyproject.toml",
+    "services/fiji_worker/", "services/noncommercial/", "services/scientific_compute/", "services/vendor/",
+    "services/pyproject.toml",
     "services/uv.lock", "services/bench/__init__.py", "services/bench/corpus/",
     "experiments/iphone-camera-feed/scripts/", "experiments/iphone-camera-feed/capture-app/",
     "experiments/iphone-camera-feed/blackmagic-api.json",

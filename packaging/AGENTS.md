@@ -34,7 +34,8 @@ and scientific runtime code; the core remains runnable without a Hooke account.
   - The launcher's PATH guards keep `git`, `xcrun` and the like from opening macOS's install dialog.
   - `scripts/studio.sh`'s packaged mode (a `packaged.json` beside it) skips the checks and builds those need.
 - **The snapshot ships only what the running app reads** (`macos/snapshot.py`). A new runtime folder or file the app
-  reads must be added to `RUNTIME`. Managed research provider/scientific runtime modules ship;
+  reads must be added to `RUNTIME`; `services/tests/test_mac_snapshot_imports.py` fails when shipped code imports a
+  first-party module that doesn't ship (Beta 0.7.0's first candidate couldn't start without `scientific_compute`). Managed research provider/scientific runtime modules ship;
   their deployment recipes, setup profiles and developer README do not. Media ships only when listed in `MEDIA`. Its privacy scan must stay clean.
 - **Build numbers grow:** Beta releases from checked dev; Stable uses its accepted source promoted to main; `release-channel.py` allocates `CFBundleVersion` above every
   published build in both channels, including withdrawn releases. A same-source update still gets a larger build.
