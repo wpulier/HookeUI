@@ -279,7 +279,9 @@ def _model(path):
     return model
 
 
-def _control_moments(data, contexts, context, check):
+def _control_moments(data, contexts, context, check, estimator='normalized-moments-v1'):
+    if estimator not in ('normalized-moments-v1', 'depth-scaled-poisson-v1'):
+        raise Refused('Unknown control dispersion estimator')
     depths = []; total = np.zeros(data.n_vars)
     for start, block in _rows(data, check):
         selected = block[contexts[start:start + block.shape[0]] == context]
@@ -290,16 +292,22 @@ def _control_moments(data, contexts, context, check):
     if len(depths) < 2 or np.any(depths <= 0):
         raise Refused('Each count generator needs at least two positive-depth control cells')
     first = np.zeros(data.n_vars); second = np.zeros(data.n_vars)
+    poisson_noise = np.zeros(data.n_vars)
+    depth_scale = np.median(depths)
     for start, block in _rows(data, check):
         selected = block[contexts[start:start + block.shape[0]] == context]
         if selected.shape[0]:
             d = np.asarray(selected.sum(axis=1)).ravel()
-            normalized = selected.multiply((np.median(depths) / d)[:, None]).tocsr()
+            scale = depth_scale / d
+            normalized = selected.multiply(scale[:, None]).tocsr()
             first += np.asarray(normalized.sum(axis=0)).ravel()
             second += np.asarray(normalized.power(2).sum(axis=0)).ravel()
+            if estimator == 'depth-scaled-poisson-v1':
+                poisson_noise += np.asarray(normalized.multiply(scale[:, None]).sum(axis=0)).ravel()
     mean = first / len(depths)
     variance = second / len(depths) - mean ** 2
-    dispersion = np.maximum(0, (variance - mean) / np.maximum(mean ** 2, 1e-12))
+    noise = poisson_noise / len(depths) if estimator == 'depth-scaled-poisson-v1' else mean
+    dispersion = np.maximum(0, (variance - noise) / np.maximum(mean ** 2, 1e-12))
     return depths, total / total.sum(), dispersion, mean
 
 
@@ -351,7 +359,8 @@ def predict(inputs, params, output, check):
         if shutil.disk_usage(output).free < worst_case_bytes * 2 + (512 << 20):
             raise Refused('Free space for sparse prediction chunks and the merged output before inference')
         for context in sorted(set(contexts)):
-            depths, proportions, dispersion, mean = _control_moments(data, contexts, context, check)
+            depths, proportions, dispersion, mean = _control_moments(
+                data, contexts, context, check, params['dispersion_estimator'])
             prior = np.median(dispersion[mean > 0])
             dispersion = (dispersion * len(depths) + prior * params['dispersion_shrinkage']) / (len(depths) + params['dispersion_shrinkage'])
             over = dispersion > 1e-9
@@ -390,6 +399,7 @@ def predict(inputs, params, output, check):
                   'sparse': True, 'rawCounts': True, 'seed': params['seed'], 'responseStrength': params['response_strength'],
                   'unseenTargets': sorted(set(missing)), 'unmeasuredGenes': data.var_names[~covered].tolist(),
                   'generator': 'control-conditioned-negative-binomial-v1', 'seedScope': 'context-target-cell',
+                  'dispersionEstimator': params['dispersion_estimator'],
                   'effectInterpretation': params['effect_interpretation'], 'negativeExpressionProjections': projected_genes,
                   'compositionalClosure': 'whole-output-gene-axis',
                   'libraryDepthMeaning': 'sampled expected depth; emitted total also varies',

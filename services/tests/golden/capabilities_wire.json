@@ -7216,6 +7216,21 @@
     },
     {
      "advanced": false,
+     "choices": [
+      "normalized-moments-v1",
+      "depth-scaled-poisson-v1"
+     ],
+     "hint": "Keep normalized moments, or explicitly test depth-scaled Poisson-noise subtraction. Neither establishes biological fidelity.",
+     "initial": "normalized-moments-v1",
+     "key": "dispersion_estimator",
+     "kind": "choice",
+     "label": "Dispersion estimator",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    },
+    {
+     "advanced": false,
      "choices": [],
      "hint": "",
      "initial": 20,
@@ -7365,6 +7380,21 @@
     },
     {
      "advanced": false,
+     "choices": [
+      "normalized-moments-v1",
+      "depth-scaled-poisson-v1"
+     ],
+     "hint": "Keep normalized moments, or explicitly test depth-scaled Poisson-noise subtraction. Neither establishes biological fidelity.",
+     "initial": "normalized-moments-v1",
+     "key": "dispersion_estimator",
+     "kind": "choice",
+     "label": "Dispersion estimator",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    },
+    {
+     "advanced": false,
      "choices": [],
      "hint": "",
      "initial": 20,
@@ -7504,6 +7534,21 @@
      "max": 2,
      "min": 0,
      "numeric": true,
+     "required": false,
+     "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [
+      "normalized-moments-v1",
+      "depth-scaled-poisson-v1"
+     ],
+     "hint": "Keep normalized moments, or explicitly test depth-scaled Poisson-noise subtraction. Neither establishes biological fidelity.",
+     "initial": "normalized-moments-v1",
+     "key": "dispersion_estimator",
+     "kind": "choice",
+     "label": "Dispersion estimator",
+     "numeric": false,
      "required": false,
      "said": {}
     },

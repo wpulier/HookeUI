@@ -107,13 +107,14 @@ def test_prepare_retains_explicit_contexts_and_refuses_invalid_counts(tmp_path):
         engine.inspect({'matrix': bad}, {}, output(tmp_path, 'inspect'), lambda: None)
 
 
-def test_streaming_emission_keyed_seeds_null_counts_and_axis(tmp_path, monkeypatch):
+@pytest.mark.parametrize('estimator', ['normalized-moments-v1', 'depth-scaled-poisson-v1'])
+def test_streaming_emission_keyed_seeds_null_counts_and_axis(tmp_path, monkeypatch, estimator):
     anndata = pytest.importorskip('anndata')
     source = effects(tmp_path / 'effects.npz', [[0., 0.]], ['known'], ['development'])
     model, _ = engine.fit({'effects': source}, parameters('response-fit', {}), output(tmp_path, 'fit'), lambda: None)
     controls = adata(tmp_path / 'controls.h5ad', [[10, 20, 5], [11, 19, 5], [9, 21, 5], [10, 20, 5]],
                      ['new'] * 4, ['non-targeting'] * 4)
-    args = parameters('response-predict', {'cells_per_target': 100, 'seed': 4})
+    args = parameters('response-predict', {'cells_per_target': 100, 'seed': 4, 'dispersion_estimator': estimator})
     results = []
     for index, (panel, chunk) in enumerate([(['known', 'unknown'], 31), (['unknown', 'known'], 47)]):
         targets = tmp_path / f'panel{index}.json'; targets.write_text(json.dumps(panel))
@@ -126,6 +127,7 @@ def test_streaming_emission_keyed_seeds_null_counts_and_axis(tmp_path, monkeypat
         assert summary['unseenTargets'] == ['unknown'] and summary['unmeasuredGenes'] == ['unmeasured']
         assert np.isfinite(result.X.data).all() and (result.X.data == np.floor(result.X.data)).all()
         assert summary['fullShapeQualified'] is False
+        assert summary['dispersionEstimator'] == estimator
         results.append(result)
     for target in ['known', 'unknown']:
         a = results[0][results[0].obs.target_gene == target].X.toarray()
