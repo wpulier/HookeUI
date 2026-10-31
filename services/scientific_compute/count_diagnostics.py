@@ -3,6 +3,7 @@ from contextlib import ExitStack
 import hashlib
 import numpy as np
 from scipy import sparse
+from scipy.stats import rankdata
 
 if __package__:
     from . import engine, bounded_h5
@@ -78,6 +79,46 @@ def _population(file, params, check):
     return genes.tolist(), records
 
 
+def _residual_group(means, residual):
+    count = len(residual)
+    return {'genes': count,
+            'referenceMeanRange': [float(means.min()), float(means.max())] if count else None,
+            'meanSignedError': float(residual.mean()) if count else None,
+            'meanAbsoluteError': float(np.abs(residual).mean()) if count else None,
+            'excessZeros': int(np.count_nonzero(residual > 0)),
+            'fewerZeros': int(np.count_nonzero(residual < 0)),
+            'unchanged': int(np.count_nonzero(residual == 0))}
+
+
+def _zero_residuals(prediction, reference):
+    """Descriptive expression strata, with no hypothesis test or causal inference.
+
+    Equal reference means always stay together. Empty quantile intervals remain
+    visible; a tied or small axis must not look like ten equal-sized populations.
+    """
+    residual = prediction['zero'] - reference['zero']
+    means = reference['mean']
+    positive = means > 0
+    x, y = means[positive], residual[positive]
+    cuts = np.quantile(x, np.arange(1, 10) / 10) if len(x) else np.array([])
+    membership = np.searchsorted(cuts, x, side='left')
+    strata = [{'stratum': i + 1, **_residual_group(x[membership == i], y[membership == i])}
+              for i in range(10)]
+    correlation = None
+    if len(x) >= 2 and np.ptp(x) > 0 and np.ptp(y) > 0:
+        a, b = rankdata(x, method='average'), rankdata(y, method='average')
+        a -= a.mean(); b -= b.mean()
+        correlation = float(np.dot(a, b) / np.sqrt(np.dot(a, a) * np.dot(b, b)))
+    return {'meaning': 'prediction zero fraction minus reference zero fraction',
+            'allGenes': _residual_group(means, residual),
+            'zeroReferenceMean': _residual_group(means[~positive], residual[~positive]),
+            'positiveReferenceGenes': len(x),
+            'referenceMeanRankCorrelation': correlation,
+            'correlationMeaning': 'Average-rank correlation over positive-reference-mean genes; null for fewer than two genes or a constant axis. Descriptive, no p-value.',
+            'stratification': 'Positive reference means; linear-interpolated decile cuts; ties at a cut go to the lower interval. Empty intervals are retained.',
+            'referenceMeanQuantileCuts': cuts.tolist(), 'strata': strata}
+
+
 def compare(inputs, params, output, check):
     import h5py
     if params['context_column'] == params['target_column']:
@@ -101,7 +142,8 @@ def compare(inputs, params, output, check):
         summaries.append({'context': context, 'predictionPopulation': prediction['population'],
                           'referencePopulation': reference['population'], 'metrics': metrics,
                           'predictionCells': prediction['cells'], 'referenceCells': reference['cells'],
-                          'predictionDepth': prediction['depth'], 'referenceDepth': reference['depth']})
+                          'predictionDepth': prediction['depth'], 'referenceDepth': reference['depth'],
+                          'zeroResiduals': _zero_residuals(prediction, reference)})
         details.append({'context': context, **{k: {name: row[name].tolist() for name in ('mean', 'variance', 'normalized', 'zero')}
                         for k, row in [('prediction', prediction), ('reference', reference)]}})
     summary = {'format': 'count-population-diagnostics-v1', 'genes': len(axes['reference']),

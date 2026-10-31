@@ -4,7 +4,7 @@ requires = { catalog = 2 }
 id = "matrix-count-diagnostics"
 name = "Compare count populations"
 runs = "cpu"
-version = "1"
+version = "2"
 licence = ["matrix-count-diagnostics"]
 kind = "tool-function"
 what = "Compare count moments, sparsity and library depths across declared populations"

@@ -27,11 +27,50 @@ def test_hand_calculated_population_moments_and_distinct_labels(tmp_path):
     assert row['referenceDepth']['stdPopulation'] == 1
     assert row['referenceDepth']['quantiles'] == pytest.approx([2, 2.1, 3, 3.9, 4])
     assert row['referencePopulation'] == 'control' and row['predictionPopulation'] == 'null'
+    residuals = row['zeroResiduals']
+    assert residuals['allGenes']['meanSignedError'] == -.25
+    assert residuals['allGenes']['fewerZeros'] == 1
+    assert residuals['referenceMeanRankCorrelation'] == pytest.approx(1)
+    assert residuals['strata'][0]['meanSignedError'] == -.5
+    assert residuals['strata'][-1]['meanSignedError'] == 0
     full = json.loads(path.read_text())
     assert full['details'][0]['reference']['variance'] == [1, 0]
     assert full['details'][0]['prediction']['variance'] == [0, 1]
     assert not summary['competitionScore'] and not summary['distributionEqualityEstablished']
     assert 'details' not in summary and 'geneAxis' not in summary
+
+
+def test_residual_strata_keep_ties_and_zero_reference_genes_separate():
+    import numpy as np
+    from scientific_compute.count_diagnostics import _zero_residuals
+    reference = {'mean': np.array([0., 1., 1., 10.]), 'zero': np.array([1., .5, .5, 0.])}
+    prediction = {'zero': np.array([.5, .75, .75, 0.])}
+    result = _zero_residuals(prediction, reference)
+    assert result['zeroReferenceMean']['meanSignedError'] == -.5
+    assert result['zeroReferenceMean']['genes'] == 1
+    assert result['positiveReferenceGenes'] == 3
+    assert result['referenceMeanRankCorrelation'] == pytest.approx(-1)
+    populated = [row for row in result['strata'] if row['genes']]
+    assert [row['genes'] for row in populated] == [2, 1]
+    assert populated[0]['referenceMeanRange'] == [1, 1]
+    assert populated[0]['meanSignedError'] == .25
+    assert sum(row['genes'] for row in result['strata']) == 3
+    assert all(row['meanSignedError'] is None for row in result['strata'] if not row['genes'])
+    order = [3, 1, 0, 2]
+    assert _zero_residuals({'zero': prediction['zero'][order]},
+                          {k: v[order] for k, v in reference.items()}) == result
+
+
+@pytest.mark.parametrize('means,zeros', [([0, 0], [1, 1]), ([1, 1], [.5, .7]),
+                                        ([1, 2], [.5, .5]), ([1], [.7])])
+def test_unavailable_residual_correlation_is_null_not_nan(means, zeros):
+    import numpy as np
+    from scientific_compute.count_diagnostics import _zero_residuals
+    result = _zero_residuals({'zero': np.array(zeros)},
+                             {'mean': np.array(means), 'zero': np.zeros(len(means))})
+    assert result['referenceMeanRankCorrelation'] is None
+    assert sum(row['genes'] for row in result['strata']) + result['zeroReferenceMean']['genes'] == len(means)
+    json.dumps(result, allow_nan=False)
 
 
 def test_replication_and_dense_storage_do_not_change_moments(tmp_path):

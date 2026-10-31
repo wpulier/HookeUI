@@ -184,4 +184,15 @@ JSON file; the operation receipt is a compact context summary. Population moment
 covariance, multimodality, biological fidelity or distribution equality. This is not an official
 competition score, and inspecting conditioning controls is not independent predictive evaluation.
 
+Count diagnostics v2 also summarize signed per-gene zero-fraction residuals (prediction minus
+reference). They report sign counts, mean signed/absolute error, and positive-reference-mean
+expression strata using nine linearly interpolated decile cuts. Ties at a cut stay in its lower
+interval; empty intervals remain explicit and are not described as equal-sized groups. Genes
+with zero reference mean have a separate group and remain in the overall diagnostics. The
+average-rank correlation of positive reference means with signed residuals is descriptive,
+with no p-value; fewer than two genes or a constant axis returns null. These summaries help
+inspect distribution errors without transporting all gene arrays into chat. They neither
+identify the cause nor change generation, scientific thresholds or previous reports. A new
+comparison produces a new retained report through the same capability and workflow path.
+
 Matrix-inspect v4 has one bounded document-preview exception: the positional first 10 observations × 10 variables and at most 10 annotation columns per axis. No full matrix is transported in document JSON. Unsafe integer values are decimal text with explicit encoding metadata; this preserves numeric identifiers beyond JavaScript’s safe integer range. Preview is never representative sampling.
