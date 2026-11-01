@@ -895,3 +895,7 @@ modern/legacy categories, nullable and plain strings. They preserve selected Uni
 labels and enforce missing/oversized/allocation refusals. Passing these tests is not
 evidence of successful full-size public-source projection; that remains a connector
 workflow qualification with its own retained attempt.
+
+Control-only projection fixtures retain exact selected count values and cell identities
+and refuse hidden perturbation mappings or an empty gene axis. They qualify explicit
+conditioning-input preparation, not a reduced evaluation panel or count-generator quality.

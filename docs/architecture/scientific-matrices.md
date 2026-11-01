@@ -94,6 +94,10 @@ source fields. The mapping takes exact source annotation values to declared targ
 labels, including controls. Every mapping key must exist, and mapped values must
 cover exactly the complete selected panel and control label. No inferred aliases,
 missing genes filled with zeros, target intersection or scientific-context guessing.
+An explicitly empty `selected_targets` list prepares controls only, with every mapping
+value equal to `control_label`. This conditioning input is separate from an evaluation
+reference: it does not reduce that reference's complete declared perturbation panel.
+The selected gene axis remains nonempty and explicit.
 
 Zero `cells_per_group` retains all mapped observations. A positive value requires
 that many cells in every group, selecting the lowest SHA-256 keys over JSON tuples

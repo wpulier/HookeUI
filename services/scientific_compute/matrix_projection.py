@@ -28,7 +28,8 @@ def protocol(path):
     for key in ('selected_targets', 'selected_genes'):
         if type(cfg[key]) is not list:
             raise engine.Refused('Projection axes must be explicit ordered lists')
-        engine._strings(cfg[key], key, unique=True)
+        if key != 'selected_targets' or cfg[key]:
+            engine._strings(cfg[key], key, unique=True)
     if len(cfg['selected_targets']) > 4096 or len(cfg['selected_genes']) > engine.MAX_GENES:
         raise engine.Refused('Projection panel exceeds its bounded axis allowance')
     if cfg['control_label'] in cfg['selected_targets']:
