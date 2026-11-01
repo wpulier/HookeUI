@@ -106,7 +106,7 @@ def _author(maker) -> dict:
     if not isinstance(maker, dict) or not maker.get("name"):
         return {"kind": "unknown", "name": "not recorded"}
     kind = maker.get("kind")
-    out = {"kind": kind if kind in ("you", "assistant", "researcher", "agent") else "unknown", "name": str(maker["name"])}
+    out = {"kind": kind if kind in ("you", "assistant", "researcher", "agent", "system") else "unknown", "name": str(maker["name"])}
     if maker.get("id"):
         out["id"] = str(maker["id"])
     return out
