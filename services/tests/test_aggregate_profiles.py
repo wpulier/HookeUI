@@ -122,10 +122,12 @@ def test_legacy_categorical_gene_symbols_are_supported_without_auxiliary_array_r
 
 
 @pytest.mark.parametrize('layout', ['csr', 'csc'])
-def test_sparse_preparation_never_loads_the_complete_backed_matrix(tmp_path, monkeypatch, layout):
+@pytest.mark.parametrize('byte_budget', [64 << 20, 192])
+def test_sparse_preparation_never_loads_the_complete_backed_matrix(tmp_path, monkeypatch, layout, byte_budget):
     ad = pytest.importorskip('anndata'); h5py = pytest.importorskip('h5py')
     from scipy import sparse
     from scientific_compute import bounded_h5
+    monkeypatch.setattr(bounded_h5, 'BLOCK_BYTES', byte_budget)
     inputs = fixture(tmp_path)
     original, _ = run(inputs, tmp_path, 'dense')
     obj = ad.read_h5ad(inputs['matrix'])

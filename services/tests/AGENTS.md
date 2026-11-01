@@ -9,6 +9,11 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_bounded_matrix_rows.py` and projection regressions exercise wide synthetic
+CSR inputs under the unchanged allocation allowance, exact row/value preservation,
+empty rows, cancellation and an individually oversized row. These are bounded
+reader checks, not full-size research, runtime confinement or predictive quality.
+
 `test_sim_calendar.py` checks the session simulation's next local midnight across
 ordinary dates, year rollover, and whole/half-hour daylight-saving transitions.
 It also compares displayed loss clocks to nearby observed instants without

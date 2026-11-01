@@ -20,7 +20,10 @@ def assemble(tmp_path, source, **params):
         output(tmp_path,'assembly'),lambda:None)
 
 
-def test_exact_rows_axes_labels_and_inputs_survive(tmp_path):
+@pytest.mark.parametrize('byte_budget', [64 << 20, 128])
+def test_exact_rows_axes_labels_and_inputs_survive(tmp_path, monkeypatch, byte_budget):
+    from scientific_compute import bounded_h5
+    monkeypatch.setattr(bounded_h5, 'BLOCK_BYTES', byte_budget)
     anndata=pytest.importorskip('anndata')
     source=inputs(tmp_path); original={k:p.read_bytes() for k,p in source.items()}
     path,meta=assemble(tmp_path,source)

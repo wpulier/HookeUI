@@ -67,6 +67,33 @@ def matrix(source, check=lambda: None):
     return node
 
 
+def row_ranges(matrix, max_rows, check=lambda: None):
+    """Partition CSR reads by stored entries as well as the caller's row bound.
+
+    Read only a bounded pointer slice when planning; do not decode any values.
+    An individually oversized row is left for row_block to refuse if requested,
+    so callers may still skip unselected rows without reading them.
+    """
+    group = getattr(matrix, 'group', None)
+    csr = group is not None and group.attrs.get('encoding-type') == 'csr_matrix'
+    start = 0
+    while start < matrix.shape[0]:
+        check()
+        stop = min(start + max_rows, matrix.shape[0])
+        if csr:
+            pointers = group['indptr'][start:stop + 1]
+            ceiling = int(pointers[0]) + BLOCK_BYTES // _entry_allocation(group)
+            count = int(np.searchsorted(pointers, ceiling, side='right')) - 1
+            stop = start + max(1, count)
+        yield start, stop
+        start = stop
+
+
+def _entry_allocation(group):
+    # Include data/index copies and sparse column-selection intermediates.
+    return max(16, group['data'].dtype.itemsize + group['indices'].dtype.itemsize) * 4
+
+
 def row_block(matrix, start, stop, columns):
     """Read a CSR row interval directly; avoid AnnData fancy-index full loads."""
     from scipy import sparse
@@ -77,8 +104,7 @@ def row_block(matrix, start, stop, columns):
         raise Refused('Bounded aggregate preparation supports dense or CSR matrices; CSC needs an explicitly prepared conversion')
     pointers = group['indptr'][start:stop + 1]
     begin, end = int(pointers[0]), int(pointers[-1])
-    # Include data/index copies and sparse column-selection intermediates.
-    if (end - begin) * max(16, group['data'].dtype.itemsize + group['indices'].dtype.itemsize) * 4 > BLOCK_BYTES:
+    if (end - begin) * _entry_allocation(group) > BLOCK_BYTES:
         raise Refused('The sparse row block exceeds its bounded allocation allowance')
     block = sparse.csr_matrix((group['data'][begin:end], group['indices'][begin:end], pointers - begin),
                               shape=(stop - start, matrix.shape[1]))

@@ -136,8 +136,7 @@ def project(inputs, params, output, check):
                 digest.update(np.array([b-a], dtype='<i8').tobytes())
                 digest.update(block.indices[a:b].astype('<i8').tobytes())
                 digest.update(block.data[a:b].astype('<f4').tobytes())
-        for start in range(0, nobs, engine.BLOCK_ROWS):
-            check(); stop = min(start + engine.BLOCK_ROWS, nobs)
+        for start, stop in bounded_h5.row_ranges(matrix, engine.BLOCK_ROWS, check):
             chosen = np.flatnonzero(selected[start:stop])
             if not len(chosen):
                 continue

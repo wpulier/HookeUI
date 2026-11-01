@@ -159,7 +159,12 @@ recipes; it does not create a sealed holdout, authorize access or establish an
 independent validation design. Originals and every accepted output remain retained.
 
 Dense/CSR rows are read in bounded blocks; sparse float32 output must preserve whole
-count values exactly. CSC, ambiguous identities, missing groups, insufficient cells,
+count values exactly. CSR blocks are shortened using their stored-entry pointers
+when the ordinary row interval exceeds the existing byte allowance. Projection,
+aggregate preparation, count diagnostics and assembly share this planner; no
+observations, genes or entries are discarded to meet the read budget. One requested
+row that exceeds the allowance still refuses. Cancellation is checked between
+planned reads. CSC, ambiguous identities, missing groups, insufficient cells,
 unsafe allocations and excessive stored entries refuse. Gene output order is explicit.
 Target annotations use bounded compact string references rather than widening every
 row to the longest label. The existing metadata allowance includes decoded text,
