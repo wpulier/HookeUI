@@ -491,3 +491,9 @@ Opt-in portable volumes and registration jobs retain their input copy, inspectio
 `matrix-inspect` version 3 reports median row totals and, only under raw-count admission, mean reciprocal library depth over all observations. Zero-depth observations remain counted and make the reciprocal undefined (`null`); they are never silently excluded. These are numeric diagnostics, not evidence of biological accuracy or a selected count generator. The existing frozen runtime generation and result provenance apply.
 
 Matrix-inspect version 4 retains a positional first 10 observations × 10 variables preview plus bounded annotation examples. This is not representative sampling. It slices before dense conversion; older reports remain usable without these additive fields.
+
+Matrix-evaluate-cell version 2 supports an explicit versioned median/log1p
+evaluation-view protocol for pinned upstream v1 comparisons. It preserves raw
+inputs, complete panels and the existing memory bound, records each full-view
+normalization and refuses ambiguous input detection. It does not claim historical
+leaderboard parity; see the scientific-matrices contract for exact semantics.

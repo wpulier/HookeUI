@@ -40,6 +40,26 @@ configuration and CPU/scanpy backend. The upstream catalog identifies primary sc
 diagnostic/dependency metrics. It does not invent reference anchors, an overall score, or organizer acceptance.
 Nonfinite upstream measurements stay unavailable as JSON null rather than becoming zero.
 
+An explicit `cell-evaluation-config-v2` protocol adds exactly `format`, `metrics`
+and `normalization` to the existing fields. The supported normalization is
+`per-matrix-median-log1p-v1`, for upstream v1/lognorm/predicted-control presets
+with no fixed target sum and discrete mode off.
+Raw input artifacts and the complete panel remain unchanged. The reference's
+declared controls are attached to a private prediction view; each entire view is
+normalized to its own positive-row library-total median and then log1p transformed
+with the pinned Scanpy runtime. The protocol selects an upstream metric profile;
+the app does not invent a score or infer a contest from filenames.
+
+The preset's raw per-cell count ceiling is checked before conversion. The receipt
+records both resolved medians, zero-depth counts, full configuration
+and upstream input detection. Ambiguous normalized values refuse rather than
+being silently normalized again. The unchanged 8 GiB admission bound applies
+before materialization. No complete-panel splitting, automatic fallback or larger
+memory permission is introduced. This opt-in conversion defines a reproducible
+comparison, not exact historical leaderboard parity or full-size qualification.
+The Project must fix its control-pool policy and retain that pool's provenance;
+the service does not choose controls using prediction quality.
+
 The aggregate-profile protocol is a retained JSON file, not an executable transformation. Its version-1 fields are:
 
 ```json
