@@ -900,4 +900,14 @@ Control-only projection fixtures retain exact selected count values and cell ide
 and refuse hidden perturbation mappings or an empty gene axis. They qualify explicit
 conditioning-input preparation, not a reduced evaluation panel or count-generator quality.
 
+The steady-state media-load scenario qualifies its source window before measuring:
+models are resident, the recording is explicitly positioned away from its loop,
+and the observed source/clock frame leaves at least 30 seconds. The existing 6-second
+baseline, 8-second media workload and all latency/cadence limits are unchanged.
+Crossing the recording boundary still fails; no slow sample is retried or removed.
+This separates media contention from the finite simulated recording's decoder-loop
+pause. The loop pause is not repaired or qualified as live hardware behavior.
+`test_media_timing_window.py` covers synthetic source admission and refusal; actual
+near-end/safe-position probes and full-sequence results are separate evidence.
+
 `test_matrix_projection.py` also checks version-2 complementary observation partitions: disjoint/full membership, exact counts and source identities, source-order/expression independence, bounded partition schema, sampling within a fold, explicit exclusions and refusal of empty declared groups. These are synthetic partition mechanics, not evidence of a sealed holdout or scientific validation.
