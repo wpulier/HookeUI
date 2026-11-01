@@ -24,6 +24,7 @@ to inspect material or choose a camera. Opening starts nothing. Project switches
 old summaries immediately; late reads and stale buttons cannot act on another Project.
 The Assistant retains its same connected-agent entry and current-Project setup prompt, now in its header's ⋯ ("Connect your own agent…").
 Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
+Data's maker filter keeps Hooke system work distinct from connected agents and researchers. Legacy researcher records without an individual identity show that limitation and offer no invented researcher-tab link.
 Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
 at the captured Project/document revision. Markup is literal text; previewing neither
 runs a reader nor qualifies scientific interpretation. Failed pages preserve the

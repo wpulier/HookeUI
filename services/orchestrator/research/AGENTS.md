@@ -532,3 +532,7 @@ finding payload digests. Pending publication refuses. Verification starts no
 manager or provider and does not qualify complete external dependency collection.
 
 Material questions retain explicit exact attachments alongside the pinned Study basis. Changed attachments cannot reuse a request identity. Reading the question context returns those references for the authorized contributor to inspect; it does not launch an agent. Studio single-capability experiments may use Study admission, which keeps the same authoritative workflow execution and original operation identity.
+
+Study operation observation resolves its captured Project owner off the event loop,
+including a cold non-active Project journal. It continues to project the original
+WorkflowService run without replaying work or changing the admission receipt.

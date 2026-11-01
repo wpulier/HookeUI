@@ -6,6 +6,27 @@ accepted documents, not a guess from a title. Use never changes an artifact's or
 from __future__ import annotations
 
 
+def workflow_authorship(document: dict) -> dict:
+    """Original recorded author of a definition, run or attempt; never its later controller."""
+    fields = {
+        'scientific-workflow': ('workflow', 'createdBy'),
+        'scientific-workflow-run': ('workflowRun', 'actor'),
+        'scientific-workflow-attempt': ('workflowAttempt', 'actor'),
+    }
+    field = fields.get(document.get('kind'))
+    if field is None:
+        return {}
+    state = document.get('state', {})
+    record = state.get(field[0], {}) if isinstance(state, dict) else {}
+    actor = record.get(field[1]) if isinstance(record, dict) else None
+    from .workflows import valid_actor
+    if not valid_actor(actor):
+        return {}
+    if actor.startswith('researcher:'):
+        return {'researcher': actor.removeprefix('researcher:')}
+    return {'actor': 'you' if actor == 'studio' else actor, 'by': actor}
+
+
 def describe(document: dict) -> dict:
     kind = document.get('kind', '')
     state = document.get('state', {})
