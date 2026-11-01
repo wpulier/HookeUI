@@ -9,6 +9,12 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_scoped_agent_research.py` checks the optional Project client's frozen workflow
+scope over synthetic door records: exact pins and inputs, fresh-client recovery
+from the original Study, no replay, original attribution, revocation, stop intent
+and evidence-linked claims. The actual MCP SDK is exercised when installed. This
+is not worker confinement, real computation or blind scientific quality evidence.
+
 `test_scoped_agent_client.py` uses synthetic transport and subprocesses to check
 Project-bound reads, exact references, default refusals, bounded complete replies
 and unchanged operation/request identities. `test_scoped_agent_mcp.py` uses the

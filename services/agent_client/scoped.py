@@ -109,6 +109,8 @@ class ProjectReader:
     This narrows the client's tools. It is not a sandbox for the caller, nor a
     replacement for server grants. The operator must restrict alternate access.
     """
+    operation_tools = READS
+
     def __init__(self, config: Configuration, door=None):
         self.config = config
         self.door = door or Door(config)
@@ -154,7 +156,7 @@ class ProjectReader:
 
     def _scoped_operation(self, response: dict) -> dict:
         operation = response['operation']
-        if operation.get('project') != self.config.project or operation.get('tool') not in READS:
+        if operation.get('project') != self.config.project or operation.get('tool') not in self.operation_tools:
             raise ValueError('Hooke returned an operation outside this client scope')
         if not re.fullmatch(r'op_[a-f0-9]{24}', operation.get('id', '')):
             raise ValueError('Hooke returned an invalid operation identity')

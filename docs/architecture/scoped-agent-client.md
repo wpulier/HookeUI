@@ -34,6 +34,36 @@ runtime**. A full research client still needs reviewed workflow admission, bound
 resource controls, result publication and fresh-agent continuation. Extend the same
 door and WorkflowService; do not introduce another runner or attempt ledger.
 
+## Optional frozen-workflow execution
+
+An operator may supply `--workflows /absolute/operator/scope.json`, containing
+`{"format": 1, "workflows": [{"id": "<retained workflow id>", "revision": 1,
+"digest": "<retained revision digest>"}]}`. This file is read once, outside the
+model's workspace. It must be inaccessible for modification by the caller.
+
+This adds discovery of those exact definitions, `run_workflow`,
+`observe_operation`, `cancel_operation` and `publish_finding`. The caller chooses
+exact retained inputs and named bindings within the fixed Project/Study; method
+settings are already frozen. Definition identity is checked before admission and
+Hooke rechecks runtime generations and input digests. The client cannot create or
+edit a graph, choose host paths or supply arbitrary execution parameters. An
+operator qualifies each graph/runtime before granting its pin; digest equality
+alone does not establish confinement or scientific validity.
+
+WorkflowService remains the only execution owner. Its original operation/attempt
+identities survive caller disconnection. A fresh client can observe an operation
+linked by the selected Study, with its original parameters and attribution;
+observation never starts it. Explicit Stop requests termination and returns the
+observed state. Retries preserve the request key. Claims use the existing shared
+claim/evidence contract and server-derived authorship; publication does not confer
+human acceptance. No local execution ledger or scientific algorithm is added.
+
+Existing method resource limits and the shared heavy-work slot still apply. This
+client is not a lifetime compute-budget enforcer. Workflow admission readiness,
+server grant checks, runtime confinement, output integrity and actual scientific
+evaluation must be qualified separately. This optional surface does not itself
+establish a blind run or an end-to-end research result.
+
 ## Effective boundary
 
 The trusted client process can reach the CLI and its operator's host environment.
@@ -60,3 +90,8 @@ without the optional group reports that protocol test as skipped.
 An actual stdio/CLI/Keychain journey, agent runtime confinement and scientific
 execution are distinct evidence classes. A reader working against an existing
 Project does not establish that a researcher has produced or validated a model.
+
+`test_scoped_agent_research.py` uses synthetic door records and the actual SDK to
+check frozen pins, same-Project bindings, unchanged request identities, lost-client
+recovery without replay, original authorship, revocation, cancellation intent and
+claim scope. It does not run a scientific worker or a frontier model.
