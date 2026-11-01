@@ -126,6 +126,11 @@ clients of this door. They hold no scientific logic and no list of capabilities:
 The `hooke` command, the app's state file, its links and attention are described in `packaging/AGENTS.md` ("Outside
 agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
 
+`services/agent_client` is an optional Project-bound MCP read client over that same
+CLI. It exposes selected read declarations dynamically, with no arbitrary host-path
+import, generic route forwarding or scientific runner. See its AGENTS.md and
+`docs/architecture/scoped-agent-client.md` for its scope and remaining isolation gates.
+
 ## Sockets and the screen
 - **WebSockets** (`origin.socket_kind`, both `/ws` and `/ws/voice`):
   - In the Mac app only the window's studio token makes a socket the studio's.
