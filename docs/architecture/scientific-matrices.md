@@ -36,8 +36,10 @@ counts all observations, retaining exact text labels, missing values and the
 number of distinct observed labels; unused categorical levels are omitted.
 Empty strings remain observed labels, separate from missing values. Numeric
 labels are not coerced and text is not truncated. Missing/ambiguous columns,
-labels longer than 256 characters and more than 4,096 observed labels refuse
-without publishing partial counts. These are annotation coverage facts, not
+labels longer than 256 characters, more than 4,096 observed labels, or an encoded
+annotation report over 512 KiB refuse before scanning matrix values and without
+publishing partial counts. The byte bound includes JSON Unicode escaping and
+preserves headroom in the shared operation receipt. These are coverage facts, not
 inferred biological contexts or evidence of independent development folds.
 The default selects no column. An explicit new inspection retains this additive
 report under its new generation; existing reports and frozen runs stay intact.

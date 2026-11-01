@@ -494,5 +494,6 @@ Matrix-inspect version 4 retains a positional first 10 observations × 10 variab
 
 Version 5 optionally counts one explicit observation text column across all rows,
 with missing counts separate from empty labels and unused categories omitted.
-The exact column and labels are bounded; over 4,096 distinct labels refuses, not
-a truncated frequency table. No biological identity or fold independence is inferred.
+The exact column and labels are bounded; over 4,096 distinct labels or 512 KiB
+encoded report refuses before the matrix scan, not a truncated frequency table.
+No biological identity or fold independence is inferred.

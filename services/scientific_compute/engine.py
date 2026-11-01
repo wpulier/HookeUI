@@ -163,10 +163,13 @@ def _annotation_counts(data, column, check):
         counts[value] = counts.get(value, 0) + 1
         if len(counts) > 4096:
             raise Refused('Annotation counts exceed 4096 distinct observed labels; no partial counts are published')
-    return {'column': column, 'observations': int(data.n_obs), 'missing': missing,
+    result = {'column': column, 'observations': int(data.n_obs), 'missing': missing,
             'distinctObservedLabels': len(counts), 'complete': True,
             'groups': [{'label': label, 'count': counts[label]} for label in sorted(counts)],
             'meaning': 'Exact observed text labels; unused categories omitted. Labels do not establish biological identity.'}
+    if len(json.dumps(result, sort_keys=True, allow_nan=False).encode('utf-8')) > 512 << 10:
+        raise Refused('Annotation counts exceed the 512 KiB encoded report allowance; no partial counts are published')
+    return result
 
 
 def inspect(inputs, params, output, check):

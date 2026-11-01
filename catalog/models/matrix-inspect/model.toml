@@ -47,4 +47,4 @@ type = "string"
 label = "Count labels in observation column"
 default = ""
 agent = true
-tooltip = "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels. Does not infer biological groups."
+tooltip = "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels or a 512 KiB encoded report. Does not infer biological groups."

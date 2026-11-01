@@ -69,6 +69,22 @@ def test_all_missing_is_explicit_and_no_categories_are_invented():
     assert result['groups'] == [] and result['missing'] == 2 and result['complete']
 
 
+def test_encoded_unicode_report_refuses_before_matrix_scan(tmp_path, monkeypatch):
+    # Each label fits the character/cardinality bounds but JSON escapes exceed the byte budget.
+    data = matrix(['界' * 250 + str(i) for i in range(500)])
+    from contextlib import contextmanager
+    @contextmanager
+    def opened(path):
+        yield data
+    monkeypatch.setattr(engine, '_adata', opened)
+    def no_scan(*args, **kwargs):
+        pytest.fail('Oversized annotation output must refuse before reading matrix values')
+    monkeypatch.setattr(engine, '_rows', no_scan)
+    with pytest.raises(engine.Refused, match='512 KiB encoded'):
+        engine.inspect({'matrix': 'unused'}, {'annotation_column': 'group'}, tmp_path, lambda: None)
+    assert not (tmp_path / 'summary.json').exists()
+
+
 def test_duplicate_column_and_cancellation_refuse():
     data = SimpleNamespace(obs=pd.DataFrame([['a', 'b']], columns=['group', 'group']), n_obs=1)
     with pytest.raises(engine.Refused, match='ambiguous'):
