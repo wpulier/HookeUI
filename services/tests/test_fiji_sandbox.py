@@ -428,22 +428,31 @@ def test_missing_memory_during_exit_waits_for_confirmed_exit(child, tmp_path, mo
 
 @pytest.mark.skipif(sys.platform != 'darwin', reason='macOS native process API')
 def test_native_exit_while_another_thread_reaps_is_not_a_supervision_failure(child, tmp_path, monkeypatch):
-    child[0][0] = "import time; time.sleep(.03)"
+    from tests.waiting import HANG_S
+
+    # EOF lets the caller enter blocking waitpid. Keep the child alive until that
+    # waiter holds the process lock, instead of racing a 30 ms child lifetime.
+    child[0][0] = ("import os,pathlib,time\nos.close(1); os.close(2)\n"
+                   "while not pathlib.Path('exit').exists(): time.sleep(.001)\n")
     reaped = threading.Event()
     inspected = threading.Event()
     native_memory = boundary._memory
     waitpid = child[2]._try_wait
 
     def waiting(process, flags):
+        if flags == 0:
+            (child[1][0][1] / 'exit').touch()
         result = waitpid(process, flags)
         if flags == 0 and result[0] == process.pid:
             reaped.set()
-            assert inspected.wait(2)
+            assert inspected.wait(HANG_S)
         return result
 
     def memory(pid, identities):
+        # A sample started before reaping may legitimately describe a live child.
+        after_reap = reaped.is_set()
         result = native_memory(pid, identities)
-        if reaped.is_set():
+        if after_reap:
             assert result is None
             assert child[1][0][0].poll() is None
             inspected.set()
