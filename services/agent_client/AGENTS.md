@@ -55,3 +55,5 @@ Install the optional `agent-client` dependency group in a prepared environment.
 Run from services with `python -m agent_client --help`; do not install packages at
 research runtime. SDK protocol tests use synthetic transports. Actual external
 client/Keychain and science qualification are separate evidence.
+
+The scoped research client can read retained coordination, claim/renew an assignment and return its evidence-linked report. It cannot rewrite the reviewed plan, propose new executable authority or alter its fixed workflow/admission scope. Assignment identity is passed in the existing workflow request. General connector clients can initiate plans through the shared door; the confined solver surface remains narrower by design.

@@ -56,4 +56,5 @@ Component contracts (read the relevant file before editing):
 - `services/orchestrator/day/AGENTS.md`
 - `services/orchestrator/maintenance/AGENTS.md`
 - `services/orchestrator/research/AGENTS.md`
+- `docs/architecture/research-initiation.md`
 - `services/tests/AGENTS.md`

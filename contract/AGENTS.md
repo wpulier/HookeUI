@@ -144,3 +144,5 @@ Project material inspection facts are bounded projections of exact matching reta
 Project-state authors also support `system` for recorded Hooke system work, distinct
 from connected `agent` identities. An unnamed legacy researcher has kind `researcher`
 without an invented ID. These are provenance categories, never connection authority.
+
+Agent research-plan and research-assignment schemas describe retained intent, explicit limits, exact evidence and justified delegation. Workflow admission may carry an assignment identity; execution still belongs to WorkflowService. These contracts do not certify model-budget enforcement or hosted execution availability.

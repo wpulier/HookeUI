@@ -461,6 +461,7 @@ const researcherBrowser=el('section','study-researcher-browser');
 let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  startResearch: () => newStudy(),
   openResearcher: id => openResearcher(id),
   retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
@@ -549,7 +550,7 @@ const draftStatus=el('p','study-view-notice');draftStatus.setAttribute('role','s
 const draftGo=button('Start',()=>startDraftResearcher(),'study-primary');draftGo.disabled=true;
 const draftUses=el('p','draft-uses');
 /** What it can use, named: this Project's inputs (the first few by name) and the models set up here. */
-function renderDraftUses():void{const names=snapshot.sources.map(asset=>asset.title);const list=names.length?`Can use ${names.slice(0,3).join(', ')}${names.length>3?` and ${names.length-3} more`:''}, and the models set up in Models.`:'Can use this Project’s inputs (none yet) and the models set up in Models.';draftUses.textContent=`${list} Starts through the Assistant, so it shows in the conversation too.`;}
+function renderDraftUses():void{const names=[...new Set([...snapshot.sources.map(asset=>asset.title),...(resourceSession===snapshot.session?projectInputs(entries).map(entry=>entry.title):[])])];const list=names.length?`Can use ${names.slice(0,3).join(', ')}${names.length>3?` and ${names.length-3} more`:''}, and the models set up in Models.`:'Can use this Project’s inputs (none yet) and the models set up in Models.';draftUses.textContent=`${list} Starts through the Assistant, so it shows in the conversation too.`;}
 draftBrief.addEventListener('input',()=>{if(!draftStart)draftGo.disabled=!draftBrief.value.trim();});
 // One column, one box, one button (Will, 2026-10-23: "cleaner"): the words are the page. What it may use and how it
 // starts are one quiet line; a Study is one quiet sentence under it.
@@ -1071,12 +1072,15 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const title=el('input');title.required=true;title.placeholder='Name this study';
   const objective=el('textarea');objective.rows=3;objective.className='study-question-input';objective.required=true;objective.placeholder='For example: which segmentation model transfers best to the withheld cell lines?';
   const criteria=el('textarea');criteria.rows=2;criteria.className='study-criteria-input';criteria.required=true;criteria.placeholder='For example: mean IoU against the hand-corrected masks, by line';
-  const budget=el('input');budget.type='number';budget.min='0';budget.step='0.10';budget.value='1.00';budget.required=true;
+  const budget=el('input');budget.type='number';budget.min='0';budget.step='0.10';budget.value='0.00';budget.required=true;
   const field=(label:string,control:HTMLElement)=>{const checkbox=control.tagName==='INPUT'&&(control as HTMLInputElement).type==='checkbox';const row=el('label',checkbox?'study-new-study-field study-choice':'study-new-study-field');if(checkbox)row.append(control,el('span','',label));else row.append(el('span','',label),control);return row;};
   const status=el('p','study-note');status.setAttribute('role','status');
   const choices=el('fieldset','study-pick-field');choices.append(el('legend','visually-hidden','What it may use'),el('p','study-note','Loading this Project’s saved inputs…'));
+  const draftKey=`hooke:research-draft:${session}`;
+  try{const kept=JSON.parse(localStorage.getItem(draftKey)||'null');if(kept){title.value=kept.title||'';objective.value=kept.objective||'';criteria.value=kept.criteria||'';budget.value=kept.budget||'0.00';}}catch{/* Storage may be disabled; the visible form remains usable. */}
+  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
   const selected=new Map<HTMLInputElement,StudyInput>();
-  const save=button('Create study',()=>{},'study-primary');save.type='submit';save.disabled=true;
+  const save=button('Continue to research plan',()=>{},'study-primary');save.type='submit';save.disabled=true;
   const cancel=button('Cancel',()=>{if(!pending)dialog.close();},'study-quiet');
   const body=el('div','study-new-study-body'),footer=el('footer','study-new-study-footer');
   // The question first, then how it will be judged; the short name third, since people name a question after writing it.
@@ -1085,7 +1089,7 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const allowance=el('label','study-new-study-field study-allowance');const allowanceWords=el('span','study-allowance-words');
   allowanceWords.append(el('span','','Most it may spend'));allowance.title='The most all its experiments may spend together';allowance.append(allowanceWords,dollar);
   // A header that says what a study is, then three groups: the question, what it may use, and what it may spend.
-  const head=el('header','study-new-study-head');head.append(el('h2','','New study'),el('p','','A question you want answered, the inputs it may use and what it may spend. You review each experiment before it counts.'));
+  const head=el('header','study-new-study-head');head.append(el('h2','','Start research'),el('p','','A question you want answered, the inputs it may use and what it may spend. You review each experiment before it counts.'));
   const group=(name:string,...nodes:HTMLElement[])=>{const box=el('section','study-new-study-group');if(name)box.append(el('h3','',name));box.append(...nodes);return box;};
   const pair=el('div','study-new-study-pair');pair.append(field('Short name',title),allowance);
   body.append(head,group('',field('What do you want to find out?',objective),field('How will you judge the result?',criteria),pair),
@@ -1109,7 +1113,7 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{try{localStorage.removeItem(draftKey);}catch{/* Saved Study is authoritative. */}if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();

@@ -1,3 +1,4 @@
+import { mountStudyInitiation } from './study-initiation';
 import { mountStudyWorkflows } from './study-workflows';
 import { mountLocalStudyResearcher } from './study-local-researcher';
 import { StudyRefused, studyInputDescription, dollars, studyNeeds, studyState, taskState, taskPhase, providerName, pendingProviderTask, type Effort, type StudyEvidence, type StudyProvider, type StudyInput, type StudyStart, type ReviewOutcome } from './research-efforts';
@@ -112,7 +113,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   // The page (Study target, docs/design/2026-10-23-part1-study/study-tab.html): the question across the top; a reading
   // column (Your move, What we know, Experiments, the composer) beside a rail of facts (allowance, inputs, researchers).
   // Everything below is the same actions and guards as before; only where they sit and how they read changed.
-  const tasks = Object.entries(study.tasks ?? {}).filter(([,task])=>task.specification?.provider!=='scientific-gcp-grant');
+  const tasks = Object.entries(study.tasks ?? {}).filter(([,task])=>!['scientific-gcp-grant','collaboration'].includes(String(task.specification?.provider)));
   const statePill = node('span', `study-state-pill study-state-${study.status}`, studyState(study));
   const controls = node('div', 'study-view-controls'); controls.append(statePill);
   if (study.status !== 'stopped') {
@@ -445,7 +446,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     finding.tasks.forEach((t, i) => { const status = study.tasks?.[t]?.status; const chip = node('span', `study-chip ${status === 'completed' ? 'study-chip-ok' : status === 'failed' ? 'study-chip-bad' : ''}`, experimentName(t, study.tasks?.[t]?.specification)); if (i) cites.append(', '); cites.append(chip); });
     item.append(cites); findings.append(item);
   }
-  if (!study.findings?.length) findings.append(node('p', 'study-view-empty', 'None yet.'));
+  if (!study.findings?.length) findings.append(node('p', 'study-view-empty', study.claims?.length ? `${study.claims.length} researcher reports await review. No findings have been accepted yet.` : 'No accepted findings yet. Experiments and reports will appear here as the research develops.'));
   findings.append(node('p', 'study-view-empty', 'A finding is what you concluded from reviewed experiments. It is not proof, and a researcher’s report is not one until you write it here.'));
   if (actions.finding && terminal.length) {
     const text = node('textarea'); text.rows = 3; text.setAttribute('aria-label', 'Finding'); const citations = node('fieldset'); citations.append(node('legend', '', 'Supporting experiments'));
@@ -624,6 +625,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   const wrap = node('div', 'rwrap'); wrap.append(grid);
   root.append(wrap, scrim, sheet);
   if (actions.localWorkflows) {
+    mountStudyInitiation(log, study, availableInputs);
     mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log);
     mountLocalStudyResearcher(rail, study);
   }

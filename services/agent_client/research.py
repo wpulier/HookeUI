@@ -110,6 +110,24 @@ class ProjectResearcher(ProjectReader):
             raise ValueError('The frozen workflow does not match its qualified identity')
         return definition
 
+    async def coordination(self):
+        return await self.door.request('GET', 'studies/' + self.config.study + '/coordination?' + urlencode({'session': self.config.project}))
+
+    async def coordinate(self, action, fields):
+        # A scoped solver may claim and return work, but cannot alter its operator's
+        # reviewed plan, grants, method scope or allowance.
+        allowed = {'claim': {'assignment', 'harness', 'model'},
+                   'complete': {'assignment', 'statement', 'evidence', 'limitations'}}
+        if action not in allowed or type(fields) is not dict or set(fields) != allowed[action]:
+            raise ValueError('Only assignment claim and completion are admitted')
+        if action == 'complete':
+            if type(fields['evidence']) is not list or len(fields['evidence']) > 32:
+                raise ValueError('Use bounded exact evidence')
+            for ref in fields['evidence']:
+                self._reference(ref)
+        return await self.door.request('POST', 'studies/' + self.config.study + '/coordination/' + action,
+                                       {'session': self.config.project, **fields})
+
     async def workflows(self):
         # Explicit pins only: do not enumerate the operator's unrelated library.
         result = {'workflows': [await self._definition(pin) for pin in self.pins]}
@@ -127,7 +145,7 @@ class ProjectResearcher(ProjectReader):
 
     def _admission(self, args):
         schema.check(args, 'workflow-admission')
-        if set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings'}:
+        if set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings', 'assignment'}:
             raise ValueError('Unqualified workflow arguments')
         if args['study'] != self.config.study or args['session'] != self.config.project:
             raise ValueError('The experiment belongs to another Study or Project')
@@ -142,7 +160,7 @@ class ProjectResearcher(ProjectReader):
         return pin
 
     def _arguments(self, arguments):
-        if type(arguments) is not dict or set(arguments) - {'workflow', 'revision', 'inputs', 'bindings'}:
+        if type(arguments) is not dict or set(arguments) - {'workflow', 'revision', 'inputs', 'bindings', 'assignment'}:
             raise ValueError('Only exact inputs to qualified frozen workflows are admitted')
         args = {**arguments, 'study': self.config.study, 'session': self.config.project}
         return args, self._admission(args)

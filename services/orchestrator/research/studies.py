@@ -69,13 +69,16 @@ class Studies:
         return self.efforts.list(session)
 
     async def start_workflow(self, study, session, *, request, workflow, revision, inputs,
-                             actor, label, bindings=None):
+                             actor, label, bindings=None, assignment=None):
         from ..workflows import run_identity
         self.workflows.owner(session)
         self.attribution(actor, label)
         text(request, 'Experiment request identity', 128)
         params = {'study': study, 'workflow': workflow, 'revision': revision, 'inputs': inputs,
                   'bindings': bindings or {}}
+        if assignment is not None:
+            text(assignment, 'Assignment identity', 128)
+            params['assignment'] = assignment
         workflow_request = fingerprint({'study': study, 'session': session, 'request': request, 'actor': actor})[:32]
         run = run_identity(session, workflow_request)
         execution = {'kind': 'workflow', 'id': run, 'session': session}
@@ -86,6 +89,29 @@ class Studies:
             state = saved.document['state'][KEY]
             # Older Studies keyed experiments by the caller's raw request. Keep
             # that exact admission on retry; upgrading must never run it again.
+            plan = state.get('researchPlan')
+            assigned = None
+            if assignment is not None:
+                assigned = self.efforts._task(state, assignment)
+                if (assigned['specification'].get('provider') != 'collaboration'
+                        or assigned.get('collaboration', {}).get('claimedBy', {}).get('by') != actor):
+                    raise InvalidProject('Use an assignment claimed by this contributor')
+            if plan:
+                if plan['status'] != 'reviewed':
+                    raise InvalidProject('Review the retained research plan before admitting experiments')
+                # Scientific identity excludes the actor and assignment. Deliberate
+                # repeats require a distinct frozen method/seed, not a new request key.
+                intent = {k: v for k, v in params.items() if k != 'assignment'}
+                for previous in state.get('experiments', {}).values():
+                    if {k: v for k, v in previous['specification'].items() if k != 'assignment'} == intent:
+                        original = self.operations.get(previous['operation'])
+                        return await self.operation(original), False
+                if len(state.get('experiments', {})) >= plan['limits']['experiments']:
+                    raise InvalidProject('The reviewed plan experiment allowance is exhausted')
+                if actor != 'studio' and assigned is None:
+                    raise InvalidProject('Claim an assignment before admitting this plan’s experiment')
+                if assigned and (assigned['status'] != 'running' or assigned['collaboration']['leaseUntil'] <= time.time()):
+                    raise InvalidProject('Renew the original assignment claim before admitting work')
             legacy = state.get('experiments', {}).get(request)
             if legacy and legacy.get('by') == actor:
                 if legacy.get('specification') != params:
@@ -125,6 +151,8 @@ class Studies:
                 if len(rows) >= 256:
                     raise InvalidProject('Retain this Study and start another before adding experiments')
                 rows[workflow_request] = row
+                if assignment is not None:
+                    self.efforts._task(state, assignment)['collaboration']['operations'].append(record['id'])
                 return True
             await asyncio.to_thread(self.efforts._change, study, session, link)
             # A lost response/reconnect only reads an existing run; no replay on read.

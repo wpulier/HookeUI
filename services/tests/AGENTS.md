@@ -961,3 +961,5 @@ pause. The loop pause is not repaired or qualified as live hardware behavior.
 near-end/safe-position probes and full-sequence results are separate evidence.
 
 `test_matrix_projection.py` also checks version-2 complementary observation partitions: disjoint/full membership, exact counts and source identities, source-order/expression independence, bounded partition schema, sampling within a fold, explicit exclusions and refusal of empty declared groups. These are synthetic partition mechanics, not evidence of a sealed holdout or scientific validation.
+
+Research coordination regressions use synthetic inputs with real immutable stores and authenticated HTTP: concurrent claims, stale plans, dependencies, expiry, contributor/read/revocation boundaries, experiment allowance and cross-contributor operation reuse. Studio initiation tests use a synthetic DOM for draft/review safeguards. These are not actual agent continuation, browser quality or a budget-qualified scientific comparison.

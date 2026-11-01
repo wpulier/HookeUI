@@ -507,3 +507,5 @@ evaluation-view protocol for pinned upstream v1 comparisons. It preserves raw
 inputs, complete panels and the existing memory bound, records each full-view
 normalization and refuses ambiguous input detection. It does not claim historical
 leaderboard parity; see the scientific-matrices contract for exact semantics.
+
+`research-packages/` contains versioned host-supplied instructions and capability references, never executable adapters or authority. Studies pin the digest and retain the content so upgrades do not rewrite prior methods. A package does not install a runtime, grant Project access or establish evaluator confinement.

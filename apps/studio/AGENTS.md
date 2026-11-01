@@ -2142,3 +2142,5 @@ answer. A ten-second notice offers Retry, and a thirty-second read timeout keeps
 already loaded material. Retry repeats reads only, never scientific operations.
 
 Material overviews promote exact retained inspection facts and bounded previews above file details. Material questions pin their attachment beside the Study revision; experiment setup uses the same catalog form as Tools and admits through Study/WorkflowService only after Run. A historical selection never silently becomes the latest input. Open analysis windows is the private-window manager, not research activity. The Project-title folder control opens the existing folder inspector.
+
+Research initiation adds Start research to Main, then a saved Study plan. Creating the Study and reviewing its plan start no scientific work. The plan form keeps an unfinished browser draft by Project/Study and refuses review/refresh over unsaved edits. Reviewed plans show authorized contributors, distinct waiting/claimed assignment states and a copyable handoff; connection alone never implies a listening agent. Assignment reports remain visible without becoming accepted findings.

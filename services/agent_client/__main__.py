@@ -21,6 +21,13 @@ def server_for(reader):
                 'requestKey': inline_schema(schema.load('request-key'))},
                 'required': ['arguments', 'requestKey'], 'additionalProperties': False}
     research = isinstance(reader, ProjectResearcher)
+    claim_assignment = {'type':'object','additionalProperties':False,'required':['assignment','harness','model'],
+        'properties':{k:{'type':'string','minLength':1,'maxLength':160} for k in ('assignment','harness','model')}}
+    complete_assignment = {'type':'object','additionalProperties':False,'required':['assignment','statement','evidence','limitations'],
+        'properties':{'assignment':{'type':'string','minLength':1,'maxLength':128},
+            'statement':{'type':'string','minLength':1,'maxLength':8000},
+            'limitations':{'type':'string','minLength':1,'maxLength':8000},
+            'evidence':{'type':'array','maxItems':32,'items':inline_schema(schema.load('artifact-reference'))}}}
     workflow = inline_schema(schema.load('workflow-admission'))
     for key in ('study', 'session'):
         workflow['properties'].pop(key)
@@ -44,6 +51,9 @@ def server_for(reader):
                               input_schema=empty))
         if research:
             tools.extend([
+                Tool(name='read_research_plan', description='Read the selected Study plan, assignments, prior claims and experiment references. Starts nothing.', input_schema=empty),
+                Tool(name='claim_assignment', description='Claim or renew one assignment under your actual connection. Does not launch work or grant resources.', input_schema=claim_assignment),
+                Tool(name='complete_assignment', description='Return an attributed report with exact evidence and limitations. Not human acceptance.', input_schema=complete_assignment),
                 Tool(name='list_workflows', description='Read only the operator-qualified frozen workflow definitions.', input_schema=empty),
                 Tool(name='observe_operation', description='Read an admitted operation or recover an original workflow linked to this Study. Never replay work.', input_schema=observed),
                 Tool(name='cancel_operation', description='Request that an admitted Study workflow stop. Read the returned observed state; a request is not confirmed termination.', input_schema=observed),
@@ -58,7 +68,11 @@ def server_for(reader):
     async def called(ctx, params):
         try:
             args = params.arguments if params.arguments is not None else {}
-            if research and params.name in ('list_workflows', 'run_workflow', 'observe_operation', 'cancel_operation', 'publish_finding'):
+            if research and params.name in ('read_research_plan', 'claim_assignment', 'complete_assignment'):
+                declaration = {'read_research_plan': empty, 'claim_assignment': claim_assignment, 'complete_assignment': complete_assignment}[params.name]
+                schema.validate(args, declaration)
+                result = await reader.coordination() if params.name == 'read_research_plan' else await reader.coordinate('claim' if params.name == 'claim_assignment' else 'complete', args)
+            elif research and params.name in ('list_workflows', 'run_workflow', 'observe_operation', 'cancel_operation', 'publish_finding'):
                 if params.name == 'list_workflows':
                     schema.validate(args, empty)
                     result = await reader.workflows()
