@@ -230,5 +230,10 @@ async def run(built, record, progress):
                     result['contentUnavailable'] = 'Use a ready catalog reader or download the retained bytes; no text was inferred.'
             return result
         result = await asyncio.to_thread(read_artifact)
+    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate'):
+        # Tell open studios about detached contributions without navigating their stage.
+        changed = getattr(built, 'sessions_changed', None)
+        if callable(changed):
+            changed(at_once=True)
     await progress(1, 1, 'Retained result ready')
     return result

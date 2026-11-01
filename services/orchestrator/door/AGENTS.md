@@ -279,3 +279,5 @@ Legacy/unavailable storage refuses; no complete-Project claim is made.
 `actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.
 
 Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding.
+
+Detached Project creation and material/coordination contributions notify the existing sessions projection. Open Studio choosers refresh without changing the active Project or stage; request retries do not emit another creation.
