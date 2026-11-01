@@ -603,8 +603,16 @@ def test_project_operation_status_observes_workflows_without_changing_admissions
     before = copy.deepcopy(studies.operations._records)
     receipts = {p: p.read_bytes() for p in studies.store.root.rglob('*') if p.is_file()}
     reads = []
+    observed_at = []
+    owner_threads = []
+    owner = studies.workflows.owner
+    def observed_owner(session):
+        owner_threads.append(threading.get_ident())
+        return owner(session)
+    monkeypatch.setattr(studies.workflows, 'owner', observed_owner)
     status = studies.workflows.observed_statuses
     def observed(ids, session):
+        observed_at.append(time.time())
         reads.append((set(ids), session, threading.get_ident()))
         return status(ids, session)
     monkeypatch.setattr(studies.workflows, 'observed_statuses', observed)
@@ -615,6 +623,8 @@ def test_project_operation_status_observes_workflows_without_changing_admissions
     assert rows[original['id']]['by'] == 'Original investigator'
     assert len(reads) == 1 and reads[0][:2] == ({completed.id, ready.id}, built.day.sid)
     assert reads[0][2] != threading.get_ident()
+    assert owner_threads and all(t != threading.get_ident() for t in owner_threads)
+    assert state['consistency']['startedAt'] <= observed_at[0] <= state['observedAt']
     assert studies.operations._records == before
     assert all(p.read_bytes() == data for p, data in receipts.items())
     assert not studies.workflows.tasks
@@ -670,3 +680,36 @@ def test_project_operation_missing_run_is_interrupted_without_replay(tmp_path):
     assert row['state'] == 'interrupted'
     assert studies.operations.get(record['id'])['state'] == 'admitted'
     assert not studies.workflows.tasks
+
+
+def test_observing_cold_project_does_not_load_its_journal_on_event_loop(tmp_path, monkeypatch):
+    import threading
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built, completed=True)
+    sid = built.day.sid
+    built.day.new('Different open Project')
+    assert sid not in built.day._elsewhere
+    seen = []
+    original = built.day.elsewhere
+    def elsewhere(project):
+        seen.append((project, threading.get_ident(), project in built.day._elsewhere))
+        return original(project)
+    monkeypatch.setattr(built.day, 'elsewhere', elsewhere)
+    rows = asyncio.run(project_state.operations_of(built.hub, sid))
+    assert rows[0]['state'] == 'succeeded'
+    assert seen and seen[0] == (sid, seen[0][1], False)
+    assert all(thread != threading.get_ident() for _, thread, _ in seen)
+    assert built.day.sid != sid
+    assert studies.operations.get(record['id'])['state'] == 'admitted'
+
+
+def test_project_operation_missing_owner_leaves_retained_material_readable(tmp_path, monkeypatch):
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built, completed=True)
+    def missing_owner(session):
+        raise KeyError(session)
+    monkeypatch.setattr(studies.workflows, 'owner', missing_owner)
+    state = owner_state(built)
+    assert state['data']['total'] > 0
+    assert state['operations']['items'][0]['state'] == 'unavailable (workflow execution could not be observed)'
+    assert studies.operations.get(record['id'])['state'] == 'admitted'

@@ -138,7 +138,7 @@ class Studies:
         if not execution:
             return record
         check(execution, 'operation-execution')
-        self.workflows.owner(execution['session'])
+        await asyncio.to_thread(self.workflows.owner, execution['session'])
         try:
             run = observed if observed is not None else await asyncio.to_thread(self.workflows.observed_status, execution['id'], execution['session'])
             if run['id'] != execution['id'] or run['session'] != execution['session']:

@@ -396,7 +396,7 @@ async def operations_of(hub, project: str) -> list[dict]:
             for record in eligible:
                 result = await studies.operation(record, observed=observed.get(record["execution"]["id"]))
                 record["state"] = result["state"]
-        except (OSError, ValueError):
+        except (OSError, ValueError, KeyError):
             for record in eligible:
                 record["state"] = "unavailable (workflow execution could not be observed)"
     return [{"id": str(r["id"]), "tool": str(r["tool"]),
@@ -472,21 +472,23 @@ class ProjectState:
         """The projection of `project` as `actor` may read it (contract/agent/project-state.schema.json). The role is
         checked before anything is read; the studio report and door admission snapshots are captured on the loop.
         Linked workflow observations and the remaining retained sources are read in threads."""
+        read_started = (time.time(), time.monotonic())
         role = await asyncio.to_thread(self.role, project, actor, access)
         from .screen import screen_of
 
         ui = ui_of(screen_of(self.hub), project)
         operations = await operations_of(self.hub, project)
-        return await asyncio.to_thread(self.build, project, actor, role, ui, operations, cursor, limit)
+        return await asyncio.to_thread(self.build, project, actor, role, ui, operations, cursor, limit,
+                                       read_started=read_started)
 
     def build(self, project: str, actor: str, role: str, ui: dict, operations: list[dict],
-              cursor: str | None = None, limit: int | None = None) -> dict:
+              cursor: str | None = None, limit: int | None = None, *, read_started=None) -> dict:
         from .resources import resources_of
 
         limit = PAGE if limit is None else limit
         if type(limit) is not int or not 1 <= limit <= PAGE_MAX:
             raise ValueError(f"limit is 1 to {PAGE_MAX} items")
-        started, clock = time.time(), time.monotonic()
+        started, clock = read_started if read_started is not None else (time.time(), time.monotonic())
         index = resources_of(self.hub)
         with index.one_pass():
             entries, unreadable = index.collect(project)
