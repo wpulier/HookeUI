@@ -503,7 +503,15 @@ def compare_count_populations(inputs, params, output, check):
     return compare(inputs, params, output, check)
 
 
-OPERATIONS = {'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
+def project_counts(inputs, params, output, check):
+    if __package__:
+        from .matrix_projection import project
+    else:
+        from matrix_projection import project
+    return project(inputs, params, output, check)
+
+
+OPERATIONS = {'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,

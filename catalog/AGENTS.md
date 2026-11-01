@@ -451,6 +451,11 @@ their own confined function contract. Unknown declarations gain no execution pat
 
 ## Scientific matrix operations
 
+`matrix-project-counts` projects explicit retained raw-cell protocols through the same
+bundled runner. It never guesses target mappings or drops missing declared targets;
+sampling is explicit and retains its source identities and exclusions. See the matrix
+architecture contract before using it to prepare an evaluation reference.
+
 Bundled matrix operations use format-2 named retained-file ports and the shared
 `scientific_compute.catalog` descriptors. `matrix-cpu-runtime` and optional
 `cell-evaluation-runtime` are prepared through ordinary catalog install; app-environment

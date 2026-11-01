@@ -1,0 +1,50 @@
+# App-owned file capability; matrix_capability_runs performs retained-file admission.
+# The ordinary RGB path refuses these types. Readiness comes from the shared matrix descriptor.
+requires = { catalog = 2 }
+id = "matrix-project-counts"
+name = "Select raw-count observations"
+runs = "cpu"
+version = "1"
+licence = ["matrix-project-counts"]
+kind = "tool-function"
+what = "Project explicit raw-cell panels with preserved identities and counts"
+runner = "builtin-cpu"
+source = { made_here = "General explicit count and response operations; no pretrained weights" }
+credit = { authors = "HookeUI contributors; NumPy, SciPy and scverse contributors", link = "https://anndata.readthedocs.io/" }
+component = { what = "Bundled scientific count operation", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "matrix-project-counts"
+category = "Research"
+experimental = true
+outcomes = { empty = "No input observations", unsupported = "An unqualified runtime, incompatible scientific meaning or excessive resource request" }
+
+[[inputs]]
+id = "matrix"
+type = "matrix.anndata"
+label = "Raw single-cell matrix"
+
+[[inputs]]
+id = "protocol"
+type = "artifact.raw-count-projection-config"
+label = "Retained selection protocol"
+
+[[outputs]]
+id = "result"
+type = "matrix.anndata"
+label = "Selected annotated raw counts"
+
+[[inputs]]
+id = "maximum_stored_entries"
+type = "int"
+label = "Maximum stored entries"
+default = 4750000000
+min = 1
+max = 4750000000
+step = 1
+unit = "entries"
+tooltip = "Refuse rather than prune nonzero count values above this limit"

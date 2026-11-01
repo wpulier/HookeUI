@@ -16,6 +16,7 @@ strictly bounded preview described below; the original matrix remains an immutab
 The capabilities are:
 
 - `matrix-inspect`: read raw-count AnnData and report axes, count diagnostics and scientific meaning.
+- `matrix-project-counts`: select explicitly mapped raw-cell panels and ordered genes, preserving source cell identities.
 - `matrix-prepare`: aggregate counts by explicit biological context and target, relative to each context's controls.
 - `aggregate-profile-prepare`: convert explicitly mapped, cell-weighted mean profiles using a retained scientific protocol.
 - `response-effects-merge`: concatenate compatible prepared effects, refusing duplicate biological-context/target rows.
@@ -82,6 +83,38 @@ universe/provenance contract and therefore refuse this new merge; they still wor
 Reprepare explicitly when combining sources. Model blending remains the separate `response-combine` operation.
 
 ## Statistical meaning
+
+### Raw-cell reference projection
+
+`matrix-project-counts` takes a retained matrix and `raw-count-projection-v1` JSON
+protocol. Required fields are `format`, `context`, `experiment`, `observation_id`,
+`target_column`, `target_mapping`, `control_label`, `selected_targets`, `gene_id`,
+`gene_symbol`, `selected_genes`, `cells_per_group` and `seed`. Column names are literal
+source fields. The mapping takes exact source annotation values to declared target
+labels, including controls. Every mapping key must exist, and mapped values must
+cover exactly the complete selected panel and control label. No inferred aliases,
+missing genes filled with zeros, target intersection or scientific-context guessing.
+
+Zero `cells_per_group` retains all mapped observations. A positive value requires
+that many cells in every group, selecting the lowest SHA-256 keys over JSON tuples
+of seed, context, target and source cell identity, then preserving source row order.
+Selection is independent of expression and source row order, but does not establish
+representative sampling. At most 4,096 perturbation groups are admitted. The exact
+protocol, source hash, available/selected group counts and exclusions travel in
+`uns.projection` as JSON as well as the protected operation receipt.
+
+Dense/CSR rows are read in bounded blocks; sparse float32 output must preserve whole
+count values exactly. CSC, ambiguous identities, missing groups, insufficient cells,
+unsafe allocations and excessive stored entries refuse. Gene output order is explicit.
+Source observation identities, mapped context/target, original target annotations
+and source gene identities are retained and verified after disk assembly; a per-row
+count witness verifies unchanged selected values. This is a declared projection:
+other annotations, raw, layers and embeddings remain in the original retained input,
+not the selected output. It is not a complete source export. No source is modified.
+
+The same generic catalog/workflow operation prepares diagnostic or evaluation inputs
+for any research Project. Fixture and confined-worker checks do not qualify full-size
+public-source conversion, the chosen panel, biological accuracy or upstream scoring.
 
 Normalized-effect transfer diagnostics require identical ordered gene axes and explicit
 normalization semantics. The fit retains validated aggregate preparation meaning and its

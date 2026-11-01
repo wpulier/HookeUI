@@ -691,6 +691,12 @@ The evaluator tests refuse malformed sparse pointer layouts and oversized catego
 or string metadata before upstream decoding. These are synthetic fixtures, not source
 data conversion or a biological validation result.
 
+`test_matrix_projection.py` uses synthetic dense/CSR sources to check exact reordered
+counts, cell/gene identities, multi-chunk assembly, identity-keyed sampling, ignored
+auxiliary arrays and explicit resource/metadata/count refusals. Its opt-in prepared
+catalog test runs the confined worker and retains both exact inputs with idempotent
+retry. This does not qualify full-size reference preparation or biological accuracy.
+
 Workspace arrangement geometry checks inject only the server observation clock;
 separate before/after-deadline tests preserve confirmation policy. Scientific stack
 cleanup tests replace their module clock, never the shared Python time module, so
