@@ -45,8 +45,8 @@ def test_agents_share_study_evidence_but_cannot_forge_authorship(tmp_path):
             assert refused.status_code==400
             schema.check(refused.json(),'refusal')
             assert 'exactly session, requestKey' in refused.json()['says']
-            assert 'Send requestKey, not request' in refused.json()['next']
-            assert 'limitations is text' in refused.json()['next']
+            assert 'send requestKey, not request' in refused.json()['next']
+            assert 'limitations is text' in refused.json()['says']
             assert client.get(f'/api/agent/v1/studies/{sid}?session=2026-10-28',headers=h2).json()['study'].get('claims',[])==[]
         kept=client.post(f'/api/agent/v1/studies/{sid}/claims',json=claim,headers=h2)
         assert kept.status_code==200,kept.text

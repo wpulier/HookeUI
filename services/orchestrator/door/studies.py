@@ -120,11 +120,12 @@ def register(app, built, connected, body, reply, refusal):
             b = await body(request)
             if set(b) != {'session', 'requestKey', 'statement', 'evidence', 'dependsOn', 'limitations'}:
                 raise Refused(400, 'research-refused',
-                    'A claim requires exactly session, requestKey, statement, evidence, dependsOn and limitations.',
-                    next='Send requestKey, not request; request is the field in the saved claim. '
-                         'Evidence is a list of {artifact: exact reference, relation: supports|challenges|input|result|failure}; '
-                         'dependsOn is a list and limitations is text. Do not send basis, by, byLabel or at; '
-                         'Hooke records authorship. Correct the body and retry the same requestKey.')
+                    'A claim requires exactly session, requestKey, statement, evidence, dependsOn and limitations. '
+                    'The saved claim uses request; input uses requestKey. '
+                    'Evidence is a list of {artifact: exact reference, relation: supports|challenges|input|result|failure}; '
+                    'dependsOn is a list and limitations is text. Do not send basis, by, byLabel or at; '
+                    'Hooke records authorship.',
+                    next='send requestKey, not request; correct the body and retry the same requestKey')
             authorized(request, b['session'], True)
             result = await asyncio.to_thread(service(built).publish, study, b['session'], request=b['requestKey'],
                 statement=b['statement'], evidence=b['evidence'], depends_on=b['dependsOn'], limitations=b['limitations'],
