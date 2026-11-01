@@ -4,7 +4,7 @@ requires = { catalog = 2 }
 id = "matrix-inspect"
 name = "Inspect annotated counts"
 runs = "cpu"
-version = "4"
+version = "5"
 licence = ["matrix-inspect"]
 kind = "tool-function"
 what = "Inspect matrix dimensions, annotations, count statistics and a bounded preview"
@@ -40,3 +40,11 @@ label = "Require whole nonnegative counts"
 default = true
 agent = true
 tooltip = "Turn off only to inspect finite transformed or aggregate values. This does not make them eligible for count-based preparation or prediction."
+
+[[inputs]]
+id = "annotation_column"
+type = "string"
+label = "Count labels in observation column"
+default = ""
+agent = true
+tooltip = "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels. Does not infer biological groups."

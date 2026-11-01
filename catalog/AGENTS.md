@@ -491,3 +491,8 @@ Opt-in portable volumes and registration jobs retain their input copy, inspectio
 `matrix-inspect` version 3 reports median row totals and, only under raw-count admission, mean reciprocal library depth over all observations. Zero-depth observations remain counted and make the reciprocal undefined (`null`); they are never silently excluded. These are numeric diagnostics, not evidence of biological accuracy or a selected count generator. The existing frozen runtime generation and result provenance apply.
 
 Matrix-inspect version 4 retains a positional first 10 observations × 10 variables preview plus bounded annotation examples. This is not representative sampling. It slices before dense conversion; older reports remain usable without these additive fields.
+
+Version 5 optionally counts one explicit observation text column across all rows,
+with missing counts separate from empty labels and unused categories omitted.
+The exact column and labels are bounded; over 4,096 distinct labels refuses, not
+a truncated frequency table. No biological identity or fold independence is inferred.

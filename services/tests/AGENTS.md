@@ -9,6 +9,11 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_matrix_annotation_counts.py` qualifies exact full-column annotation counts
+on synthetic files, missing versus empty labels, unused categories, refusal bounds
+and cancellation. It does not establish biological group identity, actual agent
+use or real-data split quality.
+
 `test_project_operation_storage` uses synthetic work through real operation stores
 and Project folders: admission-before-work, relocation to a new host, attribution,
 unchanged read-only receipts, duplicate-history refusal, no replay and uncertain

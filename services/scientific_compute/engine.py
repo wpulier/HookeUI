@@ -142,8 +142,36 @@ def _preview(data, check):
             'variableAnnotations': annotations(data.var, columns)}
 
 
+def _annotation_counts(data, column, check):
+    """Exact bounded text-label counts; no inference of biological groups."""
+    import pandas as pd
+    if not isinstance(column, str) or len(column) > 256:
+        raise Refused('Choose one literal observation column, at most 256 characters')
+    if not column:
+        return None
+    if column not in data.obs.columns or list(data.obs.columns).count(column) != 1:
+        raise Refused('The selected observation column is missing or ambiguous')
+    counts = {}; missing = 0
+    for index, value in enumerate(data.obs[column]):
+        if index % 1024 == 0:
+            check()
+        if pd.isna(value):
+            missing += 1
+            continue
+        if not isinstance(value, (str, np.str_)) or len(value) > 256:
+            raise Refused('Annotation counts require text labels of at most 256 characters; values are not coerced or truncated')
+        counts[value] = counts.get(value, 0) + 1
+        if len(counts) > 4096:
+            raise Refused('Annotation counts exceed 4096 distinct observed labels; no partial counts are published')
+    return {'column': column, 'observations': int(data.n_obs), 'missing': missing,
+            'distinctObservedLabels': len(counts), 'complete': True,
+            'groups': [{'label': label, 'count': counts[label]} for label in sorted(counts)],
+            'meaning': 'Exact observed text labels; unused categories omitted. Labels do not establish biological identity.'}
+
+
 def inspect(inputs, params, output, check):
     with _adata(inputs['matrix']) as data:
+        groups = _annotation_counts(data, params.get('annotation_column', ''), check)
         totals = []; nnz = 0; whole_nonnegative = True
         require_counts = params.get('require_raw_counts', True)
         if type(require_counts) is not bool:
@@ -171,6 +199,8 @@ def inspect(inputs, params, output, check):
                   'preview': _preview(data, check),
                   ('libraryDepth' if require_counts else 'rowTotals'): depth,
                   'geneAxisSha256': hashlib.sha256('\n'.join(data.var_names).encode()).hexdigest()}
+        if groups is not None:
+            result['observationAnnotationCounts'] = groups
         if require_counts:
             result['rawCounts'] = True
         else:
