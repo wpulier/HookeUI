@@ -21,8 +21,18 @@ def protocol(path):
     fields = {'format', 'context', 'experiment', 'observation_id', 'target_column',
               'target_mapping', 'control_label', 'selected_targets', 'gene_id',
               'gene_symbol', 'selected_genes', 'cells_per_group', 'seed'}
-    if type(cfg) is not dict or set(cfg) != fields or cfg['format'] != 'raw-count-projection-v1':
-        raise engine.Refused('Declare the complete version-1 raw-count projection protocol')
+    if type(cfg) is not dict or cfg.get('format') not in ('raw-count-projection-v1', 'raw-count-projection-v2'):
+        raise engine.Refused('Declare a complete supported raw-count projection protocol')
+    if cfg['format'] == 'raw-count-projection-v2':
+        fields = fields | {'partition'}
+    if set(cfg) != fields:
+        raise engine.Refused('Declare the complete raw-count projection protocol')
+    if 'partition' in cfg:
+        part = cfg['partition']
+        if (type(part) is not dict or set(part) != {'count', 'index'}
+                or type(part['count']) is not int or not 2 <= part['count'] <= 64
+                or type(part['index']) is not int or not 0 <= part['index'] < part['count']):
+            raise engine.Refused('Partition requires count 2–64 and a zero-based index within that count')
     for key in ('context', 'experiment', 'observation_id', 'target_column', 'control_label', 'gene_id', 'gene_symbol'):
         engine._strings([cfg[key]], key)
     for key in ('selected_targets', 'selected_genes'):
@@ -79,20 +89,36 @@ def project(inputs, params, output, check):
         group_ids = {name: i for i, name in enumerate(groups)}
         labels = np.array([group_ids[cfg['target_mapping'][a]] if a in cfg['target_mapping'] else -1 for a in annotations])
         selected = np.zeros(nobs, dtype=bool)
-        counts = []
+        counts = []; partition_excluded = 0
+        partition = cfg.get('partition')
         for i, name in enumerate(groups):
             check()
             candidates = np.flatnonzero(labels == i)
-            size = cfg['cells_per_group'] or len(candidates)
-            if not size or len(candidates) < size:
+            available = len(candidates)
+            if cfg['cells_per_group'] or partition:
+                # Same immutable identity ordering for sampling and complementary folds.
+                key_calls = 0
+                def identity_key(row):
+                    nonlocal key_calls
+                    if key_calls % 1024 == 0:
+                        check()
+                    key_calls += 1
+                    return (hashlib.sha256(json.dumps(
+                        [cfg['seed'], cfg['context'], name, str(identities[row])], ensure_ascii=False,
+                        separators=(',', ':')).encode()).digest(), str(identities[row]))
+                candidates = sorted(candidates, key=identity_key)
+            if partition:
+                candidates = candidates[partition['index']::partition['count']]
+                partition_excluded += available - len(candidates)
+            eligible = len(candidates)
+            size = cfg['cells_per_group'] or eligible
+            if not size or eligible < size:
                 raise engine.Refused('Every declared group needs the requested number of cells')
-            if cfg['cells_per_group']:
-                # Key by immutable cell identity, not source order or expression values.
-                candidates = sorted(candidates, key=lambda row: (hashlib.sha256(json.dumps(
-                    [cfg['seed'], cfg['context'], name, str(identities[row])], ensure_ascii=False,
-                    separators=(',', ':')).encode()).digest(), str(identities[row])))[:size]
-            selected[candidates] = True
-            counts.append({'target': name, 'available': int(np.sum(labels == i)), 'selected': size})
+            selected[candidates[:size]] = True
+            group = {'target': name, 'available': available, 'selected': size}
+            if partition:
+                group['partitionAvailable'] = eligible
+            counts.append(group)
         selected_count = int(selected.sum())
         columns = sorted(positions.values())
         column_positions = {column: i for i, column in enumerate(columns)}
@@ -140,10 +166,13 @@ def project(inputs, params, output, check):
                       'protocolSha256': _digest(inputs['protocol'], check),
                       'sourceSha256': _digest(inputs['matrix'], check), 'sourceShape': list(matrix.shape),
                       'groups': counts, 'excludedUnmappedObservations': int(np.sum(labels < 0)),
-                      'excludedBySampling': int(np.sum(labels >= 0)) - selected_count,
+                      'excludedBySampling': int(np.sum(labels >= 0)) - partition_excluded - selected_count,
                       'sampling': 'all' if not cfg['cells_per_group'] else 'sha256-cell-identity-v1',
                       'omittedArrays': [k for k in ('raw', 'layers', 'obsm', 'varm', 'obsp', 'varp') if k in source],
                       'annotationProjection': 'only declared identity/target and gene identity fields; original source retained'}
+    if partition:
+        provenance['partition'] = {**partition, 'method': 'sha256-cell-identity-rank-modulo-v1'}
+        provenance['excludedByPartition'] = partition_excluded
     # Keep the recipe in the portable result, beyond its owning operation receipt.
     with h5py.File(path, 'r+') as saved:
         ad.io.write_elem(saved, 'uns', {'projection': json.dumps(provenance, sort_keys=True)})
@@ -160,10 +189,13 @@ def project(inputs, params, output, check):
             block.sum_duplicates(); block.eliminate_zeros(); block.sort_indices(); observe(block, actual_counts)
         if actual_counts.digest() != expected_counts.digest():
             raise engine.Refused('Projection assembly changed selected count values')
-    return path, {'format': 'raw-count-projection-result-v1', 'shape': [selected_count, len(columns)],
+    summary = {'format': 'raw-count-projection-result-v1', 'shape': [selected_count, len(columns)],
                   'storedEntries': nnz, 'rawCounts': True, 'sourceCellIdentity': 'preserved',
                   'groups': counts, 'sampling': provenance['sampling'],
                   'excludedUnmappedObservations': provenance['excludedUnmappedObservations'],
                   'excludedBySampling': provenance['excludedBySampling'],
                   'protocolSha256': provenance['protocolSha256'], 'sourceSha256': provenance['sourceSha256'],
                   'provenanceRetained': True, 'biologicalAccuracyEstablished': False}
+    if partition:
+        summary.update(partition=provenance['partition'], excludedByPartition=partition_excluded)
+    return path, summary

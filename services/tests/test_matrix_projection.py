@@ -116,7 +116,8 @@ def test_projection_code_is_part_of_the_frozen_generation(monkeypatch):
     assert descriptor('matrix-project-counts')['generation'] != before
 
 
-def test_prepared_confined_projection_retains_exact_inputs_and_retries(tmp_path, monkeypatch):
+@pytest.mark.parametrize('partitioned', [False, True])
+def test_prepared_confined_projection_retains_exact_inputs_and_retries(tmp_path, monkeypatch, partitioned):
     import os
     prepared = os.environ.get('HOOKE_MATRIX_TEST_CATALOG')
     if not prepared:
@@ -128,7 +129,8 @@ def test_prepared_confined_projection_retains_exact_inputs_and_retries(tmp_path,
     monkeypatch.setenv('MICROMIND_HEAVY_SLOT', str(tmp_path/'isolated-slot'))
     store = ProjectStore(tmp_path/'projects')
     refs = {}
-    for port, path in fixture(tmp_path).items():
+    changes = {'format': 'raw-count-projection-v2', 'partition': {'count': 2, 'index': 0}} if partitioned else {}
+    for port, path in fixture(tmp_path, **changes).items():
         body = path.read_bytes()
         intake = FileIntake(store, 'projection-test', 'projection-fixture-'+port, name=path.name,
                            size=len(body), max_bytes=len(body))
@@ -145,7 +147,7 @@ def test_prepared_confined_projection_retains_exact_inputs_and_retries(tmp_path,
     assert record['inputs']['matrix']['digest'] == refs['matrix']['digest']
     assert record['inputs']['protocol']['digest'] == refs['protocol']['digest']
     assert record['runtime']['owner'] == 'matrix-cpu-runtime'
-    assert record['output']['summary']['shape'] == [4, 2]
+    assert record['output']['summary']['shape'] == ([2, 2] if partitioned else [4, 2])
     assert run_matrix(**args) == result
     assert len(store.list('projection-test')) == 3
 
@@ -237,3 +239,108 @@ def test_explicit_control_only_projection_preserves_counts_and_excludes_perturba
 def test_control_only_request_cannot_hide_mapped_perturbations_or_drop_gene_axis(tmp_path, changes):
     with pytest.raises(engine.Refused):
         run(tmp_path, fixture(tmp_path, **changes))
+
+
+@pytest.mark.parametrize('storage', ['dense', 'csr'])
+def test_partitions_are_disjoint_complete_and_preserve_original_values(tmp_path, storage):
+    ad = pytest.importorskip('anndata')
+    inputs = fixture(tmp_path, storage, format='raw-count-projection-v2', partition={'count': 2, 'index': 0})
+    before = hashlib.sha256(inputs['matrix'].read_bytes()).hexdigest()
+    original = ad.read_h5ad(inputs['matrix'])
+    halves = []
+    for index in (0, 1):
+        cfg = json.loads(inputs['protocol'].read_text()); cfg['partition']['index'] = index
+        inputs['protocol'].write_text(json.dumps(cfg))
+        path, report = run(tmp_path, inputs, f'part-{index}')
+        got = ad.read_h5ad(path); halves.append(set(got.obs_names))
+        assert len(got) == 2
+        expected = original[got.obs_names, ['id-b', 'id-a']].X
+        np.testing.assert_array_equal(got.X.toarray(), expected.toarray() if sparse.issparse(expected) else expected)
+        assert got.obs_names.tolist() == [name for name in original.obs_names if name in halves[-1]]
+        assert report['excludedByPartition'] == 2 and report['excludedBySampling'] == 0
+        assert report['excludedUnmappedObservations'] == 1
+        assert all(g['available'] == 2 and g['partitionAvailable'] == g['selected'] == 1 for g in report['groups'])
+        assert report['partition'] == {'count': 2, 'index': index, 'method': 'sha256-cell-identity-rank-modulo-v1'}
+        assert json.loads(got.uns['projection'])['partition'] == report['partition']
+    assert not halves[0] & halves[1]
+    assert halves[0] | halves[1] == {'cell4', 'cell3', 'cell1', 'cell0'}
+    assert hashlib.sha256(inputs['matrix'].read_bytes()).hexdigest() == before
+
+
+def test_partition_membership_is_independent_of_expression_and_source_order(tmp_path):
+    ad = pytest.importorskip('anndata')
+    inputs = fixture(tmp_path, format='raw-count-projection-v2', partition={'count': 2, 'index': 1})
+    first, _ = run(tmp_path, inputs, 'first')
+    changed = ad.read_h5ad(inputs['matrix'])[::-1].copy(); changed.X[:] = 987
+    changed.write_h5ad(inputs['matrix'])
+    second, _ = run(tmp_path, inputs, 'second')
+    assert set(ad.read_h5ad(first).obs_names) == set(ad.read_h5ad(second).obs_names)
+
+
+def test_partition_sampling_is_within_fold_and_counts_exclusions_separately(tmp_path):
+    ad = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    inputs = fixture(tmp_path, format='raw-count-projection-v2', partition={'count': 2, 'index': 0},
+                     selected_targets=[], target_mapping={'nt': 'control'}, cells_per_group=2)
+    obj = ad.AnnData(X=np.arange(27, dtype=np.float32).reshape(9, 3),
+                    obs=pd.DataFrame({'guide': ['nt']*9}, index=[f'c{i}' for i in range(9)]),
+                    var=pd.DataFrame({'symbol': ['a', 'b', 'c']}, index=['id-a', 'id-b', 'id-c']))
+    obj.write_h5ad(inputs['matrix'])
+    _, report = run(tmp_path, inputs)
+    assert report['groups'] == [{'target': 'control', 'available': 9, 'partitionAvailable': 5, 'selected': 2}]
+    assert report['excludedByPartition'] == 4 and report['excludedBySampling'] == 3
+    cfg = json.loads(inputs['protocol'].read_text()); cfg['cells_per_group'] = 6
+    inputs['protocol'].write_text(json.dumps(cfg))
+    with pytest.raises(engine.Refused, match='requested number'):
+        run(tmp_path, inputs, 'too-many')
+
+
+@pytest.mark.parametrize('partition', [None, [], {}, {'count': 1, 'index': 0},
+    {'count': 65, 'index': 0}, {'count': True, 'index': 0}, {'count': 2, 'index': True},
+    {'count': 2, 'index': -1}, {'count': 2, 'index': 2}, {'count': 2, 'index': 0, 'extra': 1}])
+def test_invalid_partition_refuses_before_reading_matrix(tmp_path, partition):
+    cfg = {'format': 'raw-count-projection-v2', 'context': 'c', 'experiment': 'e',
+           'observation_id': '_index', 'target_column': 'guide', 'target_mapping': {'nt': 'control'},
+           'control_label': 'control', 'selected_targets': [], 'gene_id': '_index',
+           'gene_symbol': 'symbol', 'selected_genes': ['a'], 'cells_per_group': 0, 'seed': 0,
+           'partition': partition}
+    path = tmp_path/'config.json'; path.write_text(json.dumps(cfg))
+    with pytest.raises(engine.Refused, match='Partition'):
+        projection.protocol(path)
+
+
+def test_v1_does_not_silently_accept_partition_and_v2_requires_it(tmp_path):
+    inputs = fixture(tmp_path, partition={'count': 2, 'index': 0})
+    with pytest.raises(engine.Refused, match='complete'):
+        projection.protocol(inputs['protocol'])
+    cfg = json.loads(inputs['protocol'].read_text()); cfg['format'] = 'raw-count-projection-v2'; del cfg['partition']
+    inputs['protocol'].write_text(json.dumps(cfg))
+    with pytest.raises(engine.Refused, match='complete'):
+        projection.protocol(inputs['protocol'])
+
+
+def test_empty_partition_refuses_instead_of_dropping_a_declared_group(tmp_path):
+    inputs = fixture(tmp_path, format='raw-count-projection-v2', partition={'count': 3, 'index': 2})
+    with pytest.raises(engine.Refused, match='requested number'):
+        run(tmp_path, inputs)
+
+
+def test_partition_key_building_observes_cancellation(tmp_path, monkeypatch):
+    ad = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    inputs = fixture(tmp_path, format='raw-count-projection-v2', partition={'count': 2, 'index': 0},
+                     selected_targets=[], target_mapping={'nt': 'control'})
+    obj = ad.AnnData(X=sparse.csr_matrix((2200, 3), dtype=np.float32),
+                    obs=pd.DataFrame({'guide': ['nt']*2200}, index=[f'c{i}' for i in range(2200)]),
+                    var=pd.DataFrame({'symbol': ['a', 'b', 'c']}, index=['id-a', 'id-b', 'id-c']))
+    obj.write_h5ad(inputs['matrix'])
+    original = projection.hashlib.sha256; keys = 0
+    def counted(*args, **kwargs):
+        nonlocal keys
+        keys += 1
+        return original(*args, **kwargs)
+    monkeypatch.setattr(projection.hashlib, 'sha256', counted)
+    def cancel():
+        if keys >= 1000:
+            raise InterruptedError('stop during partition ordering')
+    with pytest.raises(InterruptedError, match='partition ordering'):
+        run(tmp_path, inputs, check=cancel)
+    assert keys == 1024 and not list(tmp_path.glob('*/projected-counts.h5ad'))
