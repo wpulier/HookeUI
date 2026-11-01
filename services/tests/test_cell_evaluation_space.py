@@ -121,6 +121,15 @@ def test_new_conversion_preserves_memory_admission_before_allocations(tmp_path, 
             'config': protocol(tmp_path)}, {}, tmp_path, lambda: None)
 
 
+def test_profile_with_no_metrics_for_the_selected_version_refuses_before_input_reads(tmp_path, monkeypatch):
+    pytest.importorskip('cell_eval2')
+    monkeypatch.setattr(evaluation, '_counts', lambda *a: pytest.fail('Metric admission must precede input reads'))
+    with pytest.raises(evaluation.Refused, match='no compatible metrics'):
+        evaluation.evaluate({'prediction': tmp_path / 'unused-prediction',
+            'reference': tmp_path / 'unused-reference', 'config': protocol(tmp_path, metrics='cell')},
+            {}, tmp_path, lambda: None)
+
+
 def test_control_pool_detection_cannot_silently_change_normalization(tmp_path, monkeypatch):
     upstream = pytest.importorskip('cell_eval2')
     norm = pytest.importorskip('cell_eval2.norm')

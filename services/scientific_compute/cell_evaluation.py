@@ -155,8 +155,8 @@ def evaluate(inputs, params, output, check):
     config = protocol(inputs['config'])
     cfg = _evaluation_config(config)
     selected, missing = resolve_metrics(cfg.metrics, version=cfg.version)
-    if missing:
-        raise Refused('The selected upstream evaluator preset has unavailable metrics')
+    if missing or not selected:
+        raise Refused('The selected upstream evaluator preset has unavailable or no compatible metrics')
     contexts = []
     with _counts(inputs['prediction'], config, check) as prediction, _counts(inputs['reference'], config, check) as reference:
         if list(prediction.var_names) != list(reference.var_names):
