@@ -7335,7 +7335,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",
@@ -7499,7 +7499,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",
@@ -7658,7 +7658,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",
