@@ -240,6 +240,15 @@ unattributed; the active connection never becomes the inferred author.
 
 Project material metadata comes from `project_material.describe`: declared document kinds and accepted output summary formats, never titles. Both resource wires and project.state carry that same projection. Metadata listing does not claim to have verified all payload bytes or qualified a reader. Unknown imports remain Files; matrix result formats distinguish retained response models from analysis output. Workflow attempts carry the original run ID for grouping.
 
+Workflow history items expose their own recorded author through the same maker projection:
+the definition's `createdBy`, the run's initial `actor`, or the attempt's executing `actor`.
+Later controls, reviews and recovery never replace that identity. Legacy records without
+an author stay unattributed; a display label does not authenticate a connection. Reading
+history performs no migration or execution and leaves accepted revisions unchanged.
+The shared author contract distinguishes `system` work as Hooke system. A legacy
+`agent:researcher` is a researcher with identity not recorded, not an external
+connection or an invented researcher ID.
+
 Material organization is an accepted exact-reference membership record, published by
 `project_material_edit.organize` from Studio or the declared `material.organize`
 agent action. It records the role/group, input selection, organizing actor and exact

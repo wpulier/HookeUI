@@ -156,6 +156,20 @@ describe('Data by what each thing is', () => {
     expect(dataRows([byAgent, outlines]).filter((item) => rowMaker(item) === 'a:Claude Code').map((item) => item.key)).toEqual(['a1']);
   });
 
+  it('keeps system work and a legacy unnamed researcher distinct from connected agents', () => {
+    const system = entry('system-work', 'project', { role: 'history', maker: { kind: 'system', name: 'Hooke system' } });
+    const legacy = entry('legacy-work', 'project', { role: 'history', maker: { kind: 'researcher', name: 'Researcher (identity not recorded)' } });
+    const external = entry('external-work', 'project', { role: 'history', maker: { kind: 'agent', id: 'ac_1', name: 'Codex' } });
+    const rows = dataRows([system, legacy, external]);
+    expect(makerChoices(rows)).toEqual([
+      { key: 'system', name: 'Hooke system' },
+      { key: 'a:Codex', name: 'Codex' },
+      { key: 'r:Researcher (identity not recorded)', name: 'Researcher (identity not recorded)' },
+    ]);
+    expect(rows.filter(item => rowMaker(item) === 'system').map(item => item.key)).toEqual(['system-work']);
+    expect(makerName('system')).toBe('Hooke system');
+  });
+
   it('search finds a row by any of its parts, its maker, its form and a source’s site', () => {
     const rows = dataRows(ALL);
     expect(rowMatches(row(rows, 'e8'), 'found')).toBe(false);

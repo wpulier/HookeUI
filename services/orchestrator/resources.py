@@ -346,6 +346,10 @@ def maker_of(kind: str, eid: str, made_by: dict | None, researchers: Researchers
     if isinstance(rid, str) and rid:
         return {"kind": "researcher", "id": rid, "name": str(made.get("name") or who.names.get(rid) or rid)}
     actor = made.get("actor")
+    if actor == 'agent:system':
+        return {'kind': 'system', 'name': 'Hooke system'}
+    if actor == 'agent:researcher':
+        return {'kind': 'researcher', 'name': 'Researcher (identity not recorded)'}
     if actor == "you":
         return dict(YOU)
     from .door import actor as door_actor
@@ -2542,6 +2546,8 @@ class Index:
             membership = document['state'].get('materialMembership', {})
             if isinstance(membership, dict) and isinstance(membership.get('by'), str):
                 made = {'actor': membership['by']}
+        from .project_material import workflow_authorship
+        made = workflow_authorship(document) or made
         return Entry(item.id, "project", document['title'], item.session, item.at,
                      version=item.revision, state="saved", untrusted=True, made_by=made,
                      summary=f"{document['kind']} project · revision {item.revision}",
