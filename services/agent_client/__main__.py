@@ -4,7 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 
-from .scoped import Configuration, ProjectReader, inline_schema
+from .scoped import Configuration, ProjectReader, READS, inline_schema
 
 
 def server_for(reader):
@@ -15,6 +15,10 @@ def server_for(reader):
     empty = {'type': 'object', 'properties': {}, 'additionalProperties': False}
     observed = {'type': 'object', 'properties': {'id': {'type': 'string', 'pattern': '^op_[a-f0-9]{24}$'}},
                 'required': ['id'], 'additionalProperties': False}
+    reads = {name.replace('.', '_'): name for name in READS}
+    envelope = {'type': 'object', 'properties': {'arguments': {'type': 'object'},
+                'requestKey': inline_schema(schema.load('request-key'))},
+                'required': ['arguments', 'requestKey'], 'additionalProperties': False}
 
     async def listed(ctx, params):
         tools = []
@@ -44,11 +48,11 @@ def server_for(reader):
                 result = await reader.study()
             else:
                 # Exact mapping prevents turning arbitrary method/path text into an API call.
-                tools = {t.name: t for t in (await listed(ctx, None)).tools}
-                if params.name not in tools:
+                if params.name not in reads:
                     raise ValueError('This action is not admitted by the Project read client')
-                schema.validate(args, tools[params.name].input_schema)
-                result = await reader.read(params.name.replace('_', '.'), args['arguments'], args['requestKey'])
+                schema.validate(args, envelope)
+                # The reader discovers and validates the fresh inner contract once.
+                result = await reader.read(reads[params.name], args['arguments'], args['requestKey'])
             return CallToolResult(content=[TextContent(type='text', text=json.dumps(result, allow_nan=False))])
         except (ValueError, KeyError, TypeError, OSError):
             # Retained material is data. Host exception text/paths are not model output.

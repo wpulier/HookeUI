@@ -139,8 +139,12 @@ class ProjectReader:
             raise ValueError('This read is not currently available in Hooke')
         schema.validate(arguments, rows[name]['inputSchema'])
         schema.check(request_key, 'request-key')
-        if name == 'artifact.read' and arguments['reference']['session'] != self.config.project:
-            raise ValueError('The reference belongs to another Project')
+        if name == 'artifact.read':
+            reference = arguments['reference']
+            if set(reference) != {'id', 'session', 'revision', 'digest'}:
+                raise ValueError('This reference shape has not been qualified for this client')
+            if reference['session'] != self.config.project:
+                raise ValueError('The reference belongs to another Project')
         response = await self.door.request('POST', 'operations', {
             'tool': name, 'args': arguments, 'project': self.config.project, 'requestKey': request_key})
         operation = self._scoped_operation(response)

@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -178,4 +179,31 @@ def test_cli_reply_consumes_all_chunks_but_stops_at_bound(tmp_path, size):
         else:
             result = await Door(config(cli=cli)).request('GET', 'synthetic')
             assert len(result['content']) == size
+    asyncio.run(scenario())
+
+
+def test_cancelling_observation_reaps_only_its_cli_child(tmp_path):
+    from tests.waiting import until_async
+    ready = tmp_path / 'ready'
+    cli = tmp_path / 'cli'
+    cli.write_text('#!' + sys.executable + '\nimport os,time\nfrom pathlib import Path\n'
+        f'Path({str(ready)!r}).write_text(str(os.getpid()))\ntime.sleep(120)\n')
+    cli.chmod(0o700)
+    async def scenario():
+        task = asyncio.create_task(Door(config(cli=cli)).request('GET', 'synthetic'))
+        try:
+            await until_async(ready.exists)
+            pid = int(ready.read_text())
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            with pytest.raises(ProcessLookupError):
+                os.kill(pid, 0)
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
     asyncio.run(scenario())
