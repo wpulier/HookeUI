@@ -879,6 +879,11 @@ transport stand-in: they do not qualify the native chooser or full read-only UI.
 
 # Retained researcher integrity
 
+Maintenance display regressions exercise the real update-warning path with an old selected generation and a newer
+candidate, refusing synchronous maintenance-file stats after collection. Isolated records check refreshed/deleted
+observations, profile separation and live mutations inside a stale display scope. These are synthetic disk/lifecycle
+checks; full model-load latency is qualified separately with unchanged thresholds.
+
 `test_project_research_integrity.py` uses synthetic researcher output through real
 metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and

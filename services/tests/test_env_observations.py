@@ -3,6 +3,7 @@ import asyncio
 import json
 import shutil
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +20,77 @@ def installed(m):
     shutil.copytree(m.folder, d / envs.SNAPSHOT / m.id)
     env_runner.proof_path(m).write_text(json.dumps({'ok': True, 'found': 3}))
     return d
+
+
+def test_update_display_uses_observed_maintenance_records(home, monkeypatch):
+    from orchestrator.maintenance import store
+    m = contribute(home)
+    active = installed(m)
+    env_runner.choose(m, active.name)
+    candidate = contribute(home, version='dark-spots 0.2')
+    snapshot = observations.collect()
+    root = store.root()
+    stat = Path.stat
+    def no_maintenance_stat(path, *args, **kwargs):
+        if path.is_relative_to(root):
+            pytest.fail(f'synchronous maintenance display read: {path.name}')
+        return stat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'stat', no_maintenance_stat)
+    with observations.display(snapshot):
+        assert 'Update available' in env_runner.update_waiting(candidate)
+
+
+@pytest.mark.parametrize('name', ['policies.json', 'checks.json', 'pins.json', 'attempts/mine--spots.json'])
+def test_maintenance_observation_keeps_snapshot_but_live_reads_and_recollection_change(home, name):
+    from orchestrator.maintenance import store
+    path = store.path(name)
+    store.write(path, {'version': 1})
+    snapshot = store.display_records(['mine/spots'])
+    store.write(path, {'version': 2})
+    with observations.display(snapshot):
+        assert store.read(path, {}) == {'version': 1}
+        with observations.live():
+            assert store.read(path, {}) == {'version': 2}
+    assert store.read(path, {}) == {'version': 2}
+    path.unlink()
+    with observations.display(store.display_records(['mine/spots'])):
+        assert store.read(path, {}) == {}
+
+
+def test_maintenance_decisions_snapshot_and_profiles_are_independent(home):
+    from orchestrator.maintenance import store
+    path = store.path('decisions.jsonl')
+    store.append(path, {'action': 'before'})
+    snapshot = store.display_records([])
+    store.append(path, {'action': 'after'})
+    other = {'MICROMIND_CATALOG': str(home / 'other-catalog')}
+    store.write(store.path('policies.json', other), {'separate': True})
+    with observations.display(snapshot):
+        assert store.lines(path) == [{'action': 'before'}]
+        assert store.read(store.path('policies.json', other), {}) == {'separate': True}
+        assert store.read(store.path('policies.json'), {}) == {}
+    assert store.lines(path) == [{'action': 'before'}, {'action': 'after'}]
+
+
+def test_maintenance_mutations_inside_display_read_live_state(home):
+    from orchestrator.maintenance import policy, store
+    m = contribute(home)
+    installed(m)
+    policy.record(m, 'review', by='you', how='screen')
+    snapshot = observations.collect()
+    path = store.path('policies.json')
+    live = store.read(path, {})
+    live['other-entry'] = {'policy': 'pin', 'generation': 'preserve-me'}
+    store.write(path, live)
+    with observations.display(snapshot):
+        assert policy.get(m.key)['policy'] == 'review'
+        policy.record(m, 'manual', by='you', how='screen')
+        with store.locked(), store.locked():
+            assert policy.get(m.key)['policy'] == 'manual'
+            assert policy.get('other-entry')['generation'] == 'preserve-me'
+        assert policy.get(m.key)['policy'] == 'review', 'display remains the prior observation until refreshed'
+    assert policy.get(m.key)['policy'] == 'manual'
+    assert policy.get('other-entry')['generation'] == 'preserve-me'
 
 
 def test_versions_enumerates_once_and_display_reuses_facts(home, monkeypatch):
