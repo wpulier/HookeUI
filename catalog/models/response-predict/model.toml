@@ -4,7 +4,7 @@ requires = { catalog = 2 }
 id = "response-predict"
 name = "Generate conditional counts"
 runs = "cpu"
-version = "1"
+version = "2"
 licence = ["response-predict"]
 kind = "tool-function"
 what = "Generate reproducible counts from fitted effects and control cells"
@@ -79,6 +79,14 @@ default = 1
 label = "Response Strength"
 min = 0
 max = 2
+
+[[inputs]]
+id = "dispersion_estimator"
+type = "choice"
+default = "normalized-moments-v1"
+options = ["normalized-moments-v1", "depth-scaled-poisson-v1"]
+label = "Dispersion estimator"
+tooltip = "Keep normalized moments, or explicitly test depth-scaled Poisson-noise subtraction. Neither establishes biological fidelity."
 
 [[inputs]]
 id = "dispersion_shrinkage"
