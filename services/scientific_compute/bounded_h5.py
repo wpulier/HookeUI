@@ -4,6 +4,8 @@ Only X and explicitly requested columns are read. Auxiliary layers/raw/embedding
 are not inputs. Label reads use bounded HDF5 conversions, including legacy
 categoricals; arbitrary-width strings never reach a whole-array decoder.
 """
+import sys
+
 import numpy as np
 
 if __package__:
@@ -92,14 +94,19 @@ def numeric(node, length, *, integer=False):
     return node[:]
 
 
-def text(node, length=None, depth=0):
-    """Read only a bounded string axis; refuse missing/oversized labels."""
+def text(node, length=None, depth=0, *, compact=False):
+    """Read a bounded string axis, optionally keeping Python text references.
+
+    Compact output avoids padding each annotation to the longest label. Callers
+    must preserve object dtype instead of converting it to fixed-width Unicode.
+    Both representations retain the same metadata and individual-label limits.
+    """
     import h5py
     if depth > 2:
         raise Refused('Unsupported nested label encoding')
     if isinstance(node, h5py.Group):
         if node.attrs.get('encoding-type') == 'nullable-string-array' and set(node.keys()) == {'values', 'mask'}:
-            values = text(node['values'], length, depth + 1)
+            values = text(node['values'], length, depth + 1, compact=compact)
             mask = numeric(node['mask'], len(values))
             if mask.dtype.kind != 'b' or mask.any():
                 raise Refused('Required labels cannot be missing')
@@ -112,13 +119,18 @@ def text(node, length=None, depth=0):
     else:
         categories = codes = None
     if categories is not None:
-        if len(codes.shape) != 1 or (length is not None and codes.shape != (length,)):
+        if (len(codes.shape) != 1 or codes.shape[0] > MAX_ROWS
+                or (length is not None and codes.shape != (length,))):
             raise Refused('Label axis has an inconsistent shape')
-        values = text(categories, depth=depth + 1)
+        values = text(categories, depth=depth + 1, compact=compact)
         ids = numeric(codes, codes.shape[0], integer=True)
         if not len(values) or np.any(ids < 0) or np.any(ids >= len(values)):
             raise Refused('Categorical labels contain missing or invalid codes')
-        _text_budget(len(ids), max(map(len, values)))
+        if compact:
+            _compact_budget(sum(sys.getsizeof(v) for v in values),
+                            len(values) + len(ids), ids.nbytes)
+        else:
+            _text_budget(len(ids), max(map(len, values)))
         return values[ids]
     if (not isinstance(node, h5py.Dataset) or len(node.shape) != 1 or node.shape[0] > MAX_ROWS
             or (length is not None and node.shape != (length,))
@@ -126,7 +138,7 @@ def text(node, length=None, depth=0):
         raise Refused('Label axis has an unsupported shape or type')
     if node.dtype.kind == 'S' and node.dtype.itemsize > LABEL_BYTES:
         raise Refused('Label storage exceeds the bounded string width')
-    values = []; width = 0
+    values = []; width = 0; text_bytes = 0
     for start in range(0, node.shape[0], 256):
         # Convert in HDF5, rather than first allocating an unbounded vlen array.
         raw = node.astype(f'S{LABEL_BYTES + 1}')[start:start + 256]
@@ -137,10 +149,21 @@ def text(node, length=None, depth=0):
             if not value or len(value) > 256:
                 raise Refused('Labels must be nonempty text of at most 256 characters')
             values.append(value); width = max(width, len(value))
-        _text_budget(node.shape[0], width)
-    return np.asarray(values, dtype=str)
+            text_bytes += sys.getsizeof(value)
+        if compact:
+            _compact_budget(text_bytes, node.shape[0])
+        else:
+            _text_budget(node.shape[0], width)
+    return np.asarray(values, dtype=object if compact else str)
 
 
 def _text_budget(length, width):
     if length * max(1, width) * 4 * 3 + length * 64 > METADATA_BYTES:
         raise Refused('Decoded labels exceed the metadata allocation allowance')
+
+
+def _compact_budget(text_bytes, length, numeric_bytes=0):
+    # Include Python string objects, list/array references and numeric codes,
+    # with three-copy headroom. Strings are never widened or truncated.
+    if (text_bytes + length * 16 + numeric_bytes) * 3 > METADATA_BYTES:
+        raise Refused("Decoded labels exceed the metadata allocation allowance")

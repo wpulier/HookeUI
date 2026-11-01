@@ -148,3 +148,70 @@ def test_prepared_confined_projection_retains_exact_inputs_and_retries(tmp_path,
     assert record['output']['summary']['shape'] == [4, 2]
     assert run_matrix(**args) == result
     assert len(store.list('projection-test')) == 3
+
+
+def test_long_unmapped_annotations_do_not_expand_every_row_to_the_widest_label(tmp_path):
+    """Real-sized annotation axis, tiny selected panel; counts stay untouched."""
+    ad = pytest.importorskip('anndata'); pd = pytest.importorskip('pandas')
+    inputs = fixture(tmp_path)
+    n = 100_000
+    labels = ['nt', 'ga'] + ['unmapped-' + 'x' * 231] * (n - 2)
+    obj = ad.AnnData(X=sparse.csr_matrix((n, 3), dtype=np.float32),
+                    obs=pd.DataFrame({'guide': pd.Categorical(labels)},
+                                     index=[f'cell-{i}' for i in range(n)]),
+                    var=pd.DataFrame({'symbol': ['a', 'b', 'c']}, index=['id-a', 'id-b', 'id-c']))
+    obj.write_h5ad(inputs['matrix'])
+    path, report = run(tmp_path, inputs)
+    got = ad.read_h5ad(path)
+    assert got.obs_names.tolist() == ['cell-0', 'cell-1']
+    assert got.obs['source_annotation'].tolist() == ['nt', 'ga']
+    assert report['excludedUnmappedObservations'] == n - 2
+    assert report['shape'] == [2, 2] and got.X.nnz == 0
+
+
+@pytest.mark.parametrize('encoding', ['categorical', 'legacy', 'plain', 'nullable'])
+def test_compact_annotations_keep_exact_unicode_and_refuse_invalid_values(tmp_path, encoding, monkeypatch):
+    h5py = pytest.importorskip('h5py')
+    from scientific_compute import bounded_h5
+    strings = ['short', 'λ' * 240, 'short']
+    with h5py.File(tmp_path/'labels.h5', 'w') as h:
+        if encoding in ('categorical', 'legacy'):
+            values = h.create_dataset('values', data=np.array(strings[:2], dtype=h5py.string_dtype()))
+            if encoding == 'categorical':
+                node = h.create_group('labels'); node.attrs['encoding-type'] = 'categorical'
+                node['categories'] = values
+                codes = node.create_dataset('codes', data=[0, 1, 0])
+            else:
+                node = h.create_dataset('labels', data=[0, 1, 0]); node.attrs['categories'] = values.ref
+                codes = node
+        elif encoding == 'nullable':
+            node = h.create_group('labels'); node.attrs['encoding-type'] = 'nullable-string-array'
+            values = node.create_dataset('values', data=np.array(strings, dtype=h5py.string_dtype()))
+            node.create_dataset('mask', data=[False]*3)
+        else:
+            node = values = h.create_dataset('labels', data=np.array(strings, dtype=h5py.string_dtype()))
+        result = bounded_h5.text(node, 3, compact=True)
+        assert result.dtype == object and result.tolist() == strings
+        with monkeypatch.context() as scoped:
+            scoped.setattr(bounded_h5, 'METADATA_BYTES', 32)
+            with pytest.raises(engine.Refused, match='allocation'):
+                bounded_h5.text(node, 3, compact=True)
+        if encoding in ('categorical', 'legacy'):
+            codes[1] = -1
+        elif encoding == 'nullable':
+            node['mask'][1] = True
+        else:
+            values[1] = 'x' * 1025
+        with pytest.raises(engine.Refused, match='missing|width'):
+            bounded_h5.text(node, 3, compact=True)
+
+
+def test_compact_annotations_preserve_long_selected_labels_in_saved_projection(tmp_path):
+    ad = pytest.importorskip('anndata')
+    long_label = 'λ' * 240
+    inputs = fixture(tmp_path, target_mapping={'nt': 'control', long_label: 'target-a'})
+    obj = ad.read_h5ad(inputs['matrix'])
+    obj.obs['guide'] = ['nt', long_label, 'gb', long_label, 'nt']
+    obj.write_h5ad(inputs['matrix'])
+    path, _ = run(tmp_path, inputs)
+    assert ad.read_h5ad(path).obs['source_annotation'].tolist() == ['nt', long_label, long_label, 'nt']
