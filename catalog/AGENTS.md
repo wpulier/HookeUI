@@ -497,3 +497,9 @@ with missing counts separate from empty labels and unused categories omitted.
 The exact column and labels are bounded; over 4,096 distinct labels or 512 KiB
 encoded report refuses before the matrix scan, not a truncated frequency table.
 No biological identity or fold independence is inferred.
+
+Matrix-evaluate-cell version 2 supports an explicit versioned median/log1p
+evaluation-view protocol for pinned upstream v1 comparisons. It preserves raw
+inputs, complete panels and the existing memory bound, records each full-view
+normalization and refuses ambiguous input detection. It does not claim historical
+leaderboard parity; see the scientific-matrices contract for exact semantics.

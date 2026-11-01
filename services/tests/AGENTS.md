@@ -33,6 +33,12 @@ on synthetic files, missing versus empty labels, unused categories, refusal boun
 and cancellation. It does not establish biological group identity, actual agent
 use or real-data split quality.
 
+`test_cell_evaluation_space.py` checks opt-in full-context median/log1p views,
+exact control attachment, unchanged raw input hashes, explicit configuration,
+ambiguity/cancellation and unchanged memory admission on synthetic data. These
+checks are not historical metric parity, full-size qualification or prediction
+quality. Tests requiring the separately prepared evaluator report a skip if absent.
+
 `test_project_operation_storage` uses synthetic work through real operation stores
 and Project folders: admission-before-work, relocation to a new host, attribution,
 unchanged read-only receipts, duplicate-history refusal, no replay and uncertain
