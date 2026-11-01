@@ -16,6 +16,7 @@ strictly bounded preview described below; the original matrix remains an immutab
 The capabilities are:
 
 - `matrix-inspect`: read raw-count AnnData and report axes, count diagnostics and scientific meaning.
+
 - `matrix-project-counts`: select explicitly mapped raw-cell panels and ordered genes, preserving source cell identities.
 - `matrix-prepare`: aggregate counts by explicit biological context and target, relative to each context's controls.
 - `aggregate-profile-prepare`: convert explicitly mapped, cell-weighted mean profiles using a retained scientific protocol.
@@ -29,6 +30,19 @@ The capabilities are:
 - `response-combine`: combine fitted effects on identical ordered gene/target axes with explicit weights.
 - `matrix-concatenate`: join count rows with exact gene order and unique cell identities.
 - `matrix-export`: validate and copy retained AnnData; packaging and upload remain the caller's separate operations.
+
+Inspection can optionally count one literal observation annotation column. It
+counts all observations, retaining exact text labels, missing values and the
+number of distinct observed labels; unused categorical levels are omitted.
+Empty strings remain observed labels, separate from missing values. Numeric
+labels are not coerced and text is not truncated. Missing/ambiguous columns,
+labels longer than 256 characters, more than 4,096 observed labels, or an encoded
+annotation report over 512 KiB refuse before scanning matrix values and without
+publishing partial counts. The byte bound includes JSON Unicode escaping and
+preserves headroom in the shared operation receipt. These are coverage facts, not
+inferred biological contexts or evidence of independent development folds.
+The default selects no column. An explicit new inspection retains this additive
+report under its new generation; existing reports and frozen runs stay intact.
 
 The generic evaluator protocol is a retained JSON file with `preset`, `context_column`, `target_column`,
 `control_label`, and `panels` (context label to complete unique target list). The preset belongs to the Project,
