@@ -174,6 +174,11 @@ original attempts. Agent review never supplies human acceptance. Shared operatio
 reads retain the original author; request keys remain per connection. A second agent
 reads an existing operation by ID, rather than reusing another agent's request key.
 
+Claim publication takes exactly `session`, `requestKey`, `statement`, `evidence`,
+`dependsOn` and `limitations`. The saved claim calls its request identity `request`;
+that is not an admission field. A wrong field set refuses without publishing and
+explains the correct body and same-key retry. Authorship remains server-derived.
+
 The existing `workflow` admission appears in tools discovery when `workflow.write`
 is declared. Its shared `workflow-admission` schema also validates the request.
 Discovery describes the entrance, not a ready scientific run or Project grant:

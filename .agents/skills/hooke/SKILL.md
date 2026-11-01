@@ -117,6 +117,16 @@ workflow command fields. Execution is `hooke run workflow` with study, session,
 workflow, revision and inputs. Read original operation IDs after disconnection;
 request keys are local to your connection and must not impersonate another agent.
 
+Publish a finding with `api POST studies/<study>/claims`. Its body contains exactly
+`session`, `requestKey`, `statement`, `evidence`, `dependsOn` and `limitations`.
+`evidence` is a list of `{"artifact": <exact retained reference>, "relation": "supports"}`
+(also `challenges`, `input`, `result` or `failure`). `dependsOn` is a list of existing
+claim request keys, or `[]`; `limitations` is text. Use `requestKey` in the request:
+the saved claim calls it `request`, which is not an input field. Hooke supplies
+authorship and time; send no `by`, `byLabel`, `at` or `basis`. After a malformed-body
+refusal, correct the body and reuse the same request key. Read the Study to confirm
+publication before saying your finding is saved.
+
 Project membership is the owner's choice in Settings → Connected agents → Project
 access. Read-only access never authorizes an experiment or a finding. Do not call a
 Studio grant route or alter files to gain access. A refusal is a real boundary.

@@ -37,6 +37,17 @@ def test_agents_share_study_evidence_but_cannot_forge_authorship(tmp_path):
         assert read.status_code==200 and read.json()['document']==result.document
         claim={'session':'2026-10-28','requestKey':'claim-001','statement':'Synthetic output retained',
                'evidence':[{'artifact':identity(result),'relation':'supports'}],'dependsOn':[],'limitations':'Synthetic fixture'}
+        # A connected reviewer confused input requestKey with the saved request
+        # field. A refusal must explain correction without publishing a claim.
+        for wrong in ({**claim, 'request': claim['requestKey']},
+                      {**{k:v for k,v in claim.items() if k not in ('session','requestKey')}, 'request':'claim-001'}):
+            refused=client.post(f'/api/agent/v1/studies/{sid}/claims',json=wrong,headers=h2)
+            assert refused.status_code==400
+            schema.check(refused.json(),'refusal')
+            assert 'exactly session, requestKey' in refused.json()['says']
+            assert 'Send requestKey, not request' in refused.json()['next']
+            assert 'limitations is text' in refused.json()['next']
+            assert client.get(f'/api/agent/v1/studies/{sid}?session=2026-10-28',headers=h2).json()['study'].get('claims',[])==[]
         kept=client.post(f'/api/agent/v1/studies/{sid}/claims',json=claim,headers=h2)
         assert kept.status_code==200,kept.text
         row=kept.json()['study']['claims'][0];schema.check(row,'claim')
