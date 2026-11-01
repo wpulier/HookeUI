@@ -107,6 +107,23 @@ representative sampling. At most 4,096 perturbation groups are admitted. The exa
 protocol, source hash, available/selected group counts and exclusions travel in
 `uns.projection` as JSON as well as the protected operation receipt.
 
+Version 2 (`raw-count-projection-v2`) adds the required `partition` object with
+`count` (2–64) and zero-based `index`. Within each declared group, sort by the same
+seed/context/target/source-identity key, then take ranks `index, index + count, …`.
+With identical source, mapping, seed and partition count, all indices are disjoint
+and cover every mapped observation before optional sampling. A subsequent positive
+`cells_per_group` samples only inside that partition. Output preserves source order;
+expression values do not choose membership. Changing a mapping, seed or source can
+change membership: matching labels alone do not establish compatible partitions.
+
+Version-2 receipts retain the partition method/count/index, full-source `available`
+and `partitionAvailable` per group, and `excludedByPartition` separately from
+`excludedBySampling`. A group with no cells in the requested partition refuses;
+it is never silently dropped. Version 1 rejects partition fields and keeps its
+existing behavior and receipt meaning. Partitioning supports general train/check
+recipes; it does not create a sealed holdout, authorize access or establish an
+independent validation design. Originals and every accepted output remain retained.
+
 Dense/CSR rows are read in bounded blocks; sparse float32 output must preserve whole
 count values exactly. CSC, ambiguous identities, missing groups, insufficient cells,
 unsafe allocations and excessive stored entries refuse. Gene output order is explicit.
