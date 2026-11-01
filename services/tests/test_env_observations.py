@@ -132,6 +132,22 @@ def test_apply_precheck_sees_new_active_attempt_inside_old_display(home):
     assert prepare.last(m.key)['state'] == 'applying'
 
 
+def test_explicit_selection_releases_pin_recorded_after_display_snapshot(home):
+    from orchestrator.maintenance import policy, pins
+    m = contribute(home)
+    original = installed(m)
+    newer = contribute(home, version='dark-spots 0.2')
+    replacement = installed(newer)
+    env_runner.choose(newer, original.name)
+    snapshot = observations.collect()
+    policy.record(newer, 'pin', generation=original.name, by='you', how='screen')
+    with observations.display(snapshot):
+        env_runner.choose(newer, replacement.name)
+    assert env_runner.selected(newer).folder == replacement
+    assert policy.get(newer.key)['policy'] == 'manual'
+    assert not [p for p in pins.of(newer.key) if p['kind'] == 'user']
+
+
 def test_versions_enumerates_once_and_display_reuses_facts(home, monkeypatch):
     m = contribute(home)
     d = installed(m)

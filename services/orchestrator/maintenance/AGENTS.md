@@ -59,6 +59,7 @@ in MT4 through the same package.
   so a stale display cannot supply a mutation's input state. Pin removal prechecks, pin-based removal authority and
   runtime removal (including its active-attempt check) also explicitly read live facts before any mutation.
   Entry-attempt locks likewise enter live mode before Apply or worker preflight and cancellation checks.
+  Explicit generation selection and its pin-release decision also use live state throughout.
   This does not remove all catalog filesystem reads.
 - **Checks back off.** A failed check is tried again after 15 minutes, doubling up to a day. It never means "no update"
   and never touches the installation.
