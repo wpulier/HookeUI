@@ -57,6 +57,22 @@ def test_assignment_is_input_and_opens_authoritative_study(tmp_path):
     assert _item(entry) is None  # project.state joins the authoritative Study once below
 
 
+def test_study_choices_exclude_bookkeeping_and_preserve_historical_inputs(tmp_path):
+    from orchestrator.project_material import study_candidates
+    store = ProjectStore(tmp_path)
+    original = store.create('2026-11-01', document('matrix-result', title='First model'))
+    store.create(original.session, document('research-effort', {'researchEffort': {'inputs': [
+        {'id': original.id, 'revision': 1, 'digest': original.digest}]}}))
+    for kind in ('scientific-workflow', 'scientific-workflow-run', 'scientific-workflow-attempt', 'project-material-membership'):
+        store.create(original.session, document(kind))
+    newer = store.save(original.id, original.session, document('matrix-result', title='Next model'), expected_revision=1)
+    choices, problems = study_candidates(store, original.session)
+    assert {(c['id'], c['revision'], c['digest']) for c in choices} == {
+        (original.id, 1, original.digest), (newer.id, 2, newer.digest)}
+    assert {c['title'] for c in choices} == {'First model', 'Next model'}
+    assert problems # malformed organization is reported, never silently treated as an input
+
+
 def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
     from orchestrator.project_material import attach_usage
     store = ProjectStore(tmp_path)

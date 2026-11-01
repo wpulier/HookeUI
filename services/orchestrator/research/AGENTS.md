@@ -540,3 +540,5 @@ WorkflowService run without replaying work or changing the admission receipt.
 ## Retained initiation and collaboration
 
 `coordination.py` stores reviewed plans and collaborative assignments in the existing Study revision/task store. Plans pin exact material and instruction content. Claims are atomic, five-minute renewable leases; expiry requires reconciliation by the original actor and never starts replacement work. Completion retains an attributed report and waits for linked WorkflowService executions to settle. Assignment reports are not human findings. Study workflow admission enforces a reviewed plan's experiment count and reuses identical scientific specifications across contributors. Token/time limits are declared here, but need separately qualified external harness enforcement. Reads and reconnection never dispatch. `coordination_api.py` is shared by Studio and the authorized door.
+
+Study material selection uses the shared material projection, excludes organization and workflow receipts, and preserves exact historical inputs. Generated artifacts remain selectable without changing their origin.

@@ -72,12 +72,13 @@ def register(app, built, studio_origin, header):
         try:
             built.day.elsewhere(session)
             def listed():
-                return [{'id': s.id, 'revision': s.revision, 'digest': s.digest,
-                         'title': s.document['title'], 'kind': s.document['kind'],
+                from ..project_material import study_candidates
+                candidates, problems = study_candidates(service.store, session)
+                return {'ok': True, 'inputs': [{**s,
                          'managedFileEligible': False, 'scientificInputEligible': False, 'localInputEligible': True,
                          'limitation': UNAVAILABLE, 'scientificLimitation': UNAVAILABLE}
-                        for s in service.store.list(session) if s.document['kind'] != KIND]
-            return JSONResponse({'ok': True, 'inputs': await _owned(listed)}, headers=HEADERS)
+                        for s in candidates], 'problems': problems}
+            return JSONResponse(await _owned(listed), headers=HEADERS)
         except (ValueError, OSError, KeyError) as error:
             return _error(error)
 

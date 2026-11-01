@@ -356,3 +356,31 @@ def additional_inputs(entries, record):
         if (ref.get('session'), ref.get('document'), ref.get('revision'), ref.get('digest')) in selected:
             duplicated += 1
     return len(selected) - duplicated
+
+
+def study_candidates(store, session):
+    """Working material, not bookkeeping; include explicitly retained historical uses."""
+    from .resources import Index
+    saved, problems = store.scan(session)
+    entries = [Index.project_entry(item) for item in saved]
+    problems.extend(attach_usage(entries, store))
+    rows, seen = [], set()
+    for entry in entries:
+        material = entry.material or {}
+        if material.get('record') or material.get('kind') in ('assignment', 'workflow') or entry.values.get('kind') == 'scientific-workflow':
+            continue
+        choices = [{'id': entry.id, 'revision': entry.version, 'digest': entry.source['sha256'],
+                    'title': entry.title, 'kind': entry.values['kind'], 'material': material}]
+        for use in material.get('uses', []):
+            if use.get('available'):
+                old = store.read(entry.id, session, revision=use['revision'])
+                if old.digest == use['digest']:
+                    choices.append({'id': old.id, 'revision': old.revision, 'digest': old.digest,
+                                    'title': old.document['title'], 'kind': old.document['kind'],
+                                    'material': use['material']})
+        for choice in choices:
+            key = (choice['id'], choice['revision'], choice['digest'])
+            if key not in seen:
+                rows.append(choice)
+                seen.add(key)
+    return rows, problems
