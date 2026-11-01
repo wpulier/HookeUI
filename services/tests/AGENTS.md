@@ -884,6 +884,10 @@ candidate, refusing synchronous maintenance-file stats after collection. Isolate
 observations, profile separation and live mutations inside a stale display scope. These are synthetic disk/lifecycle
 checks; full model-load latency is qualified separately with unchanged thresholds.
 
+`test_prediction_panel` validates explicit per-target counts and refuses ambiguous labels/counts. Synthetic
+AnnData emission checks actual per-context output rows, sparse whole counts and unchanged cell prefixes when panel
+order, count and processing blocks change. It does not establish real-data prediction quality or full-size emission.
+
 `test_project_research_integrity.py` uses synthetic researcher output through real
 metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and

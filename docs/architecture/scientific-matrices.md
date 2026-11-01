@@ -207,6 +207,16 @@ inverse mode. Both methods retain the same keyed independent-gene sampler. Libra
 not a promise that emitted totals reproduce the observed depth distribution. Analytical inversion tests establish
 scale conversion, not a scientific improvement. Generated-count moments and held-out scientific quality require independent tests.
 
+`response-predict` version 3 additionally accepts an explicit count panel:
+`{"format":"target-count-panel-v1","targets":[{"target":"GENE_A","count":400},{"target":"GENE_B","count":250}]}`.
+Each nonempty unique target has an integer count from 1 to 10,000, used in every declared context. The original JSON
+list of target labels remains supported and uses `cells_per_target`. Explicit panels take precedence over that
+uniform fallback, recorded as `targetCounts.source` with per-context total and minimum/maximum counts; the exact
+retained panel remains an input in provenance. No count is inferred from responses or omitted. Existing total-row,
+disk, dense-memory, control-only and whole-count checks remain unchanged. Increasing a target's count preserves its
+previous generated-cell prefix for the same controls, model, parameters and seed. This is output-contract support,
+not evidence that the model predicts unseen targets accurately.
+
 ## Runtime and resource ownership
 
 `matrix-cpu-runtime` and optional `cell-evaluation-runtime` are ordinary catalog-owned environments with Python and
