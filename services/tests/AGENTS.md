@@ -899,3 +899,5 @@ workflow qualification with its own retained attempt.
 Control-only projection fixtures retain exact selected count values and cell identities
 and refuse hidden perturbation mappings or an empty gene axis. They qualify explicit
 conditioning-input preparation, not a reduced evaluation panel or count-generator quality.
+
+`test_matrix_projection.py` also checks version-2 complementary observation partitions: disjoint/full membership, exact counts and source identities, source-order/expression independence, bounded partition schema, sampling within a fold, explicit exclusions and refusal of empty declared groups. These are synthetic partition mechanics, not evidence of a sealed holdout or scientific validation.
