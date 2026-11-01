@@ -548,6 +548,12 @@ async def scenario_media_load(stack: Stack, viewer: Viewer) -> Outcome:
     library, every thumbnail is made at once and a recording is uploaded, the browser still gets the
     live frame rate and delay, and clicks stay as fast as they were just before."""
     out = Outcome("media work never slows the live view")
+    from . import media_timing
+    if not await prepare_timing(stack, out):
+        return out
+    window = await media_timing.prepare(stack, out)
+    if window is None:
+        return out
 
     async def measure(phase: str, seconds: float, clicks: int) -> tuple[float, float, list[float]]:
         t0 = time.time()
@@ -637,6 +643,7 @@ async def scenario_media_load(stack: Stack, viewer: Viewer) -> Outcome:
     out.check("every thumbnail made", made == len(names), f"{made} of {len(names)} in {load_s:.0f} s")
     out.check("the upload is listed under Added here", upload.get("ok") and (upload.get("item") or {}).get("group") == "Added here",
               f"{upload.get('status')} {upload.get('error') or (upload.get('item') or {}).get('name')} ({upload.get('megabytes', 0):.0f} MB)")
+    await media_timing.finish(stack, window, out)
     return out
 
 
