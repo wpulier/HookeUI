@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+from datetime import datetime, timedelta
 from functools import wraps
 import asyncio
 import hashlib
@@ -46,6 +47,13 @@ DEFAULT_VIDEO_ID = "2026-06-14-leaf-epidermis-3m43s"
 def default_video() -> Path:
     """Resolve real simulation input only when requested, never while importing helpers."""
     return store().real_file(DEFAULT_VIDEO_ID)
+
+
+def next_local_midnight(now: float) -> float:
+    """Calendar boundary used by the isolated session-continuity scenario."""
+    tomorrow = datetime.fromtimestamp(now).date() + timedelta(days=1)
+    # Resolve tomorrow's local offset: a calendar day can be 23, 24 or 25 hours.
+    return time.mktime(datetime.combine(tomorrow, datetime.min.time()).timetuple())
 
 
 RESULTS = SERVICES / "sim" / "results"
@@ -2968,8 +2976,7 @@ async def scenario_sessions(stack: Stack, viewer: Viewer) -> Outcome:
             if not out.check("the labelled structure has an outline before midnight", bool(reply and reply.get("ok")), str(reply)):
                 return out
             mark = reply["objectId"]
-            today = time.strftime("%Y-%m-%d")
-            midnight = time.mktime(time.strptime(today, "%Y-%m-%d")) + 86400
+            midnight = next_local_midnight(time.time())
             (home / "clock-offset").write_text(str(midnight - 2.0 - time.time()))
             cleared = again.cleared
             await asyncio.sleep(3.5)  # the clock is read again at most twice a second

@@ -9,6 +9,11 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_sim_calendar.py` checks the session simulation's next local midnight across
+ordinary dates, year rollover, and whole/half-hour daylight-saving transitions.
+It qualifies clock injection, not actual session retention; the real session
+simulation still checks unchanged Project, outlines and the next recorded day.
+
 `test_project_operation_storage` uses synthetic work through real operation stores
 and Project folders: admission-before-work, relocation to a new host, attribution,
 unchanged read-only receipts, duplicate-history refusal, no replay and uncertain
