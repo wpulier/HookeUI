@@ -178,12 +178,8 @@ def choose(m: catalog.Manifest, name: str | None, environ: Mapping[str, str] = o
     """Explicitly select an exact proven generation, including Use the newest."""
     from . import env_observations
     with env_observations.live():
-        return _choose(m, name, environ)
-
-
-def _choose(m: catalog.Manifest, name: str | None, environ: Mapping[str, str]) -> Installed:
-    name = name or envs.folder(m, environ).name
-    found = generation(m, name, environ)
+        name = name or envs.folder(m, environ).name
+        found = generation(m, name, environ)
     if found is None:
         raise Failed(f"that version of {m.name} is no longer here, ready and proven")
     from .maintenance import policy, revocations
@@ -370,6 +366,12 @@ def _generation(m, name, environ):
 
 def update_waiting(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> str:
     """"" unless an earlier version runs while the catalog has a newer one: then what the card says."""
+    from .maintenance import store
+    with store.display_reads():
+        return _update_waiting(m, environ)
+
+
+def _update_waiting(m: catalog.Manifest, environ: Mapping[str, str]) -> str:
     found = in_use(m, environ)
     if found is None or found.current:
         return ""

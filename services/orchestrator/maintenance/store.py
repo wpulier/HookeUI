@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator, Mapping
 
@@ -43,11 +44,23 @@ def now() -> str:
 
 _seen: dict[str, tuple[tuple, object]] = {}  # what a file held, by its stat: a display read parses it once
 _seen_lock = threading.Lock()
+_DISPLAY_READS: ContextVar[bool] = ContextVar('maintenance_display_reads', default=False)
+
+
+@contextmanager
+def display_reads():
+    """Only read-only display projections opt into observations; ordinary callers stay live."""
+    token = _DISPLAY_READS.set(True)
+    try:
+        yield
+    finally:
+        _DISPLAY_READS.reset(token)
 
 
 def _parsed(p: Path, parse):
     from .. import env_observations
-    observed = env_observations.display_fact(('maintenance-record', str(p)), None)
+    observed = (env_observations.display_fact(('maintenance-record', str(p)), None)
+                if _DISPLAY_READS.get() else None)
     if observed is not None:
         return observed[0]  # (None,) records an observed missing/unreadable file.
     try:

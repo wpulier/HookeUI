@@ -104,11 +104,8 @@ def leave_pin(m: catalog.Manifest, generation: str, environ: Mapping[str, str] =
               why: str = "you chose another version, so it is no longer pinned", by: str = "you",
               how: str = "screen") -> None:
     """The version running is no longer the pinned one: the pin ends, and that is recorded with why."""
-    from .. import env_observations
-    with env_observations.live():
-        previous = pinned(m.key, environ)
-        if previous and previous != generation:
-            record(m, "manual", by=by, how=how, environ=environ, why=why)
+    if pinned(m.key, environ) and pinned(m.key, environ) != generation:
+        record(m, "manual", by=by, how=how, environ=environ, why=why)
 
 
 def hold(key: str, why: str, environ: Mapping[str, str] = os.environ) -> None:

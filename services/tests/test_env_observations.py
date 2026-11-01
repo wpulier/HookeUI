@@ -1,6 +1,7 @@
 """Synthetic disk receipts through the real display/resolver; no models, keys, installs or running servers."""
 import asyncio
 import json
+import os
 import shutil
 import threading
 from pathlib import Path
@@ -47,13 +48,13 @@ def test_maintenance_observation_keeps_snapshot_but_live_reads_and_recollection_
     store.write(path, {'version': 1})
     snapshot = store.display_records(['mine/spots'])
     store.write(path, {'version': 2})
-    with observations.display(snapshot):
+    with observations.display(snapshot), store.display_reads():
         assert store.read(path, {}) == {'version': 1}
         with observations.live():
             assert store.read(path, {}) == {'version': 2}
     assert store.read(path, {}) == {'version': 2}
     path.unlink()
-    with observations.display(store.display_records(['mine/spots'])):
+    with observations.display(store.display_records(['mine/spots'])), store.display_reads():
         assert store.read(path, {}) == {}
 
 
@@ -65,7 +66,7 @@ def test_maintenance_decisions_snapshot_and_profiles_are_independent(home):
     store.append(path, {'action': 'after'})
     other = {'MICROMIND_CATALOG': str(home / 'other-catalog')}
     store.write(store.path('policies.json', other), {'separate': True})
-    with observations.display(snapshot):
+    with observations.display(snapshot), store.display_reads():
         assert store.lines(path) == [{'action': 'before'}]
         assert store.read(store.path('policies.json', other), {}) == {'separate': True}
         assert store.read(store.path('policies.json'), {}) == {}
@@ -82,7 +83,7 @@ def test_maintenance_mutations_inside_display_read_live_state(home):
     live = store.read(path, {})
     live['other-entry'] = {'policy': 'pin', 'generation': 'preserve-me'}
     store.write(path, live)
-    with observations.display(snapshot):
+    with observations.display(snapshot), store.display_reads():
         assert policy.get(m.key)['policy'] == 'review'
         policy.record(m, 'manual', by='you', how='screen')
         with store.locked(), store.locked():
@@ -93,6 +94,19 @@ def test_maintenance_mutations_inside_display_read_live_state(home):
     assert policy.get('other-entry')['generation'] == 'preserve-me'
 
 
+def test_status_projection_is_observed_without_changing_ordinary_policy_reads(home):
+    from orchestrator.maintenance import policy, status
+    m = contribute(home)
+    installed(m)
+    policy.record(m, 'review', by='you', how='screen')
+    snapshot = observations.collect()
+    policy.record(m, 'manual', by='you', how='screen')
+    with observations.display(snapshot):
+        assert status.of(m)['policy']['policy'] == 'review'
+        assert policy.get(m.key)['policy'] == 'manual'
+    assert status.of(m)['policy']['policy'] == 'manual'
+
+
 def test_new_pins_are_live_for_removal_authority_and_mutation(home):
     from orchestrator.maintenance import pins
     m = contribute(home)
@@ -100,7 +114,7 @@ def test_new_pins_are_live_for_removal_authority_and_mutation(home):
     snapshot = observations.collect()
     pins.add(m.key, active.name, 'recipe', 'saved-workflow')
     with observations.display(snapshot):
-        assert pins.of(m.key) == [], 'ordinary display retains its observed state'
+        assert pins.of(m.key)[0]['owner'] == 'saved-workflow', 'ordinary reads remain live even inside display'
         with pytest.raises(pins.Held, match='saved-workflow'):
             pins.require_removable(m.key, {active.name})
         assert pins.remove(m.key, 'recipe', 'saved-workflow') == 1
@@ -146,6 +160,17 @@ def test_explicit_selection_releases_pin_recorded_after_display_snapshot(home):
     assert env_runner.selected(newer).folder == replacement
     assert policy.get(newer.key)['policy'] == 'manual'
     assert not [p for p in pins.of(newer.key) if p['kind'] == 'user']
+
+
+def test_update_check_persistence_does_not_borrow_display_backoff(home):
+    from orchestrator.maintenance import discover, store
+    m = contribute(home)
+    snapshot = observations.collect()
+    store.write(store.path('checks.json'), {m.key: {'failures': 4, 'failingSince': 'original'}})
+    with observations.display(snapshot):
+        result = discover._save(m.key, {'ok': False, 'at': 'later'}, dict(os.environ))
+    assert result['failures'] == 5
+    assert result['failingSince'] == 'original'
 
 
 def test_versions_enumerates_once_and_display_reuses_facts(home, monkeypatch):

@@ -87,7 +87,6 @@ class _Attempt:
 def _entry_lock(key: str, environ: Mapping[str, str]):
     """Both manual Apply and the worker own the entry's full attempt, including its first check."""
     import fcntl
-    from .. import env_observations
 
     lock = store.path(f"attempts/{store.safe(key)}.lock", environ)
     lock.parent.mkdir(parents=True, exist_ok=True)
@@ -98,8 +97,7 @@ def _entry_lock(key: str, environ: Mapping[str, str]):
         except BlockingIOError:
             yield False
         else:
-            with env_observations.live():
-                yield True
+            yield True
     finally:
         os.close(fd)  # the lock goes with it, also when the process is killed
 

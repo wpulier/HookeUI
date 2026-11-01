@@ -54,13 +54,11 @@ in MT4 through the same package.
 - **Reading is cheap.** `status.of` reads the profile's maintenance files (each parsed once per change), receipts and the
   observed environments. It starts no check, download, build or package code (`test_reading_status_starts_nothing`).
   The existing off-loop environment observer also captures policy, check, pin, decision and per-entry attempt
-  records. Synchronous display scopes reuse those exact-path observations, including missing files. A new observation
-  replaces them; unrelated files and other profiles still use live reads. Maintenance writer locks enter live mode,
-  so a stale display cannot supply a mutation's input state. Pin removal prechecks, pin-based removal authority and
-  runtime removal (including its active-attempt check) also explicitly read live facts before any mutation.
-  Entry-attempt locks likewise enter live mode before Apply or worker preflight and cancellation checks.
-  Explicit generation selection and its pin-release decision also use live state throughout.
-  This does not remove all catalog filesystem reads.
+  records. Only the read-only `status.of` and `env_runner.update_waiting` projections opt into those exact-path
+  observations within an active synchronous display scope, including missing files. Ordinary store reads and
+  mutation prechecks stay live even inside that outer scope. Unrelated files and other profiles stay live.
+  Maintenance writer locks additionally enter live mode; observations are replaced on refresh, never mutated by a
+  command. This does not remove all catalog filesystem reads.
 - **Checks back off.** A failed check is tried again after 15 minutes, doubling up to a day. It never means "no update"
   and never touches the installation.
 - **Removal keeps what is pinned** (`envs.removal` → `pins.require_removable`); a rollback hold goes with the software.
