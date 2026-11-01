@@ -215,3 +215,25 @@ def test_compact_annotations_preserve_long_selected_labels_in_saved_projection(t
     obj.write_h5ad(inputs['matrix'])
     path, _ = run(tmp_path, inputs)
     assert ad.read_h5ad(path).obs['source_annotation'].tolist() == ['nt', long_label, long_label, 'nt']
+
+
+def test_explicit_control_only_projection_preserves_counts_and_excludes_perturbations(tmp_path):
+    ad = pytest.importorskip('anndata')
+    inputs = fixture(tmp_path, selected_targets=[], target_mapping={'nt': 'control'})
+    path, report = run(tmp_path, inputs)
+    result = ad.read_h5ad(path)
+    assert result.obs_names.tolist() == ['cell4', 'cell0']
+    assert result.obs['target_gene'].tolist() == ['control', 'control']
+    np.testing.assert_array_equal(result.X.toarray(), [[2, 1], [14, 13]])
+    assert report['groups'] == [{'target': 'control', 'available': 2, 'selected': 2}]
+    assert report['excludedUnmappedObservations'] == 3
+    assert json.loads(result.uns['projection'])['protocol']['selected_targets'] == []
+
+
+@pytest.mark.parametrize('changes', [
+    {'selected_targets': [], 'target_mapping': {'nt': 'control', 'ga': 'target-a'}},
+    {'selected_targets': [], 'target_mapping': {'nt': 'control'}, 'selected_genes': []},
+])
+def test_control_only_request_cannot_hide_mapped_perturbations_or_drop_gene_axis(tmp_path, changes):
+    with pytest.raises(engine.Refused):
+        run(tmp_path, fixture(tmp_path, **changes))
