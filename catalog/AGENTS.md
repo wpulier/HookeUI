@@ -451,6 +451,10 @@ their own confined function contract. Unknown declarations gain no execution pat
 
 ## Scientific matrix operations
 
+`response-predict` version 3 accepts a retained `target-count-panel-v1` for varying positive per-target counts,
+shared across contexts. Legacy target lists retain the `cells_per_target` parameter. Output provenance records the
+count source; bounds and seeded prefixes are qualified by synthetic emission tests, not predictive-quality claims.
+
 `matrix-project-counts` projects explicit retained raw-cell protocols through the same
 bundled runner. It never guesses target mappings or drops missing declared targets;
 sampling is explicit and retains its source identities and exclusions. See the matrix
