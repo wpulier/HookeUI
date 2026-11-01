@@ -1244,3 +1244,5 @@ Dependency review reports an optional observedRevision for successfully resolved
 Owner project-copy commands restore only a completed export receipt from the current Project. They use the existing operation service, source-manifest pin and host-selected fresh destination; never register a copy, navigate, inherit grants or replay work. An incomplete copy is kept for inspection. Opening and location replacement remain separate explicit owner controls.
 
 project-record-review/include/status/stop are owner-only whole Record inclusion controls. They capture the Project, review its whole host dataset and content digest, use existing immutable intake, and expose one durable operation. No arbitrary path, automatic Record start, grant change, trimming or complete-collection claim is allowed.
+
+Project-state operation summaries observe linked workflow receipts through the existing Study operation projection, in a bounded off-loop batch. Admission snapshots remain unchanged; no status read starts or settles work. Read-only ownership and unavailable histories stay explicit. See docs/architecture/session-index.md.

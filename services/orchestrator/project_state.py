@@ -363,14 +363,42 @@ def stage_of(store, entries) -> dict:
     return out
 
 
-def operations_of(hub, project: str) -> list[dict]:
-    """The agent door's work in this Project (door/operations.py, in memory): read on the event loop."""
+async def operations_of(hub, project: str) -> list[dict]:
+    """Capture door receipts on the loop; observe their authoritative workflows off-loop."""
     from .day.sid import is_sid
 
     store = getattr(hub, "agent_operations", None)
     if store is None or not is_sid(project):
         return []
     rows = store.operations(100, visible=lambda r: r.get("project") == project and r.get("tool") not in DOOR_READS)
+    records = rows["operations"]
+    executions = [r for r in records if r.get("execution") and not r.get("storageReadOnly")]
+    if executions:
+        from .research.studies import for_workspace
+        from .scientific_projects import InvalidProject
+        from .door.schema import check
+
+        studies = for_workspace(hub, hub.resources.day)
+        eligible = []
+        for record in executions:
+            execution = record["execution"]
+            try:
+                check(execution, "operation-execution")
+                if execution["session"] != project:
+                    raise InvalidProject("Workflow belongs to another Project")
+            except (ValueError, KeyError):
+                record["state"] = "unavailable (workflow reference cannot be read in this Project)"
+            else:
+                eligible.append(record)
+        try:
+            observed = (await asyncio.to_thread(studies.workflows.observed_statuses,
+                                               [r["execution"]["id"] for r in eligible], project)) if eligible else {}
+            for record in eligible:
+                result = await studies.operation(record, observed=observed.get(record["execution"]["id"]))
+                record["state"] = result["state"]
+        except (OSError, ValueError):
+            for record in eligible:
+                record["state"] = "unavailable (workflow execution could not be observed)"
     return [{"id": str(r["id"]), "tool": str(r["tool"]),
              "state": f"recorded {r['state']} (read-only; execution unobserved)" if r.get('storageReadOnly') else str(r['state']),
              "by": str(r.get("byLabel") or "an agent"), "at": float(r.get("at") or 0)} for r in rows["operations"]]
@@ -442,13 +470,13 @@ class ProjectState:
     async def read(self, project: str, actor: str, *, access=None, cursor: str | None = None,
                    limit: int | None = None) -> dict:
         """The projection of `project` as `actor` may read it (contract/agent/project-state.schema.json). The role is
-        checked before anything is read; the studio's report and the door's operations are read on the event loop
-        (they are the loop's), everything else in a thread."""
+        checked before anything is read; the studio report and door admission snapshots are captured on the loop.
+        Linked workflow observations and the remaining retained sources are read in threads."""
         role = await asyncio.to_thread(self.role, project, actor, access)
         from .screen import screen_of
 
         ui = ui_of(screen_of(self.hub), project)
-        operations = operations_of(self.hub, project)
+        operations = await operations_of(self.hub, project)
         return await asyncio.to_thread(self.build, project, actor, role, ui, operations, cursor, limit)
 
     def build(self, project: str, actor: str, role: str, ui: dict, operations: list[dict],

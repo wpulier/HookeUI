@@ -568,3 +568,105 @@ def test_the_ui_state_says_each_open_tabs_specimen_and_what_it_holds(tmp_path):
          "holds": {"table": 1, "magnifier": 1}},
         {"id": "t2", "title": "Cell results", "front": True, "kind": "output", "specimen": "hidden",
          "holds": {"outlines": 1}}]
+
+
+def workflow_operation(built, *, n=1, completed=False, read_only=False):
+    """A retained admission and real workflow receipts; no scientific worker runs."""
+    from orchestrator.research.studies import service
+    from orchestrator.scientific_comparisons import identity
+    from tests.test_workflows import graph, source
+
+    studies = service(built)
+    w = studies.workflows.workflows
+    sid = built.day.sid
+    image = source(w, sid)
+    definition = w.create('Inspect retained image', graph(), f'{n:032x}')
+    run = w.start(definition.id, 1, sid, [identity(image)], f'{n + 100:032x}', actor='studio')
+    if completed:
+        w.finish(w.claim(run.id, sid), {'status': 'completed', 'output': identity(image)})
+    record = {'id': 'op_' + f'{n:024x}', 'requestKey': f'observation-{n:08d}',
+              'state': 'admitted', 'tool': 'workflow', 'project': sid,
+              'by': 'agent:ac_' + 'a' * 24, 'byLabel': 'Original investigator', 'at': NOW + n,
+              'execution': {'kind': 'workflow', 'id': run.id, 'session': sid},
+              **({'storageReadOnly': True} if read_only else {})}
+    studies.operations._records[record['id']] = record
+    return studies, run, record
+
+
+def test_project_operation_status_observes_workflows_without_changing_admissions(tmp_path, monkeypatch):
+    import copy
+    import threading
+
+    built = app_at(tmp_path).state.app
+    studies, completed, original = workflow_operation(built, completed=True)
+    _, ready, waiting = workflow_operation(built, n=2)
+    before = copy.deepcopy(studies.operations._records)
+    receipts = {p: p.read_bytes() for p in studies.store.root.rglob('*') if p.is_file()}
+    reads = []
+    status = studies.workflows.observed_statuses
+    def observed(ids, session):
+        reads.append((set(ids), session, threading.get_ident()))
+        return status(ids, session)
+    monkeypatch.setattr(studies.workflows, 'observed_statuses', observed)
+    state = owner_state(built)
+    rows = {r['id']: r for r in state['operations']['items']}
+    assert rows[original['id']]['state'] == 'succeeded'
+    assert rows[waiting['id']]['state'] == 'admitted'
+    assert rows[original['id']]['by'] == 'Original investigator'
+    assert len(reads) == 1 and reads[0][:2] == ({completed.id, ready.id}, built.day.sid)
+    assert reads[0][2] != threading.get_ident()
+    assert studies.operations._records == before
+    assert all(p.read_bytes() == data for p, data in receipts.items())
+    assert not studies.workflows.tasks
+    # A retained result advances the projection even though the admission did not change.
+    w = studies.workflows.workflows
+    w.finish(w.claim(ready.id, built.day.sid), {'status': 'completed', 'output': None})
+    next_state = owner_state(built)
+    assert next_state['revisions']['operations'] != state['revisions']['operations']
+    assert all(r['state'] == 'succeeded' for r in next_state['operations']['items'])
+    assert studies.operations._records == before
+
+
+def test_project_operation_read_only_receipt_never_claims_observed_execution(tmp_path, monkeypatch):
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built, completed=True, read_only=True)
+    def forbidden(*args):
+        raise AssertionError('Do not reconcile another writer’s execution')
+    monkeypatch.setattr(studies.workflows, 'observed_statuses', forbidden)
+    row = owner_state(built)['operations']['items'][0]
+    assert row['id'] == record['id']
+    assert row['state'] == 'recorded admitted (read-only; execution unobserved)'
+
+
+def test_project_operation_unreadable_workflow_is_not_reported_running(tmp_path, monkeypatch):
+    from orchestrator.scientific_projects import InvalidProject
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built, completed=True)
+    def damaged(*args):
+        raise InvalidProject('Unreadable attempt receipt')
+    monkeypatch.setattr(studies.workflows, 'observed_statuses', damaged)
+    row = owner_state(built)['operations']['items'][0]
+    assert row['state'] == 'unavailable (workflow execution could not be observed)'
+    assert studies.operations.get(record['id'])['state'] == 'admitted'
+
+
+def test_project_operation_foreign_execution_is_not_read(tmp_path, monkeypatch):
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built)
+    record['execution']['session'] = '2026-10-20'
+    def forbidden(*args):
+        raise AssertionError('Do not inspect another Project via a damaged locator')
+    monkeypatch.setattr(studies.workflows, 'observed_statuses', forbidden)
+    row = owner_state(built)['operations']['items'][0]
+    assert row['state'] == 'unavailable (workflow reference cannot be read in this Project)'
+    assert studies.operations.get(record['id'])['state'] == 'admitted'
+
+
+def test_project_operation_missing_run_is_interrupted_without_replay(tmp_path):
+    built = app_at(tmp_path).state.app
+    studies, _, record = workflow_operation(built)
+    record['execution']['id'] = 'p' + 'e' * 32
+    row = owner_state(built)['operations']['items'][0]
+    assert row['state'] == 'interrupted'
+    assert studies.operations.get(record['id'])['state'] == 'admitted'
+    assert not studies.workflows.tasks

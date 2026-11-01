@@ -34,7 +34,11 @@ other files.
   - **What it is:** a scoped, read-only projection of existing records, never a store. It reads this index (one pass:
     `Index.one_pass`), the researchers (`Index.researchers_of`), each Study through `research/efforts.summary` (the read
     under `Studies.list`, from the index's own scan of the ProjectStore; `Studies.read` is not used, as it can settle
-    receipts), the door's operations (in memory; the door's own reads are not listed as work), the saved Tab arrangement
+    receipts), the door's admission snapshots (in memory; the door's own reads are not listed as work), with linked workflow
+    status projected by the existing Study operation observer after a bounded off-loop batch read. Completed work
+    never remains merely admitted because its door receipt delegates execution. Reads neither settle Study state
+    nor replay work; read-only hosts retain the explicit execution-unobserved label, and unavailable workflow
+    histories say unavailable. The operation revision key includes the observed status. It also reads the saved Tab arrangement
     (`workspace_layout`, read, never migrated) and the studio's latest report. Nothing is written and nothing is kept on
     disk; it is never an instruction source.
   - **What it carries:** the Project's identity (as `project.read` names it) and the revision of each source it was built
