@@ -11,6 +11,8 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 `test_sim_calendar.py` checks the session simulation's next local midnight across
 ordinary dates, year rollover, and whole/half-hour daylight-saving transitions.
+It also compares displayed loss clocks to nearby observed instants without
+re-parsing ambiguous local times; the three-second tolerance is unchanged.
 It qualifies clock injection, not actual session retention; the real session
 simulation still checks unchanged Project, outlines and the next recorded day.
 

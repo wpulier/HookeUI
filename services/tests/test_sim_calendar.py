@@ -5,7 +5,7 @@ import time
 
 import pytest
 
-from sim.harness import next_local_midnight
+from sim.harness import next_local_midnight, reported_time_is_near
 
 
 @pytest.mark.skipif(not hasattr(time, "tzset"), reason="requires local timezone selection")
@@ -35,4 +35,28 @@ def test_session_scenario_reaches_next_calendar_day(zone, day, hours):
             os.environ.pop("TZ", None)
         else:
             os.environ["TZ"] = previous
+        time.tzset()
+
+
+@pytest.mark.skipif(not hasattr(time, "tzset"), reason="requires local timezone selection")
+@pytest.mark.parametrize('zone,stamp', [
+    ('America/New_York', 1793512439.0),  # first 01:53:59, repeated hour
+    ('America/New_York', 1793516039.0),  # second 01:53:59
+    ('America/New_York', 1793512800.4),  # fall-back transition itself
+    ('America/New_York', 1772953200.4),  # spring-forward transition
+    ('UTC', 1793577599.4),               # midnight
+])
+def test_reported_clock_is_compared_without_reinterpreting_local_offset(zone, stamp):
+    previous = os.environ.get('TZ')
+    try:
+        os.environ['TZ'] = zone; time.tzset()
+        assert reported_time_is_near(time.strftime('%H:%M:%S', time.localtime(stamp)), stamp)
+        assert reported_time_is_near(time.strftime('%H:%M:%S', time.localtime(stamp + 2)), stamp)
+        assert not reported_time_is_near(time.strftime('%H:%M:%S', time.localtime(stamp + 4)), stamp)
+        assert not reported_time_is_near('not a time', stamp)
+    finally:
+        if previous is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = previous
         time.tzset()
