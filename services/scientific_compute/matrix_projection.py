@@ -94,7 +94,8 @@ def project(inputs, params, output, check):
             counts.append({'target': name, 'available': int(np.sum(labels == i)), 'selected': size})
         selected_count = int(selected.sum())
         columns = sorted(positions.values())
-        order = [columns.index(positions[g]) for g in cfg['selected_genes']]
+        column_positions = {column: i for i, column in enumerate(columns)}
+        order = [column_positions[positions[g]] for g in cfg['selected_genes']]
         engine._dense_budget(engine.BLOCK_ROWS, len(columns), copies=4)
         worst = selected_count * len(columns) * 8 + (selected_count + 1) * 8
         if shutil.disk_usage(output).free < worst * 2 + (512 << 20):
