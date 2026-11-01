@@ -64,6 +64,27 @@ server grant checks, runtime confinement, output integrity and actual scientific
 evaluation must be qualified separately. This optional surface does not itself
 establish a blind run or an end-to-end research result.
 
+For a finite experiment allowance, add `--admissions /absolute/operator/allowance.json`:
+
+```json
+{"format": 1, "admissions": [{"requestKey": "one-qualified-experiment",
+  "arguments": {"workflow": "<pinned id>", "revision": 1,
+    "inputs": ["<exact artifact reference>"], "bindings": {}}}]}
+```
+
+Replace the illustrative reference with the ordinary structured artifact reference.
+The trusted file is read once and must remain inaccessible for caller modification.
+Each entry fixes both input intent and the server request key. Changed inputs or new
+keys refuse before network admission. Retrying the same request after a lost reply,
+or restarting the client with the same file and connection, uses the same canonical
+request body and Hooke's existing idempotency. No local run ledger is introduced.
+An empty `admissions` list hides the run tool and refuses direct calls to it, while
+retaining evidence reads, observations and findings. Omitting the option preserves
+the existing operator-qualified workflow scope. This is an admission bound, not a
+model-token, time or per-workflow compute cap; the harness and qualified runtime
+must enforce those separately. Changing the scope file or connection is a new
+operator authorization, not an agent retry.
+
 ## Effective boundary
 
 The trusted client process can reach the CLI and its operator's host environment.

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from .scoped import Configuration, ProjectReader, READS, inline_schema
-from .research import ProjectResearcher, load_pins, finding_schema
+from .research import ProjectResearcher, load_pins, load_admissions, finding_schema
 
 
 def server_for(reader):
@@ -45,12 +45,14 @@ def server_for(reader):
         if research:
             tools.extend([
                 Tool(name='list_workflows', description='Read only the operator-qualified frozen workflow definitions.', input_schema=empty),
-                Tool(name='run_workflow', description='Run a qualified frozen workflow on exact Project inputs in the selected Study. '
-                     'Reuse the same request key after a lost reply. Returns the original operation handle.', input_schema=workflow_envelope),
                 Tool(name='observe_operation', description='Read an admitted operation or recover an original workflow linked to this Study. Never replay work.', input_schema=observed),
                 Tool(name='cancel_operation', description='Request that an admitted Study workflow stop. Read the returned observed state; a request is not confirmed termination.', input_schema=observed),
                 Tool(name='publish_finding', description='Retain an attributed claim with exact evidence and limitations in this Study. This is not human acceptance.', input_schema=inline_schema(finding_schema())),
             ])
+            if reader.can_admit:
+                tools.append(Tool(name='run_workflow', description='Run a qualified frozen workflow on exact Project inputs. '
+                    'Read list_workflows for any fixed admission allowance. Reuse its request key after a lost reply. '
+                    'Returns the original operation handle.', input_schema=workflow_envelope))
         return ListToolsResult(tools=tools)
 
     async def called(ctx, params):
@@ -106,10 +108,15 @@ async def main():
     parser.add_argument('--door-url', required=True)
     parser.add_argument('--study')
     parser.add_argument('--workflows', type=Path, help='Operator-owned JSON of qualified workflow id/revision/digest pins')
+    parser.add_argument('--admissions', type=Path, help='Optional operator-owned fixed requests; an empty list permits no new workflow runs')
     arguments = vars(parser.parse_args())
     workflows = arguments.pop('workflows')
+    admissions = arguments.pop('admissions')
+    if admissions and not workflows:
+        parser.error('--admissions requires --workflows')
     config = Configuration(**arguments)
-    reader = ProjectResearcher(config, load_pins(workflows)) if workflows else ProjectReader(config)
+    reader = ProjectResearcher(config, load_pins(workflows),
+        admissions=load_admissions(admissions) if admissions else None) if workflows else ProjectReader(config)
     server = server_for(reader)
     from mcp.server.stdio import stdio_server
     async with stdio_server() as (read, write):

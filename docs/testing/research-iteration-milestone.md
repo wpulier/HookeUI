@@ -57,10 +57,11 @@ screen, route, runner or database is added.
 | Scientific tools | Inspection, projection, preparation, fitted effects, count generation and scoring adapters | Repair's actual-data check; small frozen prediction and independent measurements |
 | Folder controls | Existing location inspector/open/reveal paths | Check those actions; full dependency collection/migration remains deferred |
 
-Fresh-agent inspection and continuation have real evidence. The latest control
-projection failed before output; its read repair has 111 focused passing tests and
-independent reviews, but actual repaired execution is still unqualified. Do not hide
-that failure behind a fixture or call this an already finished research product.
+Fresh-agent inspection and continuation have real evidence. An earlier control
+projection failed before output. Its read repair has 111 focused passing tests and
+independent reviews; a subsequent bounded real-data preparation completed through
+the genuine connector. That establishes preparation, not a prediction or finished
+research product. The original failure remains retained.
 
 ## Finite finish line
 
@@ -92,7 +93,9 @@ cloud services, 1,000-agent scaling, new harness providers, complete portability
 full-size benchmark submission, or cosmetic redesign campaign in this milestone.
 
 External agent calls have a fixed operator allowance and hard wall-clock termination.
-Tool/runtime and input readiness are checked before a model starts. After a timeout or
+Tool/runtime and input readiness are checked before a model starts. Fixed admission
+scope permits only the operator's exact requests, preserving their keys across
+restarts; an empty allowance permits no new workflow execution. After a timeout or
 admission failure, inspect the original operation; do not spend another model session
 retrying identical work. The scoped client itself is not a lifetime budget enforcer:
-qualify the operator's allowance/termination mechanism before launching the pilot.
+qualify the fixed requests and operator's termination mechanism before launching the pilot.

@@ -23,6 +23,16 @@ resource requirements before including its pin. A matching digest is not a safet
 review. Existing WorkflowService, generation checks and heavy-work reservation own
 execution; this client owns no scheduler, attempt records or spending authority.
 
+Optional `--admissions` further fixes up to 32 exact request keys and argument
+sets at startup. A one-entry file permits at most that one server operation, even
+after lost replies or client restarts with the same configuration/connection.
+Changed keys or inputs refuse before contacting the door. An empty list permits
+reads, observations and findings but no new workflow execution. Keep this file
+outside the caller's writable scope; replacing it or changing connections is a
+new operator allowance. Existing Hooke request idempotency owns deduplication;
+the client adds no execution ledger. This bounds admissions, not tokens, elapsed
+time or the cost of an individual workflow. Qualify those limits separately.
+
 Fresh clients recover workflow handles only from the selected Study's original
 experiment links, checking original parameters and preserving attribution. They
 do not recover another client's read-operation handles. Lost admission replies use

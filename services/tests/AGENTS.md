@@ -9,6 +9,12 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+Fixed-admission scoped-client tests use synthetic door responses and the real MCP
+SDK to check exact input/key allowances, startup immutability, lost-reply recovery
+across fresh clients, invalid configuration and no execution under an empty
+allowance. Existing server idempotency still owns actual run deduplication. These
+checks do not establish token/time limits, real agent use or scientific quality.
+
 `test_bounded_matrix_rows.py` and projection regressions exercise wide synthetic
 CSR inputs under the unchanged allocation allowance, exact row/value preservation,
 empty rows, cancellation and an individually oversized row. These are bounded

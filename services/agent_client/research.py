@@ -43,6 +43,20 @@ def finding_schema():
             'required': list(properties), 'additionalProperties': False}
 
 
+def load_admissions(path: Path):
+    """Optional fixed intents, not an execution ledger or a model-editable budget."""
+    with path.open('rb') as stream:
+        raw = stream.read(65537)
+    if len(raw) > 65536:
+        raise ValueError('Admission scope exceeds its configuration limit')
+    value = json.loads(raw)
+    if (type(value) is not dict or set(value) != {'format', 'admissions'}
+            or type(value['format']) is not int or value['format'] != 1
+            or type(value['admissions']) is not list or len(value['admissions']) > 32):
+        raise ValueError('Choose a bounded admission scope')
+    return value['admissions']
+
+
 class ProjectResearcher(ProjectReader):
     """The operator qualifies definitions/runtimes; the agent chooses inputs and runs.
 
@@ -51,7 +65,7 @@ class ProjectResearcher(ProjectReader):
     """
     operation_tools = READS | {'workflow'}
 
-    def __init__(self, config, pins, door=None):
+    def __init__(self, config, pins, door=None, *, admissions=None):
         super().__init__(config, door)
         if not config.study or not pins or len(pins) > 32:
             raise ValueError('Research requires a selected Study and frozen workflows')
@@ -60,6 +74,27 @@ class ProjectResearcher(ProjectReader):
             raise ValueError('Invalid workflow scope')
         if len({(p.id, p.revision) for p in self.pins}) != len(self.pins):
             raise ValueError('Duplicate frozen workflow identity')
+        self._admissions = None
+        if admissions is not None:
+            if type(admissions) is not list or len(admissions) > 32:
+                raise ValueError('Choose a bounded admission scope')
+            self._admissions = {}
+            for row in admissions:
+                if type(row) is not dict or set(row) != {'requestKey', 'arguments'}:
+                    raise ValueError('An admission needs its exact arguments and request key')
+                schema.check(row['requestKey'], 'request-key')
+                if row['requestKey'] in self._admissions:
+                    raise ValueError('Duplicate admission request key')
+                args, _ = self._arguments(row['arguments'])
+                self._admissions[row['requestKey']] = self._intent(args)
+
+    @property
+    def can_admit(self):
+        return self._admissions is None or bool(self._admissions)
+
+    @staticmethod
+    def _intent(args):
+        return json.dumps({**args, 'bindings': args.get('bindings', {})}, sort_keys=True, allow_nan=False)
 
     def _pin(self, workflow, revision):
         pin = next((p for p in self.pins if p.id == workflow and p.revision == revision), None)
@@ -77,7 +112,13 @@ class ProjectResearcher(ProjectReader):
 
     async def workflows(self):
         # Explicit pins only: do not enumerate the operator's unrelated library.
-        return {'workflows': [await self._definition(pin) for pin in self.pins]}
+        result = {'workflows': [await self._definition(pin) for pin in self.pins]}
+        if self._admissions is not None:
+            result['admissions'] = [{'requestKey': key, 'arguments': {
+                k: v for k, v in json.loads(intent).items() if k not in ('session', 'study')}}
+                for key, intent in self._admissions.items()]
+            result['admissionMeaning'] = 'Only these fixed requests may run. Retrying or reconnecting recovers the same server operation.'
+        return result
 
     def _reference(self, ref):
         schema.check(ref, 'artifact-reference')
@@ -100,12 +141,20 @@ class ProjectResearcher(ProjectReader):
             self._reference(ref)
         return pin
 
-    async def run(self, arguments, request_key):
+    def _arguments(self, arguments):
         if type(arguments) is not dict or set(arguments) - {'workflow', 'revision', 'inputs', 'bindings'}:
             raise ValueError('Only exact inputs to qualified frozen workflows are admitted')
         args = {**arguments, 'study': self.config.study, 'session': self.config.project}
-        pin = self._admission(args)
+        return args, self._admission(args)
+
+    async def run(self, arguments, request_key):
+        args, pin = self._arguments(arguments)
         schema.check(request_key, 'request-key')
+        if self._admissions is not None and self._admissions.get(request_key) != self._intent(args):
+            raise ValueError('This request is outside the operator admission allowance')
+        if self._admissions is not None:
+            # Send the same canonical body across retries and process restarts.
+            args = json.loads(self._admissions[request_key])
         # Check immutable definition before admission; the server checks runtime
         # generations and input hashes. No caller-controlled parameters or code.
         await self._definition(pin)
