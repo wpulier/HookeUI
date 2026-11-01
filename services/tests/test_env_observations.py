@@ -93,6 +93,45 @@ def test_maintenance_mutations_inside_display_read_live_state(home):
     assert policy.get('other-entry')['generation'] == 'preserve-me'
 
 
+def test_new_pins_are_live_for_removal_authority_and_mutation(home):
+    from orchestrator.maintenance import pins
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    pins.add(m.key, active.name, 'recipe', 'saved-workflow')
+    with observations.display(snapshot):
+        assert pins.of(m.key) == [], 'ordinary display retains its observed state'
+        with pytest.raises(pins.Held, match='saved-workflow'):
+            pins.require_removable(m.key, {active.name})
+        assert pins.remove(m.key, 'recipe', 'saved-workflow') == 1
+    assert pins.of(m.key) == []
+
+
+def test_runtime_removal_sees_new_active_attempt_inside_old_display(home, monkeypatch):
+    from orchestrator.maintenance import prepare, store
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    store.write(prepare.path(m.key), {'state': 'applying', 'pid': 123})
+    monkeypatch.setattr(prepare, 'alive', lambda attempt: attempt.get('pid') == 123)
+    with observations.display(snapshot):
+        with pytest.raises(envs.Failed, match='update is being prepared'):
+            envs.removal(m)
+    assert active.exists()
+
+
+def test_apply_precheck_sees_new_active_attempt_inside_old_display(home):
+    from orchestrator.maintenance import prepare, promote, store
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    store.write(prepare.path(m.key), {'state': 'applying'})
+    with observations.display(snapshot):
+        with pytest.raises(promote.Failed, match='previous update'):
+            prepare.apply(m, active.name)
+    assert prepare.last(m.key)['state'] == 'applying'
+
+
 def test_versions_enumerates_once_and_display_reuses_facts(home, monkeypatch):
     m = contribute(home)
     d = installed(m)

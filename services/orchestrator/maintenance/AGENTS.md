@@ -56,7 +56,10 @@ in MT4 through the same package.
   The existing off-loop environment observer also captures policy, check, pin, decision and per-entry attempt
   records. Synchronous display scopes reuse those exact-path observations, including missing files. A new observation
   replaces them; unrelated files and other profiles still use live reads. Maintenance writer locks enter live mode,
-  so a stale display cannot supply a mutation's input state. This does not remove all catalog filesystem reads.
+  so a stale display cannot supply a mutation's input state. Pin removal prechecks, pin-based removal authority and
+  runtime removal (including its active-attempt check) also explicitly read live facts before any mutation.
+  Entry-attempt locks likewise enter live mode before Apply or worker preflight and cancellation checks.
+  This does not remove all catalog filesystem reads.
 - **Checks back off.** A failed check is tried again after 15 minutes, doubling up to a day. It never means "no update"
   and never touches the installation.
 - **Removal keeps what is pinned** (`envs.removal` → `pins.require_removable`); a rollback hold goes with the software.

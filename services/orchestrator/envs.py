@@ -755,6 +755,12 @@ def _freed(folder: Path) -> int:
 def removal(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict:
     """remove(), with what it freed: {'removed', 'filesBytes' (an upper bound, counted before the folders go),
     'freeBefore', 'freeAfter' (the disk's free space measured around the removal; other writes change it too)}."""
+    from . import env_observations
+    with env_observations.live():
+        return _removal(m, environ)
+
+
+def _removal(m: catalog.Manifest, environ: Mapping[str, str]) -> dict:
     r = root(m, environ)
     files, before, after = 0, 0, 0
     from . import generation_leases, scientific_retention, runtime_cleanup

@@ -33,8 +33,10 @@ def add(key: str, generation: str, kind: str, owner: str, environ: Mapping[str, 
 
 def remove(key: str, kind: str, owner: str | None = None, environ: Mapping[str, str] = os.environ) -> int:
     """Take an owner's pin away (every pin of that kind with `owner` None). Returns how many went."""
-    if not any(r.get("kind") == kind and (owner is None or r.get("owner") == owner) for r in of(key, environ)):
-        return 0  # nothing to take away: nothing written
+    from .. import env_observations
+    with env_observations.live():
+        if not any(r.get("kind") == kind and (owner is None or r.get("owner") == owner) for r in of(key, environ)):
+            return 0  # nothing to take away: nothing written
     with store.locked(environ):
         found = _all(environ)
         rows = found.get(key, [])
@@ -67,7 +69,9 @@ def holds(m, environ: Mapping[str, str] = os.environ) -> dict[str, list[str]]:
 def require_removable(key: str, generations: set[str], environ: Mapping[str, str] = os.environ) -> None:
     """Raise Held when an owner other than a rollback pins one of `generations`: removing the entry's software would
     take away what that owner runs on. A rollback hold goes with the software it holds (envs.removal releases it)."""
-    held = [r for r in of(key, environ) if r["generation"] in generations and r.get("kind") != "rollback"]
+    from .. import env_observations
+    with env_observations.live():
+        held = [r for r in of(key, environ) if r["generation"] in generations and r.get("kind") != "rollback"]
     if held:
         owners = ", ".join(sorted({f"{r['kind']} {r['owner']}" for r in held}))
         raise Held(f"This runtime is kept for what is pinned to it ({owners}). Unpin it first, or use Turn off instead.")
