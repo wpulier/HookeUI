@@ -59,7 +59,7 @@ def project(inputs, params, output, check):
         nobs, nvars = matrix.shape
         obs, var = source['obs'], source['var']
         identities = engine._strings(bounded_h5.text(obs[cfg['observation_id']], nobs), 'Observation identities', unique=True)
-        annotations = bounded_h5.text(obs[cfg['target_column']], nobs)
+        annotations = bounded_h5.text(obs[cfg['target_column']], nobs, compact=True)
         gene_ids = engine._strings(bounded_h5.text(var[cfg['gene_id']], nvars), 'Source gene identities', unique=True)
         symbols = bounded_h5.text(var[cfg['gene_symbol']], nvars)
         positions = {}

@@ -106,6 +106,9 @@ protocol, source hash, available/selected group counts and exclusions travel in
 Dense/CSR rows are read in bounded blocks; sparse float32 output must preserve whole
 count values exactly. CSC, ambiguous identities, missing groups, insufficient cells,
 unsafe allocations and excessive stored entries refuse. Gene output order is explicit.
+Target annotations use bounded compact string references rather than widening every
+row to the longest label. The existing metadata allowance includes decoded text,
+references and category codes; missing, oversized and invalid labels still refuse.
 Source observation identities, mapped context/target, original target annotations
 and source gene identities are retained and verified after disk assembly; a per-row
 count witness verifies unchanged selected values. This is a declared projection:

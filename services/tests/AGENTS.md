@@ -889,3 +889,9 @@ cache writes; this isolates saved scientific state, not the whole filesystem.
 No new model installation or provider request is made by this preparation.
 `test_sim_catalog.py` uses synthetic files to check these boundaries; it does not
 qualify model performance.
+
+Compact projection-label regressions use a synthetic 100,000-row annotation axis,
+modern/legacy categories, nullable and plain strings. They preserve selected Unicode
+labels and enforce missing/oversized/allocation refusals. Passing these tests is not
+evidence of successful full-size public-source projection; that remains a connector
+workflow qualification with its own retained attempt.
