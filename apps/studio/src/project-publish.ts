@@ -122,7 +122,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
             if (!active()) return;
             const changed = result.added.length + result.extended.length;
             status.textContent = changed ? `${changed} document${changed > 1 ? 's' : ''} updated, ${result.filesAdded} files added.` : 'Already up to date.';
-            if (result.refused.length) content.append(node('p', `${result.refused.length} document${result.refused.length > 1 ? 's' : ''} changed both here and in the publication, so ${result.refused.length > 1 ? 'they were' : 'it was'} left as you had ${result.refused.length > 1 ? 'them' : 'it'}.`));
+            if (result.refused.length) content.append(node('p', `${result.refused.length} document${result.refused.length > 1 ? 's' : ''} in the publication no longer follow${result.refused.length > 1 ? '' : 's'} the version here, so ${result.refused.length > 1 ? 'they were' : 'it was'} left as ${result.refused.length > 1 ? 'they were' : 'it was'}.`));
           } catch (error) { if (active()) status.textContent = message(error); }
           finally { busy = false; update.disabled = false; }
         });
@@ -246,7 +246,7 @@ export function openStartFrom(actions: StartFromActions, opened?: (session: stri
     try {
       const result = await actions.start(value.startsWith('/') ? {kind: 'folder', path: value} : value, name.value.trim() || 'Started project');
       if (closed) return;
-      status.textContent = `Started “${result.project.name}”. It is in your Projects.`;
+      status.textContent = `Started “${result.project.name}”, a project of your own, in your Projects. What came from the publication is read-only there; copy a document to change it.`;
       footer.replaceChildren();
       if (opened) {
         const open = node('button', 'Open it', 'study-primary'); open.type = 'button';

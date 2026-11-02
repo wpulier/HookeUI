@@ -118,36 +118,34 @@ async def project_publish(app, client, msg) -> dict:
 
 @command('project-start-from')
 async def project_start_from(app, client, msg) -> dict:
-    """Make a working copy of a published Project here; it inherits no grants. A public source needs no sign-in."""
+    """Start an independent Project here from a publication: its own identity, the publication's documents held
+    read-only, no grants. A public source needs no sign-in. The studio opens it."""
     from .day.journal import Journal
-    from .project_launch import register_owner_folder
     from .project_repository import session_root
-    from .project_roots import ProjectLocationError, writer
+    from .project_roots import ProjectLocationError
     from .project_start_from import start_from
-    locations = getattr(app.day, 'locations', None)
+    from .scientific_exchange import BundleRefused
+    day = app.day
+    locations = getattr(day, 'locations', None)
     if locations is None:
         raise tools.ToolError('Project folders are not enabled here.', next='turn on Project folders, then retry')
     source = msg.get('source')
     destination = source if type(source) is dict else {'kind': 'github', 'repo': str(source or '')}
+    name = ' '.join(str(msg.get('name') or 'Started project').split())[:80] or 'Started project'
+
+    def create(avoid):
+        return locations.create(name, date=day.date, preferences=day.user_prefs, actor='user', clock=day.clock,
+                                local_only=False, avoid=avoid)
+
     def work():
         remote = _remote_for(destination, anonymous=True)
-        parent = Path(locations.parent)
-        parent.mkdir(parents=True, exist_ok=True)
-        label = re.sub(r'[\\/:\x00-\x1f\x7f]', '-', str(msg.get('name') or 'Started project')).strip(' .')[:80]
-        target = parent / (label or 'Started project')
-        number = 2
-        while target.exists():
-            target = parent / f'{label} {number}'
-            number += 1
-        staging = _staging(app, 'start-from', 'fetch')
-        working, ancestry = start_from(remote, target, staging=staging)
-        with writer(working):
-            Journal(working.session, session_root(working)).append(ancestry, durable=True)
-        root = register_owner_folder(app.paths, locations, str(working.path))
+        root, ancestry, _ = start_from(remote, create, staging=_staging(app, 'start-from', 'fetch'), held=True)
+        locations.writable(root.session)
+        Journal(root.session, session_root(root)).append(ancestry, durable=True)
         return root, ancestry
     try:
         root, ancestry = await asyncio.to_thread(work)
-    except (OSError, ProjectLocationError) as error:
+    except (OSError, ProjectLocationError, BundleRefused) as error:
         raise _refused(error) from error
     return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': root.name,
                                     'location': str(root.path)}, 'startedFrom': ancestry}
@@ -160,6 +158,7 @@ async def project_update_from(app, client, msg) -> dict:
     from .project_repository import ProjectRepository
     from .project_roots import ProjectLocationError
     from .project_start_from import update_from
+    from .scientific_exchange import BundleRefused
     day, locations, root = _project(app, msg.get('session'))
     events = ProjectRepository(root).events()
     started = [e for e in events if e.get('type') == 'project-started-from']
@@ -172,10 +171,11 @@ async def project_update_from(app, client, msg) -> dict:
             remote = _remote_for({'kind': 'github', 'repo': source.get('location', '')}, anonymous=True)
         else:
             remote = folder_remote(Path(source.get('base') or source.get('location') or ''))
-        return update_from(root, remote, staging=_staging(app, root.origin, 'update'), held=True)
+        return update_from(root, remote, origin=started[-1]['origin'], staging=_staging(app, root.origin, 'update'),
+                           held=True)
     try:
         result = await asyncio.to_thread(work)
-    except (OSError, ProjectLocationError) as error:
+    except (OSError, ProjectLocationError, BundleRefused) as error:
         raise _refused(error) from error
     day._record({'type': 'project-updated-from', 'commit': result['commit'],
                  'snapshotSha256': result['snapshotSha256'], 'added': len(result['added']),

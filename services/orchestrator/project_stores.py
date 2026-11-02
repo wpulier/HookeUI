@@ -45,7 +45,7 @@ class _BoundStore(ProjectStore):
         self._root = value
 
     def for_session(self, session, *, write=False):
-        if session != self.project.session:
+        if session != self.project.session and (write or session not in self.inherited_owners(self.project.session)):
             raise InvalidProject('This captured store belongs to another Project')
         self.root  # validate the retained locator even for reads
         if write:
@@ -67,9 +67,9 @@ class _BoundStore(ProjectStore):
         self.for_session(session, write=True)
         return super()._publish(folder, session, *args, **kwargs)
 
-    def _read_head(self, folder, session):
+    def _read_head(self, folder, session, *, inherited=False):
         self.for_session(session)
-        return super()._read_head(folder, session)
+        return super()._read_head(folder, session, inherited=inherited)
 
 
 class ProjectStores:
@@ -80,6 +80,7 @@ class ProjectStores:
         self.workflow_library_root = legacy.workflow_library_root
         self._bound = {}
         self._lock = threading.RLock()
+        self._probes = {}
 
     @property
     def root(self):
@@ -90,6 +91,8 @@ class ProjectStores:
 
     def for_session(self, session, *, write=False):
         project = self.locations.project(session)
+        if project is None and not write:
+            project = self._inheriting(session)
         if project is None:
             return self.legacy.for_session(session, write=write)
         with self._lock:
@@ -97,6 +100,24 @@ class ProjectStores:
             if key not in self._bound:
                 self._bound[key] = _BoundStore(self.locations, project, self.runtime_root)
             return self._bound[key].for_session(session, write=write)
+
+    def _inheriting(self, session):
+        """The one Project here that holds `session` as an inherited owner (a document's own reference names it);
+        None when none does, or when several copies do and the reference alone cannot say which."""
+        holders = []
+        for handle in self.locations.handles():
+            project = self.locations.project(handle)
+            if project is None:
+                continue
+            try:
+                key = (project.origin, project.path)
+                with self._lock:  # one probe per Project: its listing is cached until its sessions folder changes
+                    probe = self._probes.get(key) or self._probes.setdefault(key, ProjectStore(document_root(project)))
+                if session in probe.inherited_owners(project.session):
+                    holders.append(project)
+            except (OSError, ProjectLocationError):
+                continue
+        return holders[0] if len(holders) == 1 else None
 
     def register_runtime(self):
         # Host runtime maintenance can still inspect every known store. It never
