@@ -17,10 +17,12 @@ if __package__:
     from .engine import Refused, _json, _strings, _finite, MAX_ROWS, MAX_GENES
     from . import bounded_h5
     from . import resource_profile
+    from .aggregate_profiles import _digest
 else:
     from engine import Refused, _json, _strings, _finite, MAX_ROWS, MAX_GENES
     import bounded_h5
     import resource_profile
+    from aggregate_profiles import _digest
 
 VERSION = '0.20.0'
 MATERIALIZATION_BUDGET = 8 << 30
@@ -209,7 +211,7 @@ def evaluate(inputs, params, output, check):
                              'evaluationViews': transformation, 'metrics': measured.to_dicts(),
                              'aggregate': aggregated.to_dicts()})
             del p, r
-    result = {'format': 'cell-evaluation-v1', 'evaluator': 'cell-eval2', 'version': VERSION,
+    result = {'format': 'cell-evaluation-v1', 'inputs': {name: _digest(path, check) for name, path in inputs.items()}, 'evaluator': 'cell-eval2', 'version': VERSION,
               'config': cfg.to_dict(), 'protocol': config, 'contexts': _plain(contexts),
               'backend': {'device': 'cpu', 'differentialExpression': 'scanpy', 'threads': 1},
               'resolvedMetrics': selected,

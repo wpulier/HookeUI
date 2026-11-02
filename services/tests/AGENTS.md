@@ -977,3 +977,11 @@ actual retained comparison records. Neither substitutes for private-package proo
 actual UI activation or a genuine named connector run.
 
 Research-navigation regressions cover exact-revision page reuse, preserved work tabs, owner-only review/recovery, collaboration counts and lost-reply reconciliation through real isolated stores. These are synthetic lifecycle checks; actual Project/browser/connector evidence is retained separately.
+
+`test_development_protocol.py` checks declared context/target separation against
+synthetic prepared effects, signed-effect normalization, complete panels, and the
+missing-target zero-prior failure without rejecting measured zero effects. Its
+six-metric ranking oracles cover directions, midranks, equal context weights,
+simplicity ties, missing/nonfinite measurements and mismatched reference hashes.
+The optional upstream-catalog check requires cell-eval2 0.20.0. These tests do not
+qualify a biological fold, fit resources, full-panel scoring or a real decision.

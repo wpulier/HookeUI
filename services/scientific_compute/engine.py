@@ -583,7 +583,24 @@ def project_counts(inputs, params, output, check):
     return project(inputs, params, output, check)
 
 
-OPERATIONS = {'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
+
+def check_development_fold(inputs, params, output, check):
+    if __package__:
+        from .development_protocol import check_fold
+    else:
+        from development_protocol import check_fold
+    return check_fold(inputs, params, output, check)
+
+
+def select_development_candidate(inputs, params, output, check):
+    if __package__:
+        from .development_protocol import select
+    else:
+        from development_protocol import select
+    return select(inputs, params, output, check)
+
+
+OPERATIONS = {'response-development-check': check_development_fold, 'cell-evaluation-select': select_development_candidate, 'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,

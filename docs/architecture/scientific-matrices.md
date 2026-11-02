@@ -322,3 +322,38 @@ are unchanged. Every new output records `dispersionEstimator`; older outputs lac
 that field and retain their original provenance. A newly frozen workflow must
 explicitly select the alternative. Numeric qualification does not establish an
 improvement on real data, which must be measured separately.
+
+## Development admission and selection
+
+`response-development-check` reads actual prepared training and reference effects
+before fitting or evaluating a declared development fold. Its retained
+`response-development-fold-v1` protocol explicitly lists `training_contexts`,
+`evaluation_contexts`, ordered `genes`, complete evaluation `targets`, `scale`,
+`normalization`, `target_regime` (`seen`, `mixed`, or `unseen`) and
+`expected_unseen_targets`. Context overlap, changed genes/normalization, incomplete
+reference panels, missing targets in a claimed seen-target fold and unexpected
+zero-prior coverage refuse. Observed zero-valued training effects are reported
+separately and remain valid data. This is a workflow step: place it before the
+fit/evaluation dependency. It does not silently alter existing frozen workflows,
+qualify biological context labels, reserve compute or replace resource admission.
+
+`cell-evaluation-select` compares two retained `cell-evaluation-v1` reports and a
+`development-selection-v1` config with `rule: "equal-metric-ranks"`, `left` and
+`right`, each containing a distinct `name` and `method`. Methods in simplicity order
+are `null`, `existing-transfer`, `low-rank-transfer`, `embedding`, `blend`.
+Both reports must use cell-eval2 0.20.0, the vcc2026 profile, the CPU/scanpy backend,
+the same complete context panels and configuration, and identical reference and
+protocol file hashes. Evaluator outputs now retain input hashes; older unhashed
+outputs remain readable but cannot certify this comparison.
+
+The six scored canonical metrics and directions are pinned to that upstream
+catalog: pds_cosine (higher), expr_mse_unbiased_capped_norm (lower),
+de_wilcoxon_lfc_nmae (lower), de_wilcoxon_direction_fidelity_yield_raw (higher),
+de_wilcoxon_direction_reach_raw (higher), de_wilcoxon_sig_jaccard (higher).
+The capability ranks each metric with exact-tie midranks, averages equally across
+metrics, then equally across qualified contexts. Missing/nonfinite/duplicate
+required aggregates refuse; diagnostic metrics are excluded. Simpler methods win
+rank ties; equally simple tied methods remain joint leaders. The output is labeled
+**development selection measure**, never an official overall score. This is an
+explicit fallback when scaling anchors are unavailable; it neither invents anchors
+nor implements reference scaling or a multi-candidate campaign tournament.
