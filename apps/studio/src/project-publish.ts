@@ -11,7 +11,7 @@ export interface PublicationReview {
   /** The person's own words that are published: their notes on results (the secret scan reads them too). */
   publishedText?: {session: string; id: string; version: number | null; title: string; text: string}[];
 }
-export interface Published {commit: string; snapshotSha256: string; recordFiles: number; bulkObjects: number; uploadedBytes: number; bytes: number}
+export interface Published {commit: string; snapshotSha256: string; recordFiles: number; bulkFiles: number; bulkObjects: number; uploadedBytes: number; bytes: number}
 export interface GitHubStatus {setUp: boolean; signedIn: boolean; says: string}
 export interface GitHubCode {id: string; code: string; open: string; every: number; until: number}
 export interface Signoff {rights: boolean; noIdentifiableHumanData: boolean; permanent: boolean; author?: string}
@@ -148,7 +148,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
   const show = (r: PublicationReview) => {
     content.replaceChildren(); controls.replaceChildren();
     status.textContent = r.blocked ? 'Some files need attention before this can be published.' : 'Review, then sign off.';
-    content.append(node('p', `${r.memberCount.toLocaleString()} files · ${size(r.bytes)} · ${r.largeFiles} large data objects`));
+    content.append(node('p', `${r.memberCount.toLocaleString()} files · ${size(r.bytes)} · ${r.largeFiles} large files`));
     const left = node('ul', '', 'project-publish-left');
     left.append(node('li', `Conversations: ${r.leftOut.conversations}`));
     left.append(node('li', r.includeTranscripts ? 'Research transcripts are included' : `Research transcripts left out: ${r.leftOut.transcripts}`));
@@ -212,7 +212,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
           permanent: permanent.box.checked, ...(author.value.trim() ? {author: author.value.trim()} : {})}, destination);
         if (!active()) return;
         content.replaceChildren(node('p', 'Published and checked.'), node('p', result.location, 'project-folder-path'),
-          node('p', `${result.published.recordFiles} record files and ${result.published.bulkObjects} large data objects. Anyone can now start from it.`));
+          node('p', `${result.published.recordFiles} record files and ${result.published.bulkFiles} large files. Anyone can now start from it.`));
         controls.replaceChildren(); status.textContent = '';
       } catch (error) { if (active()) { status.textContent = message(error); send.disabled = false; } }
       finally { busy = false; }

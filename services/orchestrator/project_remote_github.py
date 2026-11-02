@@ -314,7 +314,7 @@ class GitHubReleaseBulk:
             raise RemoteRefused('An object name is not a SHA-256')
         release, assets = self._assets(create=True)
         if digest in assets:
-            return
+            return False
         if sum(a.get('size', 0) for a in assets.values()) + size > MAX_RELEASE_BYTES:
             raise RemoteRefused('This project’s data is too large for GitHub alone; '
                                 'publish it to Hooke Cloud or your own storage')
@@ -330,6 +330,7 @@ class GitHubReleaseBulk:
             raise GitHubRefused('a large project file', status, data if isinstance(data, dict) else {})
         assets[digest] = data
         self._release.setdefault('assets', []).append(data)
+        return True
 
     def get(self, digest, size, target, *, check=lambda: None):
         if not DIGEST.fullmatch(digest):

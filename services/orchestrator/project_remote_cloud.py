@@ -1,9 +1,12 @@
 """Hooke Cloud as a bulk store for a Project's large files (ADR 0028, format v2 section 5).
 
-The open client of the private service's Project object routes: which objects it lacks, a signed upload link for
-each one it lacks (the meter admits or refuses first), and signed download links. Downloads of a public Project need
-no account. Every byte is checked against its SHA-256 here, whatever the service says. The token is a Hooke Cloud
-sign-in token with the `hooke:projects` scope; it stays in the request header only.
+The open client of the private service's Project object routes (hooke-web `project_routes.py`): which objects it lacks,
+a signed upload link for each one it lacks (the meter admits or refuses first), and signed download links. Downloads of
+a public Project need no account. The objects are the version's packs of about 16 MiB (`project_remote_packs`), never
+one per file. Every byte is checked against its SHA-256 here, whatever the service says.
+
+The token is a Hooke Cloud sign-in token with the `hooke:projects` scope. It goes only to the service's own routes in
+the Authorization header, never to an object link: a link is itself the permission, and may point anywhere.
 """
 from __future__ import annotations
 
@@ -53,15 +56,23 @@ class _Http:
 
 
 class CloudBulk:
-    def __init__(self, base: str, origin: str, *, token: str | None = None, http=None):
+    def __init__(self, base: str, origin: str, *, token: str | None = None, http=None, visibility: str = 'private'):
         if not isinstance(origin, str) or not ORIGIN.fullmatch(origin):
             raise RemoteRefused('A Project origin is 32 hexadecimal characters')
-        self.base, self.origin, self.token = _base(base), origin, token
+        if visibility not in ('private', 'public'):
+            raise RemoteRefused('A Hooke Cloud Project is private or public')
+        self.base, self.origin, self.token, self.visibility = _base(base), origin, token, visibility
         self.http = http or _Http(token)
 
     def describe(self):
         return {'kind': 'hooke-cloud', 'base': f'{self.base}/api/projects/{self.origin}/objects',
-                'visibility': 'public'}
+                'visibility': self.visibility}
+
+    def _link(self, url):
+        """An object link the service gave: https anywhere (R2 signs its own), or this service's own address."""
+        if not isinstance(url, str) or any(ord(c) < 33 for c in url):
+            return False
+        return url.startswith('https://') or url.startswith(self.base + '/')
 
     def _post(self, route, payload, *, what, auth=True):
         status, data = self.http.request('POST', f'{self.base}/api/projects/{self.origin}/{route}', json=payload,
@@ -101,14 +112,17 @@ class CloudBulk:
             raise ChangedOutsideHooke('Hooke Cloud answered for a different file')
         entry = entries[0]
         if entry.get('present') is True:
-            return
+            return False
         url, headers = entry.get('url'), entry.get('headers') or {}
-        if entry.get('method') != 'PUT' or not isinstance(url, str) or not url.startswith('https://') and not url.startswith(self.base):
+        if entry.get('method') != 'PUT' or not self._link(url) or type(headers) is not dict:
             raise ChangedOutsideHooke('Hooke Cloud gave an unexpected upload link')
         status, _ = self.http.request('PUT', url, content=body, headers={str(k): str(v) for k, v in headers.items()},
-                                      auth=url.startswith(self.base))
+                                      auth=False)
+        if status == 412:  # R2's write-once condition: the object arrived meanwhile (its name is its content)
+            return False
         if status >= 400:
             raise RemoteRefused(f'Hooke Cloud did not keep a large file ({status}); nothing was published')
+        return True
 
     def get(self, digest, size, target, *, check=lambda: None):
         if not DIGEST.fullmatch(digest):
@@ -119,10 +133,10 @@ class CloudBulk:
         if type(entries) is not list or len(entries) != 1 or entries[0].get('sha256') != digest:
             raise RemoteRefused('Hooke Cloud does not hold a large file of this project')
         url = entries[0].get('url')
-        if not isinstance(url, str) or not (url.startswith('https://') or url.startswith(self.base)):
+        if not self._link(url):
             raise ChangedOutsideHooke('Hooke Cloud gave an unexpected download link')
         check()
-        status, body = self.http.request('GET', url, auth=url.startswith(self.base) and bool(self.token), limit=size)
+        status, body = self.http.request('GET', url, auth=False, limit=size)
         if status != 200 or len(body) != size or hashlib.sha256(body).hexdigest() != digest:
             raise ChangedOutsideHooke('A large file from Hooke Cloud does not match its name')
         with open(target, 'xb') as stream:

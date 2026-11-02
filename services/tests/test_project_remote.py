@@ -14,7 +14,7 @@ from orchestrator.project_roots import COPY_INTENT, ProjectLocationError, Projec
 from orchestrator.scientific_file_intake import FileIntake
 from orchestrator.scientific_projects import ProjectStore
 
-PIXELS = bytes(range(256)) * 6144  # 1.5 MiB: two content-addressed chunks
+PIXELS = bytes(range(256)) * 6144  # 1.5 MiB: two content-addressed chunks, which travel in one pack
 
 
 def project(tmp_path, text='First question'):
@@ -46,7 +46,7 @@ def test_round_trip_through_a_folder_is_byte_identical_and_reads_the_same(tmp_pa
     root, repo, _, _, note, source = project(tmp_path)
     remote = folder_remote(tmp_path / 'Drive', create=True)
     receipt = push_sealed(sealed(root, tmp_path), remote, parent=None, summary='First backup')
-    assert receipt['bulkObjects'] == 2 and receipt['uploadedBytes'] == len(PIXELS)
+    assert receipt['bulkFiles'] == 2 and receipt['bulkObjects'] == 1 and receipt['uploadedBytes'] == len(PIXELS)
     assert receipt['parent'] is None and remote.records.head() == receipt['commit']
     fetched, details = fetch(remote, tmp_path / 'Fetched')
     assert details['snapshotSha256'] == receipt['snapshotSha256'] and fetched.origin == root.origin
@@ -77,7 +77,7 @@ def test_a_second_push_sends_only_what_is_new_and_chains_onto_the_first(tmp_path
     with repo.edit(prefs, registry=registry, host_runtime_root=tmp_path / 'runtimes') as edit:
         edit.save_document(note.id, {**note.document, 'state': {'text': 'Revised'}}, expected_revision=1)
     second = push_sealed(sealed(root, tmp_path, 'Two'), remote, parent=first['commit'], summary='Two')
-    assert second['uploadedBytes'] == 0 and second['parent'] == first['commit']
+    assert second['uploadedBytes'] == 0 and second['reusedObjects'] == 1 and second['parent'] == first['commit']
     assert remote.records.read_commit(second['commit'])['parent'] == first['commit']
     fetched, _ = fetch(remote, tmp_path / 'Fetched')
     assert ProjectRepository(fetched).read(note.id).revision == 2
@@ -106,6 +106,7 @@ def test_two_writers_racing_from_one_parent_cannot_both_win(tmp_path):
 
 def test_an_interrupted_push_leaves_the_remote_unchanged_and_a_retry_completes(tmp_path, monkeypatch):
     root, *_ = project(tmp_path)
+    monkeypatch.setattr('orchestrator.project_remote_packs.PACK_BYTES', 1 << 20)  # two packs
     remote = folder_remote(tmp_path / 'Drive', create=True)
     snapshot = sealed(root, tmp_path)
     original = remote.bulk.put
@@ -121,7 +122,7 @@ def test_an_interrupted_push_leaves_the_remote_unchanged_and_a_retry_completes(t
     assert remote.records.head() is None
     monkeypatch.setattr(remote.bulk, 'put', original)
     receipt = push_sealed(snapshot, remote, parent=None, summary='Retried')
-    assert receipt['uploadedBytes'] < len(PIXELS)  # the object sent before the failure is reused
+    assert receipt['uploadedBytes'] < len(PIXELS)  # the pack sent before the failure is reused
     assert fetch(remote, tmp_path / 'Fetched')[0].origin == root.origin
 
 
