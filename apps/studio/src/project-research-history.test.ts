@@ -55,3 +55,10 @@ test('history qualifies interrupted, unstarted and stale receipts instead of rep
  r.workflow!.executionObservation={state:'unstarted',reason:'Not dispatched'};
  expect(history(study(),{operations:[r]})[0].detail).toContain('waiting — Not dispatched');
 });
+
+test('returned collaboration reports wait for review, not execution reconciliation',()=>{
+ const s=study();s.experiments={};s.tasks={report:{status:'completed',specification:{provider:'collaboration'},chargedMicrousd:0,reservedMicrousd:0}};
+ const result=studyActivity(s,{operations:[]});
+ expect(result.title).toBe('Waiting for review or a next step');
+ expect(result.counts).toMatchObject({waiting:1,check:0,running:0});
+});

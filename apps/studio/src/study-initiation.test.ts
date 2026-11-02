@@ -48,3 +48,31 @@ it('keeps typing made while a plan save is in flight',async()=>{
  expect([...storage.values()][0]).toContain('new-basis');
  expect([...storage.values()][0]).toContain('Newer work');
 });
+
+
+it('opens the exact returned report evidence and separates it from acceptance', async()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const root=new TestElement('section'),open=vi.fn(async()=>undefined);
+ const evidence={id:'receipt',session:'s1',revision:3,digest:'exact-digest'};
+ const fetcher=vi.fn(async()=>new Response(JSON.stringify({basis:{id:'study',session:'s1',revision:4,digest:'basis'},plan:{...plan,status:'reviewed'},assignments:[{id:'assignment:a',objective:'Interpret a retained measurement',observedState:'completed',claimedBy:{byLabel:'Codex'},report:{statement:'271 bright regions, not biological cells',limitations:'Uncalibrated',evidence:[evidence]}}]})));
+ mountStudyInitiation(root as unknown as HTMLElement,study,[],fetcher as unknown as typeof fetch,open);
+ await vi.waitFor(()=>expect(root.textContent).toContain('Report awaiting review'));
+ const button=root.querySelectorAll('button').find(b=>b.textContent==='Open evidence 1 · version 3') as unknown as HTMLButtonElement;
+ button.onclick!(new Event('click') as PointerEvent);
+ await vi.waitFor(()=>expect(open).toHaveBeenCalledWith(evidence,'Report evidence 1'));
+ await vi.waitFor(()=>expect(root.textContent).not.toContain('Opening evidence…'));
+ expect(root.textContent).not.toContain('Saving…');
+ expect(root.textContent).toContain('Copy report context');
+ expect(root.textContent).not.toContain('Copy agent handoff');
+});
+
+
+it('shows the refusal recovery instruction when saving fails',async()=>{
+ const {root,fetcher}=setup();await vi.waitFor(()=>expect(root.querySelector('form')).not.toBeNull());
+ const form=root.querySelector('form') as unknown as HTMLFormElement;form.checkValidity=()=>true;
+ fetcher.mockImplementationOnce(async()=>new Response(JSON.stringify({ok:false,says:'The active Project changed.',next:'Reopen the original Study before saving.'}),{status:409}));
+ const save=root.querySelectorAll('button').find(b=>b.textContent==='Save research plan') as unknown as HTMLButtonElement;
+ save.onclick!(new Event('click') as PointerEvent);
+ await vi.waitFor(()=>expect(root.textContent).toContain('Reopen the original Study before saving.'));
+ expect(root.querySelector('textarea')!.value).toBe('Predictions');
+});

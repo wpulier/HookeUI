@@ -1002,11 +1002,10 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('Return to the originating Study to open its result.');
     if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
     clearStudyDraftMarkers();
-    // Evidence opens in its own workspace Tab; it must never appear behind the Study on Main.
-    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching||!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
+    // Reuse Data's retained reader Tab: named, revision-pinned and reopened rather than duplicated.
     closeResearchStage();
-    const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
-    if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
+    const opened=await workspaceViews.openReaderTab({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
+    if(!opened)throw new Error('The evidence Tab could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
     material,

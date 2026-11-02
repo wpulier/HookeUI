@@ -53,7 +53,7 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
     if(task.specification?.provider==='scientific-gcp-grant')continue;
     const phase=taskPhase(task);
     if(['running','launching','cancel_requested'].includes(phase))counts.running++;
-    else if(['review','waiting','planned'].includes(phase))counts.waiting++;
+    else if(['review','reported','waiting','planned'].includes(phase))counts.waiting++;
     else if(phase==='unknown')counts.check++;
     else if(phase==='failed')counts.failed++;
     else if(['finished','completed','cancelled'].includes(phase))counts.finished++;

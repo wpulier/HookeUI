@@ -2148,3 +2148,15 @@ Research initiation adds Start research to Main, then a saved Study plan. Creati
 Research plans and assignment outcomes occupy the Study main view; discussion stays alongside. Capability proposals show exact retained packages and declared scope, with existing Models review as the owner entrance. They grant no installation authority.
 
 Research-plan saving preserves text entered while a request is pending, rebasing that local draft onto the acknowledged revision. Initial Study drafts also retain their exact selected input identities across navigation/restart; unavailable or changed revisions are not silently replaced.
+
+Collaboration assignments that return a report say **Report awaiting review** in
+Researchers and Study summaries. The agent's completed assignment is not owner
+acceptance; managed-session acceptance and accepted findings keep their existing
+review meanings. The interactive research-plan page uses interface colors even
+inside a Study's paper-themed result container.
+Returned assignment reports open their exact retained evidence in ordinary artifact
+tabs. Their copy action offers report context for a follow-up, not a command to
+claim or rerun the already completed assignment.
+Study evidence uses Data's existing named reader Tab, pinned to the selected
+Project/document/revision and reused on repeated opens; it does not create a
+generic workspace Tab containing a second floating file window.

@@ -107,3 +107,11 @@ it('counts workflow admissions without calling them accepted, and retains finish
   expect(taskCounts({tasks: {local: {...study.tasks.a, status: 'completed', execution: {provider: 'local-researcher'}}}}))
     .toBe('1 finished · findings not yet reviewed');
 });
+
+
+it('keeps a returned collaboration report distinct from owner acceptance', () => {
+  const returned = {...study.tasks.a, status:'completed', chargedMicrousd:0, specification:{provider:'collaboration'}};
+  expect(taskState(returned)).toBe('Report awaiting review');
+  expect(taskCounts({tasks:{returned}})).toBe('1 report awaiting review');
+  expect(taskState({...returned, specification:{provider:'claude-managed-google'}})).toBe('Accepted');
+});

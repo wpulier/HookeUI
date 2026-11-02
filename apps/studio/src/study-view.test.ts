@@ -332,3 +332,10 @@ it('an unavailable Study ask keeps the question in place and does not hand it of
   expect(field.value).toBe('what does it mean?');
   fire(form,'submit');expect(ask).toHaveBeenCalledOnce();expect(field.value).toBe('');
 });
+
+
+it('keeps collaboration reports out of the provider experiment rail',()=>{
+ const {root}=draw({...study,tasks:{report:{status:'completed',specification:{provider:'collaboration'},chargedMicrousd:0,reservedMicrousd:0}}});
+ expect(root.querySelectorAll('.study-view-task')).toHaveLength(0);
+ expect(root.querySelectorAll('.sgroup')).toHaveLength(0);
+});
