@@ -36,8 +36,9 @@ def test_plan_is_retained_and_stale_edit_refuses(context):
         c.save_plan(s.id,s.session,basis=identity(s),plan=plan,actor='studio',label='You')
     reviewed=c.review_plan(s.id,s.session,basis=result['basis'],actor='studio',label='You')
     assert reviewed['plan']['status']=='reviewed'
-    with pytest.raises(Conflict):
-        c.save_plan(s.id,s.session,basis=reviewed['basis'],plan=plan,actor='studio',label='You')
+    amended=c.save_plan(s.id,s.session,basis=reviewed['basis'],plan=plan,actor='studio',label='You')
+    assert amended['plan']['status']=='draft'
+    assert c.efforts.read(s.id,s.session).document['state'][KEY]['researchPlanHistory'][0]['status']=='reviewed'
 
 def test_assignments_retry_without_duplicates_and_require_distinct_intent(context):
     c,s=context
@@ -195,3 +196,107 @@ def test_admission_reservation_reuse_and_explicit_repeat(tmp_path):
             gate.set()
             await runner.close()
     asyncio.run(run())
+
+
+def test_unrelated_study_write_does_not_block_plan_edit(context):
+    c,s=context
+    plan={'desiredOutput':'Prediction','evaluation':'Error','materials':[],'methodNotes':'Baseline',
+          'actorMode':'connected-agent','limits':{'experiments':2,'modelMinutes':30,'tokens':60000}}
+    saved=c.save_plan(s.id,s.session,basis=identity(s),plan=plan,actor='studio',label='You')
+    propose(c,s)
+    edited=c.save_plan(s.id,s.session,basis=saved['basis'],plan={**plan,'methodNotes':'Compare'},actor='studio',label='You')
+    assert edited['plan']['methodNotes']=='Compare'
+    assert len(edited['assignments'])==1
+    with pytest.raises(InvalidProject,match='owner'):
+        c.review_plan(s.id,s.session,basis=edited['basis'],actor='agent:a',label='Agent')
+    reviewed=c.review_plan(s.id,s.session,basis=edited['basis'],actor='studio',label='You')
+    with pytest.raises(InvalidProject,match='increase'):
+        c.save_plan(s.id,s.session,basis=reviewed['basis'],plan={**plan,'limits':{**plan['limits'],'experiments':3}},actor='agent:a',label='Agent')
+
+
+def test_stop_assignment_without_external_process_settles_coordination(context):
+    c,s=context
+    task=propose(c,s)
+    claim(c,s,task['id'])
+    saved=c.efforts.control(s.id,s.session,'stop',actor='studio')
+    task=saved.document['state'][KEY]['tasks'][task['id']]
+    assert task['status']=='cancelled' and task['chargedMicrousd']==0
+    assert task['collaboration']['claimedBy']['by']=='agent:a'
+
+
+def test_owner_releases_expired_claim_preserving_authorship(context):
+    c,s=context
+    task=propose(c,s)
+    claim(c,s,task['id'])
+    c.clock=lambda:1400
+    with pytest.raises(InvalidProject,match='owner'):
+        c.recover(s.id,s.session,assignment=task['id'],actor='agent:b',label='B')
+    restored=c.recover(s.id,s.session,assignment=task['id'],actor='studio',label='You')
+    assert restored['assignments'][0]['priorClaims'][0]['claimedBy']['by']=='agent:a'
+    claim(c,s,task['id'],'agent:b')
+    assert c.read(s.id,s.session)['assignments'][0]['claimedBy']['by']=='agent:b'
+
+
+def test_recovery_preserves_unresolved_admission(context):
+    c,s=context
+    task=propose(c,s)
+    claim(c,s,task['id'])
+    def pending(state):
+        state['tasks'][task['id']]['collaboration']['pendingAdmissions']={'original':{'request':'original'}}
+        return True
+    c.efforts._change(s.id,s.session,pending)
+    with pytest.raises(Conflict,match='unresolved'):
+        c.recover(s.id,s.session,assignment=task['id'],actor='studio',label='You')
+    assert c.read(s.id,s.session)['assignments'][0]['pendingAdmissions']
+
+
+def test_recovery_retains_original_receipt_before_refusing_live_execution(context):
+    c,s=context
+    a=propose(c,s);claim(c,s,a['id'])
+    execution={'kind':'workflow','id':'original','session':s.session}
+    def pending(state):
+        state['tasks'][a['id']]['collaboration']['pendingAdmissions']={'lost':{'request':'lost-reply','execution':execution}}
+        return True
+    c.efforts._change(s.id,s.session,pending)
+    receipt={'id':'op-original','project':s.session,'execution':execution,'params':{'study':s.id},'by':'agent:a','byLabel':'Lead'}
+    c.studies.operations=SimpleNamespace(request_receipt=lambda key,by:receipt,get=lambda key:receipt)
+    c.studies.workflows=SimpleNamespace(observed_status=lambda run,session:{'status':'running'})
+    with pytest.raises(Conflict,match='Original operations are now linked'):
+        c.recover(s.id,s.session,assignment=a['id'],actor='studio',label='You')
+    state=c.efforts.read(s.id,s.session).document['state'][KEY]
+    assert state['experiments']['lost']['operation']=='op-original'
+    assert state['tasks'][a['id']]['collaboration']['operations']==['op-original']
+    assert not state['tasks'][a['id']]['collaboration'].get('pendingAdmissions')
+    c.studies.workflows.observed_status=lambda run,session:{'status':'completed'}
+    released=c.recover(s.id,s.session,assignment=a['id'],actor='studio',label='You')
+    assert released['assignments'][0]['observedState']=='planned'
+    assert released['experiments'][0]['by']=='agent:a'
+
+
+def test_assignment_parent_must_exist_and_coordination_is_not_execution(context):
+    from orchestrator.research.efforts import summary
+    c,s=context
+    with pytest.raises(InvalidProject,match='parent'):
+        propose(c,s,assignment={**proposal(),'parent':'absent'})
+    a=propose(c,s)
+    propose(c,s,'child',{**proposal(),'parent':a['id'],'approach':'Inspect morphology'})
+    observed=summary(c.efforts.read(s.id,s.session))
+    assert observed['coordination']==dict(waiting=2,claimed=0,reports=0,stopped=0,unresolvedAdmissions=0)
+    assert observed['heldMicrousd']==0
+
+
+def test_recovery_cannot_declare_missing_history_absent(context, tmp_path):
+    from orchestrator.door.operations import Operations
+    from orchestrator.door.connections import Refused
+    c,s=context
+    a=propose(c,s);claim(c,s,a['id'])
+    def pending(state):
+        state['tasks'][a['id']]['collaboration']['pendingAdmissions']={'lost':{'request':'lost-reply','execution':{'kind':'workflow','id':'original','session':s.session}}}
+        return True
+    c.efforts._change(s.id,s.session,pending)
+    c.studies.operations=Operations(tmp_path)
+    c.studies.operations._history_complete=False
+    with pytest.raises(Refused,match='history is unavailable'):
+        c.recover(s.id,s.session,assignment=a['id'],actor='studio',label='You')
+    kept=c.read(s.id,s.session)['assignments'][0]
+    assert kept['pendingAdmissions'] and kept['claimedBy']['by']=='agent:a'

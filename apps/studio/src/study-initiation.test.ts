@@ -5,7 +5,7 @@ import {TestElement,syntheticDOM} from './workspace-windows.test-support';
 afterEach(()=>vi.unstubAllGlobals());
 const study:Effort={id:'study',session:'s1',revision:1,digest:'basis',objective:'Compare methods',criteria:'Measured error',status:'active',capMicrousd:0,spentMicrousd:0,heldMicrousd:0,availableMicrousd:0,inputs:[],tasks:{},findings:[]};
 const plan={desiredOutput:'Predictions',evaluation:'Measured error',materials:[],methodNotes:'Fit a baseline',actorMode:'connected-agent',limits:{experiments:2,modelMinutes:30,tokens:60000},status:'draft'};
-function setup(saved=plan){
+function setup(saved:Omit<typeof plan,'materials'>&{materials:{id:string;session:string;revision:number;digest:string}[];instructionPackage?:{id:string;version:number;digest:string}}=plan){
  const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
  const storage=new Map<string,string>();vi.stubGlobal('localStorage',{getItem:(k:string)=>storage.get(k)||null,setItem:(k:string,v:string)=>storage.set(k,v),removeItem:(k:string)=>storage.delete(k)});
  const root=new TestElement('section');
@@ -75,4 +75,38 @@ it('shows the refusal recovery instruction when saving fails',async()=>{
  save.onclick!(new Event('click') as PointerEvent);
  await vi.waitFor(()=>expect(root.textContent).toContain('Reopen the original Study before saving.'));
  expect(root.querySelector('textarea')!.value).toBe('Predictions');
+});
+
+it('retains conflicting local fields across reopen of a reviewed remote plan',async()=>{
+ const {storage}=setup();await Promise.resolve();
+ const key='hooke:research-plan:s1:study';
+ storage.set(key,JSON.stringify({basis:'old',output:'Predictions',evaluation:'Measured error',method:'my method',mode:'connected-agent',limits:{experiments:'2',modelMinutes:'30',tokens:'60000'},packageId:'',base:{output:'Predictions',evaluation:'Measured error',method:'original',mode:'connected-agent',experiments:'2',modelMinutes:'30',tokens:'60000',packageId:''}}));
+ const fetcher=vi.fn(async(url:string)=>new Response(JSON.stringify(url==='/api/research-instructions'?{packages:[]}:{basis:{id:'study',session:'s1',revision:3,digest:'remote'},plan:{...plan,methodNotes:'remote method',status:'reviewed'},assignments:[]})));
+ for(let attempt=0;attempt<2;attempt++){
+  const root=new TestElement('section');mountStudyInitiation(root as unknown as HTMLElement,study,[],fetcher as unknown as typeof fetch);
+  await vi.waitFor(()=>expect(root.textContent).toContain('Your draft: my method'));
+  expect(root.textContent).toContain('Saved: remote method');
+  expect(JSON.parse(storage.get(key)!).method).toBe('my method');
+  expect(root.querySelector('form')).not.toBeNull();
+ }
+});
+
+it('keeps exact plan materials and instruction pin when package discovery fails',async()=>{
+ const pin={id:'package',version:3,digest:'pinned'};
+ const material={id:'selected',session:'s1',revision:2,digest:'exact'};
+ const {root,fetcher}=setup({...plan,status:'reviewed',materials:[material],instructionPackage:pin});
+ await vi.waitFor(()=>expect(root.textContent).toContain('Revise plan'));
+ fetcher.mockImplementation(async(url:string,init?:RequestInit)=>{
+  if(url==='/api/research-instructions')throw new Error('Catalog offline');
+  const body=init?.body?JSON.parse(String(init.body)):null;
+  return new Response(JSON.stringify({coordination:{basis:{digest:'next'},plan:body?.plan||plan,assignments:[]}}));
+ });
+ const revise=root.querySelectorAll('button').find(b=>b.textContent==='Revise plan') as unknown as HTMLButtonElement;revise.onclick!(new Event('click') as PointerEvent);
+ await vi.waitFor(()=>expect(root.querySelector('form')).not.toBeNull());
+ const form=root.querySelector('form') as unknown as HTMLFormElement;form.checkValidity=()=>true;
+ await Promise.resolve();await Promise.resolve();
+ const save=root.querySelectorAll('button').find(b=>b.textContent==='Save research plan') as unknown as HTMLButtonElement;save.onclick!(new Event('click') as PointerEvent);
+ await vi.waitFor(()=>expect(fetcher.mock.calls.some(([,init])=>!!init?.body)).toBe(true));
+ const body=JSON.parse(String(fetcher.mock.calls.find(([,init])=>!!init?.body)![1]!.body));
+ expect(body.plan.materials).toEqual([material]);expect(body.plan.instructionPackage).toEqual(pin);
 });

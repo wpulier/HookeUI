@@ -109,8 +109,8 @@ async def run(built, record, progress):
         from ..research.studies import service
         result = await asyncio.to_thread(Coordination(service(built)).read, args['study'], project)
     elif name == 'study.coordinate':
-        from ..research.coordination_api import execute
-        result = await asyncio.to_thread(execute, built, args['study'], project, args['action'], args['fields'], actor, record['byLabel'])
+        from ..research.coordination_api import execute_command
+        result = await execute_command(built, args['study'], project, args['action'], args['fields'], actor, record['byLabel'])
     elif name == 'project.create':
         def create():
             owner = built.day.create_retained(args['name'], actor=actor)

@@ -231,3 +231,61 @@ def test_batch_observation_refuses_unreadable_receipts_and_cross_project_runs(tm
     with pytest.raises(InvalidProject, match='unreadable'):
         runner.observed_statuses([run.id], 's1')
     assert not runner.tasks
+
+
+def test_plan_amendment_waits_for_original_admission(tmp_path, monkeypatch):
+    from orchestrator.research.coordination import Coordination
+    from orchestrator.research import coordination_api
+    async def go():
+        studies, runner, study, image, definition=setup(tmp_path)
+        c=Coordination(studies)
+        plan=dict(desiredOutput='Result',evaluation='Inspect',materials=[identity(image)],methodNotes='One operation',actorMode='manual',limits=dict(experiments=2,modelMinutes=30,tokens=60000))
+        saved=c.save_plan(study.id,'s1',basis=identity(study),plan=plan,actor='studio',label='You')
+        reviewed=c.review_plan(study.id,'s1',basis=saved['basis'],actor='studio',label='You')
+        entered=asyncio.Event();release=asyncio.Event();original=runner.command
+        async def delayed(body,**kwargs):
+            if body['action']=='validate':
+                entered.set();await release.wait()
+            return await original(body,**kwargs)
+        monkeypatch.setattr(runner,'command',delayed)
+        monkeypatch.setattr(coordination_api,'service',lambda built:studies)
+        runner.steps.execute=lambda claim:{'status':'completed','output':identity(image)}
+        admission=asyncio.create_task(studies.start_workflow(study.id,'s1',actor='studio',label='You',request='serial-plan',workflow=definition.id,revision=1,inputs=[identity(image)]))
+        await entered.wait()
+        amendment=asyncio.create_task(coordination_api.execute_command(None,study.id,'s1','plan',{'basis':reviewed['basis'],'plan':{**plan,'methodNotes':'Revised future work'}},'studio','You'))
+        await asyncio.sleep(0)
+        assert not amendment.done()
+        release.set();operation,_=await admission
+        changed=await amendment
+        assert changed['plan']['status']=='draft'
+        assert changed['experiments'][0]['operation']==operation['id']
+        await until_async(lambda:not runner.tasks)
+        await runner.close()
+    asyncio.run(go())
+
+
+def test_cancelled_plan_writer_holds_admission_lock_until_drained(tmp_path, monkeypatch):
+    import threading
+    from orchestrator.research import coordination_api
+    async def go():
+        studies, runner, study, image, definition=setup(tmp_path)
+        entered=threading.Event();release=threading.Event()
+        monkeypatch.setattr(coordination_api,'service',lambda built:studies)
+        def blocked(*args):
+            entered.set();release.wait(timeout=10)
+            return {'saved':True}
+        monkeypatch.setattr(coordination_api,'execute',blocked)
+        writer=asyncio.create_task(coordination_api.execute_command(None,study.id,'s1','plan',{},'studio','You'))
+        await asyncio.to_thread(entered.wait,5)
+        writer.cancel()
+        lock=studies._locks[('s1',study.id)]
+        waiter=asyncio.create_task(lock.acquire())
+        try:
+            await asyncio.sleep(.01)
+            assert lock.locked() and not waiter.done() and not writer.done()
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):await writer
+        assert await asyncio.wait_for(waiter,1)
+        lock.release();await runner.close()
+    asyncio.run(go())

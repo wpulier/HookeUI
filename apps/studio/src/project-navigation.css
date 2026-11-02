@@ -1,0 +1,50 @@
+.project-navigation{display:flex;align-items:center;gap:4px;flex:none;padding:0 10px;border-right:1px solid var(--mm-line);position:relative;font:500 12px var(--mm-sans)}
+.project-navigation button,.project-navigation summary{border:0;background:transparent;color:var(--mm-text-2);padding:8px 10px;border-radius:6px;cursor:pointer;font:inherit;white-space:nowrap}
+.project-navigation summary{list-style:none}.project-navigation summary::after{content:'⌄';margin-left:8px}
+.project-navigation button:hover,.project-navigation summary:hover,.project-navigation button[aria-current=page]{background:var(--mm-hover);color:var(--mm-text)}
+.project-navigation[data-destination=overview]>.project-overview-link{color:var(--mm-accent);background:var(--mm-accent-soft)}
+.project-navigation-items{position:absolute;top:100%;left:8px;z-index:100;width:210px;padding:6px;background:var(--mm-bar);border:1px solid var(--mm-line-strong);border-radius:10px;box-shadow:0 12px 36px #0006;display:grid;gap:2px}
+.project-navigation-items button{text-align:left;padding:10px 12px}
+#project-overview-page{position:absolute;inset:0;overflow:auto;padding:32px clamp(16px,4vw,64px);background:var(--mm-bg,#171719);box-sizing:border-box}
+#project-overview-page>.project-research-home{max-width:1000px;margin:0 auto;display:grid;gap:24px}
+#project-overview-page .project-research-intro h2{font:600 28px/1.2 var(--mm-sans);color:var(--mm-text);margin:0 0 8px}
+.project-overview-sections{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.project-overview-section{min-width:0;border:1px solid var(--mm-line);border-radius:12px;padding:20px;display:grid;align-content:start;gap:12px}
+.project-overview-section h3{font:600 15px var(--mm-sans);margin:0;color:var(--mm-text)}
+.project-overview-section ol{list-style:none;padding:0;margin:0;display:grid;gap:14px}
+.project-overview-section li{display:grid;gap:4px;font:400 13px/1.5 var(--mm-sans)}
+.project-overview-section time,.project-overview-section small{color:var(--mm-text-3);font:400 12px/1.4 var(--mm-sans)}
+.project-overview-section button{justify-self:start;font:500 12px var(--mm-sans);padding:6px 0;border:0;background:transparent;color:var(--mm-accent);cursor:pointer;text-align:left}
+.project-overview-studies>summary{font:600 16px var(--mm-sans);cursor:pointer;padding:12px 0}
+.project-overview-studies .project-research-summary{padding:20px 0}
+@media(max-width:900px){.project-overview-sections{grid-template-columns:1fr}.project-navigation{padding:0 4px}.project-navigation summary{font-size:0}.project-navigation summary::after{font-size:14px;margin:0}}
+
+#project-overview-page .project-research-actions{margin:0;padding:0;border:0;align-items:center}
+#project-overview-page .project-agent-handoff{margin-top:-12px}
+#project-overview-page .project-research-caption:empty{display:none}
+#project-overview-page .project-research-intro{order:-1}
+#project-overview-page .project-research-home{gap:16px}
+#project-overview-page .project-overview-section p{font-size:13px;line-height:1.55}
+#project-overview-page .project-overview-section button{color:var(--mm-accent);padding:0;min-height:28px}
+#project-overview-page .project-overview-section button:hover{text-decoration:underline}
+.project-navigation :is(button,summary):focus-visible{outline:2px solid var(--mm-focus-ring-inset);outline-offset:2px}
+
+.project-overview-purpose,.project-overview-recent{grid-column:1/-1}
+.project-event-preview{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.project-overview-recent ol{grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
+.project-overview-recent li+li{border-left:1px solid var(--mm-line);padding-left:20px}
+#project-overview-page .project-research-notice{margin:0;font-size:12px}
+#project-overview-page .project-overview-purpose p{margin:0}
+@media(max-width:900px){.project-overview-recent ol{grid-template-columns:1fr}.project-overview-recent li+li{border-left:0;border-top:1px solid var(--mm-line);padding:14px 0 0}}
+
+.reader-study-breadcrumb{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* A full research page covers the stage without destroying its saved arrangement.
+   Hide covered siblings from keyboard/accessibility traversal as well as sight. */
+body[data-workspace-study="true"][data-research-open="true"] #stage > :not(.study-research-stage) { visibility: hidden; }
+/* A Study replaces the reader toolbar while retaining its return destination. */
+body[data-workspace-study="true"][data-research-open="true"] .workspace-stage-reader { display: none; }
+.workspace-stage-reader > button { appearance: none; border: 0; border-radius: 6px; background: transparent; color: var(--mm-text-2); font: inherit; padding: 5px 8px; cursor: pointer; }
+.workspace-stage-reader > button:hover { background: var(--mm-hover); color: var(--mm-text); }
+.workspace-stage-reader > button:focus-visible { outline: 2px solid var(--mm-accent); outline-offset: 2px; }
+.workspace-stage-reader > button:disabled { opacity: .4; cursor: default; }

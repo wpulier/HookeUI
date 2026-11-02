@@ -197,12 +197,14 @@ def _item(entry, *, owner: bool = True, researchers: dict | None = None) -> dict
 
 
 def _study(row: dict) -> dict:
+    from .research.task_kind import coordination_counts
     by = row.get("createdBy") if isinstance(row.get("createdBy"), dict) else {}
     return {"ref": {"kind": "study", "id": row["id"], "revision": row["revision"], "digest": row["digest"]},
             "title": str(row.get("title") or ""), "status": str(row.get("status") or ""),
             "author": _author_of_actor(by.get("by"), by.get("byLabel")),
             "findings": len(row.get("findings") or []), "claims": len(row.get("claims") or []),
-            "experiments": len(row.get("experiments") or {})}
+            "experiments": len(row.get("experiments") or {}),
+            "coordination": row.get("coordination") or coordination_counts(row.get("tasks") or {})}
 
 
 def _study_item(row: dict, study: dict, at: float, material: dict) -> dict:

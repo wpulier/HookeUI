@@ -101,7 +101,7 @@ test('retained material replaces camera onboarding before any Study exists',()=>
  const {home,host,root,button,actions,setCurrent}=setup();
  home.update('p1',[],'',{},[],{count:3,groups:['Reference documents']});
  expect(host.dataset.projectResearch).toBe('true');expect(root.hidden).toBe(false);
- expect(root.textContent).toContain('Your Project material');
+ expect(root.textContent).toContain('Project overview');
  expect(root.textContent).toContain('3 Project inputs');
  expect(root.textContent).toContain('Reference documents');
  expect(root.textContent).toContain('No Study yet');
@@ -190,4 +190,19 @@ test('the agent entrance copies this Project and cannot act after a Project swit
  expect(root.textContent).toContain('Work starts there; results stay in this Project.');
  expect(start).not.toHaveBeenCalled();
  current='different-project';fire(b,'click');await Promise.resolve();expect(copy).toHaveBeenCalledOnce();
+});
+
+test('lease expiry refreshes unchanged records and shows the ownership check',()=>{
+ const {home,root}=setup();const value=study();value.experiments={};
+ value.tasks={assigned:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:100}}};
+ vi.spyOn(Date,'now').mockReturnValue(90000);home.update('p1',[value]);expect(root.textContent).toContain('Agent assignment claimed');
+ vi.spyOn(Date,'now').mockReturnValue(110000);home.update('p1',[value]);expect(root.textContent).toContain('Assignment ownership needs checking');
+ vi.restoreAllMocks();
+});
+test('hundreds of synthetic Studies are grouped and paginated without hiding a later blocker',()=>{
+ const {home,root}=setup();const rows=Array.from({length:200},(_,i)=>({...study(),id:'s'+i,title:'Study '+i,experiments:{},claims:[]}));
+ rows[199].tasks={pending:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:1}}};
+ home.update('p1',rows);expect(root.textContent).toContain('Study 199');
+ expect(root.textContent).toContain('Showing 12 of 200 Studies');
+ expect(root.querySelectorAll('article').filter(e=>e.className==='project-research-summary')).toHaveLength(12);
 });

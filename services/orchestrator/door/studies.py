@@ -72,8 +72,8 @@ def register(app, built, connected, body, reply, refusal):
             b = await body(request)
             session = b.pop('session', None)
             caller = authorized(request, session, True, resource='study-coordination')
-            from ..research.coordination_api import execute
-            result = await asyncio.to_thread(execute, built, study, session, action, b, caller.actor, caller.label)
+            from ..research.coordination_api import execute_command
+            result = await execute_command(built, study, session, action, b, caller.actor, caller.label)
             return reply({'ok': True, 'coordination': result})
         except (Refused, ValueError, OSError) as error:
             return failure(error)

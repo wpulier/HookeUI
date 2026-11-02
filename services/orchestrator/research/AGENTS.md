@@ -546,3 +546,5 @@ Study material selection uses the shared material projection, excludes organizat
 Capability proposals are bounded retained Study records with exact package references, licensing, dependencies, permissions, resources and proof expectations. Proposing never prepares an environment, installs or activates code; the catalog owner workflow remains authoritative.
 
 Scientific admission first reserves the assignment in the same revision boundary as completion. A pending admission blocks completion; a lost host keeps it for explicit reconciliation rather than replay. Linked reused operations remain dependencies of every requesting assignment without rewriting execution authorship. Explicit repeats carry an identity and scientific reason, count against the experiment allowance, and remain idempotent on request retry.
+
+Assignment recovery and owner-reviewed plan amendments follow `docs/architecture/research-navigation.md`: reconcile original receipts before releasing ownership; never replay uncertain admissions. Collaboration counts are separate from scientific/provider execution and charges.

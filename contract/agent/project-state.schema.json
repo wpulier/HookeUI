@@ -186,7 +186,8 @@
         "author": {"$ref": "#/$defs/author"},
         "findings": {"type": "integer", "minimum": 0},
         "claims": {"type": "integer", "minimum": 0},
-        "experiments": {"type": "integer", "minimum": 0}
+        "experiments": {"type": "integer", "minimum": 0},
+        "coordination": {"$ref": "study-coordination-status.schema.json"}
       }
     },
     "studies": {

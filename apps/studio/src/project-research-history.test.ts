@@ -60,7 +60,7 @@ test('returned collaboration reports wait for review, not execution reconciliati
  const s=study();s.experiments={};s.tasks={report:{status:'completed',specification:{provider:'collaboration'},chargedMicrousd:0,reservedMicrousd:0}};
  const result=studyActivity(s,{operations:[]});
  expect(result.title).toBe('Waiting for review or a next step');
- expect(result.counts).toMatchObject({waiting:1,check:0,running:0});
+ expect(result.counts).toMatchObject({waiting:0,check:0,running:0});
 });
 
 
@@ -74,4 +74,20 @@ test('planned and claimed collaboration are separate from scientific experiments
  expect(experimentCount(s)).toBe(1);
  s.tasks.local={status:'completed',reservedMicrousd:0,chargedMicrousd:0,execution:{provider:'local-researcher',id:'r1'}};
  expect(experimentCount(s)).toBe(2);
+});
+
+test('expired claims and unresolved admissions require reconciliation, never count as active scientific execution',()=>{
+ const s=study();s.experiments={};s.tasks={a:{status:'running',specification:{provider:'collaboration'},collaboration:{leaseUntil:1},reservedMicrousd:0,chargedMicrousd:0}};
+ const observed=studyActivity(s,{operations:[]});expect(observed.assignments.check).toBe(1);expect(observed.counts.running).toBe(0);
+ s.tasks.a.status='completed';s.tasks.a.collaboration={completedAt:10,claimedBy:{by:'agent:ac_a',byLabel:'Worker'},report:{statement:'No biological conclusion'}};
+ expect(history(s,{operations:[]})[0]).toMatchObject({at:10,title:'No biological conclusion',actor:'Worker'});
+});
+
+test('changes use retained outcome time and include plan amendments and findings',()=>{
+ const value=study();value.researchPlan={status:'reviewed',desiredOutput:'Compare',updatedAt:20,reviewedAt:21,byLabel:'Codex',reviewedBy:{byLabel:'You'}};
+ value.findings=[{request:'finding',statement:'Accepted result',tasks:[],at:25,byLabel:'You'}];
+ const records=history(value,{operations:[{id:'o',project:value.session,state:'succeeded',byLabel:'Codex',at:1,workflow:{id:'run1',session:value.session,status:'completed',updatedAt:30}}]});
+ expect(records.find(r=>r.id==='o')?.at).toBe(30);
+ expect(records.some(r=>r.title==='Research plan reviewed')).toBe(true);
+ expect(records.some(r=>r.title==='Accepted result')).toBe(true);
 });

@@ -8,11 +8,11 @@ import type {ResearchSession} from './protocol';
 vi.mock('./viewer',()=>({outputOf:()=>undefined}));
 beforeEach(()=>{sessionDOM();const matches=SessionNode.prototype.matches;vi.spyOn(SessionNode.prototype,'matches').mockImplementation(function(this:SessionNode,selector:string){const role=/^\[role="?([a-z]+)"?\]$/.exec(selector);return role?this.getAttribute('role')===role[1]:matches.call(this,selector);});vi.stubGlobal('window',new EventTarget());});afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 const row=(rid:string,extra:Partial<ResearchSession>={}):ResearchSession=>({rid,n:1,name:rid,label:rid,brief:'Fixture research',deliverable:null,effort:'quick',engine:'fixture',purpose:'research',objectId:null,status:'running',step:'Comparing evidence',spent:0,cap:0,seconds:1,created:1,started:1,finished:null,snapshot:'',outputs:[],items:[],findings:[],corrections:[],history:[],canFollowUp:true,sitting:'p1',result:null,...extra});
-function setup(){
+function setup(backgroundTabs=true){
  const actions={open:vi.fn(),close:vi.fn(),closed:vi.fn()},host={current:()=>true,row:document.createElement('div'),project:'p1',activeWorkId:'main',homeWorkId:'main',activateWork:vi.fn(async()=>true),reorderWork:vi.fn(),refit:vi.fn()};
  host.row.setAttribute('role','tablist');
  for(const id of ['main','measurements']){const wrap=document.createElement('div'),tab=document.createElement('button');tab.dataset.workspaceViewTab=id;tab.setAttribute('role','tab');tab.textContent=id;wrap.append(tab);host.row.append(wrap);}
- document.body.append(host.row);const isNew=vi.fn((_row:ResearchSession)=>false),view=new WorkspaceResearchTabs({storage:localStorage,session:localStorage,key:'test',host:()=>host,isNew,...actions});
+ document.body.append(host.row);const isNew=vi.fn((_row:ResearchSession)=>false),view=new WorkspaceResearchTabs({storage:localStorage,session:localStorage,key:'test',backgroundTabs,host:()=>host,isNew,...actions});
  return {view,host,isNew,root:host.row as unknown as SessionNode,...actions};
 }
 const tabs=(root:SessionNode)=>root.querySelectorAll('button').filter(b=>b.getAttribute('role')==='tab');
@@ -202,4 +202,12 @@ test('a pill\'s build is named by data-kind, so it updates in place whatever mar
  const draft=find(root,'draft:new-researcher').parentElement!;expect(draft.dataset.kind).toBe('view-tab');
  view.adopt('draft:new-researcher','r2');view.update('p1',[row('r1'),row('r2',{created:2})],'r2');
  expect(find(root,'r2').parentElement).toBe(draft);expect(draft.dataset.kind).toBe('researcher-tab');expect(draft.querySelector('[data-kind="lit-cell"]')).not.toBeNull();
+});
+
+test('background progress and completion stay in the index until explicitly opened',()=>{
+ const {view,root,open}=setup(false);
+ view.update('p1',[row('worker')],'');expect(ids(root)).toEqual(['work:main','work:measurements']);
+ view.update('p1',[row('worker',{status:'done',finished:5})],'');expect(open).not.toHaveBeenCalled();
+ expect(ids(root)).not.toContain('research:worker');
+ view.update('p1',[row('worker',{status:'done',finished:5})],'worker');expect(ids(root)).toContain('research:worker');
 });
