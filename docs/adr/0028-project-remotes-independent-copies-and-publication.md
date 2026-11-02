@@ -37,15 +37,18 @@ remote sync or accepted-record filesystem editing. Owner-started remote mirrors 
    exact files (conversations and transcripts excluded unless chosen), a secret scan and metadata scrub must pass, and
    the owner signs off on rights, licence (CC BY 4.0 preselected) and the absence of identifiable human data. The
    review digest binds what is sent.
-6. **A publication is a filtered copy; starting from it makes a working copy.** A publication keeps the Project's
-   origin and every accepted document byte for byte, but its journal is cut to the origin line alone (the same
-   origin-only journal the owner-aware import already writes for restored owners), so conversations never leave.
-   Research transcripts are left out unless chosen. Starting from a publication restores a working copy of it,
-   records its ancestry (publication origin, snapshot manifest SHA-256, where it came from) as a journal event, and
-   inherits no grants. Update brings newer published revisions in through the owner-aware import's prefix rule.
-   *Staged next:* a fully independent Project (its own origin, the publication's documents listed as inherited owners)
-   needs the inventory to list inherited owners; until then a started-from copy keeps the publication's identity and
-   is refused, by the registry, beside another location of the same origin on one host.
+6. **A publication is a filtered copy; starting from it makes an independent Project.** A publication keeps the
+   Project's origin and every accepted document byte for byte, but its journal is cut to the origin line alone (the
+   same origin-only journal the owner-aware import already writes for restored owners), so conversations never leave.
+   Research transcripts are left out unless chosen. Starting from a publication makes a new Project with its own
+   origin and handle, so it sits beside the original or another copy on one host. The publication's documents come in
+   byte for byte through the owner-aware import under their own owner, which the new Project holds as an *inherited
+   owner*: its store lists and reads them, and refuses to save over them (a copy of one is the way to change it).
+   The new Project records its ancestry (publication origin, snapshot manifest SHA-256, where it came from) as a
+   journal event and inherits no grants. Update brings newer published revisions in through the owner-aware import's
+   prefix rule.
+   *Amended 2026-11-02:* the first build restored a working copy that kept the publication's identity, and the
+   registry refused it beside the original. Independent Projects replaced it the same day.
 7. **Everything from a remote is untrusted.** It is validated as a bundle (no `..`, absolute paths, links, special
    files; size, count and depth caps), every hash is checked and `verify_records` passes before anything is visible.
    Text reaches a model only through `untrusted.py` (ADR 0002). Code arrives inactive (ADR 0021). Claims of authorship

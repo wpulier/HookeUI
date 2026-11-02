@@ -109,13 +109,15 @@ class ProjectLocations:
             if self._leases.get(root.origin) != root or self.project(root.session) != root:
                 raise ProjectLocationError('This host no longer owns the captured Project writer')
 
-    def create(self, name, *, date, preferences, actor, clock, local_only=True, started_from=None, guide=None):
-        """Allocate a compatible handle over legacy and portable Projects together."""
+    def create(self, name, *, date, preferences, actor, clock, local_only=True, started_from=None, guide=None,
+               avoid=()):
+        """Allocate a compatible handle over legacy and portable Projects together, and none of `avoid` (the owners a
+        Project started from a publication will hold beside its own)."""
         with self._lock, namespace(self.legacy):
             self._check()
             candidate = sids.next_sid(self.legacy, date)
             day, number = sids.parse(candidate)
-            used = self.handles()
+            used = set(self.handles()) | set(avoid)
             while candidate in used:
                 number += 1
                 candidate = day + '.' + str(number)

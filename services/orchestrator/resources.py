@@ -2550,9 +2550,11 @@ class Index:
         made = workflow_authorship(document) or made
         return Entry(item.id, "project", document['title'], item.session, item.at,
                      version=item.revision, state="saved", untrusted=True, made_by=made,
-                     summary=f"{document['kind']} project · revision {item.revision}",
+                     summary=f"{document['kind']} project · revision {item.revision}"
+                             + (" · from the project this one was started from (read-only)" if item.owner else ""),
                      source={"sha256": item.digest, "parent": item.parent,
-                             "resources": document['resources'], "runtimes": document['runtimes']},
+                             "resources": document['resources'], "runtimes": document['runtimes'],
+                             **({"inheritedFrom": item.owner} if item.owner else {})},
                      values=document)
 
     def _registrations(self, day: str) -> list[Entry]:

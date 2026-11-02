@@ -41,6 +41,13 @@ class _OtherSession(InvalidProject):
     pass
 
 
+class Inherited(InvalidProject):
+    """A document this Project holds from the Project it was started from (ADR 0028): read here, never saved over."""
+
+
+INHERITED = 'This came from the project this one was started from, so it is read-only here; save a copy to change it'
+
+
 def _json(value) -> bytes:
     pending, count, characters = [(value, 0)], 0, 0
     while pending:
@@ -115,6 +122,7 @@ class ProjectRevision:
     at: float
     _document: bytes
     transaction: str | None = None
+    owner: str | None = None  # the session that accepted it, when that is an inherited owner, not `session`
 
     @property
     def document(self) -> dict:
@@ -176,7 +184,39 @@ class ProjectStore:
         with reading(self.root):
             return self._read_head(folder, session)
 
-    def _read_head(self, folder, session):
+    def _owned_head(self, folder: Path, session: str) -> tuple[str, list[str]]:
+        """For reading: the accepted owner and history, where the owner may be one this Project inherited."""
+        from .scientific_import_transaction import reading
+        with reading(self.root):
+            return self._read_head(folder, session, inherited=True)
+
+    def inherited_owners(self, session: str) -> frozenset:
+        """The owners whose accepted documents a Project folder holds read-only for its own `session`: those the
+        owner-aware import restored (their journal is exactly an origin and its import, `ownership.journal_bytes`).
+        None outside a Project folder, or for any other session."""
+        layout = self.root.parent.parent
+        if self.root.name != 'records' or self.root.parent.name != 'artifacts':
+            return frozenset()
+        sessions = layout / 'history' / 'sessions'
+        try:
+            manifest = (layout / 'project.json').stat()
+            listing = sessions.stat(follow_symlinks=False)
+        except OSError:
+            return frozenset()
+        key = (session, manifest.st_mtime_ns, manifest.st_ino, listing.st_mtime_ns, listing.st_ino)
+        cached = self.__dict__.get('_inherited')
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        found = frozenset()
+        try:
+            if json.loads(self._read(layout / 'project.json', MAX_HEAD)).get('session') == session:
+                found = frozenset(_restored_owners(sessions, session))
+        except (OSError, ValueError, RecursionError, AttributeError, InvalidProject):
+            found = frozenset()
+        self.__dict__['_inherited'] = (key, found)
+        return found
+
+    def _read_head(self, folder, session, *, inherited=False):
         from .scientific_import_transaction import require_visible
         require_visible(self.root)
         try:
@@ -185,14 +225,18 @@ class ProjectStore:
             raise InvalidProject('Project history is unreadable') from exc
         if not isinstance(head, dict) or head.get('format') != 1:
             raise InvalidProject('Project has an unsupported format')
-        if head.get('session') != session:
-            raise _OtherSession('Project belongs to another session')
+        owner = head.get('session')
+        if owner != session:
+            if not isinstance(owner, str) or owner not in self.inherited_owners(session):
+                raise _OtherSession('Project belongs to another session')
+            if not inherited:
+                raise Inherited(INHERITED)
         history = head.get('revisions')
         if (not isinstance(history, list) or not 0 < len(history) <= MAX_REVISIONS
                 or any(not isinstance(item, str) or DIGEST.fullmatch(item) is None for item in history)
                 or len(set(history)) != len(history)):
             raise InvalidProject('Invalid project revision history')
-        return history
+        return (owner, history) if inherited else history
 
     @contextmanager
     def _locked(self, folder):
@@ -337,7 +381,7 @@ class ProjectStore:
     def _read_revision(self, project, session, *, revision):
         _identity(session, 'session')
         folder = self._folder(project)
-        history = self._head(folder, session)
+        owner, history = self._owned_head(folder, session)
         revision = len(history) if revision is None else revision
         if type(revision) is not int or not 1 <= revision <= len(history):
             raise InvalidProject('That accepted project revision does not exist')
@@ -353,7 +397,7 @@ class ProjectStore:
             raise InvalidProject('Project revision is unreadable') from exc
         parent = history[revision - 2] if revision > 1 else None
         if (not isinstance(record, dict) or record.get('format') != 1 or record.get('id') != project
-                or record.get('session') != session or record.get('revision') != revision or record.get('parent') != parent):
+                or record.get('session') != owner or record.get('revision') != revision or record.get('parent') != parent):
             raise InvalidProject('Project revision identity does not match its history')
         import math
         at = record.get('at')
@@ -362,7 +406,8 @@ class ProjectStore:
         transaction = record.get('transaction')
         if transaction is not None and (type(transaction) is not str or DIGEST.fullmatch(transaction) is None):
             raise InvalidProject('Invalid edit transaction identity')
-        return ProjectRevision(project, session, revision, digest, parent, at, _document(record.get('document')), transaction)
+        return ProjectRevision(project, session, revision, digest, parent, at, _document(record.get('document')), transaction,
+                               owner if owner != session else None)
 
     def copy_candidate(self, saved, prepared):
         from .scientific_copies import ProjectCopy
@@ -454,7 +499,7 @@ class ProjectStore:
                     if not PROJECT_ID.fullmatch(path.name):
                         continue
                     try:
-                        history = self._head(self._folder(path.name), session)
+                        _, history = self._owned_head(self._folder(path.name), session)
                     except _OtherSession:
                         continue
                     except (OSError, InvalidProject):
@@ -498,6 +543,10 @@ class ProjectStore:
                         raise InvalidProject('Project head has no readable owner')
                     if session in result:
                         result[session][0].append(self.read(path.name, session))
+                    else:
+                        host = next((s for s in result if session in self.inherited_owners(s)), None)
+                        if host is not None:
+                            result[host][0].append(self.read(path.name, host))
                 except (OSError, ValueError, RecursionError) as error:
                     problem = {'id': path.name, 'reason': str(error) if isinstance(error, InvalidProject) else 'Project is unreadable'}
                     for owner in ([session] if session in result else result):
@@ -525,3 +574,25 @@ class ProjectStore:
             except (OSError, InvalidProject) as exc:
                 problems.append({'id': path.name, 'reason': str(exc) if isinstance(exc, InvalidProject) else 'Project is unreadable'})
         return sorted(out, key=lambda item: (item.at, item.id), reverse=True), problems
+
+
+def _restored_owners(sessions: Path, own: str):
+    """Session folders beside `own` whose journal is exactly what the owner-aware import writes for a restored owner."""
+    # Read without the owner namespace lock: a reader holds the store's reading lock, which an import waits on.
+    from .day.ownership import journal_bytes, validate
+    from .day.sid import is_sid
+    with os.scandir(sessions) as entries:
+        for entry in entries:
+            if entry.name == own or not is_sid(entry.name) or entry.is_symlink() or not entry.is_dir():
+                continue
+            try:
+                body = ProjectStore._read(Path(entry.path) / 'journal.jsonl', 1 << 20)
+                lines = body.split(b'\n')
+                imported = json.loads(lines[1]) if len(lines) == 3 and not lines[2] else None
+                if type(imported) is not dict or imported.get('type') != 'session-imported':
+                    continue
+                owner = validate(imported.get('owner'), entry.name)
+            except (OSError, ValueError, RecursionError, InvalidProject):
+                continue
+            if body == journal_bytes(owner):
+                yield entry.name

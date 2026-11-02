@@ -14,7 +14,7 @@ from orchestrator.project_remote_github import (GitHubRecords, create_repository
 from orchestrator.project_remote_layers import ChangedOutsideHooke, RemoteRefused
 from orchestrator.project_repository import ProjectRepository
 from orchestrator.project_start_from import start_from
-from tests.test_project_publish import SIGNOFF, published, seal
+from tests.test_project_publish import SIGNOFF, elsewhere, published, seal
 
 
 class GitHub:
@@ -194,10 +194,11 @@ def test_publish_to_a_new_repository_and_start_from_it_with_no_account(tmp_path)
     # Someone else, no sign-in: two API calls, the rest from the raw host and release downloads.
     before = len(hub.calls)
     reader = github_remote(anonymous(hub), full)
-    working, ancestry = start_from(reader, tmp_path / 'Elsewhere' / 'Copy', staging=tmp_path / 'Fetch')
+    working, ancestry, _ = start_from(reader, elsewhere(tmp_path)[3], staging=tmp_path / 'Fetch')
     api_calls = [c for c in hub.calls[before:]]
     assert len(api_calls) <= 4, api_calls
-    assert ProjectRepository(working).read(source.id, 1) == source
+    held = ProjectRepository(working).read(source.id, 1)
+    assert held.digest == source.digest and held.owner == root.session
     assert ancestry['source']['location'] == f'https://github.com/{full}'
 
 

@@ -100,17 +100,25 @@ Project chain onto it. Publishing never changes the visibility of a backup.
 
 ## 9. Starting from a publication
 
-Starting from fetches a publication (7), restores a working copy (`restore_snapshot`), and appends one journal event:
+Starting from fetches a publication (7) and makes a **new Project** on this host, with its own origin and a handle
+that none of the publication's owners use. Each published document comes in through the owner-aware import, byte for
+byte and under its own owner. The new Project's `history/sessions` then holds that owner as an *inherited owner*: a
+session folder whose journal is exactly an origin and its import (`ownership.journal_bytes`). Its plain result files
+are copied where absent. Then it appends one journal event:
 
 ```json
 {"type": "project-started-from", "origin": "<publication origin>", "snapshotSha256": "<64 hex>",
- "source": {"kind": "folder|github", "location": "<url or path>", "commit": "<commit id>"}}
+ "source": {"kind": "folder|github", "location": "<url or path>", "commit": "<commit id>"}, "documents": 2}
 ```
 
-It inherits no grants or registry entries. **Update** fetches a newer publication and brings each document in
-through the owner-aware import: a document is added when absent or extended when the local history is a prefix of
-the published one; anything else is refused with nothing changed. A fully independent copy (its own origin) is the
-next stage (ADR 0028, decision 6).
+A Project's store lists and reads its inherited owners' documents under its own handle, saying which owner accepted
+them (`ProjectRevision.owner`, the entry's `source.inheritedFrom`). A reference inside one, which names the owner's
+handle, reads through the one Project here that holds that owner. Saving over an inherited document is refused; a
+copy of it is the way to change it. It inherits no grants or registry entries.
+
+**Update** fetches a newer publication of the same origin (the ancestry event's) and brings each document in the same
+way: a document is added when absent or extended when the local history is a prefix of the published one; anything
+else is refused with nothing changed.
 
 ## 10. Reproduction levels
 

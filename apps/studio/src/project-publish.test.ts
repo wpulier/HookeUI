@@ -98,7 +98,7 @@ test('a started-from copy can update, and says plainly what it kept', async () =
   await vi.waitFor(() => expect(Array.from(view.element.querySelectorAll('button')).some(b => b.textContent === 'Update from the published version')).toBe(true));
   click(view.element, 'Update from the published version');
   await vi.waitFor(() => expect(view.element.textContent).toContain('1 document updated, 2 files added.'));
-  expect(view.element.textContent).toContain('left as you had it');
+  expect(view.element.textContent).toContain('no longer follows the version here, so it was left as it was');
 });
 
 test('Start from takes a GitHub address or a folder and offers to open the copy', async () => {
