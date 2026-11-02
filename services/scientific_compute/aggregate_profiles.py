@@ -151,8 +151,7 @@ def prepare(inputs, params, output, check):
         _dense_budget(len(targets) + 1 + BLOCK_ROWS, len(source_columns), copies=4)
         sums = np.zeros((len(targets) + 1, len(source_columns)), dtype=np.float64)
         sizes = np.zeros(len(targets) + 1, dtype=np.int64)
-        for start in range(0, nrows, BLOCK_ROWS):
-            check(); stop = min(nrows, start + BLOCK_ROWS)
+        for start, stop in bounded_h5.row_ranges(x, BLOCK_ROWS, check):
             local = np.flatnonzero(chosen[start:stop])
             if not len(local):
                 continue

@@ -4,6 +4,7 @@ from orchestrator.resources import Index
 from orchestrator.project_state import _item
 from orchestrator.door.schema import check
 from orchestrator.scientific_projects import ProjectStore
+import pytest
 
 
 def document(kind, state=None, title='same-name.zip'):
@@ -54,6 +55,22 @@ def test_assignment_is_input_and_opens_authoritative_study(tmp_path):
     assert entry.wire()['material']['kind'] == 'assignment'
     assert entry.wire()['material']['input']
     assert _item(entry) is None  # project.state joins the authoritative Study once below
+
+
+def test_study_choices_exclude_bookkeeping_and_preserve_historical_inputs(tmp_path):
+    from orchestrator.project_material import study_candidates
+    store = ProjectStore(tmp_path)
+    original = store.create('2026-11-01', document('matrix-result', title='First model'))
+    store.create(original.session, document('research-effort', {'researchEffort': {'inputs': [
+        {'id': original.id, 'revision': 1, 'digest': original.digest}]}}))
+    for kind in ('scientific-workflow', 'scientific-workflow-run', 'scientific-workflow-attempt', 'project-material-membership'):
+        store.create(original.session, document(kind))
+    newer = store.save(original.id, original.session, document('matrix-result', title='Next model'), expected_revision=1)
+    choices, problems = study_candidates(store, original.session)
+    assert {(c['id'], c['revision'], c['digest']) for c in choices} == {
+        (original.id, 1, original.digest), (newer.id, 2, newer.digest)}
+    assert {c['title'] for c in choices} == {'First model', 'Next model'}
+    assert problems # malformed organization is reported, never silently treated as an input
 
 
 def test_exact_study_use_does_not_relabel_generated_model(tmp_path):
@@ -336,3 +353,53 @@ def test_workflow_output_author_comes_from_same_project_run_and_retained_study_l
     rows[0].day = '2026-10-31'; rows[1].made_by = {}
     attach_usage(rows, store)
     assert rows[1].made_by == {}
+
+
+@pytest.mark.parametrize('kind,field,author_field', [
+    ('scientific-workflow', 'workflow', 'createdBy'),
+    ('scientific-workflow-run', 'workflowRun', 'actor'),
+    ('scientific-workflow-attempt', 'workflowAttempt', 'actor'),
+])
+def test_workflow_history_exposes_original_actor_after_continuation(tmp_path, kind, field, author_field):
+    from orchestrator.resources import maker_of
+    original = 'agent:ac_' + 'a' * 24
+    later = 'agent:ac_' + 'b' * 24
+    store = ProjectStore(tmp_path)
+    saved = store.create('2026-10-30', document(kind, {field: {
+        author_field: original, 'lastAction': {'actor': later},
+        'lastChange': {'by': later}, 'reviewActor': later, 'recoveredBy': later,
+    }}))
+    entry = Index.project_entry(saved)
+    entry.maker = maker_of(entry.kind, entry.id, entry.made_by)
+    assert entry.made_by['actor'] == original
+    assert _item(entry)['author']['id'] == original.removeprefix('agent:')
+    assert entry.wire()['madeBy']['actor'] == original
+    assert store.read(saved.id, saved.session).digest == saved.digest
+
+
+@pytest.mark.parametrize('actor,expected_kind', [
+    ('studio', 'you'), ('user', 'you'), ('agent:chat', 'assistant'),
+    ('agent:voice', 'assistant'), ('researcher:r7', 'researcher'),
+    ('agent:system', 'system'), ('agent:researcher', 'researcher'),
+])
+def test_workflow_history_preserves_actor_type(tmp_path, actor, expected_kind):
+    from orchestrator.resources import maker_of
+    saved = ProjectStore(tmp_path).create('2026-10-30', document(
+        'scientific-workflow-attempt', {'workflowAttempt': {'actor': actor}}))
+    entry = Index.project_entry(saved)
+    entry.maker = maker_of(entry.kind, entry.id, entry.made_by)
+    assert _item(entry)['author']['kind'] == expected_kind
+    if actor in ('agent:system', 'agent:researcher'):
+        assert 'id' not in _item(entry)['author']
+    from orchestrator.door.schema import load, validate
+    validate(_item(entry)['author'], load('project-state')['$defs']['author'])
+
+
+@pytest.mark.parametrize('record', [{}, {'createdBy': None}, {'createdBy': []},
+    {'lastChange': {'by': 'studio'}}, {'createdBy': 'Codex'}])
+def test_legacy_or_invalid_workflow_author_is_not_inferred(tmp_path, record):
+    saved = ProjectStore(tmp_path).create('2026-10-30', document(
+        'scientific-workflow', {'workflow': record}))
+    entry = Index.project_entry(saved)
+    assert entry.made_by == {}
+    assert _item(entry)['author'] == {'kind': 'unknown', 'name': 'not recorded'}

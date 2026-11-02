@@ -1,0 +1,95 @@
+{
+  "$id": "hooke:agent/research-plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "desiredOutput",
+    "evaluation",
+    "materials",
+    "methodNotes",
+    "actorMode",
+    "limits"
+  ],
+  "properties": {
+    "desiredOutput": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "evaluation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "materials": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "artifact-reference.schema.json"
+      }
+    },
+    "methodNotes": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "actorMode": {
+      "type": "string",
+      "enum": [
+        "connected-agent",
+        "local-researcher",
+        "manual"
+      ]
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experiments",
+        "modelMinutes",
+        "tokens"
+      ],
+      "properties": {
+        "experiments": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "modelMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 120
+        },
+        "tokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    },
+    "instructionPackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "digest"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}

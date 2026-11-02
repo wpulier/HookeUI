@@ -9,6 +9,47 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+Fixed-admission scoped-client tests use synthetic door responses and the real MCP
+SDK to check exact input/key allowances, startup immutability, lost-reply recovery
+across fresh clients, invalid configuration and no execution under an empty
+allowance. Existing server idempotency still owns actual run deduplication. These
+checks do not establish token/time limits, real agent use or scientific quality.
+
+`test_bounded_matrix_rows.py` and projection regressions exercise wide synthetic
+CSR inputs under the unchanged allocation allowance, exact row/value preservation,
+empty rows, cancellation and an individually oversized row. These are bounded
+reader checks, not full-size research, runtime confinement or predictive quality.
+
+`test_sim_calendar.py` checks the session simulation's next local midnight across
+ordinary dates, year rollover, and whole/half-hour daylight-saving transitions.
+It also compares displayed loss clocks to nearby observed instants without
+re-parsing ambiguous local times; the three-second tolerance is unchanged.
+It qualifies clock injection, not actual session retention; the real session
+simulation still checks unchanged Project, outlines and the next recorded day.
+
+`test_scoped_agent_research.py` checks the optional Project client's frozen workflow
+scope over synthetic door records: exact pins and inputs, fresh-client recovery
+from the original Study, no replay, original attribution, revocation, stop intent
+and evidence-linked claims. The actual MCP SDK is exercised when installed. This
+is not worker confinement, real computation or blind scientific quality evidence.
+
+`test_scoped_agent_client.py` uses synthetic transport and subprocesses to check
+Project-bound reads, exact references, default refusals, bounded complete replies
+and unchanged operation/request identities. `test_scoped_agent_mcp.py` uses the
+official optional MCP SDK over that synthetic door (CI installs all groups).
+Neither qualifies an external model, Keychain connection or blind scientific run.
+
+`test_matrix_annotation_counts.py` qualifies exact full-column annotation counts
+on synthetic files, missing versus empty labels, unused categories, refusal bounds
+and cancellation. It does not establish biological group identity, actual agent
+use or real-data split quality.
+
+`test_cell_evaluation_space.py` checks opt-in full-context median/log1p views,
+exact control attachment, unchanged raw input hashes, explicit configuration,
+ambiguity/cancellation and unchanged memory admission on synthetic data. These
+checks are not historical metric parity, full-size qualification or prediction
+quality. Tests requiring the separately prepared evaluator report a skip if absent.
+
 `test_project_operation_storage` uses synthetic work through real operation stores
 and Project folders: admission-before-work, relocation to a new host, attribution,
 unchanged read-only receipts, duplicate-history refusal, no replay and uncertain
@@ -849,6 +890,15 @@ transport stand-in: they do not qualify the native chooser or full read-only UI.
 
 # Retained researcher integrity
 
+Maintenance display regressions exercise the real update-warning path with an old selected generation and a newer
+candidate, refusing synchronous maintenance-file stats after collection. Isolated records check refreshed/deleted
+observations, profile separation and live mutations inside a stale display scope. These are synthetic disk/lifecycle
+checks; full model-load latency is qualified separately with unchanged thresholds.
+
+`test_prediction_panel` validates explicit per-target counts and refuses ambiguous labels/counts. Synthetic
+AnnData emission checks actual per-context output rows, sparse whole counts and unchanged cell prefixes when panel
+order, count and processing blocks change. It does not establish real-data prediction quality or full-size emission.
+
 `test_project_research_integrity.py` uses synthetic researcher output through real
 metadata publication and folder-copy verification. It checks archived bytes,
 finding digests, owner mismatch, incomplete publication, bounded cancellation and
@@ -911,3 +961,5 @@ pause. The loop pause is not repaired or qualified as live hardware behavior.
 near-end/safe-position probes and full-sequence results are separate evidence.
 
 `test_matrix_projection.py` also checks version-2 complementary observation partitions: disjoint/full membership, exact counts and source identities, source-order/expression independence, bounded partition schema, sampling within a fold, explicit exclusions and refusal of empty declared groups. These are synthetic partition mechanics, not evidence of a sealed holdout or scientific validation.
+
+Research coordination regressions use synthetic inputs with real immutable stores and authenticated HTTP: concurrent claims, stale plans, dependencies, expiry, contributor/read/revocation boundaries, experiment allowance and cross-contributor operation reuse. Studio initiation tests use a synthetic DOM for draft/review safeguards. These are not actual agent continuation, browser quality or a budget-qualified scientific comparison.

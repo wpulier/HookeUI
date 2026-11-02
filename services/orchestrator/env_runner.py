@@ -366,6 +366,12 @@ def _generation(m, name, environ):
 
 def update_waiting(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> str:
     """"" unless an earlier version runs while the catalog has a newer one: then what the card says."""
+    from .maintenance import store
+    with store.display_reads():
+        return _update_waiting(m, environ)
+
+
+def _update_waiting(m: catalog.Manifest, environ: Mapping[str, str]) -> str:
     found = in_use(m, environ)
     if found is None or found.current:
         return ""

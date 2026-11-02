@@ -16,6 +16,7 @@ strictly bounded preview described below; the original matrix remains an immutab
 The capabilities are:
 
 - `matrix-inspect`: read raw-count AnnData and report axes, count diagnostics and scientific meaning.
+
 - `matrix-project-counts`: select explicitly mapped raw-cell panels and ordered genes, preserving source cell identities.
 - `matrix-prepare`: aggregate counts by explicit biological context and target, relative to each context's controls.
 - `aggregate-profile-prepare`: convert explicitly mapped, cell-weighted mean profiles using a retained scientific protocol.
@@ -30,6 +31,19 @@ The capabilities are:
 - `matrix-concatenate`: join count rows with exact gene order and unique cell identities.
 - `matrix-export`: validate and copy retained AnnData; packaging and upload remain the caller's separate operations.
 
+Inspection can optionally count one literal observation annotation column. It
+counts all observations, retaining exact text labels, missing values and the
+number of distinct observed labels; unused categorical levels are omitted.
+Empty strings remain observed labels, separate from missing values. Numeric
+labels are not coerced and text is not truncated. Missing/ambiguous columns,
+labels longer than 256 characters, more than 4,096 observed labels, or an encoded
+annotation report over 512 KiB refuse before scanning matrix values and without
+publishing partial counts. The byte bound includes JSON Unicode escaping and
+preserves headroom in the shared operation receipt. These are coverage facts, not
+inferred biological contexts or evidence of independent development folds.
+The default selects no column. An explicit new inspection retains this additive
+report under its new generation; existing reports and frozen runs stay intact.
+
 The generic evaluator protocol is a retained JSON file with `preset`, `context_column`, `target_column`,
 `control_label`, and `panels` (context label to complete unique target list). The preset belongs to the Project,
 not this service. Missing/extra targets or contexts and reordered genes refuse. Each upstream call scores a whole
@@ -39,6 +53,26 @@ requires them, without altering prediction artifacts. It records upstream raw me
 configuration and CPU/scanpy backend. The upstream catalog identifies primary scored metrics separately from
 diagnostic/dependency metrics. It does not invent reference anchors, an overall score, or organizer acceptance.
 Nonfinite upstream measurements stay unavailable as JSON null rather than becoming zero.
+
+An explicit `cell-evaluation-config-v2` protocol adds exactly `format`, `metrics`
+and `normalization` to the existing fields. The supported normalization is
+`per-matrix-median-log1p-v1`, for upstream v1/lognorm/predicted-control presets
+with no fixed target sum and discrete mode off.
+Raw input artifacts and the complete panel remain unchanged. The reference's
+declared controls are attached to a private prediction view; each entire view is
+normalized to its own positive-row library-total median and then log1p transformed
+with the pinned Scanpy runtime. The protocol selects an upstream metric profile;
+the app does not invent a score or infer a contest from filenames.
+
+The preset's raw per-cell count ceiling is checked before conversion. The receipt
+records both resolved medians, zero-depth counts, full configuration
+and upstream input detection. Ambiguous normalized values refuse rather than
+being silently normalized again. The unchanged 8 GiB admission bound applies
+before materialization. No complete-panel splitting, automatic fallback or larger
+memory permission is introduced. This opt-in conversion defines a reproducible
+comparison, not exact historical leaderboard parity or full-size qualification.
+The Project must fix its control-pool policy and retain that pool's provenance;
+the service does not choose controls using prediction quality.
 
 The aggregate-profile protocol is a retained JSON file, not an executable transformation. Its version-1 fields are:
 
@@ -125,7 +159,12 @@ recipes; it does not create a sealed holdout, authorize access or establish an
 independent validation design. Originals and every accepted output remain retained.
 
 Dense/CSR rows are read in bounded blocks; sparse float32 output must preserve whole
-count values exactly. CSC, ambiguous identities, missing groups, insufficient cells,
+count values exactly. CSR blocks are shortened using their stored-entry pointers
+when the ordinary row interval exceeds the existing byte allowance. Projection,
+aggregate preparation, count diagnostics and assembly share this planner; no
+observations, genes or entries are discarded to meet the read budget. One requested
+row that exceeds the allowance still refuses. Cancellation is checked between
+planned reads. CSC, ambiguous identities, missing groups, insufficient cells,
 unsafe allocations and excessive stored entries refuse. Gene output order is explicit.
 Target annotations use bounded compact string references rather than widening every
 row to the longest label. The existing metadata allowance includes decoded text,
@@ -172,6 +211,16 @@ closure can change absolute proportions of genes carrying the zero-effect prior.
 inverse mode. Both methods retain the same keyed independent-gene sampler. Library depth is a sampled expectation,
 not a promise that emitted totals reproduce the observed depth distribution. Analytical inversion tests establish
 scale conversion, not a scientific improvement. Generated-count moments and held-out scientific quality require independent tests.
+
+`response-predict` version 3 additionally accepts an explicit count panel:
+`{"format":"target-count-panel-v1","targets":[{"target":"GENE_A","count":400},{"target":"GENE_B","count":250}]}`.
+Each nonempty unique target has an integer count from 1 to 10,000, used in every declared context. The original JSON
+list of target labels remains supported and uses `cells_per_target`. Explicit panels take precedence over that
+uniform fallback, recorded as `targetCounts.source` with per-context total and minimum/maximum counts; the exact
+retained panel remains an input in provenance. No count is inferred from responses or omitted. Existing total-row,
+disk, dense-memory, control-only and whole-count checks remain unchanged. Increasing a target's count preserves its
+previous generated-cell prefix for the same controls, model, parameters and seed. This is output-contract support,
+not evidence that the model predicts unseen targets accurately.
 
 ## Runtime and resource ownership
 

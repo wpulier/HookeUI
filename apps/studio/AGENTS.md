@@ -24,6 +24,7 @@ to inspect material or choose a camera. Opening starts nothing. Project switches
 old summaries immediately; late reads and stale buttons cannot act on another Project.
 The Assistant retains its same connected-agent entry and current-Project setup prompt, now in its header's ⋯ ("Connect your own agent…").
 Inputs reads the shared index's material metadata as well as library media. Imported files and authoritative Study assignments appear here; generated artifacts retain their origin. Search filters this inventory without guessing scientific meaning from names. Data groups workflow attempts under their original run and retains exact records in the row menu.
+Data's maker filter keeps Hooke system work distinct from connected agents and researchers. Legacy researcher records without an individual identity show that limitation and offer no invented researcher-tab link.
 Retained files offer an explicit plain-text preview, one bounded 64 KiB page at a time,
 at the captured Project/document revision. Markup is literal text; previewing neither
 runs a reader nor qualifies scientific interpretation. Failed pages preserve the
@@ -2141,3 +2142,9 @@ answer. A ten-second notice offers Retry, and a thirty-second read timeout keeps
 already loaded material. Retry repeats reads only, never scientific operations.
 
 Material overviews promote exact retained inspection facts and bounded previews above file details. Material questions pin their attachment beside the Study revision; experiment setup uses the same catalog form as Tools and admits through Study/WorkflowService only after Run. A historical selection never silently becomes the latest input. Open analysis windows is the private-window manager, not research activity. The Project-title folder control opens the existing folder inspector.
+
+Research initiation adds Start research to Main, then a saved Study plan. Creating the Study and reviewing its plan start no scientific work. The plan form keeps an unfinished browser draft by Project/Study and refuses review/refresh over unsaved edits. Reviewed plans show authorized contributors, distinct waiting/claimed assignment states and a copyable handoff; connection alone never implies a listening agent. Assignment reports remain visible without becoming accepted findings.
+
+Research plans and assignment outcomes occupy the Study main view; discussion stays alongside. Capability proposals show exact retained packages and declared scope, with existing Models review as the owner entrance. They grant no installation authority.
+
+Research-plan saving preserves text entered while a request is pending, rebasing that local draft onto the acknowledged revision. Initial Study drafts also retain their exact selected input identities across navigation/restart; unavailable or changed revisions are not silently replaced.

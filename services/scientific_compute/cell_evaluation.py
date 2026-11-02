@@ -73,8 +73,13 @@ def protocol(path):
     if path.stat().st_size > 1 << 20:
         raise Refused('The evaluation protocol exceeds its metadata allowance')
     config = json.loads(path.read_text())
-    if type(config) is not dict or set(config) != {'preset', 'context_column', 'target_column', 'control_label', 'panels'}:
+    required = {'preset', 'context_column', 'target_column', 'control_label', 'panels'}
+    extended = required | {'format', 'normalization', 'metrics'}
+    if type(config) is not dict or set(config) not in (required, extended):
         raise Refused('Declare the preset, context/target columns, control label and complete panels')
+    if set(config) == extended and (config['format'] != 'cell-evaluation-config-v2'
+            or config['normalization'] != 'per-matrix-median-log1p-v1'):
+        raise Refused('Unknown evaluation protocol format or normalization')
     if any(type(config[k]) is not str or not 0 < len(config[k]) <= 256 for k in config if k != 'panels'):
         raise Refused('Evaluation protocol names must be nonempty text')
     panels = config['panels']
@@ -87,6 +92,49 @@ def protocol(path):
         if config['control_label'] in targets:
             raise Refused('Target panels exclude the control group')
     return config
+
+
+def _evaluation_config(config):
+    from cell_eval2 import EvalConfig
+    cfg = EvalConfig.from_preset(config['preset'])
+    if 'format' in config:
+        if (cfg.version != 'v1' or cfg.input_type != 'lognorm' or cfg.control_source != 'pred'
+                or cfg.target_sum is not None or cfg.allow_discrete):
+            raise Refused('Explicit median-log1p evaluation requires a v1 lognorm preset with predicted-side controls, no fixed target sum and discrete mode off')
+        cfg = replace(cfg, metrics=config['metrics'])
+    elif cfg.control_source != 'real' or cfg.input_type != 'counts':
+        raise Refused('This count evaluator requires a preset using real reference controls; transformed comparisons require an explicit versioned protocol')
+    return replace(cfg, pert_col=config['target_column'], control=config['control_label'],
+                   device='cpu', num_threads=1, gather_threads=1,
+                   outdir=None, cache_real=None, cache_pred=None,
+                   de=replace(cfg.de, backend='scanpy'))
+
+
+def _normalize_evaluation_view(data, check, *, maximum_cell_total=1e9):
+    """Normalize a private full-context view, never the retained raw artifact."""
+    import scanpy as sc
+    from cell_eval2.norm import guess_is_lognorm
+    check()
+    totals = np.asarray(data.X.sum(axis=1, dtype=np.float64)).ravel()
+    _finite(totals)
+    if np.any(totals > maximum_cell_total):
+        raise Refused('Raw evaluation counts exceed the preset maximum cell total before normalization')
+    positive = totals[totals > 0]
+    if not len(positive):
+        raise Refused('Median normalization needs a positive library total')
+    target = float(np.median(positive))
+    sc.pp.normalize_total(data, target_sum=target)
+    check()
+    sc.pp.log1p(data)
+    _finite(data.X)
+    check()
+    # v1 auto-detects values even when lognorm is declared. Refuse ambiguity,
+    # rather than letting upstream silently normalize the same data twice.
+    if not guess_is_lognorm(data):
+        raise Refused('The normalized view is ambiguous to the pinned v1 input detector; no score was computed')
+    return {'method': 'per-matrix-median-log1p-v1', 'targetSum': target,
+            'observations': int(data.n_obs), 'zeroDepthObservations': int(np.count_nonzero(totals == 0)),
+            'scope': 'complete context including attached controls', 'upstreamDetectedInput': 'lognorm'}
 
 
 def _plain(value):
@@ -102,19 +150,13 @@ def _plain(value):
 def evaluate(inputs, params, output, check):
     if metadata.version('cell-eval2') != VERSION:
         raise Refused('Restore the pinned cell-eval2 runtime before evaluation')
-    from cell_eval2 import EvalConfig, compute_metrics, aggregate_metrics
+    from cell_eval2 import compute_metrics, aggregate_metrics
     from cell_eval2.catalog import resolve_metrics, CATALOG
     config = protocol(inputs['config'])
-    cfg = EvalConfig.from_preset(config['preset'])
-    if cfg.control_source != 'real' or cfg.input_type != 'counts':
-        raise Refused('This count evaluator requires a preset using real reference controls')
-    cfg = replace(cfg, pert_col=config['target_column'], control=config['control_label'],
-                  device='cpu', num_threads=1, gather_threads=1,
-                  outdir=None, cache_real=None, cache_pred=None,
-                  de=replace(cfg.de, backend='scanpy'))
+    cfg = _evaluation_config(config)
     selected, missing = resolve_metrics(cfg.metrics, version=cfg.version)
-    if missing:
-        raise Refused('The selected upstream evaluator preset has unavailable metrics')
+    if missing or not selected:
+        raise Refused('The selected upstream evaluator preset has unavailable or no compatible metrics')
     contexts = []
     with _counts(inputs['prediction'], config, check) as prediction, _counts(inputs['reference'], config, check) as reference:
         if list(prediction.var_names) != list(reference.var_names):
@@ -145,10 +187,23 @@ def evaluate(inputs, params, output, check):
             import anndata as ad
             controls = r[r.obs[config['target_column']].astype(str) == config['control_label']]
             p = ad.concat([p, controls], join='inner', merge='same', index_unique='-evaluation-')
+            transformation = None
+            if 'format' in config:
+                transformation = {'prediction': _normalize_evaluation_view(p, check, maximum_cell_total=cfg.max_counts_per_cell),
+                                  'reference': _normalize_evaluation_view(r, check, maximum_cell_total=cfg.max_counts_per_cell)}
+                # v1 separately inspects the real control pool while resolving
+                # target_sum=None. Its effective type must agree with the full
+                # view, or the retained requested config would hide a change.
+                from cell_eval2.norm import guess_is_lognorm
+                normalized_controls = r[r.obs[config['target_column']].astype(str) == config['control_label']]
+                if not guess_is_lognorm(normalized_controls):
+                    raise Refused('The normalized control pool is ambiguous to the pinned v1 input detector; no score was computed')
+                transformation['reference']['upstreamDetectedControls'] = 'lognorm'
+            check()
             measured = compute_metrics(p, r, config=cfg)
             aggregated = aggregate_metrics(measured, metrics=selected)
             contexts.append({'context': context, 'targets': panel, 'estimatedMaterializationBytes': estimated,
-                             'metrics': measured.to_dicts(),
+                             'evaluationViews': transformation, 'metrics': measured.to_dicts(),
                              'aggregate': aggregated.to_dicts()})
             del p, r
     result = {'format': 'cell-evaluation-v1', 'evaluator': 'cell-eval2', 'version': VERSION,

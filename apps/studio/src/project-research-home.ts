@@ -7,7 +7,7 @@ import {contributors, actorOrigin, history, researchDate, studyActivity, type Ac
 const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{
   const item=document.createElement(tag);item.textContent=text;item.className=className;return item;
 };
-type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void};
+type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void;startResearch?():void};
 export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean;slow?:boolean};
 export class ProjectResearchHome {
   readonly root=node('section');
@@ -29,8 +29,8 @@ export class ProjectResearchHome {
     const populated=!!(owned.length||local.length||material.count);
     const waiting=!populated&&!!material.loading;
     const unavailable=!populated&&!!(error||material.error);
-    this.root.hidden=!(populated||waiting||unavailable);this.host.dataset.projectResearch=String(populated||waiting||unavailable);this.root.replaceChildren();
-    if(!populated&&!waiting&&!unavailable)return;
+    this.root.hidden=!(populated||waiting||unavailable||this.actions.startResearch);this.host.dataset.projectResearch=String(populated||waiting||unavailable||!!this.actions.startResearch);this.root.replaceChildren();
+    if(!populated&&!waiting&&!unavailable&&!this.actions.startResearch)return;
     const action=(label:string,key:string,run:()=>void,cls='quiet')=>{
       const b=node('button',label,cls);b.type='button';b.dataset.researchFocus=key;
       b.addEventListener('click',()=>{if(this.opening===opening&&this.actions.current()===session)run();});return b;
@@ -44,6 +44,11 @@ export class ProjectResearchHome {
         this.root.append(action('Browse Project data','data',this.actions.data));
       }
       return;
+    }
+    if(this.actions.startResearch){
+      const start=node('div','','project-research-actions');
+      start.append(action('Add material','add-material',this.actions.inputs), action('Start research','start-research',this.actions.startResearch,'mm-primary'));
+      this.root.append(start);
     }
     const details=(label:string,key:string,cls:string)=>{const d=node('details','',cls);d.dataset.disclosure=key;
       const summary=node('summary',label);summary.dataset.researchFocus=key;d.append(summary);return d;};
@@ -70,7 +75,7 @@ export class ProjectResearchHome {
       materials.append(node('h3',`${material.count} Project ${material.count===1?'input':'inputs'}`),
         node('p',material.groups.length?material.groups.join(' · '):'Retained files and selected research inputs','project-research-caption'),
         action('Browse inputs','material',this.actions.inputs,owned.length?'quiet':'mm-primary'));
-      if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material or start a research effort from Researchers.','project-research-caption'));
+      if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material, then choose Start research to shape a question and plan.','project-research-caption'));
       supporting.push(materials);
     }
     if(team.length){const people=details('Contributors & origins','team','project-research-team');

@@ -11,6 +11,9 @@ from .. import agent_runnable
 
 # Schemas describe transport only; scientific capabilities remain catalog-owned.
 SCHEMAS = {
+    "study.coordination": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}},
+    "study.coordinate": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}, "action": {"type":"string", "enum":["plan","review","propose","claim","complete","propose-capability"]}, "fields": {"type":"object"}},
+    "research.instructions": {},
     'project.create': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 80}},
     'project.list': {},
     'project.read': {},
@@ -42,8 +45,8 @@ def descriptors(build):
 def authorize(built, name, project, actor):
     if name not in SCHEMAS or not agent_runnable.door_resource(name):
         raise Refused(403, 'action-not-admitted', 'This action is not declared for agents.', next='discover available tools')
-    if name not in ('project.create', 'project.list'):
-        access(built).require(project, actor, write=name in ('project.import', 'material.organize', 'project.export'))
+    if name not in ('project.create', 'project.list', 'research.instructions'):
+        access(built).require(project, actor, write=name in ('project.import', 'material.organize', 'project.export', 'study.coordinate'))
 
 
 def _summary(built, project, actor):
@@ -98,7 +101,17 @@ async def run(built, record, progress):
     name, actor, project, args = record['tool'], record['by'], record['project'], record['params']
     authorize(built, name, project, actor)
     await progress(0, 1, agent_runnable.DOOR_RESOURCES[name])
-    if name == 'project.create':
+    if name == 'research.instructions':
+        from ..research.instructions import packages
+        result = {'packages': await asyncio.to_thread(packages)}
+    elif name == 'study.coordination':
+        from ..research.coordination import Coordination
+        from ..research.studies import service
+        result = await asyncio.to_thread(Coordination(service(built)).read, args['study'], project)
+    elif name == 'study.coordinate':
+        from ..research.coordination_api import execute
+        result = await asyncio.to_thread(execute, built, args['study'], project, args['action'], args['fields'], actor, record['byLabel'])
+    elif name == 'project.create':
         def create():
             owner = built.day.create_retained(args['name'], actor=actor)
             access(built).remember(owner.sid, actor)
@@ -217,5 +230,10 @@ async def run(built, record, progress):
                     result['contentUnavailable'] = 'Use a ready catalog reader or download the retained bytes; no text was inferred.'
             return result
         result = await asyncio.to_thread(read_artifact)
+    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate'):
+        # Tell open studios about detached contributions without navigating their stage.
+        changed = getattr(built, 'sessions_changed', None)
+        if callable(changed):
+            changed(at_once=True)
     await progress(1, 1, 'Retained result ready')
     return result

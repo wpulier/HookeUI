@@ -4,7 +4,7 @@ requires = { catalog = 2 }
 id = "response-predict"
 name = "Generate conditional counts"
 runs = "cpu"
-version = "2"
+version = "3"
 licence = ["response-predict"]
 kind = "tool-function"
 what = "Generate reproducible counts from fitted effects and control cells"
@@ -61,6 +61,7 @@ id = "cells_per_target"
 type = "int"
 default = 100
 label = "Cells Per Target"
+tooltip = "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context."
 min = 1
 max = 10000
 

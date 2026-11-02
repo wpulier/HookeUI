@@ -142,8 +142,39 @@ def _preview(data, check):
             'variableAnnotations': annotations(data.var, columns)}
 
 
+def _annotation_counts(data, column, check):
+    """Exact bounded text-label counts; no inference of biological groups."""
+    import pandas as pd
+    if not isinstance(column, str) or len(column) > 256:
+        raise Refused('Choose one literal observation column, at most 256 characters')
+    if not column:
+        return None
+    if column not in data.obs.columns or list(data.obs.columns).count(column) != 1:
+        raise Refused('The selected observation column is missing or ambiguous')
+    counts = {}; missing = 0
+    for index, value in enumerate(data.obs[column]):
+        if index % 1024 == 0:
+            check()
+        if pd.isna(value):
+            missing += 1
+            continue
+        if not isinstance(value, (str, np.str_)) or len(value) > 256:
+            raise Refused('Annotation counts require text labels of at most 256 characters; values are not coerced or truncated')
+        counts[value] = counts.get(value, 0) + 1
+        if len(counts) > 4096:
+            raise Refused('Annotation counts exceed 4096 distinct observed labels; no partial counts are published')
+    result = {'column': column, 'observations': int(data.n_obs), 'missing': missing,
+            'distinctObservedLabels': len(counts), 'complete': True,
+            'groups': [{'label': label, 'count': counts[label]} for label in sorted(counts)],
+            'meaning': 'Exact observed text labels; unused categories omitted. Labels do not establish biological identity.'}
+    if len(json.dumps(result, sort_keys=True, allow_nan=False).encode('utf-8')) > 512 << 10:
+        raise Refused('Annotation counts exceed the 512 KiB encoded report allowance; no partial counts are published')
+    return result
+
+
 def inspect(inputs, params, output, check):
     with _adata(inputs['matrix']) as data:
+        groups = _annotation_counts(data, params.get('annotation_column', ''), check)
         totals = []; nnz = 0; whole_nonnegative = True
         require_counts = params.get('require_raw_counts', True)
         if type(require_counts) is not bool:
@@ -171,6 +202,8 @@ def inspect(inputs, params, output, check):
                   'preview': _preview(data, check),
                   ('libraryDepth' if require_counts else 'rowTotals'): depth,
                   'geneAxisSha256': hashlib.sha256('\n'.join(data.var_names).encode()).hexdigest()}
+        if groups is not None:
+            result['observationAnnotationCounts'] = groups
         if require_counts:
             result['rawCounts'] = True
         else:
@@ -328,13 +361,41 @@ def _concat(parts, path, check):
         parts[0].rename(path)
 
 
+def _prediction_panel(value, uniform_count):
+    """An explicit target/count panel, or the existing uniform target-list format."""
+    if isinstance(value, dict):
+        if (set(value) != {'format', 'targets'} or value['format'] != 'target-count-panel-v1'
+                or not isinstance(value['targets'], list) or not value['targets']):
+            raise Refused('Expected a target-count-panel-v1 with explicit targets and counts')
+        rows = value['targets']
+        if any(not isinstance(row, dict) or set(row) != {'target', 'count'} for row in rows):
+            raise Refused('Each target-count row must contain exactly target and count')
+        if any(not isinstance(row['target'], str) for row in rows):
+            raise Refused('Requested targets must be explicit text labels')
+        targets = _strings([row['target'] for row in rows], 'Requested targets', unique=True)
+        counts = [row['count'] for row in rows]
+        source = 'target-count-panel-v1'
+    else:
+        targets = _strings(value, 'Requested targets', unique=True)
+        counts = [uniform_count] * len(targets)
+        source = 'cells_per_target'
+    if any(type(count) is not int or not 1 <= count <= 10_000 for count in counts):
+        raise Refused('Each requested target count must be a whole number from 1 to 10000')
+    total = sum(counts)
+    if total > MAX_ROWS:
+        raise Refused('Prediction panel exceeds the declared observation allowance')
+    return targets, counts, {'source': source, 'totalPerContext': total,
+                            'minimumPerTarget': min(counts), 'maximumPerTarget': max(counts)}
+
+
 def predict(inputs, params, output, check):
     import anndata
     import pandas as pd
     model = _model(inputs['model'])
     if inputs['panel'].stat().st_size > 1 << 20:
         raise Refused('The target panel exceeds its metadata allowance')
-    targets = _strings(json.loads(inputs['panel'].read_text()), 'Requested targets', unique=True)
+    targets, target_counts, count_meaning = _prediction_panel(
+        json.loads(inputs['panel'].read_text()), params['cells_per_target'])
     if params['control_label'] in targets:
         raise Refused('Predictions must not include the non-targeting control label')
     model_targets = {v: i for i, v in enumerate(model['targets'])}
@@ -349,7 +410,7 @@ def predict(inputs, params, output, check):
         contexts, labels = _columns(data, params)
         if set(labels.tolist()) != {params['control_label']}:
             raise Refused('The conditioning matrix must contain only declared control observations')
-        nout = len(set(contexts)) * len(targets) * params['cells_per_target']
+        nout = len(set(contexts)) * sum(target_counts)
         if nout > MAX_ROWS:
             raise Refused('Prediction exceeds the declared observation allowance')
         _dense_budget(BLOCK_ROWS, data.n_vars, copies=5)
@@ -364,7 +425,7 @@ def predict(inputs, params, output, check):
             prior = np.median(dispersion[mean > 0])
             dispersion = (dispersion * len(depths) + prior * params['dispersion_shrinkage']) / (len(depths) + params['dispersion_shrinkage'])
             over = dispersion > 1e-9
-            for target in targets:
+            for target, target_count in zip(targets, target_counts):
                 check(); effect = np.zeros(data.n_vars)
                 if target in model_targets:
                     effect[covered] = model['effects'][model_targets[target], gene_indices[covered]]
@@ -375,8 +436,8 @@ def predict(inputs, params, output, check):
                     raise Refused('Fitted effects are outside the emitter numerical range; calibrate explicitly')
                 probability, projected = convert_effect(proportions, exponent, data.var_names.tolist(), model_meaning, params['effect_interpretation'])
                 projected_genes += projected
-                for first in range(0, params['cells_per_target'], BLOCK_ROWS):
-                    check(); count = min(BLOCK_ROWS, params['cells_per_target'] - first)
+                for first in range(0, target_count, BLOCK_ROWS):
+                    check(); count = min(BLOCK_ROWS, target_count - first)
                     rows = []
                     for cell in range(first, first + count):
                         seed = int.from_bytes(hashlib.sha256(f'{params["seed"]}\0{context}\0{target}\0{cell}'.encode()).digest()[:8], 'little')
@@ -399,6 +460,7 @@ def predict(inputs, params, output, check):
                   'sparse': True, 'rawCounts': True, 'seed': params['seed'], 'responseStrength': params['response_strength'],
                   'unseenTargets': sorted(set(missing)), 'unmeasuredGenes': data.var_names[~covered].tolist(),
                   'generator': 'control-conditioned-negative-binomial-v1', 'seedScope': 'context-target-cell',
+                  'targetCounts': count_meaning,
                   'dispersionEstimator': params['dispersion_estimator'],
                   'effectInterpretation': params['effect_interpretation'], 'negativeExpressionProjections': projected_genes,
                   'compositionalClosure': 'whole-output-gene-axis',

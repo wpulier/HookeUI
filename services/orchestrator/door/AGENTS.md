@@ -126,6 +126,11 @@ clients of this door. They hold no scientific logic and no list of capabilities:
 The `hooke` command, the app's state file, its links and attention are described in `packaging/AGENTS.md` ("Outside
 agents"). The skill agents get is `.agents/skills/hooke/SKILL.md`.
 
+`services/agent_client` is an optional Project-bound MCP read client over that same
+CLI. It exposes selected read declarations dynamically, with no arbitrary host-path
+import, generic route forwarding or scientific runner. See its AGENTS.md and
+`docs/architecture/scoped-agent-client.md` for its scope and remaining isolation gates.
+
 ## Sockets and the screen
 - **WebSockets** (`origin.socket_kind`, both `/ws` and `/ws/voice`):
   - In the Mac app only the window's studio token makes a socket the studio's.
@@ -272,3 +277,9 @@ receipts report unverified external dependencies and import no authority or jobs
 Legacy/unavailable storage refuses; no complete-Project claim is made.
 
 `actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.
+
+Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding.
+
+Detached Project creation and material/coordination contributions notify the existing sessions projection. Open Studio choosers refresh without changing the active Project or stage; request retries do not emit another creation.
+
+Study coordination admits capability proposals only as non-executable retained intent under contribute access. Arbitrary activation fields are refused. Existing catalog owner confirmation is still required for exact-package preparation and activation.

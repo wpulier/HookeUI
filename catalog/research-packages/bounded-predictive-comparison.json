@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "id": "bounded-predictive-comparison",
+  "version": 1,
+  "title": "Compare predictive methods on retained data",
+  "purpose": "Produce a bounded baseline, inspect measured failures, and justify one follow-up.",
+  "materialTypes": ["annotated-matrix", "table", "protocol"],
+  "capabilities": ["matrix-inspect", "matrix-prepare", "response-fit", "response-predict", "matrix-count-diagnostics", "matrix-export"],
+  "instructions": [
+    "Read the Study objective, reviewed plan, exact input revisions, prior findings, challenges and failed operations before proposing work.",
+    "Inspect annotations and source permissions. Declare training, development and evaluation roles. Never infer scientific meaning from filenames.",
+    "Record what the baseline can predict, including coverage and explicit behavior for unseen targets. Check null and emission behavior before interpreting effect predictions.",
+    "Use the declared split unit and complete evaluation panel. Pin method revisions, preprocessing, seeds and runtime generations.",
+    "Delegate only a distinct uncertainty with a deliverable, evidence basis and decision consequence. Reuse existing measurements; agreement between agents is not validation.",
+    "Run the baseline within the allowance. Read its actual diagnostic outputs. Propose one follow-up that addresses an observed limitation; retaining the baseline is a valid outcome.",
+    "Report metric values, coverage, failures, limitations and exact evidence references. Distinguish execution success, predictive quality and human acceptance.",
+    "For blinded evaluation, freeze all candidates before evaluation access. Ordinary folders and Project permissions do not isolate a shell-capable agent. Instructions cannot grant access or authorize installs."
+  ],
+  "outputs": ["baseline prediction", "diagnostics", "justified follow-up or stopping decision", "evidence-linked comparison"],
+  "limitations": ["Does not select a scientifically valid model automatically", "Reference measurements are noisy", "Runtime and source licences require separate checks", "Contains no executable code or execution authority"]
+}

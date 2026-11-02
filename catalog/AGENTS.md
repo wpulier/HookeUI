@@ -451,6 +451,10 @@ their own confined function contract. Unknown declarations gain no execution pat
 
 ## Scientific matrix operations
 
+`response-predict` version 3 accepts a retained `target-count-panel-v1` for varying positive per-target counts,
+shared across contexts. Legacy target lists retain the `cells_per_target` parameter. Output provenance records the
+count source; bounds and seeded prefixes are qualified by synthetic emission tests, not predictive-quality claims.
+
 `matrix-project-counts` projects explicit retained raw-cell protocols through the same
 bundled runner. It never guesses target mappings or drops missing declared targets;
 sampling is explicit and retains its source identities and exclusions. See the matrix
@@ -491,3 +495,17 @@ Opt-in portable volumes and registration jobs retain their input copy, inspectio
 `matrix-inspect` version 3 reports median row totals and, only under raw-count admission, mean reciprocal library depth over all observations. Zero-depth observations remain counted and make the reciprocal undefined (`null`); they are never silently excluded. These are numeric diagnostics, not evidence of biological accuracy or a selected count generator. The existing frozen runtime generation and result provenance apply.
 
 Matrix-inspect version 4 retains a positional first 10 observations × 10 variables preview plus bounded annotation examples. This is not representative sampling. It slices before dense conversion; older reports remain usable without these additive fields.
+
+Version 5 optionally counts one explicit observation text column across all rows,
+with missing counts separate from empty labels and unused categories omitted.
+The exact column and labels are bounded; over 4,096 distinct labels or 512 KiB
+encoded report refuses before the matrix scan, not a truncated frequency table.
+No biological identity or fold independence is inferred.
+
+Matrix-evaluate-cell version 2 supports an explicit versioned median/log1p
+evaluation-view protocol for pinned upstream v1 comparisons. It preserves raw
+inputs, complete panels and the existing memory bound, records each full-view
+normalization and refuses ambiguous input detection. It does not claim historical
+leaderboard parity; see the scientific-matrices contract for exact semantics.
+
+`research-packages/` contains versioned host-supplied instructions and capability references, never executable adapters or authority. Studies pin the digest and retain the content so upgrades do not rewrite prior methods. A package does not install a runtime, grant Project access or establish evaluator confinement.
