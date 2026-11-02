@@ -283,3 +283,11 @@ Research coordination is explicitly declared in agent_runnable: `study.coordinat
 Detached Project creation and material/coordination contributions notify the existing sessions projection. Open Studio choosers refresh without changing the active Project or stage; request retries do not emit another creation.
 
 Study coordination admits capability proposals only as non-executable retained intent under contribute access. Arbitrary activation fields are refused. Existing catalog owner confirmation is still required for exact-package preparation and activation.
+
+Owner-approved imported image-to-table Python diagnostics are additionally eligible:
+`agent_runnable.catalog_runnable` requires explicit comparison acceptance of the
+installed entry, resolved with current shared readiness off-loop. Absent receipts,
+uninstalled/unproven/disabled/untrusted generations and other imported execution
+routes remain default-no. Admission rechecks after queueing; trusted dispatch binds
+`capability_identity.admitted_entry` through the toolbox to the adapter's generation
+check. No caller-supplied parameter can override this pin or activate a package.

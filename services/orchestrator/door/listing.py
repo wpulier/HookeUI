@@ -177,8 +177,8 @@ def gather(built) -> list[tuple]:
         if tool is None or not agent_runnable.runnable(name) or changes_settings(tool):
             continue  # default no: only what is declared runnable for agents, and never what changes a setting
         key = row.get("catalog") or ((row.get("how") or {}).get("args") or {}).get("capability")
-        if name == "run_capability" and not (key and agent_runnable.catalog_runnable(_manifest(key))):
-            continue  # a catalog capability: only a reviewed entry, named by its row (agent_runnable.catalog_runnable)
+        if name == "run_capability" and not key:
+            continue  # exact installed approval is resolved off-loop in describe_all
         seen.add(row["id"])
         out.append((row, tool, roles))
     return out
@@ -187,15 +187,31 @@ def gather(built) -> list[tuple]:
 def describe_all(gathered: list[tuple], build: dict) -> list[dict]:
     """The listing from what `gather` read. Reads manifests and hashes entry folders: call it in a thread."""
     from gpu_worker import manifests as catalog
-    from .. import kinds
+    from .. import kinds, agent_runnable, own_trials
 
     out = []
     with kinds.read_once():
+        installed = None
+        current_rows = {}
         for row, tool, roles in gathered:
             entry, manifest = None, None
-            key = row.get("catalog")
+            key = row.get('catalog') or ((row.get('how') or {}).get('args') or {}).get('capability')
             if key:
                 manifest = catalog.get(key)
+                if manifest is not None and manifest.namespace:
+                    if installed is None:
+                        current, installed = kinds.available_with_manifests()
+                        current_rows = {item['key']: item for item in current}
+                    manifest = installed.get(key)
+                    if not agent_runnable.catalog_runnable(manifest, owner_reviewed=(
+                            manifest is not None and own_trials.explicitly_accepted(manifest))):
+                        continue
+                    current = current_rows.get(key)
+                    if current is None:
+                        continue
+                    row = {**row, 'available': current.get('runnable', False), 'why': current.get('why', '')}
+                elif not agent_runnable.catalog_runnable(manifest):
+                    continue
                 door_entry = kinds.door_entry(manifest) if manifest is not None else None
                 entry = (manifest, door_entry) if door_entry is not None else None
             out.append(describe_row(row, tool, build, entry, locality(row, tool, roles, manifest)))

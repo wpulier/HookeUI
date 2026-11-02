@@ -124,10 +124,19 @@ NOT_RUNNABLE: dict[str, str] = {
 }
 
 
-# Catalog capabilities (catalog:<key>, run by run_capability): only entries of the reviewed catalog are runnable for
-# agents. A community channel's entry or the researcher's own (a manifest with a namespace) is not, whatever it does.
-def catalog_runnable(manifest) -> bool:
-    return manifest is not None and not getattr(manifest, "namespace", "")
+# Imported Python capabilities additionally need the owner's exact-package comparison approval,
+# and the shared registry's current installed/proven selection. Discovery never supplies that approval.
+def catalog_runnable(manifest, *, owner_reviewed=False) -> bool:
+    if manifest is None:
+        return False
+    if not getattr(manifest, 'namespace', ''):
+        return True
+    entries = getattr(manifest, 'implements', ())
+    # First qualified extension route: a bounded image-to-table diagnostic. Other
+    # imported routes keep default-no until their generation/review paths qualify.
+    return (owner_reviewed and getattr(manifest, 'runner', '') == 'python-env' and
+            not getattr(manifest, 'members', ()) and len(entries) == 1 and
+            entries[0].input == 'image.2d.rgb8' and entries[0].output == 'table.objects')
 
 
 # Arguments that would point an agent's run outside its own Project: a session other than its own, a conversation, a

@@ -156,3 +156,10 @@ qualified local client/bridge; do not expose the port, copy credentials to a rem
 service or infer hosted support. The same API and retained evidence apply regardless
 of which compatible client orchestrates the work. Qualify an actual client before
 claiming Grok, Hermes or another orchestrator has passed an end-to-end journey.
+
+An owner-approved imported Python image-to-table diagnostic can now appear in the
+same discovery list after its exact package is installed, proven and accepted in
+Models. Discover it normally; no CLI update or private execution path is needed.
+Other imported routes may still be unavailable. Permission to run never permits
+installing, activating or changing the package. A changed generation refuses the
+old admission instead of silently using replacement code.

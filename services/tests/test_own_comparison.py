@@ -26,6 +26,7 @@ def test_chosen_input_compares_both_and_use_requires_unchanged_installed_result(
     rig = Rig(tmp_path / 'rig')
     trial = own_trials.add_input(image(), 'find', rig.hub)
     own_trials.prepare(m.key, trial['id'])
+    assert not own_trials.explicitly_accepted(m)
     env_runner.register()
     assert not any(i.id == m.id for i in operations.OPERATIONS['cells'].implementations)
     seen = []
@@ -44,6 +45,7 @@ def test_chosen_input_compares_both_and_use_requires_unchanged_installed_result(
     assert result['candidate']['ms'] >= 0 and result['baseline']['ms'] >= 0
     assert own_trials.pending(env_runner.in_use(m).m)
     own_trials.use(m.key, trial['id'])
+    assert own_trials.explicitly_accepted(env_runner.in_use(m).m)
     env_runner.register()
     assert any(i.id == m.id for i in operations.OPERATIONS['cells'].implementations)
     # A later install cannot silently reuse this user's approval of different code.
@@ -52,6 +54,17 @@ def test_chosen_input_compares_both_and_use_requires_unchanged_installed_result(
     with pytest.raises(ValueError, match='changed'):
         own_trials.use(newer.key, trial['id'])
     assert own_trials.pending(env_runner.in_use(newer).m)
+    assert not own_trials.explicitly_accepted(env_runner.in_use(newer).m)
+
+
+def test_explicit_comparison_approval_never_infers_absence_or_damaged_marker(home):
+    m = contribute(home)
+    assert not own_trials.explicitly_accepted(m)
+    marker = own_trials.marker(m.key)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    for value in ('broken', 'null', '[]', '{}', '{"adoptedDigest":"invented"}'):
+        marker.write_text(value)
+        assert not own_trials.explicitly_accepted(m)
 
 
 def test_draft_job_and_comparison_are_bound_to_the_chosen_picture(home):
