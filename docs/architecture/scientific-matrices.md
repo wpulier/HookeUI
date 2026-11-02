@@ -239,6 +239,32 @@ Stop terminates/reaps the worker before releasing its slot. Caller disconnect ha
 
 ## Current qualification and limits
 
+`matrix-package-vcc` takes four exact retained files: a complete final prediction,
+the official gene and perturbation CSVs, and the final-panel manifest. Its separate
+`vcc-packaging-runtime` pins official `vcc-cli==0.3.0` and a hashed cross-platform
+dependency lock. This deliberately extends the app-owned matrix boundary; the
+general RGB capability adapter does not accept these file inputs.
+
+Independent preflight requires all 360,000 D/E/F rows, 18,533 ordered genes and
+400 cells for each of 300 targets, without controls. It bounds HDF5 annotations,
+refuses external links/extra arrays and checks every sparse float32 count, cell
+total, label, canonical index and stored-entry count. Before upstream materializes
+the matrix, it checks explicit worker memory/file limits and temporary disk using
+the actual CSR payload, including 64-bit index promotion. Estimates do not prove
+peak use; the existing worker's RSS, disk and time supervision remains necessary.
+
+The worker calls the actual official `vcc.prep.run_prep` function with default
+count/density checks and the manifest's final contexts. All upstream temporary
+files stay under its monitored output directory. It then bounded-decompresses the
+actual `.vcc` into that directory and independently verifies all counts, ordered
+genes, groups and row labels against the preflight hashes. Official prep replaces
+cell IDs with sequential IDs; scientific row meaning must remain identical.
+Only the package is published, with exact input/output hashes and phase times.
+Matrix `storedEntries` means X entries, distinct from the worker's filesystem
+entry count. There is no authentication, network, upload or submission operation.
+Synthetic full-shape/tiny-density proof does not qualify real full-density memory,
+packaging duration, predictive performance or organizer acceptance.
+
 Tiny synthetic tests exercise real numerical libraries, sparse file assembly, Project retention, confined execution,
 idempotency, cancellation and foreign/stale-input refusal. They also cover panel-size-independent regularization,
 coverage priors, keyed seeds, approximate control moments and unsafe numerical-artifact headers. A separate prepared-

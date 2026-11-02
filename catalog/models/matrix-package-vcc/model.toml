@@ -1,0 +1,48 @@
+# App-owned retained-file capability; the RGB adapter path cannot package matrices.
+requires = { catalog = 2 }
+id = "matrix-package-vcc"
+name = "Package final VCC predictions"
+runs = "cpu"
+version = "1"
+licence = ["matrix-package-vcc"]
+kind = "tool-function"
+what = "Validate and package complete final predictions with the official packager"
+runner = "builtin-cpu"
+source = { made_here = "Bounded validation and upstream offline packaging; no submission" }
+credit = { authors = "HookeUI contributors and Arc Research Institute", link = "https://virtualcellchallenge.org" }
+component = { what = "Bundled official final-panel packaging integration", licence = "Apache-2.0 adapter; MIT vcc-cli; dependencies retain their own licenses", url = "https://pypi.org/project/vcc-cli/0.3.0/", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:vcc-packaging-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "matrix-package-vcc"
+category = "Research"
+experimental = true
+outcomes = { empty = "No complete final panel", unsupported = "Unqualified runtime, incompatible final counts or insufficient resources" }
+
+[[inputs]]
+id = "matrix"
+type = "matrix.anndata"
+label = "Complete D/E/F raw-count prediction"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Official final gene_names.csv"
+
+[[inputs]]
+id = "perts"
+type = "artifact.csv"
+label = "Official final pert_counts.csv"
+
+[[inputs]]
+id = "manifest"
+type = "artifact.json"
+label = "Official final manifest.json"
+
+[[outputs]]
+id = "result"
+type = "artifact.vcc"
+label = "Independently checked official package"

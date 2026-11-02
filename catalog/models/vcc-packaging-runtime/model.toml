@@ -1,0 +1,17 @@
+id = "vcc-packaging-runtime"
+name = "VCC final packaging (CPU runtime)"
+runs = "cpu"
+version = "1"
+licence = ["vcc-packaging-runtime"]
+kind = "runtime"
+what = "Prepare the pinned official Virtual Cell Challenge packager"
+source = { made_here = "Pinned upstream offline packaging libraries; no model weights", url = "https://pypi.org/project/vcc-cli/0.3.0/" }
+credit = { authors = "Arc Research Institute and scientific Python contributors", link = "https://virtualcellchallenge.org" }
+component = { what = "Official vcc-cli 0.3.0 and scientific Python dependencies", licence = "MIT (vcc-cli); transitive packages retain their own licenses", url = "https://pypi.org/project/vcc-cli/0.3.0/", tier = "open" }
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy", "scipy", "anndata", "h5py", "pandas", "vcc.prep", "zstandard"] }
+needs_to_get = []
+needs_to_run = ["install:vcc-packaging-runtime"]
+workers = []
+host = "own-python"
+documented_mb = 512
+load_limit_s = 30

@@ -9,6 +9,13 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_vcc_packaging.py` checks independent raw-count/axis/group/resource refusals,
+bounded HDF5 input and package inspection, and separate runtime discovery. Its
+optional pinned-runtime roundtrip invokes real official prep on synthetic final
+dimensions with only one stored value per cell. This produces and independently
+checks a `.vcc`; it is not a candidate, realistic-density resource measurement,
+confined-provider qualification, submission or organizer acceptance.
+
 `test_count_output_space.py` checks the 32-bit sparse-index transition and refuses
 the former disk envelope before prediction or count assembly. Its large dimensions
 use synthetic metadata and empty sparse inputs, not full-density computation;
