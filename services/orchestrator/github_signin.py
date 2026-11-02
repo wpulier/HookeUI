@@ -17,6 +17,12 @@ device flow), tick **Enable Device Flow**; copy its Client ID into `CLIENT_ID`.
 model. It asks for `public_repo` (to fork the catalog and open a pull request) and `read:user user:email` (whose name and
 verified email the DCO sign-off certifies). Sign out deletes it; the user can also revoke it on GitHub.
 
+**Projects (ADR 0028)** use the same sign-in to publish a Project to a new repository of the user's
+(project_remote_github.py). The registered app may be a GitHub App with Device Flow enabled instead of an OAuth app: the
+endpoints are the same, its token is limited to the repositories the user chooses, and the `scope` sent here is
+ignored. A GitHub App token that expires is not refreshed (that needs a client secret no Mac should hold): the next
+call says to sign in again (github_rest.SignInAgain).
+
 Signed in, Share with everyone goes through GitHub's API with this token (publish_api.py: the exact reviewed package, a
 fork, one signed-off commit, the pull request), with no checkout and no Git; without it, publish.py's Git and `gh` route.
 The sign-in itself still waits for the project's registered OAuth app (`CLIENT_ID`).
@@ -32,7 +38,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable, Mapping
 
-from . import keychain
+from . import keychain, untrusted
 
 CLIENT_ID = ""  # the project's OAuth app (Device Flow enabled): empty until it is registered (see the docstring)
 SCOPES = "public_repo read:user user:email"
@@ -156,4 +162,4 @@ def _said(got: dict) -> str:
              "device_flow_disabled": "the project's GitHub app doesn't have Device Flow turned on",
              "unsupported_grant_type": "GitHub refused the sign-in's kind"}
     error = str(got.get("error") or "no code")
-    return words.get(error) or f"GitHub said: {str(got.get('error_description') or error)[:200]}"
+    return words.get(error) or f"GitHub said: {untrusted.inline(got.get('error_description') or error, 200)}"
