@@ -8,13 +8,15 @@ export interface PublicationReview {
   members: {path: string; bytes: number; sha256: string}[];
   leftOut: {conversations: string; transcripts: number; otherFiles: string[]};
   includeTranscripts: boolean; findings: Finding[]; blocked: boolean;
+  /** The person's own words that are published: their notes on results (the secret scan reads them too). */
+  publishedText?: {session: string; id: string; version: number | null; title: string; text: string}[];
 }
 export interface Published {commit: string; snapshotSha256: string; recordFiles: number; bulkObjects: number; uploadedBytes: number; bytes: number}
 export interface GitHubStatus {setUp: boolean; signedIn: boolean; says: string}
 export interface GitHubCode {id: string; code: string; open: string; every: number; until: number}
 export interface Signoff {rights: boolean; noIdentifiableHumanData: boolean; permanent: boolean; author?: string}
 export type Destination = {kind: 'github'; create: true; name: string} | {kind: 'github'; repo: string} | {kind: 'folder'; path: string; create?: boolean};
-export interface UpdateResult {added: string[]; extended: string[]; unchanged: string[]; refused: {id: string; reason: string}[]; filesAdded: number; fileConflicts: string[]}
+export interface UpdateResult {added: string[]; extended: string[]; unchanged: string[]; refused: {id: string; reason: string}[]; filesAdded: number; fileConflicts: string[]; resultsAdded?: number}
 export interface RemoteStatus {published: {destination: unknown; commit: string; snapshotSha256: string; licence: string}[]; startedFrom: unknown | null}
 export interface PublishActions {
   prepare(options: {includeTranscripts: boolean; licence: string}): Promise<PublicationReview>;
@@ -103,7 +105,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
 
   const intro = () => {
     content.replaceChildren(node('p', 'Share this project so anyone can start from it. You review every file first. '
-      + 'Conversations stay on this Mac; only each journal’s identity line is published.'));
+      + 'Conversations stay on this Mac. What lists your results goes with it: tables, evidence, tracks and your notes.'));
     controls.replaceChildren(); status.textContent = '';
     button('Review what will be published', () => review(false, 'CC-BY-4.0'), true);
     void showStatus();
@@ -121,7 +123,10 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
             const result = await actions.update();
             if (!active()) return;
             const changed = result.added.length + result.extended.length;
-            status.textContent = changed ? `${changed} document${changed > 1 ? 's' : ''} updated, ${result.filesAdded} files added.` : 'Already up to date.';
+            const results = result.resultsAdded ?? 0;
+            status.textContent = changed || results || result.filesAdded
+              ? `${changed} document${changed === 1 ? '' : 's'} updated, ${results} result${results === 1 ? '' : 's'} and ${result.filesAdded} file${result.filesAdded === 1 ? '' : 's'} added.`
+              : 'Already up to date.';
             if (result.refused.length) content.append(node('p', `${result.refused.length} document${result.refused.length > 1 ? 's' : ''} in the publication no longer follow${result.refused.length > 1 ? '' : 's'} the version here, so ${result.refused.length > 1 ? 'they were' : 'it was'} left as ${result.refused.length > 1 ? 'they were' : 'it was'}.`));
           } catch (error) { if (active()) status.textContent = message(error); }
           finally { busy = false; update.disabled = false; }
@@ -149,6 +154,12 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     left.append(node('li', r.includeTranscripts ? 'Research transcripts are included' : `Research transcripts left out: ${r.leftOut.transcripts}`));
     if (r.leftOut.otherFiles.length) left.append(node('li', `Also left out: ${r.leftOut.otherFiles.length} connector and restoration records`));
     content.append(node('strong', 'Not published'), left);
+    if (r.publishedText?.length) {
+      const notes = node('ul', '', 'project-publish-notes');
+      for (const n of r.publishedText.slice(0, 20)) notes.append(node('li', n.title ? `${n.title}: ${n.text}` : n.text));
+      if (r.publishedText.length > 20) notes.append(node('li', `and ${r.publishedText.length - 20} more`));
+      content.append(node('strong', 'Your notes, published as written'), notes);
+    }
     if (r.findings.length) {
       const list = node('ul', '', 'project-publish-findings');
       for (const f of r.findings.slice(0, 20)) list.append(node('li', `${f.path}${f.line ? ` line ${f.line}` : ''} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`));

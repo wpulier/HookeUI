@@ -20,7 +20,13 @@ class ArtifactFolder:
             return self.legacy
         project = locations.project(session)
         if project is None:
-            return self.legacy
+            holder = getattr(locations, 'holder', None)
+            project = holder(session) if holder is not None else None
+            if project is None:
+                return self.legacy
+            if write:  # an inherited owner's results are read-only here (ADR 0028)
+                from .scientific_projects import INHERITED
+                raise ProjectLocationError(INHERITED)
         with self._lock:
             if write:
                 locations.writable(session)

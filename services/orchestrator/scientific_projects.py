@@ -191,30 +191,24 @@ class ProjectStore:
             return self._read_head(folder, session, inherited=True)
 
     def inherited_owners(self, session: str) -> frozenset:
-        """The owners whose accepted documents a Project folder holds read-only for its own `session`: those the
-        owner-aware import restored (their journal is exactly an origin and its import, `ownership.journal_bytes`).
-        None outside a Project folder, or for any other session."""
+        """The owners whose accepted documents a Project folder holds read-only for its own `session`: those a start
+        or update brought in (project_inherited.owners). None outside a Project folder, or for any other session."""
         layout = self.root.parent.parent
         if self.root.name != 'records' or self.root.parent.name != 'artifacts':
             return frozenset()
-        sessions = layout / 'history' / 'sessions'
         try:
-            manifest = (layout / 'project.json').stat()
-            listing = sessions.stat(follow_symlinks=False)
-        except OSError:
-            return frozenset()
-        key = (session, manifest.st_mtime_ns, manifest.st_ino, listing.st_mtime_ns, listing.st_ino)
-        cached = self.__dict__.get('_inherited')
-        if cached is not None and cached[0] == key:
-            return cached[1]
-        found = frozenset()
-        try:
-            if json.loads(self._read(layout / 'project.json', MAX_HEAD)).get('session') == session:
-                found = frozenset(_restored_owners(sessions, session))
+            info = (layout / 'project.json').stat()
+            key = (info.st_mtime_ns, info.st_ino, info.st_size)
+            cached = self.__dict__.get('_handle')
+            if cached is None or cached[0] != key:
+                cached = (key, json.loads(self._read(layout / 'project.json', MAX_HEAD)).get('session'))
+                self.__dict__['_handle'] = cached
+            if cached[1] != session:
+                return frozenset()
         except (OSError, ValueError, RecursionError, AttributeError, InvalidProject):
-            found = frozenset()
-        self.__dict__['_inherited'] = (key, found)
-        return found
+            return frozenset()
+        from .project_inherited import owners
+        return frozenset(owners(layout, session))
 
     def _read_head(self, folder, session, *, inherited=False):
         from .scientific_import_transaction import require_visible
@@ -574,25 +568,3 @@ class ProjectStore:
             except (OSError, InvalidProject) as exc:
                 problems.append({'id': path.name, 'reason': str(exc) if isinstance(exc, InvalidProject) else 'Project is unreadable'})
         return sorted(out, key=lambda item: (item.at, item.id), reverse=True), problems
-
-
-def _restored_owners(sessions: Path, own: str):
-    """Session folders beside `own` whose journal is exactly what the owner-aware import writes for a restored owner."""
-    # Read without the owner namespace lock: a reader holds the store's reading lock, which an import waits on.
-    from .day.ownership import journal_bytes, validate
-    from .day.sid import is_sid
-    with os.scandir(sessions) as entries:
-        for entry in entries:
-            if entry.name == own or not is_sid(entry.name) or entry.is_symlink() or not entry.is_dir():
-                continue
-            try:
-                body = ProjectStore._read(Path(entry.path) / 'journal.jsonl', 1 << 20)
-                lines = body.split(b'\n')
-                imported = json.loads(lines[1]) if len(lines) == 3 and not lines[2] else None
-                if type(imported) is not dict or imported.get('type') != 'session-imported':
-                    continue
-                owner = validate(imported.get('owner'), entry.name)
-            except (OSError, ValueError, RecursionError, InvalidProject):
-                continue
-            if body == journal_bytes(owner):
-                yield entry.name

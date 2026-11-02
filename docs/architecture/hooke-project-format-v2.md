@@ -88,8 +88,13 @@ A publication is a filtered sealed snapshot of the Project:
 
 - `project.json`, the Project's README, every accepted document under `artifacts/records/`, and the chosen artifact
   sections (by default all except `artifacts/research`, which holds research transcripts).
-- The Project's own session journal is replaced by its origin-only form (`ownership.journal_bytes`), which keeps the
-  identity verifiable and carries no conversation. Connector operations and restoration receipts are left out.
+- Each owner's session journal is replaced by its origin-only form (`ownership.journal_bytes`), which keeps the
+  identity verifiable, followed by the lines that list its results: `evidence-saved` and `tracks-saved` (only with a
+  portable `project:` path), `datatable`, `table-derivative` and `annotation`, each once, in order, without its
+  `thread` (`project_inherited.published`). It carries no conversation. Connector operations and restoration receipts
+  are left out.
+- A person's notes (`annotation` text and title) are published text: the review lists them as `publishedText`, and the
+  secret scan reads them with every other text member.
 - It keeps the Project's origin and every revision digest.
 
 Before sending, the owner reviews the exact members and their sizes. A secret finding blocks; a home-directory path
@@ -103,12 +108,15 @@ Project chain onto it. Publishing never changes the visibility of a backup.
 Starting from fetches a publication (7) and makes a **new Project** on this host, with its own origin and a handle
 that none of the publication's owners use. Each published document comes in through the owner-aware import, byte for
 byte and under its own owner. The new Project's `history/sessions` then holds that owner as an *inherited owner*: a
-session folder whose journal is exactly an origin and its import (`ownership.journal_bytes`). Its plain result files
-are copied where absent. Then it appends one journal event:
+session folder whose journal is exactly an origin and its import (`ownership.journal_bytes`), followed only by the
+publication's result lines for that owner (`project_inherited.split`; anything else there and it is not inherited).
+Its plain result files are copied where absent, and each owner's result lines join its journal once
+(`project_inherited.bring_in`), creating the owner when it has results and no documents. Then it appends one journal
+event:
 
 ```json
 {"type": "project-started-from", "origin": "<publication origin>", "snapshotSha256": "<64 hex>",
- "source": {"kind": "folder|github", "location": "<url or path>", "commit": "<commit id>"}, "documents": 2}
+ "source": {"kind": "folder|github", "location": "<url or path>", "commit": "<commit id>"}, "documents": 2, "results": 3}
 ```
 
 A Project's store lists and reads its inherited owners' documents under its own handle, saying which owner accepted
@@ -116,9 +124,15 @@ them (`ProjectRevision.owner`, the entry's `source.inheritedFrom`). A reference 
 handle, reads through the one Project here that holds that owner. Saving over an inherited document is refused; a
 copy of it is the way to change it. It inherits no grants or registry entries.
 
+Its results are listed with the new Project's own, read-only and under the inherited owner's handle (each entry's
+`day`), which is how the studio opens them. A host finds the Project holding an inherited owner with
+`ProjectLocations.holder`, for reading only: artifact folders refuse to write for it. Saved evidence and tracks name the
+Project they were saved in (`project:<origin>/...`); for an inherited owner that is its own origin.
+
 **Update** fetches a newer publication of the same origin (the ancestry event's) and brings each document in the same
 way: a document is added when absent or extended when the local history is a prefix of the published one; anything
-else is refused with nothing changed.
+else is refused with nothing changed. New result lines join their owner's journal; ones already there are not added
+again.
 
 ## 10. Reproduction levels
 

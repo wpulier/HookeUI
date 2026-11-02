@@ -1,8 +1,9 @@
 """Publish a Project: a reviewed, filtered snapshot sent as one version (ADR 0028, format v2 section 8).
 
 A publication keeps the Project's origin and every accepted document byte for byte. Its journals are cut to their
-origin lines, so conversations never leave; research transcripts, connector operations and restoration receipts are
-left out unless chosen. The owner reviews the exact members, a secret scan must pass, and the owner signs off on
+origin lines and the lines that list their results (project_inherited), so conversations never leave; a person's
+notes on results are published text, shown in the review and read by the secret scan. Research transcripts,
+connector operations and restoration receipts are left out unless chosen. The owner reviews the exact members, a secret scan must pass, and the owner signs off on
 rights, licence and the absence of identifiable human data. The review digest binds what is sent.
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ from .project_remote import Remote, push_sealed, sealed_manifest
 from .project_remote_layers import RemoteRefused, canonical, classify, sha256
 from .project_repository import verify_owner
 from .project_roots import PARTS, ProjectRoot
+from .project_inherited import notes, published
 from .project_metadata_scan import scan as metadata_scan
 from .project_secret_scan import blocking, scan
 
@@ -55,7 +57,7 @@ def _filtered(full: ProjectRoot, target: Path, *, include_transcripts: bool):
     for part in PARTS:
         (target / part).mkdir(mode=0o700)
     sessions = full.path / 'history' / 'sessions'
-    journals = 0
+    journals, results, said = 0, 0, []
     for folder in sorted(sessions.iterdir()) if sessions.is_dir() else ():
         if not folder.is_dir() or not is_sid(folder.name):
             continue
@@ -64,10 +66,13 @@ def _filtered(full: ProjectRoot, target: Path, *, include_transcripts: bool):
             continue
         out = target / 'history' / 'sessions' / folder.name
         out.mkdir(parents=True)
-        (out / 'journal.jsonl').write_bytes(ownership.journal_bytes(owner))
+        listed = published(folder / 'journal.jsonl')  # the lines that list its results; no conversation
+        (out / 'journal.jsonl').write_bytes(ownership.journal_bytes(owner) + listed)
         journals += 1
+        results += listed.count(b'\n')
+        said.extend({'session': folder.name, **note} for note in notes(listed.splitlines()))
     artifacts = full.path / 'artifacts'
-    left_out = {'transcripts': 0}
+    left_out = {'transcripts': 0, 'results': results, 'notes': said}
     for section in sorted(artifacts.iterdir()):
         if section.name == 'research' and not include_transcripts:
             left_out['transcripts'] = sum(1 for p in section.rglob('*') if p.is_file())
@@ -108,10 +113,13 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
         'licenceName': LICENCES[licence], 'snapshotSha256': sha256(raw),
         'members': manifest['entries'], 'bytes': sum(e['bytes'] for e in manifest['entries']),
         'recordFiles': len(record), 'largeFiles': len(bulk),
-        'leftOut': {'conversations': f'{journals} journal(s) reduced to their identity line',
+        'leftOut': {'conversations': f'{journals} journal(s) reduced to their identity line'
+                                     + (f" and {left_out['results']} line(s) that list results" if left_out['results'] else ''),
                     'transcripts': left_out['transcripts'] if not include_transcripts else 0,
                     'otherFiles': sorted({e['path'] for e in full_manifest['entries']} - kept
                                          - {e['path'] for e in full_manifest['entries'] if e['path'].startswith('history/sessions/')})[:200]},
+        # The person's own words that are published: their notes on results, read by the secret scan with the rest.
+        'publishedText': left_out['notes'][:200], 'resultLines': left_out['results'],
         'includeTranscripts': bool(include_transcripts),
         'findings': findings, 'blocked': bool(blocking(findings)),
         'originDigest': owner['originDigest'],

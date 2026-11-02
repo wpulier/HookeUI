@@ -3,7 +3,8 @@
 Starting from makes an independent Project here: its own origin and handle, so it sits beside the original or another
 copy of the same publication. The publication's accepted documents come in byte for byte through the owner-aware
 import, under their own (inherited) owner: the new Project lists and reads them and never saves over them. Its plain
-result files are copied. It inherits no grants or registry entries; the caller records its ancestry. Update brings
+result files are copied, and the lines that list them (its tables, evidence, tracks and notes) join their inherited
+owner's journal, so they are listed too. It inherits no grants or registry entries; the caller records its ancestry. Update brings
 newer published revisions in the same way: a document is added when absent or extended when the local history is a
 prefix of the published one, and anything else is refused with that document unchanged.
 """
@@ -42,14 +43,16 @@ def start_from(remote: Remote, create, *, staging: Path, commit=None, source=Non
     staging.mkdir(mode=0o700)
     try:
         fetched, details = fetch(remote, staging / 'fetched', commit=commit, check=check)
-        root = create(frozenset(owner for _, owner, _ in _documents(fetched)) | {fetched.session})
+        sessions = session_root(fetched)
+        theirs = frozenset(f.name for f in sessions.iterdir()) if sessions.is_dir() else frozenset()
+        root = create(frozenset(owner for _, owner, _ in _documents(fetched)) | {fetched.session} | theirs)
         result = _bring_in(fetched, details, root, staging, held=held, check=check)
         if result['refused']:
-            raise exchange.BundleRefused('Not every document of that publication could come in: '
+            raise exchange.BundleRefused('Not everything in that publication could come in: '
                                          + '; '.join(r['reason'] for r in result['refused'][:3]))
         event = {'type': 'project-started-from', 'origin': details['origin'], 'snapshotSha256': details['snapshotSha256'],
                  'source': {**(source or remote.describe()['records']), 'commit': details['commit']},
-                 'documents': len(result['added'])}
+                 'documents': len(result['added']), 'results': result['resultsAdded']}
         return root, event, result
     finally:
         shutil.rmtree(staging, ignore_errors=True)
@@ -130,4 +133,27 @@ def _bring_in(fetched: ProjectRoot, details: dict, root: ProjectRoot, staging: P
                 shutil.copy2(path, out)
                 os.chmod(out, 0o600)
                 result['filesAdded'] += 1
+        result['resultsAdded'] = _results(fetched, root, result, check=check)
     return result
+
+
+def _results(fetched: ProjectRoot, root: ProjectRoot, result: dict, *, check) -> int:
+    """The publication's result-listing lines, each under its inherited owner here (project_inherited.bring_in)."""
+    from .day.sid import is_sid
+    from .project_inherited import bring_in, read_journal, split
+    added, theirs, ours = 0, session_root(fetched), session_root(root)
+    for folder in sorted(theirs.iterdir()) if theirs.is_dir() else ():
+        check()
+        if not is_sid(folder.name) or folder.is_symlink() or not folder.is_dir() or folder.name == root.session:
+            continue
+        try:
+            shape = split(read_journal(folder / 'journal.jsonl'), folder.name)
+        except (OSError, ValueError):
+            shape = None
+        if shape is None:
+            continue  # a session the publication holds without listed results
+        try:
+            added += bring_in(ours, folder.name, *shape)
+        except (OSError, ValueError) as error:
+            result['refused'].append({'id': folder.name, 'reason': f'its results could not come in: {error}'})
+    return added

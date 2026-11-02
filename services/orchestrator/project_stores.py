@@ -80,7 +80,6 @@ class ProjectStores:
         self.workflow_library_root = legacy.workflow_library_root
         self._bound = {}
         self._lock = threading.RLock()
-        self._probes = {}
 
     @property
     def root(self):
@@ -104,20 +103,11 @@ class ProjectStores:
     def _inheriting(self, session):
         """The one Project here that holds `session` as an inherited owner (a document's own reference names it);
         None when none does, or when several copies do and the reference alone cannot say which."""
-        holders = []
-        for handle in self.locations.handles():
-            project = self.locations.project(handle)
-            if project is None:
-                continue
-            try:
-                key = (project.origin, project.path)
-                with self._lock:  # one probe per Project: its listing is cached until its sessions folder changes
-                    probe = self._probes.get(key) or self._probes.setdefault(key, ProjectStore(document_root(project)))
-                if session in probe.inherited_owners(project.session):
-                    holders.append(project)
-            except (OSError, ProjectLocationError):
-                continue
-        return holders[0] if len(holders) == 1 else None
+        holder = getattr(self.locations, 'holder', None)
+        try:
+            return holder(session) if holder is not None else None
+        except (OSError, ProjectLocationError):
+            return None
 
     def register_runtime(self):
         # Host runtime maintenance can still inspect every known store. It never
