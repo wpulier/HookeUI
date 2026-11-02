@@ -7,6 +7,7 @@ a prefix of the published one, and anything else is refused with that document u
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
@@ -59,8 +60,11 @@ def _sha(path: Path) -> str:
     return value.hexdigest()
 
 
-def update_from(root: ProjectRoot, remote: Remote, *, staging: Path, commit=None, check=lambda: None):
-    """Bring newer published work into the working copy `root`. Returns what changed and what was refused."""
+def update_from(root: ProjectRoot, remote: Remote, *, staging: Path, commit=None, held=False, check=lambda: None):
+    """Bring newer published work into the working copy `root`. Returns what changed and what was refused.
+
+    `held` says this host already holds the Project's writer lease (the open Project); otherwise it is taken here.
+    """
     staging = Path(staging)
     staging.mkdir(mode=0o700)
     try:
@@ -71,7 +75,7 @@ def update_from(root: ProjectRoot, remote: Remote, *, staging: Path, commit=None
         target = ProjectStore(document_root(root))
         result = {'commit': details['commit'], 'snapshotSha256': details['snapshotSha256'],
                   'added': [], 'extended': [], 'unchanged': [], 'refused': [], 'filesAdded': 0, 'fileConflicts': []}
-        with writer(root):
+        with (contextlib.nullcontext() if held else writer(root)):
             local = {identity: (owner, revisions) for identity, owner, revisions in _documents(root)}
             for identity, owner, revisions in _documents(fetched):
                 check()

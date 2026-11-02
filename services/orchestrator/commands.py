@@ -3825,3 +3825,4 @@ async def onboarding_models(app, client, msg) -> dict:
 
 
 from .maintenance import commands as _maintenance  # noqa: E402,F401 - registers the maintenance-* commands (ADR 0025)
+from . import project_remote_commands as _project_remotes  # noqa: E402,F401 - registers Publish, Start from and Update (ADR 0028)

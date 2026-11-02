@@ -2576,7 +2576,12 @@
           "project-record-review",
           "project-record-include",
           "project-record-status",
-          "project-record-stop"
+          "project-record-stop",
+          "project-publish-prepare",
+          "project-publish",
+          "project-start-from",
+          "project-update-from",
+          "project-remote-status"
         ]
       },
       "pair": "new-session",
