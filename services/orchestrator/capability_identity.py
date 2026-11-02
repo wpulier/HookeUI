@@ -2,6 +2,39 @@
 from __future__ import annotations
 
 import hashlib
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+_ADMITTED_ENTRY = ContextVar('admitted_catalog_entry', default=None)
+
+
+@contextmanager
+def admitted_entry(key: str, generation: str):
+    """Trusted dispatch pin, never a model/user-supplied scientific parameter."""
+    token = _ADMITTED_ENTRY.set((key, generation))
+    try:
+        yield
+    finally:
+        _ADMITTED_ENTRY.reset(token)
+
+
+def admitted_params(m) -> dict:
+    pin = _ADMITTED_ENTRY.get()
+    if pin is None:
+        return {}
+    if m is None or m.key != pin[0]:
+        raise ValueError('The selected capability differs from the admitted entry; nothing ran.')
+    return {'expectedGeneration': pin[1]}
+
+
+def check_admitted_entry(m):
+    """Recheck owner approval at actual selection, off-loop, before adapter dispatch."""
+    params = admitted_params(m)
+    if not params:
+        return
+    from . import own_trials
+    if not own_trials.explicitly_accepted(m) or generation_of(m) != params['expectedGeneration']:
+        raise ValueError('The approved capability generation changed after admission; nothing ran.')
 
 
 def generation_of(m) -> str:

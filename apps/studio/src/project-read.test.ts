@@ -30,3 +30,15 @@ test('ordinary completed polls preserve the rendered control tree',async()=>{
  await read.run('A',async()=>{});await read.run('A',async()=>{});
  expect(changed).not.toHaveBeenCalled();
 });
+test('clearing a cache cancels its same-Project conditional read before a full refresh',async()=>{
+ const read=new ProjectRead();let finish!:()=>void;let staleAccepted=false;let contents=['saved input'];
+ const conditional=read.run('A',async(_signal,current)=>{
+  await new Promise<void>(resolve=>{finish=resolve;});
+  if(current()){staleAccepted=true;contents=[];}
+ });
+ await Promise.resolve();
+ read.cancel();contents=[];
+ await read.run('A',async()=>{contents=['saved input'];});
+ finish();await conditional;
+ expect(staleAccepted).toBe(false);expect(contents).toEqual(['saved input']);
+});

@@ -6,6 +6,27 @@ accepted documents, not a guess from a title. Use never changes an artifact's or
 from __future__ import annotations
 
 
+def workflow_authorship(document: dict) -> dict:
+    """Original recorded author of a definition, run or attempt; never its later controller."""
+    fields = {
+        'scientific-workflow': ('workflow', 'createdBy'),
+        'scientific-workflow-run': ('workflowRun', 'actor'),
+        'scientific-workflow-attempt': ('workflowAttempt', 'actor'),
+    }
+    field = fields.get(document.get('kind'))
+    if field is None:
+        return {}
+    state = document.get('state', {})
+    record = state.get(field[0], {}) if isinstance(state, dict) else {}
+    actor = record.get(field[1]) if isinstance(record, dict) else None
+    from .workflows import valid_actor
+    if not valid_actor(actor):
+        return {}
+    if actor.startswith('researcher:'):
+        return {'researcher': actor.removeprefix('researcher:')}
+    return {'actor': 'you' if actor == 'studio' else actor, 'by': actor}
+
+
 def describe(document: dict) -> dict:
     kind = document.get('kind', '')
     state = document.get('state', {})
@@ -335,3 +356,31 @@ def additional_inputs(entries, record):
         if (ref.get('session'), ref.get('document'), ref.get('revision'), ref.get('digest')) in selected:
             duplicated += 1
     return len(selected) - duplicated
+
+
+def study_candidates(store, session):
+    """Working material, not bookkeeping; include explicitly retained historical uses."""
+    from .resources import Index
+    saved, problems = store.scan(session)
+    entries = [Index.project_entry(item) for item in saved]
+    problems.extend(attach_usage(entries, store))
+    rows, seen = [], set()
+    for entry in entries:
+        material = entry.material or {}
+        if material.get('record') or material.get('kind') in ('assignment', 'workflow') or entry.values.get('kind') == 'scientific-workflow':
+            continue
+        choices = [{'id': entry.id, 'revision': entry.version, 'digest': entry.source['sha256'],
+                    'title': entry.title, 'kind': entry.values['kind'], 'material': material}]
+        for use in material.get('uses', []):
+            if use.get('available'):
+                old = store.read(entry.id, session, revision=use['revision'])
+                if old.digest == use['digest']:
+                    choices.append({'id': old.id, 'revision': old.revision, 'digest': old.digest,
+                                    'title': old.document['title'], 'kind': old.document['kind'],
+                                    'material': use['material']})
+        for choice in choices:
+            key = (choice['id'], choice['revision'], choice['digest'])
+            if key not in seen:
+                rows.append(choice)
+                seen.add(key)
+    return rows, problems

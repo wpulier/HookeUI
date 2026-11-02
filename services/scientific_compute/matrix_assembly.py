@@ -55,9 +55,8 @@ def concatenate(inputs, params, output, check):
             for digest, value in zip(digests, (block.data.astype('<f4'), block.indices.astype('<i8'), np.diff(block.indptr).astype('<i8'))):
                 digest.update(value.tobytes())
         for matrix, identities, (contexts, targets) in zip(matrices, names, labels):
-            for start in range(0, matrix.shape[0], engine.BLOCK_ROWS):
-                check()
-                block = bounded_h5.row_block(matrix, start, min(start + engine.BLOCK_ROWS, matrix.shape[0]), list(range(len(genes))))
+            for start, end in bounded_h5.row_ranges(matrix, engine.BLOCK_ROWS, check):
+                block = bounded_h5.row_block(matrix, start, end, list(range(len(genes))))
                 engine._finite(block, counts=True)
                 block = sparse.csr_matrix(block, dtype=np.float64)
                 if block.nnz and np.any(block.data > 2 ** 24):

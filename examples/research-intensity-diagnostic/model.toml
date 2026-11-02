@@ -1,0 +1,27 @@
+requires = { catalog = 2 }
+id = "research-intensity-diagnostic"
+name = "Image intensity summary"
+runs = "cpu"
+version = "1"
+licence = ["research-intensity-diagnostic"]
+what = "Measures each image channel's range, mean and clipping fraction"
+description = "Three channel summaries of supplied RGB8 values. Clipping means values exactly 0 or 255; it does not establish acquisition saturation, cell identity or biological accuracy. No normalization or image modification."
+runner = "python-env"
+adapter = "adapter:run"
+env = { python = "3.13.5", lock = "env.lock", imports = ["numpy"] }
+needs_to_run = ["install:research-intensity-diagnostic"]
+component = { what = "Deterministic image intensity diagnostic", licence = "Apache-2.0", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+source = { made_here = "Research capability proposal; no weights" }
+credit = { authors = "HookeUI contributors; NumPy", link = "https://numpy.org" }
+category = "Measure"
+outcomes = { unsupported = "requires a nonempty uint8 RGB image" }
+
+[[inputs]]
+id = "image"
+type = "image.2d.rgb8"
+label = "Picture"
+
+[[outputs]]
+id = "summary"
+type = "table.objects"
+label = "Intensity by channel"

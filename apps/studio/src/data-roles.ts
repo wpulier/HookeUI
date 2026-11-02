@@ -30,7 +30,7 @@ export interface ProjectMaterial {
   format?: string; bytes?: number; shape?: number[]; dependencies: unknown[];
 }
 /** Who made it (S2): you, the Assistant or a researcher (its id when the record says it). */
-export interface DataMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent'; id?: string; name: string }
+export interface DataMaker { kind: 'you' | 'assistant' | 'researcher' | 'agent' | 'system'; id?: string; name: string }
 /** A write-up's form, newest first (S4): its presentation ("Presentation") and each findings version ("Findings v2"). */
 export interface DataForm { label: string; version?: number; outputId?: string; at?: number; state?: 'writing' | 'ready' }
 /** A source's facts (S4), all of them its researcher's or the web's words. */
@@ -292,12 +292,13 @@ export function makerChoices(rows: readonly DataRow[]): MakerChoice[] {
   }
   const byNumber = (a: MakerChoice, b: MakerChoice) => a.name.localeCompare(b.name, undefined, { numeric: true });
   return [...(others.has('you') ? [{ key: 'you', name: 'You' }] : []), ...(others.has('assistant') ? [{ key: 'assistant', name: 'The Assistant' }] : []),
+    ...(others.has('system') ? [{ key: 'system', name: 'Hooke system' }] : []),
     ...[...agents.values()].sort(byNumber), ...[...researchers.values()].sort(byNumber)];
 }
 
 /** The chosen maker's name, for its chip ("Researcher 3", "You", "The Assistant"). */
 export function makerName(key: MakerKey): string {
-  return key === 'you' ? 'You' : key === 'assistant' ? 'The Assistant' : key.replace(/^[ra]:/, '');
+  return key === 'you' ? 'You' : key === 'assistant' ? 'The Assistant' : key === 'system' ? 'Hooke system' : key.replace(/^[ra]:/, '');
 }
 
 // --- New since you last looked ----------------------------------------------------------------------------------

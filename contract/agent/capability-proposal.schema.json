@@ -1,0 +1,15 @@
+{
+  "$id": "hooke:agent/capability-proposal",
+  "type": "object", "additionalProperties": false,
+  "required": ["title", "gap", "package", "licence", "dependencies", "permissions", "resources", "proofPlan"],
+  "properties": {
+    "title": {"type":"string","minLength":1,"maxLength":240},
+    "gap": {"type":"string","minLength":1,"maxLength":8000},
+    "package": {"$ref":"artifact-reference.schema.json"},
+    "licence": {"type":"string","minLength":1,"maxLength":2000},
+    "dependencies": {"type":"string","minLength":1,"maxLength":8000},
+    "permissions": {"type":"string","minLength":1,"maxLength":8000},
+    "resources": {"type":"string","minLength":1,"maxLength":2000},
+    "proofPlan": {"type":"string","minLength":1,"maxLength":8000}
+  }
+}

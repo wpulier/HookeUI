@@ -6258,6 +6258,18 @@
      "numeric": false,
      "required": false,
      "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels or a 512 KiB encoded report. Does not infer biological groups.",
+     "initial": "",
+     "key": "annotation_column",
+     "kind": "text",
+     "label": "Count labels in observation column",
+     "numeric": false,
+     "required": false,
+     "said": {}
     }
    ],
    "generated": true,
@@ -6298,6 +6310,18 @@
      "numeric": false,
      "required": false,
      "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels or a 512 KiB encoded report. Does not infer biological groups.",
+     "initial": "",
+     "key": "annotation_column",
+     "kind": "text",
+     "label": "Count labels in observation column",
+     "numeric": false,
+     "required": false,
+     "said": {}
     }
    ],
    "generated": true,
@@ -6330,6 +6354,18 @@
      "key": "require_raw_counts",
      "kind": "boolean",
      "label": "Require whole nonnegative counts",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [],
+     "hint": "Optional exact column name, such as the recorded target or batch column. Counts every observed text label and missing value; refuses more than 4096 distinct labels or a 512 KiB encoded report. Does not infer biological groups.",
+     "initial": "",
+     "key": "annotation_column",
+     "kind": "text",
+     "label": "Count labels in observation column",
      "numeric": false,
      "required": false,
      "said": {}
@@ -7304,7 +7340,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",
@@ -7468,7 +7504,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",
@@ -7627,7 +7663,7 @@
     {
      "advanced": false,
      "choices": [],
-     "hint": "",
+     "hint": "Used for a target-list panel. An explicit target-count panel supplies each target's count instead, in every context.",
      "initial": 100,
      "key": "cells_per_target",
      "kind": "number",

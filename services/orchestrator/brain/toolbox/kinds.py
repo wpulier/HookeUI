@@ -59,6 +59,8 @@ def add_kind_tools(registry: Registry, services) -> None:
                     return kind, None, None, None
                 try:  # one check of its parameters for every actor (manifests.params_given)
                     m = kinds.manifest_of(kind)
+                    from ...capability_identity import check_admitted_entry
+                    check_admitted_entry(m)
                     return kind, m, kinds.values_for(kind, given, m=m, agent=agent) if kind.get("params") or given else {}, None
                 except (ValueError, OverflowError) as exc:  # a number past a float's range: a refusal too, never raised
                     return kind, None, None, exc
@@ -78,6 +80,10 @@ def add_kind_tools(registry: Registry, services) -> None:
         # With what it asked the app for, read now (nothing of the catalog read again).
         inputs = kinds.inputs_for(kind, given, hub, values=values, m=m if m is not None else kinds.UNREAD)
         run_params = {"inputs": inputs} if inputs else None
+        from ...capability_identity import admitted_params
+        pinned = admitted_params(m)
+        if pinned:
+            run_params = {**(run_params or {}), **pinned}
         # Its name travels with what it makes (the result's title, the Actions row's words), so nothing reads the catalog again.
         attach(values={"capability": kind["key"], "name": kinds.said_name(kind), **({"params": values} if values else {})})
         by = "user-chosen" if args.get("by") == "user" else "brain-chosen"
@@ -180,7 +186,7 @@ def add_kind_tools(registry: Registry, services) -> None:
             if selected is not None:
                 attach(values={"inputResources": [selected.source_image["resource"]]})
                 # A retained derived image never inherits the live microscope's objective or calibration.
-                run_params = {"inputs": json.dumps(values or {})}
+                run_params = {"inputs": json.dumps(values or {}), **pinned}
             try:
                 done = await runner(hub).run(kind["operation"], capture, Prompt("field"), choice=kind["id"], origin=by,
                                              params=run_params)

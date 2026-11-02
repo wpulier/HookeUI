@@ -82,6 +82,12 @@ def _receipt(folder) -> dict:
 def of(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict:
     """The entry's update state (see _of). Inside a display scope (one wire build) it is computed once, whichever
     surfaces ask: the wire's setup.maintenance, each readiness, the card's update line. Read it, never change it."""
+    from . import store
+    with store.display_reads():
+        return _display(m, environ)
+
+
+def _display(m: catalog.Manifest, environ: Mapping[str, str]) -> dict:
     from .. import env_observations
 
     kept = env_observations.memo("maintenance-status")

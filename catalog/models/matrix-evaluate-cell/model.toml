@@ -4,7 +4,7 @@ requires = { catalog = 2 }
 id = "matrix-evaluate-cell"
 name = "Evaluate cellular responses"
 runs = "cpu"
-version = "1"
+version = "2"
 licence = ["matrix-evaluate-cell"]
 kind = "tool-function"
 what = "Run pinned upstream cell-eval2 metrics with a retained evaluation protocol"

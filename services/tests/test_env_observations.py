@@ -1,8 +1,10 @@
 """Synthetic disk receipts through the real display/resolver; no models, keys, installs or running servers."""
 import asyncio
 import json
+import os
 import shutil
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +21,156 @@ def installed(m):
     shutil.copytree(m.folder, d / envs.SNAPSHOT / m.id)
     env_runner.proof_path(m).write_text(json.dumps({'ok': True, 'found': 3}))
     return d
+
+
+def test_update_display_uses_observed_maintenance_records(home, monkeypatch):
+    from orchestrator.maintenance import store
+    m = contribute(home)
+    active = installed(m)
+    env_runner.choose(m, active.name)
+    candidate = contribute(home, version='dark-spots 0.2')
+    snapshot = observations.collect()
+    root = store.root()
+    stat = Path.stat
+    def no_maintenance_stat(path, *args, **kwargs):
+        if path.is_relative_to(root):
+            pytest.fail(f'synchronous maintenance display read: {path.name}')
+        return stat(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'stat', no_maintenance_stat)
+    with observations.display(snapshot):
+        assert 'Update available' in env_runner.update_waiting(candidate)
+
+
+@pytest.mark.parametrize('name', ['policies.json', 'checks.json', 'pins.json', 'attempts/mine--spots.json'])
+def test_maintenance_observation_keeps_snapshot_but_live_reads_and_recollection_change(home, name):
+    from orchestrator.maintenance import store
+    path = store.path(name)
+    store.write(path, {'version': 1})
+    snapshot = store.display_records(['mine/spots'])
+    store.write(path, {'version': 2})
+    with observations.display(snapshot), store.display_reads():
+        assert store.read(path, {}) == {'version': 1}
+        with observations.live():
+            assert store.read(path, {}) == {'version': 2}
+    assert store.read(path, {}) == {'version': 2}
+    path.unlink()
+    with observations.display(store.display_records(['mine/spots'])), store.display_reads():
+        assert store.read(path, {}) == {}
+
+
+def test_maintenance_decisions_snapshot_and_profiles_are_independent(home):
+    from orchestrator.maintenance import store
+    path = store.path('decisions.jsonl')
+    store.append(path, {'action': 'before'})
+    snapshot = store.display_records([])
+    store.append(path, {'action': 'after'})
+    other = {'MICROMIND_CATALOG': str(home / 'other-catalog')}
+    store.write(store.path('policies.json', other), {'separate': True})
+    with observations.display(snapshot), store.display_reads():
+        assert store.lines(path) == [{'action': 'before'}]
+        assert store.read(store.path('policies.json', other), {}) == {'separate': True}
+        assert store.read(store.path('policies.json'), {}) == {}
+    assert store.lines(path) == [{'action': 'before'}, {'action': 'after'}]
+
+
+def test_maintenance_mutations_inside_display_read_live_state(home):
+    from orchestrator.maintenance import policy, store
+    m = contribute(home)
+    installed(m)
+    policy.record(m, 'review', by='you', how='screen')
+    snapshot = observations.collect()
+    path = store.path('policies.json')
+    live = store.read(path, {})
+    live['other-entry'] = {'policy': 'pin', 'generation': 'preserve-me'}
+    store.write(path, live)
+    with observations.display(snapshot), store.display_reads():
+        assert policy.get(m.key)['policy'] == 'review'
+        policy.record(m, 'manual', by='you', how='screen')
+        with store.locked(), store.locked():
+            assert policy.get(m.key)['policy'] == 'manual'
+            assert policy.get('other-entry')['generation'] == 'preserve-me'
+        assert policy.get(m.key)['policy'] == 'review', 'display remains the prior observation until refreshed'
+    assert policy.get(m.key)['policy'] == 'manual'
+    assert policy.get('other-entry')['generation'] == 'preserve-me'
+
+
+def test_status_projection_is_observed_without_changing_ordinary_policy_reads(home):
+    from orchestrator.maintenance import policy, status
+    m = contribute(home)
+    installed(m)
+    policy.record(m, 'review', by='you', how='screen')
+    snapshot = observations.collect()
+    policy.record(m, 'manual', by='you', how='screen')
+    with observations.display(snapshot):
+        assert status.of(m)['policy']['policy'] == 'review'
+        assert policy.get(m.key)['policy'] == 'manual'
+    assert status.of(m)['policy']['policy'] == 'manual'
+
+
+def test_new_pins_are_live_for_removal_authority_and_mutation(home):
+    from orchestrator.maintenance import pins
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    pins.add(m.key, active.name, 'recipe', 'saved-workflow')
+    with observations.display(snapshot):
+        assert pins.of(m.key)[0]['owner'] == 'saved-workflow', 'ordinary reads remain live even inside display'
+        with pytest.raises(pins.Held, match='saved-workflow'):
+            pins.require_removable(m.key, {active.name})
+        assert pins.remove(m.key, 'recipe', 'saved-workflow') == 1
+    assert pins.of(m.key) == []
+
+
+def test_runtime_removal_sees_new_active_attempt_inside_old_display(home, monkeypatch):
+    from orchestrator.maintenance import prepare, store
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    store.write(prepare.path(m.key), {'state': 'applying', 'pid': 123})
+    monkeypatch.setattr(prepare, 'alive', lambda attempt: attempt.get('pid') == 123)
+    with observations.display(snapshot):
+        with pytest.raises(envs.Failed, match='update is being prepared'):
+            envs.removal(m)
+    assert active.exists()
+
+
+def test_apply_precheck_sees_new_active_attempt_inside_old_display(home):
+    from orchestrator.maintenance import prepare, promote, store
+    m = contribute(home)
+    active = installed(m)
+    snapshot = observations.collect()
+    store.write(prepare.path(m.key), {'state': 'applying'})
+    with observations.display(snapshot):
+        with pytest.raises(promote.Failed, match='previous update'):
+            prepare.apply(m, active.name)
+    assert prepare.last(m.key)['state'] == 'applying'
+
+
+def test_explicit_selection_releases_pin_recorded_after_display_snapshot(home):
+    from orchestrator.maintenance import policy, pins
+    m = contribute(home)
+    original = installed(m)
+    newer = contribute(home, version='dark-spots 0.2')
+    replacement = installed(newer)
+    env_runner.choose(newer, original.name)
+    snapshot = observations.collect()
+    policy.record(newer, 'pin', generation=original.name, by='you', how='screen')
+    with observations.display(snapshot):
+        env_runner.choose(newer, replacement.name)
+    assert env_runner.selected(newer).folder == replacement
+    assert policy.get(newer.key)['policy'] == 'manual'
+    assert not [p for p in pins.of(newer.key) if p['kind'] == 'user']
+
+
+def test_update_check_persistence_does_not_borrow_display_backoff(home):
+    from orchestrator.maintenance import discover, store
+    m = contribute(home)
+    snapshot = observations.collect()
+    store.write(store.path('checks.json'), {m.key: {'failures': 4, 'failingSince': 'original'}})
+    with observations.display(snapshot):
+        result = discover._save(m.key, {'ok': False, 'at': 'later'}, dict(os.environ))
+    assert result['failures'] == 5
+    assert result['failingSince'] == 'original'
 
 
 def test_versions_enumerates_once_and_display_reuses_facts(home, monkeypatch):

@@ -29,6 +29,8 @@ class LocalLifecycle:
 def register(app, built, studio_origin, header):
     from . import study_questions_api
     study_questions_api.register(app, built, studio_origin, header)
+    from .coordination_api import register_studio
+    register_studio(app, built, studio_origin, header)
     extension = os.environ.get('HOOKEUI_RESEARCH_EXTENSION', '').strip()
     if extension:
         # Invalid configuration fails at startup, never silently falls back.
@@ -70,12 +72,13 @@ def register(app, built, studio_origin, header):
         try:
             built.day.elsewhere(session)
             def listed():
-                return [{'id': s.id, 'revision': s.revision, 'digest': s.digest,
-                         'title': s.document['title'], 'kind': s.document['kind'],
+                from ..project_material import study_candidates
+                candidates, problems = study_candidates(service.store, session)
+                return {'ok': True, 'inputs': [{**s,
                          'managedFileEligible': False, 'scientificInputEligible': False, 'localInputEligible': True,
                          'limitation': UNAVAILABLE, 'scientificLimitation': UNAVAILABLE}
-                        for s in service.store.list(session) if s.document['kind'] != KIND]
-            return JSONResponse({'ok': True, 'inputs': await _owned(listed)}, headers=HEADERS)
+                        for s in candidates], 'problems': problems}
+            return JSONResponse(await _owned(listed), headers=HEADERS)
         except (ValueError, OSError, KeyError) as error:
             return _error(error)
 
@@ -162,7 +165,7 @@ def register(app, built, studio_origin, header):
     @app.post('/api/research-efforts/{effort}/workflows')
     async def workflow_start(effort: str, request: Request):
         try:
-            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings'})
+            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'})
             from .studies import service as studies
             record, made = await studies(built).start_workflow(effort, actor='studio', label='You', **body)
             return JSONResponse({'ok': True, 'operation': record, 'made': made}, headers=HEADERS)

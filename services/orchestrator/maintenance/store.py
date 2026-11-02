@@ -18,6 +18,7 @@ import tempfile
 import threading
 import time
 from contextlib import contextmanager
+from contextvars import ContextVar
 from pathlib import Path
 from typing import Iterator, Mapping
 
@@ -43,9 +44,25 @@ def now() -> str:
 
 _seen: dict[str, tuple[tuple, object]] = {}  # what a file held, by its stat: a display read parses it once
 _seen_lock = threading.Lock()
+_DISPLAY_READS: ContextVar[bool] = ContextVar('maintenance_display_reads', default=False)
+
+
+@contextmanager
+def display_reads():
+    """Only read-only display projections opt into observations; ordinary callers stay live."""
+    token = _DISPLAY_READS.set(True)
+    try:
+        yield
+    finally:
+        _DISPLAY_READS.reset(token)
 
 
 def _parsed(p: Path, parse):
+    from .. import env_observations
+    observed = (env_observations.display_fact(('maintenance-record', str(p)), None)
+                if _DISPLAY_READS.get() else None)
+    if observed is not None:
+        return observed[0]  # (None,) records an observed missing/unreadable file.
     try:
         st = p.stat()
     except OSError:
@@ -113,12 +130,30 @@ def lines(p: Path) -> list[dict]:
     return [dict(r) for r in (_parsed(p, _rows) or [])]
 
 
+def display_records(keys, environ: Mapping[str, str] = os.environ) -> dict:
+    """Collect raw records off-loop; display observations never authorize a mutation."""
+    from .. import env_observations
+    names = ['policies.json', 'checks.json', 'pins.json', 'decisions.jsonl']
+    names.extend(f'attempts/{safe(key)}.json' for key in keys)
+    with env_observations.live():
+        return {('maintenance-record', str(path(name, environ))):
+                (copy.deepcopy(_parsed(path(name, environ), _rows if name.endswith('.jsonl') else json.loads)),)
+                for name in names}
+
+
 _locks = threading.local()
 
 
 @contextmanager
 def locked(environ: Mapping[str, str] = os.environ) -> Iterator[None]:
     """One writer across threads/processes; the owning thread may compose nested maintenance writes."""
+    from .. import env_observations
+    with env_observations.live(), _locked(environ):
+        yield
+
+
+@contextmanager
+def _locked(environ: Mapping[str, str]) -> Iterator[None]:
     import fcntl  # here, not at import: the module is read on systems without it (the Windows import probe)
 
     r = root(environ).resolve()

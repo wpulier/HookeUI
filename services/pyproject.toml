@@ -15,6 +15,7 @@ dependencies = [
 ]
 
 [dependency-groups]
+agent-client = ["mcp==2.3.0"]  # optional stdio transport; never installed by a research task
 dev = ["pytest>=8.3", "pytest-xdist>=3.6", "h5py>=3.12"]  # pytest-xdist: `make test` runs the suite on every core; h5py: synthetic BigDataViewer fixtures (tests/test_bdv_reader.py)
 cloud = ["google-genai>=2.28", "openai", "fal-client", "websockets", "keyring>=25"]  # keyring: keys the app saves go in the Keychain (orchestrator/secrets.py)
 gpu = ["torch>=2.7", "transformers>=4.56", "timm>=1.0", "open-clip-torch>=3.3",

@@ -16,6 +16,11 @@ export function actorOrigin(id:string):string {
   if(id.startsWith('researcher:'))return 'Hooke researcher';
   return 'Recorded contributor';
 }
+/** Assignments coordinate people/agents; only admitted scientific work is an experiment. */
+export function experimentCount(study:Effort):number {
+  return Object.keys(study.experiments??{}).length+Object.values(study.tasks??{}).filter(t=>
+    t.specification?.provider!=='scientific-gcp-grant'&&t.specification?.provider!=='collaboration'&&!!t.execution).length;
+}
 export function contributors(studies:readonly Effort[]):Contributor[] {
   const found=new Map<string,Contributor>();
   const add=(id:string|undefined,label:string|undefined,kind?:'experiments'|'reports'|'replies')=>{
@@ -48,12 +53,20 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
   const ids=new Set(Object.values(study.experiments??{}).map(e=>e.operation));
   const operations=(snapshot?.operations??[]).filter(op=>ids.has(op.id)&&op.project===study.session&&(!op.workflow||op.workflow.session===study.session));
   const counts={running:0,waiting:0,check:0,finished:0,failed:0};
+  const assignments={waiting:0,working:0,review:0,check:0};
   for(const op of operations)counts[operationPhase(op)]++;
   for(const task of Object.values(study.tasks??{})){
     if(task.specification?.provider==='scientific-gcp-grant')continue;
+    if(task.specification?.provider==='collaboration'){
+      if(task.status==='planned')assignments.waiting++;
+      else if(task.status==='running')assignments.working++;
+      else if(task.status==='completed'){assignments.review++;counts.waiting++;}
+      else assignments.check++;
+      continue;
+    }
     const phase=taskPhase(task);
     if(['running','launching','cancel_requested'].includes(phase))counts.running++;
-    else if(['review','waiting','planned'].includes(phase))counts.waiting++;
+    else if(['review','reported','waiting','planned'].includes(phase))counts.waiting++;
     else if(phase==='unknown')counts.check++;
     else if(phase==='failed')counts.failed++;
     else if(['finished','completed','cancelled'].includes(phase))counts.finished++;
@@ -64,8 +77,8 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
   const unavailable=!!snapshot?.error||missing>0;
   // A failed refresh must not perpetuate a stale running/idle claim.
   const title=unavailable?'Activity needs refreshing':counts.running?`${counts.running} experiment${counts.running===1?'':'s'} running`:
-    counts.check?'Execution needs checking':counts.waiting?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
-  return {counts,pending,unavailable,title,operations};
+    counts.check||assignments.check?'Execution needs checking':assignments.working?'Agent assignment claimed':assignments.waiting?'Waiting for an agent':counts.waiting?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
+  return {counts,assignments,pending,unavailable,title,operations};
 }
 export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
   const out:HistoryEvent[]=[];

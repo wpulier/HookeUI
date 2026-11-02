@@ -92,7 +92,7 @@
       "required": ["kind", "name"],
       "additionalProperties": false,
       "properties": {
-        "kind": {"enum": ["you", "assistant", "researcher", "agent", "unknown"]},
+        "kind": {"enum": ["you", "assistant", "researcher", "agent", "system", "unknown"]},
         "name": {"type": "string"},
         "id": {"type": "string"}
       }

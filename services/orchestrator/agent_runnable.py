@@ -124,10 +124,19 @@ NOT_RUNNABLE: dict[str, str] = {
 }
 
 
-# Catalog capabilities (catalog:<key>, run by run_capability): only entries of the reviewed catalog are runnable for
-# agents. A community channel's entry or the researcher's own (a manifest with a namespace) is not, whatever it does.
-def catalog_runnable(manifest) -> bool:
-    return manifest is not None and not getattr(manifest, "namespace", "")
+# Imported Python capabilities additionally need the owner's exact-package comparison approval,
+# and the shared registry's current installed/proven selection. Discovery never supplies that approval.
+def catalog_runnable(manifest, *, owner_reviewed=False) -> bool:
+    if manifest is None:
+        return False
+    if not getattr(manifest, 'namespace', ''):
+        return True
+    entries = getattr(manifest, 'implements', ())
+    # First qualified extension route: a bounded image-to-table diagnostic. Other
+    # imported routes keep default-no until their generation/review paths qualify.
+    return (owner_reviewed and getattr(manifest, 'runner', '') == 'python-env' and
+            not getattr(manifest, 'members', ()) and len(entries) == 1 and
+            entries[0].input == 'image.2d.rgb8' and entries[0].output == 'table.objects')
 
 
 # Arguments that would point an agent's run outside its own Project: a session other than its own, a conversation, a
@@ -142,6 +151,11 @@ def runnable(tool_name: str) -> bool:
 # Door-native resources use the same deliberate, default-deny declaration boundary.
 # These are not Assistant stage tools: each has its own explicit Project contract.
 DOOR_RESOURCES = {
+    "study.coordination": "reads this Project’s retained research plan, assignments, claims and original experiment references",
+    "study.coordinate": "prepares plans, coordinates assignments and retains capability proposals for owner review; starts no model, scientific operation or installation",
+    "research.instructions": "reads versioned non-executable research instruction packages; grants no runtime authority",
+    "study-coordination.read": "reads retained plans and assignments within the authorized Project",
+    "study-coordination.write": "prepares plans and coordinates attributed assignments; grants no runtime or installation authority",
     'project.create': 'creates a local-only retained Project without moving the stage',
     'project.list': 'lists only Projects this connection may read',
     'project.export.prepare': 'reads the byte estimate and unverified dependency scope of an authorized Project folder',

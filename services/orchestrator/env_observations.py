@@ -170,6 +170,8 @@ def collect(environ: Mapping[str, str] = os.environ) -> dict:
         entries = {**catalog.manifests(), **catalog.mine(environ)}
         from . import fiji_display
         out = {fiji_display.key(environ): fiji_display.collect(environ)}
+        from .maintenance import store
+        out.update(store.display_records(entries, environ))
         for m in entries.values():
             if not m.env:
                 continue

@@ -141,3 +141,37 @@ def test_study_question_ui_to_connected_agent_roundtrip_enforces_grants(tmp_path
         assert len(client.get(local,params={'session':session},headers=studio).json()['recipients'])==1
         built.day.sid='2026-10-27'
         assert client.post(local,json={**body,'request':'changed-project'},headers=studio).status_code==409
+
+
+def test_coordination_shares_intent_but_enforces_each_project_grant(tmp_path):
+    store=ProjectStore(tmp_path/'projects')
+    session='2026-11-01'
+    built=SimpleNamespace(paths=SimpleNamespace(home=tmp_path),hub=SimpleNamespace(clients=set(),resources=SimpleNamespace(projects=store)),day=SimpleNamespace(sid=session,elsewhere=lambda _:SimpleNamespace(local_only=True)))
+    app=FastAPI();api.register(app,built,studio_origin,HEADER)
+    with TestClient(app,base_url=BASE) as client:
+        a=connect(client,label='Lead');b=connect(client,label='Reviewer',secret='second-client-secret-0001')
+        h1,h2=bearer(a['token']),bearer(b['token']);aa='agent:'+a['connection']['id'];bb='agent:'+b['connection']['id']
+        access(built).remember(session,aa);access(built).grant(session,bb,'read',authority='development')
+        study=client.post('/api/agent/v1/studies',json={'session':session,'requestKey':'coordination-study','title':'Compare','objective':'Read evidence','criteria':'Measured result','budgetUsd':0,'inputs':[]},headers=h1).json()['study']
+        base=f"/api/agent/v1/studies/{study['id']}/coordination"
+        initial=client.get(base,params={'session':session},headers=h2)
+        assert initial.status_code==200
+        body={'session':session,'basis':initial.json()['basis'],'plan':{'desiredOutput':'Comparison','evaluation':'Error','methodNotes':'Baseline then follow-up','materials':[],'actorMode':'connected-agent','limits':{'experiments':2,'modelMinutes':30,'tokens':60000}}}
+        assert client.post(base+'/plan',json=body,headers=h2).status_code==403
+        saved=client.post(base+'/plan',json=body,headers=h1)
+        assert saved.status_code==200,saved.text
+        assert saved.json()['coordination']['plan']['by']==aa
+        body['by']=bb
+        assert client.post(base+'/plan',json=body,headers=h1).status_code==400
+        access(built).grant(session,bb,'contribute',authority='development')
+        from tests.test_research_coordination import proposal
+        assigned=client.post(base+'/propose',json={'session':session,'request':'review','assignment':proposal()},headers=h1)
+        assignment=assigned.json()['coordination']['id']
+        claim=client.post(base+'/claim',json={'session':session,'assignment':assignment,'harness':'fixture','model':'fixture'},headers=h2)
+        assert claim.status_code==200,claim.text
+        assert claim.json()['coordination']['assignments'][0]['claimedBy']['by']==bb
+        client.post(f"/api/agent-connections/{b['connection']['id']}/disconnect",json={},headers=STUDIO)
+        assert client.get(base,params={'session':session},headers=h2).status_code==401
+        assert client.get(base,params={'session':'unrelated'},headers=h1).status_code in (400,403)
+        assert client.get('/api/agent/v1/research-instructions',headers=h1).status_code==200
+        assert client.get('/api/agent/v1/research-instructions',headers=h2).status_code==401
