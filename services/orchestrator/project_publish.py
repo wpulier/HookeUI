@@ -136,8 +136,13 @@ def signoff_problem(signoff) -> str | None:
     return None
 
 
-def publish(staging: Path, *, review_digest: str, signoff: dict, remote: Remote, parent=None, check=lambda: None):
-    """Send the reviewed publication. Returns the push receipt plus the journal event to record."""
+def publish(staging: Path, *, review_digest: str, signoff: dict, remote: Remote, parent=None, replaces=None,
+            check=lambda: None):
+    """Send the reviewed publication. Returns the push receipt plus the journal event to record.
+
+    `parent` is the previous publication's commit, if any. `replaces` is the placeholder commit of a repository
+    Hooke has just created for a first publication; it is replaced, never kept as history.
+    """
     staging = Path(staging)
     body = (staging / 'review.json').read_bytes()
     if sha256(body) != review_digest:
@@ -161,8 +166,11 @@ def publish(staging: Path, *, review_digest: str, signoff: dict, remote: Remote,
         'ro-crate-metadata.json': ro_crate(review['name'], review['licence'], author, today, documents).encode(),
     }
     text = readme(review['name'], review['licence'], review['licenceName'], documents, review, today).encode()
+    if replaces is not None and parent is not None:
+        raise RemoteRefused('A later publication chains onto the last one; it never replaces a repository’s start')
     receipt = push_sealed(publication, remote, parent=parent, summary=f'Publish {review["name"]}', readme=text,
-                          root_files=root_files, check=check)
+                          root_files=root_files, expected_head=replaces if replaces is not None else parent,
+                          check=check)
     event = {'type': 'project-published', 'destination': remote.describe(), 'commit': receipt['commit'],
              'parent': parent, 'snapshotSha256': receipt['snapshotSha256'], 'reviewDigest': review_digest,
              'licence': review['licence'], 'includeTranscripts': review['includeTranscripts']}

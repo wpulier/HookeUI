@@ -86,9 +86,17 @@ def sealed_manifest(sealed: Path):
     return root, raw, snapshot_manifest(raw, origin=root.origin)
 
 
+_SAME = object()
+
+
 def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: str, readme: bytes | None = None,
-                root_files: dict | None = None, scan_findings=None, check=lambda: None):
-    """Send one verified sealed snapshot. Returns a receipt; raises before moving the pointer on any refusal."""
+                root_files: dict | None = None, scan_findings=None, expected_head=_SAME, check=lambda: None):
+    """Send one verified sealed snapshot. Returns a receipt; raises before moving the pointer on any refusal.
+
+    `parent` is the new commit's parent. `expected_head` is the pointer it replaces, normally the parent; a new Git
+    host repository's own first commit is the one exception (its records remote replaces only that placeholder).
+    """
+    expected = parent if expected_head is _SAME else expected_head
     sealed = Path(sealed)
     verify_snapshot(sealed, check=check)
     root, raw, manifest = sealed_manifest(sealed)
@@ -101,7 +109,7 @@ def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: st
     if blocking(findings):
         raise SecretsFound(findings)
     head = remote.records.head()
-    if head != parent:
+    if head != expected:
         raise Diverged('This project changed in two places: the remote has a version this Mac did not send. '
                        'Nothing was sent. Start an independent copy, or update first.')
     # 1. Bulk objects, each verified by the store; one object serves every path with its content.
@@ -131,7 +139,7 @@ def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: st
     commit = remote.records.write_commit(files, parent=parent, message=commit_message(summary, snapshot_sha, root.origin),
                                          check=check)
     # 3. Compare-and-swap: refuse rather than overwrite a version sent from elsewhere meanwhile.
-    remote.records.advance(parent, commit)
+    remote.records.advance(expected, commit)
     return {'commit': commit, 'parent': parent, 'origin': root.origin, 'snapshotSha256': snapshot_sha,
             'recordFiles': len(record), 'bulkObjects': len(wanted), 'uploadedBytes': uploaded,
             'bytes': sum(e['bytes'] for e in manifest['entries']), 'findings': findings,
