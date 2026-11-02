@@ -69,3 +69,6 @@ attention is ordered first. Lease expiry invalidates the observed-state projecti
 without another saved write. Research-plan edits use a per-field three-way merge: unrelated
 changes survive, and conflicting fields require a choice which survives reopening. Missing
 operation history is uncertainty, never proof that pending execution can be replayed.
+
+Covered stage content is hidden from keyboard/accessibility traversal while a full
+research page is open. Its arrangement remains mounted and returns on leaving the page.
