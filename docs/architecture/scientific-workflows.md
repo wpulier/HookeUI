@@ -112,6 +112,37 @@ The bounded adapters, prepared dependencies and upstream evaluator are described
 
 ## Attribution
 
+### Installed file execution profiles
+
+Matrix tool settings may explicitly select `execution: {profile, generation}`;
+omitting it preserves local execution. Discovery exposes installed profiles without
+their Project allowlists. Trusted startup code installs the optional
+`HOOKEUI_MATRIX_EXECUTION_EXTENSION`; saved definitions cannot import code, choose
+credentials or increase operator resource ceilings. Managed provider code remains
+outside the public core. Local-only Projects refuse external admission.
+
+The original attempt stores exact inputs, parameters, scientific generation,
+execution generation, deterministic provider identity and maximum cost before
+submission. The workflow library lock admits one unresolved external job and sums
+retained reservations across the configured Projects. Completed reservations remain
+charged conservatively. An extension must checkpoint the original identity; changed
+identity or allowance refuses. Reads never submit. Explicit recovery observes the
+original job and verified output, never creates another job. Lost replies and failed
+output intake remain uncertain. Human notes cannot substitute for an observed
+termination receipt. Stop records intent and requests provider cancellation;
+termination must still be observed before a retry is allowed.
+
+Exact input FileSources cross the installed boundary. Local free-space admission
+reserves the maximum retained output plus overhead. Verified output returns through
+the ordinary FileIntake under a deterministic attempt-derived identity. Worker
+resource profiles are separately explicit, bounded, hashed scientific source:
+local defaults remain 24 GiB process memory and 8 GiB evaluator materialization.
+Larger trusted worker limits do not change the protocol or establish predictive
+quality. `test_matrix_execution.py` uses synthetic transport with real stores to
+check lost replies, original-attempt recovery, cancellation, allowance exhaustion,
+local-only/disk refusal and unchanged local resource defaults. Real provider,
+built-runtime and scientific qualification remain separate evidence.
+
 The transport supplies an authenticated `agent:ac_<id>` actor, a local `researcher:r<id>` identity, or the existing
 local user/chat/voice actor. Execution never switches behavior based on an agent product name. The original run actor is retained.
 Each new definition records `createdBy` and `lastChange: {by, action, revision}`. Edits, removal and restoration

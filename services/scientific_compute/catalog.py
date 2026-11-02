@@ -69,6 +69,7 @@ def descriptor(capability, environ=None):
     digest = hashlib.sha256()
     for path in (BASE / 'catalog' / 'models' / capability / 'model.toml',
                  Path(__file__).with_name('engine.py'), Path(__file__).with_name('cell_evaluation.py'), Path(__file__).with_name('worker.py'),
+                 Path(__file__).with_name('resource_profile.py'),
                  Path(__file__).with_name('reservation.py'), Path(__file__).with_name('aggregate_profiles.py'),
                  Path(__file__).with_name('bounded_h5.py'), Path(__file__).with_name('effect_evaluation.py'), Path(__file__).with_name('matrix_assembly.py'), Path(__file__).with_name('matrix_projection.py'), Path(__file__).with_name('count_emission.py'), Path(__file__).with_name('count_diagnostics.py'),
                  BASE / 'services' / 'orchestrator' / 'matrix_capability_runs.py', Path(__file__)):

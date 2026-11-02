@@ -85,10 +85,15 @@ def graph(value):
             raise InvalidProject('Only comparison steps take multiple inputs')
         if node['kind'] == 'tool':
             settings=node['settings']
-            if (not {'capability','generation','parameters','mode'} <= set(settings) or set(settings)-{'capability','generation','parameters','mode','bindings'}
+            if (not {'capability','generation','parameters','mode'} <= set(settings) or set(settings)-{'capability','generation','parameters','mode','bindings','execution'}
                     or any(type(settings[k]) is not str or not settings[k] for k in ('capability','generation'))
                     or settings['mode'] not in ('automatic','interactive') or type(settings['parameters']) is not dict):
                 raise InvalidProject('A tool needs its pinned capability, generation, parameters and execution mode')
+            if 'execution' in settings:
+                from .matrix_execution import selection
+                selection(settings['execution'])
+                if settings['mode'] != 'automatic' or settings['capability'] == 'basic-bright-objects':
+                    raise InvalidProject('External execution requires an automatic retained-file capability')
             bindings=settings.get('bindings')
             if bindings is not None and (type(bindings) is not dict or not bindings or any(type(k) is not str or not re.fullmatch(r'[a-z][a-z0-9_-]{0,39}',k) or v not in node['needs'] for k,v in bindings.items())):
                 raise InvalidProject('Map each capability input port to one connected step')
@@ -418,6 +423,9 @@ class Workflows:
         with self.locked(id_,session):
             saved=self.store.read(attempt,session);state=saved.document['state']['workflowAttempt']
             if state['run']!=id_ or state['status']!='uncertain':raise InvalidProject('Choose this run’s uncertain attempt')
+            external = state.get('execution')
+            if external and external['receipt']['state'] not in ('failed', 'cancelled', 'not-submitted'):
+                raise InvalidProject('Recover the original external job and observe termination before resolving it')
             state.update(status='failed',note=note.strip(),resolvedBy=actor)
             self._save_attempt(saved,state)
         return self.status(id_,session)

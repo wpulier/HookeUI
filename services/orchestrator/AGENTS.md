@@ -1125,6 +1125,11 @@ source owners still refuse. Export/reopen never refresh or recompute accepted va
 
 Scientific workflows use `workflow_service.py` for Studio, local researchers and connected agents. Definitions are personal immutable versions; runs and separate attempts belong to their captured Project. Named file inputs are exact revisions, not paths. `matrix_capability_runs` executes catalog operations without owning another task ledger. Reads do not dispatch; explicit recovery never replays uncertain attempts. See `docs/architecture/scientific-workflows.md`.
 
+`matrix_execution.py` admits optional operator-installed file execution profiles.
+Original workflow attempts own provider identities, conservative cost reservations
+and recovery; managed provider code stays outside the core. No saved workflow may
+select code, credentials or raise limits. Unknown termination remains uncertain.
+
 Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
 coordinate checks and atomic publication with worker outputs but retaining their own versioned
 producer instead of borrowing an input viewer runtime. External worker `OutputSave` still

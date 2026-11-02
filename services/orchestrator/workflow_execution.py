@@ -112,7 +112,12 @@ class ScientificSteps:
                             from .matrix_capability_runs import descriptor, parameters
                             declared=descriptor(s['capability'])
                             if declared['generation']!=s['generation']:raise InvalidProject('The pinned capability generation is unavailable; save a new workflow version')
-                            if not declared['ready']:raise InvalidProject(declared['reason'])
+                            if 'execution' in s:
+                                from .matrix_execution import validate
+                                validate(self.hub, s['execution'], s['capability'], session)
+                                if getattr(getattr(self, 'day', None), 'elsewhere', None) and self.day.elsewhere(session).local_only:
+                                    raise InvalidProject('This Project is local only; external execution is unavailable')
+                            elif not declared['ready']:raise InvalidProject(declared['reason'])
                             parameters(s['capability'],s['parameters'])
                             ports=[p['id'] for p in declared['inputs']]
                             mapping=s.get('bindings') or ({ports[0]:node['needs'][0]} if len(ports)==len(node['needs'])==1 else {})
@@ -203,10 +208,14 @@ class ScientificSteps:
             mapping=s.get('bindings') or ({ports[0]:node['needs'][0]} if len(ports)==len(node['needs'])==1 else {})
             if set(mapping)!=set(ports):raise InvalidProject('Bind every declared capability input port explicitly')
             refs=dict(zip(node['needs'],claim['inputs']))
-            saved=run_matrix(self.store,claim['session'],s['capability'],s['generation'],
-                {port:refs[dependency] for port,dependency in mapping.items()},s['parameters'],
-                token(claim['attempt'])[:32],check=lambda:self.check(claim), wait_seconds=3600,
-                waiting=lambda busy:self.workflows.progress(claim, 'Waiting for shared compute' if busy else 'Running scientific capability'))
+            inputs = {port:refs[dependency] for port,dependency in mapping.items()}
+            if 'execution' in s:
+                from .matrix_execution import run
+                saved = run(self, claim, inputs)
+            else:
+                saved=run_matrix(self.store,claim['session'],s['capability'],s['generation'],
+                    inputs,s['parameters'],token(claim['attempt'])[:32],check=lambda:self.check(claim), wait_seconds=3600,
+                    waiting=lambda busy:self.workflows.progress(claim, 'Waiting for shared compute' if busy else 'Running scientific capability'))
         elif node['kind']=='tool':
             check=self.validate({'nodes':[node]},claim['inputs'],claim['session'])
             if not check['available']:raise InvalidProject(check['steps'][0]['reason'])

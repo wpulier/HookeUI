@@ -9,6 +9,12 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_matrix_execution.py` uses synthetic provider transport over real workflow
+attempts and FileIntake to test original-job recovery, lost replies, cancellation,
+reserved allowance, local-only/disk refusal and bounded explicit worker resources.
+It does not establish live cloud execution, Linux environment compatibility,
+predictive quality or submission acceptance.
+
 Fixed-admission scoped-client tests use synthetic door responses and the real MCP
 SDK to check exact input/key allowances, startup immutability, lost-reply recovery
 across fresh clients, invalid configuration and no execution under an empty

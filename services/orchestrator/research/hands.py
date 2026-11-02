@@ -323,7 +323,8 @@ class Hands:
                 value=await for_workspace(self.hub,day).command(params,owner,actor='researcher:'+session.rid,label=session.name)
             elif action=='capabilities' and set(params)=={'action'}:
                 from ..matrix_capability_runs import descriptors
-                value={'capabilities':await asyncio.to_thread(descriptors)}
+                from ..matrix_execution import discovery
+                value={'capabilities':await asyncio.to_thread(descriptors), 'executionProfiles':await asyncio.to_thread(discovery, self.hub)}
             elif action=='list' and set(params)<= {'action','query'}:
                 value={'workflows':await asyncio.to_thread(w.list,params.get('query',''),False)}
             elif action=='inspect' and set(params)=={'action','workflow','revision'}:
