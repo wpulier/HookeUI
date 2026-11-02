@@ -22,6 +22,7 @@ from .project_remote import Remote, push_sealed, sealed_manifest
 from .project_remote_layers import RemoteRefused, canonical, classify, sha256
 from .project_repository import verify_owner
 from .project_roots import PARTS, ProjectRoot
+from .project_metadata_scan import scan as metadata_scan
 from .project_secret_scan import blocking, scan
 
 REVIEW_FORMAT = 'hooke-publication-review-v1'
@@ -98,7 +99,7 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
     publication = copy_snapshot(ProjectRoot.open(staging / 'filtered'), staging / 'publication', check=check)
     root, raw, manifest = sealed_manifest(publication.path)
     record, bulk = classify(manifest)
-    findings = scan(root.path, record, check=check)
+    findings = scan(root.path, record, check=check) + metadata_scan(root.path)
     full_raw = (full.path / 'snapshot.json').read_bytes()
     full_manifest = json.loads(full_raw)
     kept = {e['path'] for e in manifest['entries']}

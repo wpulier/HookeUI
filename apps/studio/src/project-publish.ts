@@ -31,6 +31,7 @@ const size = (n: number) => n < 1024 ** 2 ? `${Math.max(1, Math.ceil(n / 1024))}
 const words: Record<string, string> = {
   'secret': 'looks like a key or password', 'configured-key': 'contains one of this Mac’s keys',
   'home-path': 'names a folder in your home folder', 'unreadable': 'could not be read', 'more-not-listed': 'and more',
+  'metadata-location': 'carries a location (GPS)', 'metadata-person': 'carries a person’s name', 'metadata-home-path': 'carries a path from your home folder',
 };
 const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'hooke-project';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -150,7 +151,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     content.append(node('strong', 'Not published'), left);
     if (r.findings.length) {
       const list = node('ul', '', 'project-publish-findings');
-      for (const f of r.findings.slice(0, 20)) list.append(node('li', `${f.path} line ${f.line} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`));
+      for (const f of r.findings.slice(0, 20)) list.append(node('li', `${f.path}${f.line ? ` line ${f.line}` : ''} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`));
       content.append(node('strong', r.blocked ? 'Must be resolved' : 'Please check'), list);
     }
     const files = node('details'), summary = node('summary', 'Every file');
