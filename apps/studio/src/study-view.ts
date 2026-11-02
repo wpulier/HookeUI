@@ -541,6 +541,9 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     }
   };
   tabButton.addEventListener('click', () => showOne('conv')); writeupButton.addEventListener('click', () => showOne('art'));
+  // Start research promises a plan, including when the available width collapses
+  // the two columns. Do not land a new investigation on an empty activity log.
+  if (actions.localWorkflows) showOne('art');
   centreHead.append(filesToggle, tabs);
   const question = node('div', 'm-you'); question.append(node('div', 'm-user', study.objective), criterion);
   log.append(question, notice);
