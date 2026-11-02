@@ -69,7 +69,7 @@ class Studies:
         return self.efforts.list(session)
 
     async def start_workflow(self, study, session, *, request, workflow, revision, inputs,
-                             actor, label, bindings=None, assignment=None):
+                             actor, label, bindings=None, assignment=None, repeat=None):
         from ..workflows import run_identity
         self.workflows.owner(session)
         self.attribution(actor, label)
@@ -79,6 +79,12 @@ class Studies:
         if assignment is not None:
             text(assignment, 'Assignment identity', 128)
             params['assignment'] = assignment
+        if repeat is not None:
+            if type(repeat) is not dict or set(repeat) != {'id', 'reason'}:
+                raise InvalidProject('An explicit repeat needs an identity and scientific reason')
+            text(repeat['id'], 'Repeat identity', 128)
+            text(repeat['reason'], 'Repeat reason', 2000)
+            params['repeat'] = repeat
         workflow_request = fingerprint({'study': study, 'session': session, 'request': request, 'actor': actor})[:32]
         run = run_identity(session, workflow_request)
         execution = {'kind': 'workflow', 'id': run, 'session': session}
@@ -99,12 +105,22 @@ class Studies:
             if plan:
                 if plan['status'] != 'reviewed':
                     raise InvalidProject('Review the retained research plan before admitting experiments')
-                # Scientific identity excludes the actor and assignment. Deliberate
-                # repeats require a distinct frozen method/seed, not a new request key.
+                # Scientific identity excludes actor and assignment. Explicit repeat
+                # identity/reason distinguishes a justified repeat, not request retries.
                 intent = {k: v for k, v in params.items() if k != 'assignment'}
                 for previous in state.get('experiments', {}).values():
                     if {k: v for k, v in previous['specification'].items() if k != 'assignment'} == intent:
                         original = self.operations.get(previous['operation'])
+                        if assignment is not None:
+                            def reuse(current):
+                                task = self.efforts._task(current, assignment)
+                                operations = task['collaboration']['operations']
+                                if original['id'] in operations:
+                                    return False
+                                self._claim_for_admission(current, assignment, actor)
+                                operations.append(original['id'])
+                                return True
+                            await asyncio.to_thread(self.efforts._change, study, session, reuse)
                         return await self.operation(original), False
                 if len(state.get('experiments', {})) >= plan['limits']['experiments']:
                     raise InvalidProject('The reviewed plan experiment allowance is exhausted')
@@ -123,43 +139,83 @@ class Studies:
             admission = dict(tool='workflow', project=session, input_revision=str(revision),
                              generation=None, params=params, request_key='study:' + workflow_request)
             record = self.operations.lookup(by=actor, **admission)
+            if record is not None and workflow_request in state.get('experiments', {}):
+                # An acknowledged retry is a receipt read even after Stop or completion.
+                return await self.operation(record), False
             made = False
             command = {'action': 'validate', 'workflow': workflow, 'revision': revision,
                        'session': session, 'inputs': inputs, **({'bindings': bindings} if bindings else {})}
-            if record is None:
-                if state['status'] != 'active':
-                    raise InvalidProject('Continue this Study before admitting more work')
-                if len(state.get('experiments', {})) >= 256:
-                    raise InvalidProject('Retain this Study and start another before adding experiments')
-                definition = await asyncio.to_thread(self.workflows.workflows.definition, workflow, revision)
-                if any(n['kind'] == 'researcher' for n in definition.document['state']['workflow']['graph']['nodes']):
-                    raise InvalidProject('Study workflows cannot launch researcher nodes until their allowance is qualified')
-                readiness = await self.workflows.command(command, actor=actor)
-                if not readiness['readiness']['available']:
-                    raise InvalidProject('; '.join(s['reason'] for s in readiness['readiness']['steps'] if s['reason']))
-                record, made = await self.operations.admit(by=actor, label=label, **admission,
-                                                          work=None, execution=execution)
-            def link(state):
-                rows = state.setdefault('experiments', {})
-                old = rows.get(workflow_request)
-                row = {'request': request, 'operation': record['id'], 'execution': execution,
-                       'specification': params, 'by': record['by'], 'byLabel': record['byLabel']}
-                if old:
-                    if old['specification'] != params:
-                        raise Conflict('This experiment request already belongs to different work')
-                    return False
-                if len(rows) >= 256:
-                    raise InvalidProject('Retain this Study and start another before adding experiments')
-                rows[workflow_request] = row
-                if assignment is not None:
-                    self.efforts._task(state, assignment)['collaboration']['operations'].append(record['id'])
-                return True
-            await asyncio.to_thread(self.efforts._change, study, session, link)
-            # A lost response/reconnect only reads an existing run; no replay on read.
-            if made:
-                command.update(action='start', request=workflow_request)
-                await self.workflows.command(command, actor=record['by'])
-            return await self.operation(record), made
+            reserved = False
+            if assignment is not None:
+                def reserve(current):
+                    task = self._claim_for_admission(current, assignment, actor)
+                    pending = task['collaboration'].setdefault('pendingAdmissions', {})
+                    if workflow_request in pending:
+                        raise Conflict('Reconcile the retained pending admission before retrying')
+                    pending[workflow_request] = {'request': request, 'execution': execution}
+                    return True
+                await asyncio.to_thread(self.efforts._change, study, session, reserve)
+                reserved = True
+            try:
+                if record is None:
+                    if state['status'] != 'active':
+                        raise InvalidProject('Continue this Study before admitting more work')
+                    if len(state.get('experiments', {})) >= 256:
+                        raise InvalidProject('Retain this Study and start another before adding experiments')
+                    definition = await asyncio.to_thread(self.workflows.workflows.definition, workflow, revision)
+                    if any(n['kind'] == 'researcher' for n in definition.document['state']['workflow']['graph']['nodes']):
+                        raise InvalidProject('Study workflows cannot launch researcher nodes until their allowance is qualified')
+                    readiness = await self.workflows.command(command, actor=actor)
+                    if not readiness['readiness']['available']:
+                        raise InvalidProject('; '.join(s['reason'] for s in readiness['readiness']['steps'] if s['reason']))
+                    record, made = await self.operations.admit(by=actor, label=label, **admission,
+                                                              work=None, execution=execution)
+                def link(state):
+                    if state['status'] != 'active':
+                        raise Conflict('The Study stopped accepting work during admission')
+                    if assignment is not None:
+                        self._claim_for_admission(state, assignment, actor)
+                    rows = state.setdefault('experiments', {})
+                    old = rows.get(workflow_request)
+                    row = {'request': request, 'operation': record['id'], 'execution': execution,
+                           'specification': params, 'by': record['by'], 'byLabel': record['byLabel']}
+                    if old:
+                        if old['specification'] != params:
+                            raise Conflict('This experiment request already belongs to different work')
+                        return False
+                    if len(rows) >= 256:
+                        raise InvalidProject('Retain this Study and start another before adding experiments')
+                    rows[workflow_request] = row
+                    if assignment is not None:
+                        meta = self.efforts._task(state, assignment)['collaboration']
+                        if record['id'] not in meta['operations']:
+                            meta['operations'].append(record['id'])
+                        meta.get('pendingAdmissions', {}).pop(workflow_request, None)
+                    return True
+                await asyncio.to_thread(self.efforts._change, study, session, link)
+                # A lost response/reconnect only reads an existing run; no replay on read.
+                if made:
+                    command.update(action='start', request=workflow_request)
+                    await self.workflows.command(command, actor=record['by'])
+                return await self.operation(record), made
+            except BaseException:
+                # Failed readiness may release the reservation. Once admitted, keep
+                # uncertain ownership until reconciliation; never silently replay it.
+                if reserved and record is None:
+                    def release(current):
+                        pending = self.efforts._task(current, assignment)['collaboration'].get('pendingAdmissions', {})
+                        return pending.pop(workflow_request, None) is not None
+                    await asyncio.to_thread(self.efforts._change, study, session, release)
+                raise
+
+    def _claim_for_admission(self, state, assignment, actor):
+        task = self.efforts._task(state, assignment)
+        meta = task.get('collaboration', {})
+        if (state['status'] != 'active' or task['status'] != 'running'
+                or meta.get('claimedBy', {}).get('by') != actor
+                or meta.get('leaseUntil', 0) <= time.time()):
+            raise Conflict('Renew or reconcile the original assignment claim before admitting work')
+        return task
 
     async def operation(self, record, *, observed=None):
         execution = record.get('execution')

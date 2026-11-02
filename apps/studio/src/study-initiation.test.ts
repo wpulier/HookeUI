@@ -30,3 +30,21 @@ it('does not invent an active worker from an authorized connection',async()=>{
  await vi.waitFor(()=>expect(root.textContent).toContain('Could not read contributors'));
  expect(root.textContent).not.toContain('Agent actively working');
 });
+
+it('keeps typing made while a plan save is in flight',async()=>{
+ const {root,fetcher,storage}=setup();await vi.waitFor(()=>expect(root.querySelector('form')).not.toBeNull());
+ const form=root.querySelector('form') as unknown as HTMLFormElement;
+ form.checkValidity=()=>true;
+ let finish!:(r:Response)=>void;
+ fetcher.mockImplementationOnce(()=>new Promise<Response>(resolve=>{finish=resolve;}));
+ const save=root.querySelectorAll('button').find(b=>b.textContent==='Save research plan') as unknown as HTMLButtonElement;
+ save.onclick!(new Event('click') as PointerEvent);
+ await vi.waitFor(()=>expect(finish).toBeTypeOf('function'));
+ root.querySelector('textarea')!.value='Newer work, typed while saving';
+ form.oninput!({stopPropagation:()=>{}} as unknown as InputEvent);
+ finish(new Response(JSON.stringify({coordination:{basis:{id:'study',session:'s1',revision:2,digest:'new-basis'},plan,assignments:[]}})));
+ await vi.waitFor(()=>expect(root.textContent).toContain('Your newer draft is kept here'));
+ expect(root.querySelector('textarea')!.value).toBe('Newer work, typed while saving');
+ expect([...storage.values()][0]).toContain('new-basis');
+ expect([...storage.values()][0]).toContain('Newer work');
+});

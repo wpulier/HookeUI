@@ -544,3 +544,5 @@ WorkflowService run without replaying work or changing the admission receipt.
 Study material selection uses the shared material projection, excludes organization and workflow receipts, and preserves exact historical inputs. Generated artifacts remain selectable without changing their origin.
 
 Capability proposals are bounded retained Study records with exact package references, licensing, dependencies, permissions, resources and proof expectations. Proposing never prepares an environment, installs or activates code; the catalog owner workflow remains authoritative.
+
+Scientific admission first reserves the assignment in the same revision boundary as completion. A pending admission blocks completion; a lost host keeps it for explicit reconciliation rather than replay. Linked reused operations remain dependencies of every requesting assignment without rewriting execution authorship. Explicit repeats carry an identity and scientific reason, count against the experiment allowance, and remain idempotent on request retry.

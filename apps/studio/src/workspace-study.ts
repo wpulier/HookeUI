@@ -1077,9 +1077,10 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const status=el('p','study-note');status.setAttribute('role','status');
   const choices=el('fieldset','study-pick-field');choices.append(el('legend','visually-hidden','What it may use'),el('p','study-note','Loading this Project’s saved inputs…'));
   const draftKey=`hooke:research-draft:${session}`;
-  try{const kept=JSON.parse(localStorage.getItem(draftKey)||'null');if(kept){title.value=kept.title||'';objective.value=kept.objective||'';criteria.value=kept.criteria||'';budget.value=kept.budget||'0.00';}}catch{/* Storage may be disabled; the visible form remains usable. */}
-  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
+  let draftInputs:{id:string;revision:number;digest:string}[]=[];
+  try{const kept=JSON.parse(localStorage.getItem(draftKey)||'null');if(kept){title.value=kept.title||'';objective.value=kept.objective||'';criteria.value=kept.criteria||'';budget.value=kept.budget||'0.00';draftInputs=Array.isArray(kept.inputs)?kept.inputs:[];}}catch{/* Storage may be disabled; the visible form remains usable. */}
   const selected=new Map<HTMLInputElement,StudyInput>();
+  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value,inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
   const save=button('Continue to research plan',()=>{},'study-primary');save.type='submit';save.disabled=true;
   const cancel=button('Cancel',()=>{if(!pending)dialog.close();},'study-quiet');
   const body=el('div','study-new-study-body'),footer=el('footer','study-new-study-footer');
@@ -1100,7 +1101,7 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
     if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!!initial&&input.id===initial.reference.id&&input.revision===initial.reference.revision&&input.digest===initial.reference.digest&&!check.disabled;
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!check.disabled&&[...(initial?[initial.reference]:[]),...draftInputs].some(ref=>ref?.id===input.id&&ref.revision===input.revision&&ref.digest===input.digest);
       const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');

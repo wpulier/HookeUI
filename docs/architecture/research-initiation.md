@@ -36,3 +36,5 @@ token and 30 aggregate model-minute ceiling. All attempts count. No paid service
 contest upload or claim that the small comparison establishes swarm superiority.
 
 Current capability-proposal slice retains exact package references and exposes owner review. Automated transfer into catalog draft preparation, sandbox proof, exact owner activation and rediscovery still require end-to-end qualification; a saved proposal alone does not pass that acceptance gate. Model allowances remain declarations until an external harness qualifies total input-plus-output accounting and stopping.
+
+Scientific admission first reserves the assignment in the same revision boundary as completion. A pending admission blocks completion; a lost host keeps it for explicit reconciliation rather than replay. Linked reused operations remain dependencies of every requesting assignment without rewriting execution authorship. Explicit repeats carry an identity and scientific reason, count against the experiment allowance, and remain idempotent on request retry.

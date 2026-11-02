@@ -189,13 +189,16 @@ class Coordination:
                 return False
             if task['status'] != 'running':
                 raise Conflict('Reconcile the assignment before returning a report')
+            if meta.get('pendingAdmissions'):
+                raise Conflict('Wait for the original scientific admission to settle or be reconciled')
             for operation_id in meta.get('operations', []):
                 operation = self.studies.operations.get(operation_id)
                 execution = operation.get('execution', {})
                 if operation.get('project') != session or execution.get('session') != session:
                     raise InvalidProject('The linked execution does not belong to this Project')
                 observed = self.studies.workflows.observed_status(execution['id'], session)
-                if observed['status'] not in ('completed', 'failed', 'rejected', 'stopped'):
+                if (observed['status'] not in ('completed', 'failed', 'rejected', 'stopped')
+                        or observed.get('executionObservation', {}).get('state') in ('interrupted', 'unstarted')):
                     raise Conflict('Wait for the original scientific operation to settle before completing this assignment')
             task.update(status='completed', result=result, chargedMicrousd=0)
             meta.update(report=result, completedAt=self.clock())

@@ -165,7 +165,7 @@ def register(app, built, studio_origin, header):
     @app.post('/api/research-efforts/{effort}/workflows')
     async def workflow_start(effort: str, request: Request):
         try:
-            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings'})
+            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'})
             from .studies import service as studies
             record, made = await studies(built).start_workflow(effort, actor='studio', label='You', **body)
             return JSONResponse({'ok': True, 'operation': record, 'made': made}, headers=HEADERS)

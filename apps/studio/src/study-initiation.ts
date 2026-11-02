@@ -41,8 +41,9 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       const packages=n('select');const none=n('option','No instruction package');none.value='';packages.append(none);field('Research instructions',packages);
       let packageRows:{id:string;version:number;digest:string;content:{title:string}}[]=[],packageId=state?.plan?.instructionPackage?.id||'';
       void fetcher('/api/research-instructions').then(result).then(reply=>{if(!current()||!form.contains(packages))return;packageRows=reply.packages;for(const row of packageRows){const option=n('option',`${row.content.title} · v${row.version}`);option.value=row.id;packages.append(option);}packages.value=packageId;}).catch(()=>{if(current())packages.title='Instruction packages could not be loaded; the plan can still be saved.';});
-      let review:HTMLButtonElement|null=null;
+      let review:HTMLButtonElement|null=null,editVersion=0;
       const remember=()=>{
+        editVersion++;
         box.dataset.draft='true';if(review)review.disabled=true;
         status.textContent='Draft saved on this device. Save the research plan before reviewing it.';
         try{localStorage.setItem(draftKey,JSON.stringify({basis:state!.basis.digest,output:output.value,evaluation:evaluation.value,method:method.value,mode:mode.value,limits:Object.fromEntries(Object.entries(limits).map(([k,v])=>[k,v.value])),packageId:packages.value}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
@@ -62,7 +63,13 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
         if(!form.checkValidity()||!output.value.trim()||!evaluation.value.trim()||!method.value.trim()){status.textContent='Describe the output, evaluation and proposed approach.';return;}
         const plan:Plan={desiredOutput:output.value.trim(),evaluation:evaluation.value.trim(),methodNotes:method.value.trim(),actorMode:mode.value as Plan['actorMode'],materials:study.inputs.map(r=>({...r,session:study.session})),limits:{experiments:Number(limits.experiments.value),modelMinutes:Number(limits.modelMinutes.value),tokens:Number(limits.tokens.value)}};
         const pack=packageRows.find(row=>row.id===packages.value);if(pack)plan.instructionPackage={id:pack.id,version:pack.version,digest:pack.digest};
-        const response=await call('plan',{basis:state!.basis,plan});if(current()){clearDraft();state=response.coordination;draw();}
+        const savingVersion=editVersion;
+        const response=await call('plan',{basis:state!.basis,plan});
+        if(current()){
+          state=response.coordination;
+          if(editVersion===savingVersion){clearDraft();draw();}
+          else{remember();status.textContent='Earlier edits saved. Your newer draft is kept here; save again when ready.';}
+        }
       },true);form.onsubmit=e=>{e.preventDefault();save.click();};form.append(save);content.append(form);
       if(state.plan){review=button('Review this saved plan',async()=>{if(box.dataset.draft){status.textContent='Save your edited plan before reviewing it.';return;}const response=await call('review',{basis:state!.basis});if(current()){clearDraft();state=response.coordination;draw();}},true);review.disabled=!!box.dataset.draft;content.append(review);} 
     }else{

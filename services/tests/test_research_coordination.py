@@ -133,3 +133,65 @@ def test_reviewed_plan_bounds_and_deduplicates_scientific_admissions(tmp_path):
         assert c.read(study.id,study.session)['assignments'][0]['operations']==[first['id']]
         await until_async(lambda: not runner.tasks)
     asyncio.run(run())
+
+
+def test_admission_reservation_reuse_and_explicit_repeat(tmp_path):
+    import asyncio
+    import threading
+    from tests.test_study_workflows import setup, A, B
+    from tests.waiting import until_async
+    async def run():
+        studies, runner, study, image, definition = setup(tmp_path)
+        gate = threading.Event()
+        c = Coordination(studies)
+        plan = {'desiredOutput':'Measured output','evaluation':'Compare','materials':[identity(image)],
+                'methodNotes':'Inspect','actorMode':'connected-agent',
+                'limits':{'experiments':2,'modelMinutes':30,'tokens':60000}}
+        saved = c.save_plan(study.id,study.session,basis=identity(study),plan=plan,actor='studio',label='You')
+        c.review_plan(study.id,study.session,basis=saved['basis'],actor='studio',label='You')
+        def task(actor, request):
+            row = c.propose(study.id,study.session,request=request,assignment=proposal(),actor=actor,label=actor)
+            c.claim(study.id,study.session,assignment=row['id'],actor=actor,label=actor,harness='fixture',model='fixture')
+            return row['id']
+        first_task, second_task = task(A,'a'), task(B,'b')
+        report = dict(statement='Observed output',evidence=[identity(image)],limitations='Controlled worker',label='Lead')
+        original_command = runner.command
+        async def command(body, **kwargs):
+            if body['action'] == 'validate':
+                # complete() shares the immutable revision boundary with admission.
+                with pytest.raises(Conflict, match='admission'):
+                    c.complete(study.id,study.session,assignment=first_task,actor=A,**report)
+            return await original_command(body, **kwargs)
+        runner.command = command
+        def execute(_):
+            assert gate.wait(10)
+            return {'status':'completed','output':identity(image)}
+        runner.steps.execute = execute
+        args = dict(study=study.id,session=study.session,request='first',workflow=definition.id,
+                    revision=1,inputs=[identity(image)],actor=A,label='Lead',assignment=first_task)
+        try:
+            first, made = await studies.start_workflow(**args)
+            assert made
+            reused, made = await studies.start_workflow(**{**args,'actor':B,'assignment':second_task,'request':'reuse'})
+            assert not made and reused['id'] == first['id'] and reused['by'] == A
+            second = next(a for a in c.read(study.id,study.session)['assignments'] if a['id']==second_task)
+            assert second['operations'] == [first['id']]
+            with pytest.raises(Conflict, match='settle'):
+                c.complete(study.id,study.session,assignment=second_task,actor=B,**report)
+            gate.set()
+            await until_async(lambda: not runner.tasks)
+            repeat = {**args,'request':'repeat','repeat':{'id':'replicate-1','reason':'Check unchanged-method repeatability'}}
+            repeated, made = await studies.start_workflow(**repeat)
+            assert made and repeated['id'] != first['id']
+            retry, made = await studies.start_workflow(**repeat)
+            assert not made and retry['id'] == repeated['id']
+            await until_async(lambda: not runner.tasks)
+            c.complete(study.id,study.session,assignment=first_task,actor=A,**report)
+            retry, made = await studies.start_workflow(**repeat)
+            assert not made and retry['id'] == repeated['id']
+            with pytest.raises(InvalidProject, match='allowance'):
+                await studies.start_workflow(**{**repeat,'request':'third','repeat':{'id':'replicate-2','reason':'Another repeat'}})
+        finally:
+            gate.set()
+            await runner.close()
+    asyncio.run(run())

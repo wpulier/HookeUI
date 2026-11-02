@@ -2146,3 +2146,5 @@ Material overviews promote exact retained inspection facts and bounded previews 
 Research initiation adds Start research to Main, then a saved Study plan. Creating the Study and reviewing its plan start no scientific work. The plan form keeps an unfinished browser draft by Project/Study and refuses review/refresh over unsaved edits. Reviewed plans show authorized contributors, distinct waiting/claimed assignment states and a copyable handoff; connection alone never implies a listening agent. Assignment reports remain visible without becoming accepted findings.
 
 Research plans and assignment outcomes occupy the Study main view; discussion stays alongside. Capability proposals show exact retained packages and declared scope, with existing Models review as the owner entrance. They grant no installation authority.
+
+Research-plan saving preserves text entered while a request is pending, rebasing that local draft onto the acknowledged revision. Initial Study drafts also retain their exact selected input identities across navigation/restart; unavailable or changed revisions are not silently replaced.
