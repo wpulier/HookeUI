@@ -2176,7 +2176,7 @@ function renderReaderLabel(): void {
   title.title = tabReader.title();
   if (workspaceViews.readerTabsUnsaved()) kind.title = 'This Hooke server cannot save a Tab like this one: it stays open for this session.';
   const origin=readerStudyOrigins.get(`${shown.day??snapshot.session}:${shown.id}:${shown.version}`);
-  const use=shown.material?.uses?.find(use=>use.study&&use.available);
+  const use=shown.material?.uses?.find(use=>use.study&&use.available&&use.revision===shown.version&&use.digest===shown.source?.sha256);
   const studyContext=origin??(use?.study?{id:use.study,title:use.studyTitle||use.title,session:shown.day??snapshot.session}:undefined);
   const back=button('Back',()=>{if(workspaceViews.readerCanGoBack())void workspaceViews.readerBack().catch(actionError);else if(studyContext)void openStudy(studyContext.id);});back.disabled=!workspaceViews.readerCanGoBack()&&!studyContext;
   const pin=button(workspaceViews.readerPinned()?'Unpin':'Pin',()=>{workspaceViews.pinReader();renderReaderLabel();});pin.setAttribute('aria-pressed',String(workspaceViews.readerPinned()));
