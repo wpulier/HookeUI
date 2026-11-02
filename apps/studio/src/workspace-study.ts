@@ -855,7 +855,7 @@ const workspaceViews:WorkspaceViews = new WorkspaceViews({
   studies:knownStudies.filter(study=>!researchTabs.report().some(tab=>tab.id===`study:${study.id}`)).map(study=>({id:`study:${study.id}`,name:studyName(study),title:`${studyName(study)} · ${studyState(study)}`,mark:tabMark('study'),act:()=>void openStudy(study.id)}))}),
  closeTarget:kind=>kind==='data'?dataButton:researchersButton,
  // A click on a work Tab leaves a researcher's page first (the capture listener below); the Assistant's switch too.
- leaveResearch:()=>{if(researchStage.hidden)return true;if(!canLeaveStudy())return false;clearStudyDraftMarkers();closeResearchStage();return true;},
+ leaveResearch:then=>{if(researchStage.hidden)return true;if(!canLeaveStudy(then))return false;clearStudyDraftMarkers();closeResearchStage();return true;},
  research:{report:()=>researchTabs.report(),close:id=>researchTabs.closeTab(id),
   switch:async id=>{if(!researchTabs.show(id))return false;const until=Date.now()+3000;while(Date.now()<until){if(researchTabs.selectedId()===id&&!researchStage.hidden)return true;await new Promise(resolve=>setTimeout(resolve,50));}return researchTabs.selectedId()===id;}},
  researcherTab:rid=>researchTabs.has(rid),
