@@ -14,7 +14,7 @@ Imports copy by default (copy-on-write where supported), never hardlink mutable 
 
 One host coordinates writes. Concurrent hosts must open read-only under an active writer lease. Per-document revision conflicts still apply. Duplicate origins require an explicit read-only choice, inactive-location switch, or an independent Project preserving ancestry but inheriting no grants. Historical labels never authenticate local actors.
 
-Migration is explicit: inventory, space estimate, settle work, copy, verify, reopen, then registry switch. Preserve originals for recovery. No bulk migration, automatic deletion, Git requirement, remote sync or accepted-record filesystem editing.
+Migration is explicit: inventory, space estimate, settle work, copy, verify, reopen, then registry switch. Preserve originals for recovery. No bulk migration, automatic deletion, Git requirement, automatic remote sync or accepted-record filesystem editing (amended by ADR 0028: owner-started mirrors of sealed snapshots are allowed).
 
 ## Delivery and proof
 

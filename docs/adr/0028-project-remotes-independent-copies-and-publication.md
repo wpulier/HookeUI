@@ -1,7 +1,6 @@
 # 0028 — A Project can be mirrored, published and started from, never synchronised
 
-**Proposed, 2026-11-02. Awaiting the founder's decision (D11 in the unified Hooke plan).** Until it is accepted,
-code built on it stays off by default and unmerged where it changes what people see or how saves work.
+**Accepted, 2026-11-02, by the founder (D11 in the unified Hooke plan).**
 
 It amends ADR 0027. That ADR's line "No bulk migration, automatic deletion, Git requirement, remote sync or
 accepted-record filesystem editing" becomes: no bulk migration, automatic deletion, Git requirement, **automatic**

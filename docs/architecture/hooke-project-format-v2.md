@@ -1,6 +1,6 @@
 # Hooke Project format v2: remotes, publications and starting from a Project
 
-Status: **open specification, draft** (ADR 0028, Proposed). Version 2 adds remote layout to the portable Project
+Status: **open specification, version 2** (ADR 0028, accepted 2026-11-02). Version 2 adds remote layout to the portable Project
 folder of ADR 0027 (`project.json` format 1, `storage: hooke-project-v1`), which is unchanged. Anyone may implement
 it; nothing here needs Hooke Cloud or GitHub.
 
