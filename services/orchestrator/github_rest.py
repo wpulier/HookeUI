@@ -1,6 +1,6 @@
 """GitHub's REST API with the sign-in's token, for Project remotes (ADR 0028).
 
-The token is held only in the client's header: never logged, returned or written. Anything GitHub says back is
+The token is held only in the client (its header, and a pack push's password): never logged, returned or written. Anything GitHub says back is
 untrusted text (ADR 0002) and reaches a person only through `untrusted.inline`. Tests pass a stand-in `http` with
 the same `call(method, path, payload) -> (status, data)` shape as `publish_api._Api`.
 """
@@ -27,6 +27,7 @@ class SignInAgain(RemoteRefused):
 class Client:
     def __init__(self, token: str | None = None, *, http=None, anonymous=False):
         self.anonymous = anonymous
+        self._token = token  # for a pack push's password only (github_pack)
         if http is None:
             if not token and not anonymous:
                 raise SignInAgain('Sign in to GitHub first')
@@ -49,6 +50,26 @@ class Client:
         except ValueError:
             data = {}
         return response.status_code, data
+
+    @property
+    def packs(self) -> bool:
+        """Whether this client can send a pack (github_pack): signed in, or a stand-in transport that takes one."""
+        if self.http is not None:
+            return hasattr(self.http, 'push_pack')
+        return not self.anonymous and bool(self._token)
+
+    def push_pack(self, repo: str, objects: list, commit: str) -> str:
+        """One pack of new Git objects to the pending branch for `commit` (github_pack.push); returns its name.
+        Raises github_pack.PackUnavailable when it cannot be made, and the caller uses REST instead."""
+        from .github_pack import PackUnavailable, push
+        if self.http is not None:
+            pack = getattr(self.http, 'push_pack', None)
+            if pack is None:
+                raise PackUnavailable('this transport has no pack push')
+            return pack(repo, objects, commit)
+        if self.anonymous or not self._token:
+            raise PackUnavailable('a pack push needs a sign-in')
+        return push(self._token, repo, objects, commit)
 
     def upload(self, url: str, body: bytes):
         """POST raw bytes (a release asset) to an uploads.github.com URL."""

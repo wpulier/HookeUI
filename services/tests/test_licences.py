@@ -78,6 +78,8 @@ def test_every_component_is_used_and_every_use_is_a_component():
     used.add(mine.COMPONENT)
     from env_worker import scientific_calibration
     used.add(scientific_calibration.COMPONENT)
+    from orchestrator import github_pack  # publishing a Project to GitHub pushes one Git pack
+    used.add(github_pack.COMPONENT)
     from gpu_worker import manifests as catalog
     from orchestrator import jobs  # a job (brainreg) and the data it reads (an atlas) are no option: their entries' own
 

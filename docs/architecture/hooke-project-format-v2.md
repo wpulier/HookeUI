@@ -70,9 +70,14 @@ same name is success, never an overwrite.
 1. Seal a snapshot under the writer lease; `verify_records` passes.
 2. Classify; scan the record layer for secrets (a finding stops the push and names the file).
 3. Upload every bulk object the store lacks; verify each upload.
-4. Write one commit (parent = the last commit this host pushed there, or none for a new remote).
+4. Write one commit (parent = the last commit this host pushed there, or none for a new remote). On a Git host, a
+   signed-in push sends the new objects in one Git pack over smart HTTP to a branch of their own
+   (`hooke-pending-<12 hex of the commit>`); the host then re-reads that branch, the commit and its whole file
+   listing, and refuses unless they are exactly what was built. When a pack cannot be sent, the commit is written
+   through the host's REST API instead.
 5. Move the remote's pointer by compare-and-swap from the expected old commit. If the remote moved on elsewhere,
-   refuse: "This project changed in two places." Never force.
+   refuse: "This project changed in two places." Never force. Pending branches are removed afterwards, published or
+   not.
 
 ## 7. Fetching
 

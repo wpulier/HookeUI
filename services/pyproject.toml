@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28",
     "scipy>=1.14",  # masks_from_labels (find_objects) and movement.py; before, only a non-commercial group brought it
     "pint==0.26.1",  # shared scientific unit-name identity; never implicit value conversion
+    "dulwich==1.2.17",  # Project publication pack push over Git smart HTTP (Apache-2.0 option of its dual licence)
 ]
 
 [dependency-groups]
