@@ -229,7 +229,7 @@ class Workflows:
         for saved in self.store.list(session):
             state=saved.document['state'].get('workflowAttempt')
             if saved.document['kind']=='scientific-workflow-attempt' and type(state) is dict and state.get('run')==id_:
-                rows.append({**state,'id':saved.id,'revision':saved.revision})
+                rows.append({**state,'id':saved.id,'revision':saved.revision,'updatedAt':saved.at})
         return sorted(rows,key=lambda a:(a['item'],a['node'],a['number']))
 
     def status(self,id_,session):
@@ -254,7 +254,7 @@ class Workflows:
                 runs[item.id]=item
             state=item.document['state'].get('workflowAttempt')
             if item.document['kind']=='scientific-workflow-attempt' and type(state) is dict and state.get('run') in ids:
-                attempts[state['run']].append({**state,'id':item.id,'revision':item.revision})
+                attempts[state['run']].append({**state,'id':item.id,'revision':item.revision,'updatedAt':item.at})
         return {id_:self._status(item,sorted(attempts[id_],key=lambda a:(a['item'],a['node'],a['number']))) for id_,item in runs.items()}
 
     @staticmethod
@@ -267,7 +267,7 @@ class Workflows:
         elif complete:status='completed'
         elif control=='paused':status='paused'
         else:status=next((s for s in ('uncertain','failed','rejected','awaiting-review','awaiting-controls','awaiting-research','running') if any(a['status']==s for a in active)),'ready')
-        return {**identity(saved),**state,'status':status,'attempts':rows}
+        return {**identity(saved),**state,'status':status,'attempts':rows,'updatedAt':max([saved.at]+[a.get('updatedAt',0) for a in rows])}
 
     def claim(self,id_,session):
         with self.locked(id_,session):

@@ -912,7 +912,7 @@ const researchTabs:WorkspaceResearchTabs=new WorkspaceResearchTabs({backgroundTa
 // Tab's windows stay mounted under it, hidden, never detached: the live view keeps running.
 const researchStage=el('section','study-research-stage');researchStage.hidden=true;researchStage.setAttribute('aria-label','Researcher');
 const researchHolder=el('div','study-research-holder');
-const researchBack=button('',()=>closeResearchStage(),'study-research-back');researchBack.title='Back to the work Tab (the researcher keeps working)';
+const researchBack=button('',()=>{if(canLeaveStudy()){rememberProjectDestination(null);closeResearchStage();}},'study-research-back');researchBack.title='Back to the work Tab; admitted research continues';
 const researchBackWords=el('span','','Main');researchBack.append(tabMark('left','study-research-back-icon'),researchBackWords);
 // The research stage's bar sits in the Stage bar's left (workspace-feel plan): back, what it is working on, and Stop while
 // it can be stopped. Stop says "Stop requested" until the server lists the researcher as stopped (research-stop.ts).
@@ -976,6 +976,7 @@ function openResearchStage(node:HTMLElement):void{
   for(const child of [...researchHolder.children] as HTMLElement[])if(child!==node&&child!==draftPage&&!child.id)child.remove();
   if(node.parentElement!==researchHolder)researchHolder.append(node);
   for(const child of researchHolder.children as HTMLCollectionOf<HTMLElement>)child.hidden=child!==node;
+  const pageLabel=node===overviewPage?'Project overview':openStudyNow?'Study':'Researcher';researchStage.setAttribute('aria-label',pageLabel);researchBar.setAttribute('aria-label',pageLabel);
   projectNavigation?.select(node===overviewPage?'overview':null);shownResearch=node;researchStage.hidden=false;document.body.dataset.researchOpen='true';researchStudyKey='';
   // The Assistant panel steps aside on a researcher's or a Study's Tab (its Stage bar button opens it over the page).
   applyLayout();
@@ -990,9 +991,18 @@ function openResearchStage(node:HTMLElement):void{
 let openStudyNow:Effort|null=null,studyTimer=0,studyOpening=0;
 const projectNavigation=new ProjectNavigation(openProjectDestination);
 find('workspace-tabs-strip').prepend(projectNavigation.root);
+function rememberProjectDestination(destination:string|null):void{
+  try{if(destination)localStorage.setItem(`hooke:project-destination:${snapshot.session}`,destination);else localStorage.removeItem(`hooke:project-destination:${snapshot.session}`);}catch{/* Navigation stays available without browser storage. */}
+}
+function restoreProjectDestination(session:string):void{
+  if(snapshot.session!==session)return;
+  let destination:string|null=null;try{destination=localStorage.getItem(`hooke:project-destination:${session}`);}catch{return;}
+  if(destination?.startsWith('study:')){void openStudy(destination.slice(6));return;}
+  if(['overview','studies','inputs','results','activity'].includes(destination??''))openProjectDestination(destination as ProjectDestination);
+}
 function openProjectDestination(destination:ProjectDestination):void{
   if(!canLeaveStudy(()=>openProjectDestination(destination)))return;
-  bridge.navigate('#');
+  rememberProjectDestination(destination);bridge.navigate('#');
   if(destination==='overview'||destination==='studies'){
     projectResearchHome.enter(snapshot.session);renderBoard();openResearchStage(overviewPage);projectNavigation.select(destination);
     if(destination==='studies'){
@@ -1030,6 +1040,7 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     clearStudyDraftMarkers();
     // Reuse Data's retained reader Tab: named, revision-pinned and reopened rather than duplicated.
     closeResearchStage();
+    rememberProjectDestination(null);
     const opened=await workspaceViews.openReaderPage({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
     if(!opened)throw new Error('The evidence Tab could not be opened. Its saved revision remains in Project Data.');
   };
@@ -1079,7 +1090,7 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     researchStudyKey='';renderResearchStudy();
   };
   if(location.hash.startsWith('#research/'))bridge.navigate('#');
-  openResearchStage(page);draw(study);void conversation.refresh();clearInterval(studyTimer);
+  rememberProjectDestination('study:'+id);openResearchStage(page);draw(study);void conversation.refresh();clearInterval(studyTimer);
   // Only local retained state is read. Provider collection is a separate explicit action.
   studyTimer=window.setInterval(()=>{
     if(!current()||researchStage.hidden||currentStudyPage!==page){clearInterval(studyTimer);return;}
@@ -1148,7 +1159,7 @@ function clearStudyDraftMarkers():void{
   if(!currentStudyPage)return;delete currentStudyPage.dataset.draft;currentStudyPage.querySelectorAll<HTMLElement>('[data-draft]').forEach(element=>delete element.dataset.draft);
 }
 /** Leaving a Study with unsaved form changes asks first, in a sheet that never blocks the page (the live view keeps
- * running; `window.confirm` froze it). `then` runs if the person discards, so the action they chose completes. */
+ * running; `window.confirm` froze it). `then` runs after leaving is confirmed, so the chosen action completes. */
 function canLeaveStudy(then?:()=>void):boolean{
   if(currentStudyPage?.dataset.pending||currentStudyPage?.querySelector('[data-pending]')){actionError('Wait for the Study action to be acknowledged before leaving.');return false;}
   if(!(currentStudyPage?.dataset.draft||currentStudyPage?.querySelector('[data-draft]')))return true;
@@ -1158,9 +1169,9 @@ function leaveStudyDialog(then?:()=>void):void{
   if(document.querySelector('dialog.study-leave'))return;
   const dialog=el('dialog','workspace-recovery-dialog study-leave'),opener=document.activeElement as HTMLElement|null;
   dialog.setAttribute('aria-labelledby','study-leave-title');
-  dialog.append(el('h2','','Discard unsaved changes to this Study form?'),el('p','','Saved inputs, evidence and results stay kept. Only the words you typed and did not save would go.'));
+  dialog.append(el('h2','','Leave this Study form?'),el('p','','Saved research stays kept. Research-plan and proposal drafts saved on this device are restored when you return. Other unsaved form edits will be lost.'));
   const row=el('div','study-leave-actions');
-  row.append(button('Keep editing',()=>dialog.close(),'study-quiet'),button('Discard changes',()=>{clearStudyDraftMarkers();dialog.close();then?.();},'study-primary'));
+  row.append(button('Keep editing',()=>dialog.close(),'study-quiet'),button('Leave Study',()=>{clearStudyDraftMarkers();dialog.close();then?.();},'study-primary'));
   dialog.append(row);dialog.firstElementChild!.id='study-leave-title';
   dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus({preventScroll:true});});
   document.body.append(dialog);dialog.showModal();
@@ -1177,7 +1188,7 @@ function closeResearchStage(navigate=true):void{
   renderContext();
 }
 // Choosing a work Tab, or leaving the researcher's address, goes back to the work Tab.
-document.querySelector('.workspace-view-tabs')?.addEventListener('click',event=>{const tab=(event.target as Element).closest<HTMLElement>('[data-workspace-view-tab]');if(tab){if(!canLeaveStudy(()=>{closeResearchStage();tab.click();})){event.preventDefault();event.stopImmediatePropagation();return;}clearStudyDraftMarkers();closeResearchStage();}},true);
+document.querySelector('.workspace-view-tabs')?.addEventListener('click',event=>{const tab=(event.target as Element).closest<HTMLElement>('[data-workspace-view-tab]');if(tab){if(!canLeaveStudy(()=>{closeResearchStage();tab.click();})){event.preventDefault();event.stopImmediatePropagation();return;}clearStudyDraftMarkers();rememberProjectDestination(null);closeResearchStage();}},true);
 // (A study is not an address: it closes by its back, a work Tab or a Project switch, not by a page opening over it.)
 bindResearchStageRoute(() => currentStudyPage !== null, () => closeResearchStage(false));
 async function rememberSession(): Promise<void> {
@@ -1210,7 +1221,7 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
       if(!recovery.recovered) actionError(`Some evidence could not be restored: ${recovery.missing.join('; ')}`); }
     else {showSection('inputs');setDataOpen(false,false);}
     await workspaceViews.load(target);
-    if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout();if(!id||saved?.overview)openProjectDestination('overview');return true;
+    if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout();if(!id)openProjectDestination('overview');else restoreProjectDestination(target);return true;
   } catch(error){workspaceViews.resume();actionError(error); return false;} finally {
     switching=false;
     // The wait was true only while that Project opened: once it has, the line is out of date and goes.
@@ -2242,6 +2253,7 @@ async function openReaderTab(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'
   // Its Tab is named as the reader names it (a researcher's report by its findings' title once read).
   const shown = reader.current(), title = shown && sameItem(shown, entry) ? reader.title() : readerTitle(entry.title, entry.kind);
   try {
+    rememberProjectDestination(null);
     const opened = await workspaceViews[separate?'openReaderTab':'openReaderPage']({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title });
     const current = tabReader.current();
     if (opened && view === 'how' && current && sameItem(current, entry)) tabReader.show(entry, view);
@@ -2491,8 +2503,8 @@ bridge.subscribe(next => {
   // The server's current Project opens as before (its empty Stage is the first screen's own overview); the Welcome
   // launcher stands in only while no Project Tab is open on a fresh profile. Counts arrive after the list, so a
   // first run cannot be told at the first ready moment.
-  if(!initialized && next.ready && next.session){initialized=true;tabs=activateTab(tabs??emptyTabs(),next.session);persistTabs();void workspaceViews.load(next.session);const saved=sessionUI[next.session];if(saved)bridge.restoreDraft(saved.presentation);}
-  if(initialized && !switching && tabs?.active && next.session!==previous.session && next.session!==tabs.active){tabs=activateTab(tabs,next.session);persistTabs();void workspaceViews.load(next.session);}
+  if(!initialized && next.ready && next.session){initialized=true;tabs=activateTab(tabs??emptyTabs(),next.session);persistTabs();void workspaceViews.load(next.session).then(()=>restoreProjectDestination(next.session));const saved=sessionUI[next.session];if(saved)bridge.restoreDraft(saved.presentation);}
+  if(initialized && !switching && tabs?.active && next.session!==previous.session && next.session!==tabs.active){tabs=activateTab(tabs,next.session);persistTabs();void workspaceViews.load(next.session).then(()=>restoreProjectDestination(next.session));}
   if(next.title!==previous.title)renderTabs();
   if (next.source?.kind === 'still') {
     const asset = next.source;

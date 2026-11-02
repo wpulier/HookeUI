@@ -9,7 +9,7 @@ export type TaskStatus = 'planned' | 'launching' | 'running' | 'unknown' | 'canc
 export interface EffortTask {
   status: TaskStatus | string;
   specification?: Record<string, unknown>;
-  collaboration?: {completedAt?:number;report?:{statement:string;at?:number;byLabel?:string};leaseUntil?:number;claimedAt?:number;claimedBy?:{by:string;byLabel:string}};
+  collaboration?: {createdAt?:number;proposedBy?:{by:string;byLabel:string};completedAt?:number;report?:{statement:string;at?:number;byLabel?:string};leaseUntil?:number;claimedAt?:number;claimedBy?:{by:string;byLabel:string}};
   reservedMicrousd: number;
   chargedMicrousd: number | null;
   usageEstimated?: boolean;
@@ -19,13 +19,15 @@ export interface EffortTask {
   execution?: { provider?: string; session?: string; id?: string; runId?: string; day?: string };
   managedActions?: { archive?: string };
 }
-export interface EffortFinding { request: string; statement: string; tasks: string[] }
+export interface EffortFinding { at?:number; byLabel?:string; request: string; statement: string; tasks: string[] }
 export interface EffortClaim { by?:string; at?:number; request:string; statement:string; byLabel:string; limitations?:string;
   evidence:{artifact:{id:string;revision:number};relation:string}[]; dependsOn:string[] }
 export interface Effort {
   id: string; session: string; revision: number; digest: string;
   createdAt?:number; updatedAt?:number; createdBy?:{by:string;byLabel:string};
   questions?:{id:string;question:string;by?:string;byLabel:string;at?:number;recipient:{actor:string;label:string};answer:null|{by:string;byLabel:string;at?:number;statement:string}}[];
+  researchPlan?:{status:string;updatedAt?:number;reviewedAt?:number;byLabel?:string;reviewedBy?:{byLabel:string};desiredOutput:string};
+  researchPlanHistory?:Effort['researchPlan'][];
   coordination?:{waiting:number;claimed:number;reports:number;stopped:number;unresolvedAdmissions:number};
   stopPending?: boolean; title?: string; objective: string; criteria: string; status: EffortStatus | string;
   controlProblems?: string[];

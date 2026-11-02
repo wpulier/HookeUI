@@ -16,3 +16,8 @@ def coordination_counts(tasks):
             counts[key] += 1
         counts['unresolvedAdmissions'] += len(task.get('collaboration', {}).get('pendingAdmissions', {}))
     return counts
+
+
+def budgeted(task):
+    # A resource grant may hold budget without being an experiment.
+    return task.get('specification', {}).get('provider') != 'collaboration'

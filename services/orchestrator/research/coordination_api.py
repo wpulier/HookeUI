@@ -25,7 +25,7 @@ def execute(built, study, session, action, fields, actor, label):
 async def execute_command(built, study, session, action, fields, actor, label):
     # Recovery and scientific admission use the same owner lock, so an absent
     # receipt cannot be declared absent while its validation/admission is in flight.
-    if action == 'recover':
+    if action in ('recover', 'plan', 'review', 'claim', 'complete'):
         studies = service(built)
         lock = studies._locks.setdefault((session, study), asyncio.Lock())
         async with lock:

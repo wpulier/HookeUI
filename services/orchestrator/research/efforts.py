@@ -7,8 +7,9 @@ and must be reconciled; reading or restarting never launches it again.
 from __future__ import annotations
 
 import hashlib
+import time
 from decimal import Decimal, InvalidOperation
-from .task_kind import scientific, coordination_counts
+from .task_kind import budgeted, coordination_counts
 
 from ..scientific_projects import Conflict, InvalidProject, ProjectStore, _json
 
@@ -45,8 +46,8 @@ def fingerprint(value):
 
 def summary(saved):
     state = saved.document['state'][KEY]
-    held = sum(t['reservedMicrousd'] for t in state['tasks'].values() if scientific(t) and t['chargedMicrousd'] is None)
-    spent = sum(t['chargedMicrousd'] or 0 for t in state['tasks'].values() if scientific(t))
+    held = sum(t['reservedMicrousd'] for t in state['tasks'].values() if budgeted(t) and t['chargedMicrousd'] is None)
+    spent = sum(t['chargedMicrousd'] or 0 for t in state['tasks'].values() if budgeted(t))
     return {'id': saved.id, 'session': saved.session, 'revision': saved.revision, 'digest': saved.digest,
             **state, 'coordination': coordination_counts(state['tasks']), 'title': saved.document['title'], 'spentMicrousd': spent, 'heldMicrousd': held,
             'availableMicrousd': max(0, state['capMicrousd'] - spent - held),
@@ -133,7 +134,7 @@ class Efforts:
             if len(state['tasks']) >= MAX_TASKS:
                 raise InvalidProject('Research task capacity reached; retain this effort and start another')
             committed = sum(t['reservedMicrousd'] if t['chargedMicrousd'] is None else t['chargedMicrousd']
-                            for t in state['tasks'].values())
+                            for t in state['tasks'].values() if budgeted(t))
             if committed + maximum > state['capMicrousd']:
                 raise InvalidProject('This task exceeds the remaining research budget')
             state['tasks'][request] = {'binding': binding, 'specification': specification,
@@ -340,13 +341,13 @@ class Efforts:
         def change(state):
             for old in state['findings']:
                 if old['request'] == request:
-                    if old != row:
+                    if {k: old.get(k) for k in row} != row:
                         raise Conflict('This finding request already belongs to a different statement')
                     return False
             if any(self._task(state, t)['status'] not in FINAL for t in tasks):
                 raise InvalidProject('Cite observed task outcomes; running work is not a finding')
             if len(state['findings']) >= 128:
                 raise InvalidProject('Finding capacity reached; preserve this effort')
-            state['findings'].append(row)
+            state['findings'].append({**row, 'at': time.time(), 'byLabel': 'You'})
             return True
         return self._change(effort, session, change)

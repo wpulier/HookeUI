@@ -61,3 +61,11 @@ actual connector continuation, integrated checks and scale fixtures are recorded
 separately in the private handoff. Passing fixture tests alone is not usability or
 scientific validation. No contest submission or scientific campaign is part of this
 navigation milestone.
+
+Review hardening: workflow outcome timestamps include retained attempt revisions, so
+completion after admission appears as a new change. Accepted findings and plan revisions
+also carry their recorded times. Large Study lists show an explicit bounded continuation;
+attention is ordered first. Lease expiry invalidates the observed-state projection even
+without another saved write. Research-plan edits use a per-field three-way merge: unrelated
+changes survive, and conflicting fields require a choice which survives reopening. Missing
+operation history is uncertainty, never proof that pending execution can be replayed.

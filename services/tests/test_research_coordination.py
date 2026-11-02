@@ -283,3 +283,20 @@ def test_assignment_parent_must_exist_and_coordination_is_not_execution(context)
     observed=summary(c.efforts.read(s.id,s.session))
     assert observed['coordination']==dict(waiting=2,claimed=0,reports=0,stopped=0,unresolvedAdmissions=0)
     assert observed['heldMicrousd']==0
+
+
+def test_recovery_cannot_declare_missing_history_absent(context, tmp_path):
+    from orchestrator.door.operations import Operations
+    from orchestrator.door.connections import Refused
+    c,s=context
+    a=propose(c,s);claim(c,s,a['id'])
+    def pending(state):
+        state['tasks'][a['id']]['collaboration']['pendingAdmissions']={'lost':{'request':'lost-reply','execution':{'kind':'workflow','id':'original','session':s.session}}}
+        return True
+    c.efforts._change(s.id,s.session,pending)
+    c.studies.operations=Operations(tmp_path)
+    c.studies.operations._history_complete=False
+    with pytest.raises(Refused,match='history is unavailable'):
+        c.recover(s.id,s.session,assignment=a['id'],actor='studio',label='You')
+    kept=c.read(s.id,s.session)['assignments'][0]
+    assert kept['pendingAdmissions'] and kept['claimedBy']['by']=='agent:a'

@@ -417,6 +417,18 @@ export class DataReader {
   private readonly body = el('div', 'rd-body-host');
   private entry: ReaderEntry | null = null;
   private view: 'thing' | 'how' = 'thing';
+  private positions=new Map<string,{scroll:number;disclosures:boolean[]}>();
+  private positionKey():string{return `${this.entry?.day??''}:${this.entry?.id??''}:${this.entry?.version??''}:${this.view}`;}
+  private rememberPosition():void{
+    if(!this.entry)return;
+    this.positions.set(this.positionKey(),{scroll:this.body.querySelector<HTMLElement>('.rd-body')?.scrollTop??0,disclosures:Array.from(this.body.querySelectorAll('details')).map(d=>d.open)});
+    if(this.positions.size>100)this.positions.delete(this.positions.keys().next().value!);
+  }
+  private restorePosition():void{
+    const saved=this.positions.get(this.positionKey());if(!saved)return;
+    for(const [i,details]of Array.from(this.body.querySelectorAll('details')).entries())if(saved.disclosures[i]!==undefined)details.open=saved.disclosures[i];
+    const body=this.body.querySelector<HTMLElement>('.rd-body');if(body)body.scrollTop=saved.scroll;
+  }
   private controller: AbortController | null = null;
   private session: ResearchSession | null = null;
   private detail: Detail | null = null;
@@ -477,6 +489,7 @@ export class DataReader {
   /** Opens an item (the same one again keeps its loaded body and only switches the view). */
   show(entry: ReaderEntry, view: 'thing' | 'how' = 'thing', options: { narrow?: boolean } = {}): void {
     const same = !!this.entry && sameItem(this.entry, entry);
+    if(!same||view!==this.view)this.rememberPosition();
     this.narrow = !!options.narrow;
     this.entry = entry; this.root.hidden = false; this.root.dataset.readerOpen = 'true';
     this.root.dataset.readerItem = `${entry.day ?? ''}:${entry.id}:${entry.version ?? ''}`;
@@ -500,6 +513,7 @@ export class DataReader {
     if (before !== this.kindLine()) this.deps.changed?.();
   }
   clear(): void {
+    this.rememberPosition();
     this.refreshMaterial = null;
     this.controller?.abort(); this.controller = null; this.entry = null; this.session = null; this.detail = null;
     this.root.hidden = true; delete this.root.dataset.readerOpen; delete this.root.dataset.readerItem; delete this.root.dataset.displayState;
@@ -708,7 +722,7 @@ export class DataReader {
     const body = el('div', 'rd-body');
     this.body.replaceChildren(body);
     this.root.dataset.displayState = 'loading';
-    const done = (state: 'rendered' | 'failed') => { if (!signal.aborted) { this.root.dataset.displayState = state; this.deps.changed?.(); } };
+    const done = (state: 'rendered' | 'failed') => { if (!signal.aborted) { this.root.dataset.displayState = state; if(state==='rendered')this.restorePosition();this.deps.changed?.(); } };
     const fail = (error: unknown) => {
       if (signal.aborted) return;
       body.replaceChildren(el('p', 'rd-problem', error instanceof Error ? error.message : String(error)),

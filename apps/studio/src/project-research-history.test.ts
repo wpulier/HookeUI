@@ -82,3 +82,12 @@ test('expired claims and unresolved admissions require reconciliation, never cou
  s.tasks.a.status='completed';s.tasks.a.collaboration={completedAt:10,claimedBy:{by:'agent:ac_a',byLabel:'Worker'},report:{statement:'No biological conclusion'}};
  expect(history(s,{operations:[]})[0]).toMatchObject({at:10,title:'No biological conclusion',actor:'Worker'});
 });
+
+test('changes use retained outcome time and include plan amendments and findings',()=>{
+ const value=study();value.researchPlan={status:'reviewed',desiredOutput:'Compare',updatedAt:20,reviewedAt:21,byLabel:'Codex',reviewedBy:{byLabel:'You'}};
+ value.findings=[{request:'finding',statement:'Accepted result',tasks:[],at:25,byLabel:'You'}];
+ const records=history(value,{operations:[{id:'o',project:value.session,state:'succeeded',byLabel:'Codex',at:1,workflow:{id:'run1',session:value.session,status:'completed',updatedAt:30}}]});
+ expect(records.find(r=>r.id==='o')?.at).toBe(30);
+ expect(records.some(r=>r.title==='Research plan reviewed')).toBe(true);
+ expect(records.some(r=>r.title==='Accepted result')).toBe(true);
+});

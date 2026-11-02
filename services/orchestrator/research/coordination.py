@@ -78,7 +78,7 @@ class Coordination:
         for ref in plan['materials']:
             exact(self.studies.store, ref, session)
         basis_plan = saved.document['state'][KEY].get('researchPlan')
-        proposed = {**plan, 'status': 'draft', **self.studies.attribution(actor, label)}
+        proposed = {**plan, 'status': 'draft', 'updatedAt': self.clock(), **self.studies.attribution(actor, label)}
         if 'instructionPackage' in plan:
             from .instructions import pin
             proposed['retainedInstructions'] = pin(plan['instructionPackage'])

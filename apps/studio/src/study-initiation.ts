@@ -1,5 +1,6 @@
 /** Retained research plan and handoff; scientific execution stays in WorkflowService. */
 import type {Effort, StudyInput} from './research-efforts';
+import {mergePlanDraft,type PlanFields} from './research-plan-draft';
 
 type Ref={id:string;session:string;revision:number;digest:string};
 type Plan={desiredOutput:string;evaluation:string;materials:Ref[];methodNotes:string;actorMode:'connected-agent'|'local-researcher'|'manual';limits:{experiments:number;modelMinutes:number;tokens:number};status?:string;instructionPackage?:{id:string;version:number;digest:string}};
@@ -22,6 +23,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
   function draw(){
     if(!current()||!state)return;content.replaceChildren();delete box.dataset.draft;
     status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Next, hand the work to your agent or run the tools yourself.':'Save your approach, then review it before handing work to an agent.';
+    try{if(localStorage.getItem(draftKey))amending=true;}catch{/* In-memory editing remains available. */}
     if(!state.plan||state.plan.status==='draft'||amending){
       const form=n('form'),output=n('textarea'),evaluation=n('textarea'),method=n('textarea'),mode=n('select');
       output.value=state.plan?.desiredOutput||'';evaluation.value=state.plan?.evaluation||study.criteria;method.value=state.plan?.methodNotes||'';
@@ -42,11 +44,17 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       let packageRows:{id:string;version:number;digest:string;content:{title:string}}[]=[],packageId=state?.plan?.instructionPackage?.id||'';
       void fetcher('/api/research-instructions').then(result).then(reply=>{if(!current()||!form.contains(packages))return;packageRows=reply.packages;for(const row of packageRows){const option=n('option',`${row.content.title} · v${row.version}`);option.value=row.id;packages.append(option);}packages.value=packageId;}).catch(()=>{if(current())packages.title='Instruction packages could not be loaded; the plan can still be saved.';});
       let review:HTMLButtonElement|null=null,editVersion=0;
+      const fields={output,evaluation,method,mode,...limits};
+      const values=():PlanFields=>({...Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),packageId});
+      let savedValues=values();const conflicts=new Set<string>(),conflictMine:PlanFields={},conflictBase:PlanFields={};
+      const apply=(data:PlanFields)=>{for(const [key,input] of Object.entries(fields))input.value=data[key]??input.value;packageId=data.packageId||'';packages.value=packageId;};
       const remember=()=>{
-        editVersion++;
+        editVersion++;if(packages.value||packageRows.length)packageId=packages.value;
         box.dataset.draft='true';if(review)review.disabled=true;
         status.textContent='Draft saved on this device. Save the research plan before reviewing it.';
-        try{localStorage.setItem(draftKey,JSON.stringify({basis:state!.basis.digest,output:output.value,evaluation:evaluation.value,method:method.value,mode:mode.value,limits:Object.fromEntries(Object.entries(limits).map(([k,v])=>[k,v.value])),packageId:packages.value}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
+        const kept={...values()},base={...savedValues};
+        for(const key of conflicts){kept[key]=conflictMine[key];base[key]=conflictBase[key];}
+        try{localStorage.setItem(draftKey,JSON.stringify({basis:conflicts.size?'unresolved-field-conflicts':state!.basis.digest,output:kept.output,evaluation:kept.evaluation,method:kept.method,mode:kept.mode,limits:Object.fromEntries(Object.keys(limits).map(k=>[k,kept[k]])),packageId:kept.packageId,base}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
       };
       form.oninput=e=>{e.stopPropagation();remember();};
       form.onchange=e=>{e.stopPropagation();remember();};
@@ -58,23 +66,27 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
           for(const key of Object.keys(limits) as (keyof typeof limits)[])limits[key].value=draft.limits[key];
           box.dataset.draft='true';status.textContent='Your unfinished draft is restored. Save it before reviewing.';
         }else if(draft){
-          status.textContent='The Study changed while you were away. Compare your draft with the saved plan.';
-          content.append(button('Restore my draft',async()=>{
-            output.value=draft.output||'';evaluation.value=draft.evaluation||'';method.value=draft.method||'';mode.value=draft.mode||'connected-agent';
-            for(const key of Object.keys(limits) as (keyof typeof limits)[])limits[key].value=draft.limits?.[key]??limits[key].value;
-            packageId=draft.packageId||'';packages.value=packageId;remember();
-            status.textContent='Your draft is restored beside the current saved plan. Review your changes, then save.';
-          }));
+          const mine={output:draft.output,evaluation:draft.evaluation,method:draft.method,mode:draft.mode,...draft.limits,packageId:draft.packageId||''};
+          const merged=mergePlanDraft(draft.base,mine,savedValues);apply(merged.values);
+          for(const key of merged.conflicts){conflicts.add(key);conflictMine[key]=mine[key as keyof typeof mine];conflictBase[key]=draft.base?.[key];}
+          remember();
+          status.textContent=conflicts.size?'Some plan fields changed in both drafts. Choose each version before saving.':'Your draft is restored; unrelated saved changes are preserved.';
+          for(const key of merged.conflicts){
+            const conflict=n('fieldset','','study-plan-conflict');conflict.append(n('legend',`Resolve ${key}`),n('p',`Saved: ${savedValues[key]}`),n('p',`Your draft: ${mine[key]}`));
+            const choose=(useMine:boolean)=>{const selected={...values(),[key]:useMine?mine[key]:savedValues[key]};apply(selected);conflicts.delete(key);conflict.remove();remember();};
+            conflict.append(button('Keep saved value',async()=>choose(false)),button('Use my draft value',async()=>choose(true)));content.append(conflict);
+          }
         }
       }catch{/* An unavailable browser store cannot change the retained plan. */}
       const save=button('Save research plan',async()=>{
+        if(conflicts.size){status.textContent='Resolve each conflicting field before saving.';return;}
         if(!form.checkValidity()||!output.value.trim()||!evaluation.value.trim()||!method.value.trim()){status.textContent='Describe the output, evaluation and proposed approach.';return;}
         const plan:Plan={desiredOutput:output.value.trim(),evaluation:evaluation.value.trim(),methodNotes:method.value.trim(),actorMode:mode.value as Plan['actorMode'],materials:study.inputs.map(r=>({...r,session:study.session})),limits:{experiments:Number(limits.experiments.value),modelMinutes:Number(limits.modelMinutes.value),tokens:Number(limits.tokens.value)}};
         const pack=packageRows.find(row=>row.id===packages.value);if(pack)plan.instructionPackage={id:pack.id,version:pack.version,digest:pack.digest};
         const savingVersion=editVersion;
         const response=await call('plan',{basis:state!.basis,plan});
         if(current()){
-          state=response.coordination;
+          state=response.coordination;savedValues={output:plan.desiredOutput,evaluation:plan.evaluation,method:plan.methodNotes,mode:plan.actorMode,...Object.fromEntries(Object.entries(plan.limits).map(([k,v])=>[k,String(v)])),packageId:plan.instructionPackage?.id||''};
           if(editVersion===savingVersion){amending=false;clearDraft();draw();}
           else{remember();status.textContent='Earlier edits saved. Your newer draft is kept here; save again when ready.';}
         }
@@ -149,16 +161,23 @@ Read the retained plan, exact material, prior failures and decisions through the
     const fields={objective:n('textarea'),deliverable:n('textarea'),uncertainty:n('textarea'),decisionImpact:n('textarea'),whyNewWork:n('textarea')};
     const labels={objective:'What should we investigate?',deliverable:'Expected output',uncertainty:'Which uncertainty will this address?',decisionImpact:'What would change the next decision?',whyNewWork:'Why do we need new work?'};
     let request=crypto.randomUUID();
+    const evidence=n('select');evidence.multiple=true;evidence.setAttribute('aria-label','Evidence for this proposal');
+    const refs=new Map<string,Ref>();const refKey=(r:Ref)=>`${r.session}:${r.id}:${r.revision}:${r.digest}`;
+    const addEvidence=(ref:Ref,title:string,selected=false)=>{const key=refKey(ref);if(refs.has(key))return;refs.set(key,ref);const option=n('option',`${title} · revision ${ref.revision}`);option.value=key;option.selected=selected;evidence.append(option);};
+    for(const ref of state!.plan!.materials)addEvidence(ref,inputs.find(i=>i.id===ref.id)?.title||'Plan material',true);
+    for(const input of inputs)addEvidence({id:input.id,revision:input.revision,digest:input.digest,session:study.session},input.title);
+    for(const a of state!.assignments)for(const ref of a.report?.evidence||[])addEvidence(ref,`Evidence from ${a.objective}`);
+    form.append(n('p','Exact evidence for the follow-up'),evidence,n('p',`Reviewed limits: ${state!.plan!.limits.experiments} experiments · ${state!.plan!.limits.modelMinutes} model minutes · ${state!.plan!.limits.tokens.toLocaleString()} model tokens. This proposal does not increase them.`,'study-note'));
     for(const key of Object.keys(fields) as (keyof typeof fields)[]){const label=n('label');label.append(n('span',labels[key]),fields[key]);fields[key].required=true;form.append(label);}
     const dependencies=n('select');dependencies.multiple=true;dependencies.setAttribute('aria-label','Depends on earlier assignments');
     for(const a of state!.assignments){const option=n('option',a.objective);option.value=a.id;dependencies.append(option);}if(state!.assignments.length)form.append(n('p','Depends on earlier assignments (optional)'),dependencies);
-    const saveDraft=()=>{box.dataset.draft='true';try{localStorage.setItem(draftId,JSON.stringify({request,fields:Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v.value])),dependsOn:Array.from(dependencies.selectedOptions).map(o=>o.value)}));}catch{/* Form remains available. */}};
-    try{const draft=JSON.parse(localStorage.getItem(draftId)||'null');if(draft){request=draft.request;for(const key of Object.keys(fields)as(keyof typeof fields)[])fields[key].value=draft.fields?.[key]||'';for(const o of dependencies.options)o.selected=draft.dependsOn?.includes(o.value);box.dataset.draft='true';disclosure.open=true;}}catch{/* No usable draft. */}
+    const saveDraft=()=>{box.dataset.draft='true';try{localStorage.setItem(draftId,JSON.stringify({request,fields:Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v.value])),dependsOn:Array.from(dependencies.selectedOptions).map(o=>o.value),evidence:Array.from(evidence.selectedOptions).map(o=>o.value)}));}catch{/* Form remains available. */}};
+    try{const draft=JSON.parse(localStorage.getItem(draftId)||'null');if(draft){request=draft.request;for(const key of Object.keys(fields)as(keyof typeof fields)[])fields[key].value=draft.fields?.[key]||'';for(const o of dependencies.options)o.selected=draft.dependsOn?.includes(o.value);if(draft.evidence)for(const o of evidence.options)o.selected=draft.evidence.includes(o.value);box.dataset.draft='true';disclosure.open=true;}}catch{/* No usable draft. */}
     form.oninput=e=>{e.stopPropagation();saveDraft();};form.onchange=e=>{e.stopPropagation();saveDraft();};
     const submit=button('Save proposal',async()=>{
       if(!form.checkValidity()){status.textContent='Describe the proposed work and why it matters.';return;}
       saveDraft();
-      await call('propose',{request,assignment:{...Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v.value.trim()])),evidence:state!.plan!.materials,dependsOn:Array.from(dependencies.selectedOptions).map(o=>o.value)}});
+      await call('propose',{request,assignment:{...Object.fromEntries(Object.entries(fields).map(([k,v])=>[k,v.value.trim()])),evidence:Array.from(evidence.selectedOptions).map(o=>refs.get(o.value)!),dependsOn:Array.from(dependencies.selectedOptions).map(o=>o.value)}});
       try{localStorage.removeItem(draftId);}catch{/* Stored draft is only a convenience. */}delete box.dataset.draft;await load();status.textContent='Proposal saved. Waiting for an authorized agent to claim it.';
     },true);form.append(submit);form.onsubmit=e=>{e.preventDefault();submit.click();};
   }

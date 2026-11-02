@@ -365,6 +365,10 @@ class Operations:
     def request_receipt(self, request_key: str, *, by: str) -> dict | None:
         """Internal recovery lookup; the caller must enforce Project owner authority."""
         record = self._records.get(self._keys.get((by, request_key)))
+        if record is None and not self._history_complete:
+            raise Refused(503, 'operation-history-unavailable',
+                          'Original operation history is unavailable; absence cannot be confirmed.',
+                          next='restore the unavailable Project or operation records, then restart Hooke')
         return wire(record) if record is not None else None
 
     def known(self, request_key, tool: str, params: dict, by: str = "") -> dict | None:

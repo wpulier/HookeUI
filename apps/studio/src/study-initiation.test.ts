@@ -76,3 +76,17 @@ it('shows the refusal recovery instruction when saving fails',async()=>{
  await vi.waitFor(()=>expect(root.textContent).toContain('Reopen the original Study before saving.'));
  expect(root.querySelector('textarea')!.value).toBe('Predictions');
 });
+
+it('retains conflicting local fields across reopen of a reviewed remote plan',async()=>{
+ const {storage}=setup();await Promise.resolve();
+ const key='hooke:research-plan:s1:study';
+ storage.set(key,JSON.stringify({basis:'old',output:'Predictions',evaluation:'Measured error',method:'my method',mode:'connected-agent',limits:{experiments:'2',modelMinutes:'30',tokens:'60000'},packageId:'',base:{output:'Predictions',evaluation:'Measured error',method:'original',mode:'connected-agent',experiments:'2',modelMinutes:'30',tokens:'60000',packageId:''}}));
+ const fetcher=vi.fn(async(url:string)=>new Response(JSON.stringify(url==='/api/research-instructions'?{packages:[]}:{basis:{id:'study',session:'s1',revision:3,digest:'remote'},plan:{...plan,methodNotes:'remote method',status:'reviewed'},assignments:[]})));
+ for(let attempt=0;attempt<2;attempt++){
+  const root=new TestElement('section');mountStudyInitiation(root as unknown as HTMLElement,study,[],fetcher as unknown as typeof fetch);
+  await vi.waitFor(()=>expect(root.textContent).toContain('Your draft: my method'));
+  expect(root.textContent).toContain('Saved: remote method');
+  expect(JSON.parse(storage.get(key)!).method).toBe('my method');
+  expect(root.querySelector('form')).not.toBeNull();
+ }
+});

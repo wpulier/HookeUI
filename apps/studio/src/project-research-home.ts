@@ -20,7 +20,7 @@ export class ProjectResearchHome {
     }
   }
   leave():void{this.seenOpen=false;}
-  private session='';private signature='';private opening=0;private studyLimit=12;private eventLimit=8;
+  private session='';private signature='';private opening=0;private studyLimit=12;private eventLimit=3;private statusLimit=12;
   private readonly host:HTMLElement; private readonly actions:Actions;
   constructor(host:HTMLElement,actions:Actions){
     this.host=host;this.actions=actions;
@@ -30,10 +30,11 @@ export class ProjectResearchHome {
   update(session:string,studies:readonly Effort[],error='',activity:Record<string,ActivitySnapshot>={},researchers:readonly ResearchSession[]=[],material:ProjectMaterialSummary={count:0,groups:[]}):void{
     const owned=studies.filter(s=>s.session===session);
     const local=todaysResearch(researchers,session);
-    const signature=JSON.stringify([session,owned,error,activity,material,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
+    const expired=owned.flatMap(s=>Object.values(s.tasks??{})).map(t=>t.status==='running'&&!!t.collaboration?.leaseUntil&&t.collaboration.leaseUntil<Date.now()/1000);
+    const signature=JSON.stringify([session,owned,error,activity,material,expired,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
     const disclosures=new Map(Array.from(this.root.querySelectorAll('details')).map(d=>[d.dataset.disclosure,d.open]));
     const focus=(document.activeElement as HTMLElement|null)?.dataset.researchFocus;
-    const same=this.session===session;if(!same){disclosures.clear();this.opening++;this.studyLimit=12;this.eventLimit=8;}
+    const same=this.session===session;if(!same){disclosures.clear();this.opening++;this.studyLimit=12;this.eventLimit=3;this.statusLimit=12;}
     this.signature=signature;this.session=session;const opening=this.opening;
     const populated=!!(owned.length||local.length||material.count);
     const waiting=!populated&&!!material.loading;
@@ -64,7 +65,7 @@ export class ProjectResearchHome {
       handoff.append(action('Copy instructions for my agent','agent-handoff',()=>{
         message.hidden=false;const prompt=`Use Hooke through its supported connector and installed Hooke skill. Continue in Project ${session}; do not create a duplicate Project. Read project.state, the existing Studies, exact material and prior decisions first. ${owned.length?'Show me what is already planned or running and the next useful step.':'Help me describe a research question, desired output and evaluation; prepare a retained Study and research plan using the selected material.'} Review the plan and limits with me before execution. Use study.coordination and study.coordinate from tool discovery to prepare, claim and return assignments. Use admitted capabilities and frozen workflows; retain exact outputs and limitations in this Project. A connected agent is not necessarily running. Do not change grants, install tools, use paid services or submit results externally. If access or readiness is missing, explain the specific next step. Return the Project and Study locators so I can open the same work in Hooke.`;
         void Promise.resolve().then(()=>navigator.clipboard.writeText(prompt)).then(()=>{if(this.opening===opening&&this.actions.current()===session)message.textContent='Copied. Paste into your connected Claude, Codex or other agent. Work starts there; results stay in this Project.';}).catch(()=>{if(this.opening!==opening||this.actions.current()!==session)return;const text=node('textarea');text.value=prompt;text.readOnly=true;text.setAttribute('aria-label','Instructions for connected agent');handoff.append(text);text.select();message.textContent='Copy these instructions into your connected agent.';});
-      }));this.root.append(guide,handoff,message);message.hidden=true;
+      }));if(!owned.length)this.root.append(guide);start.append(...Array.from(handoff.children));this.root.append(message);message.hidden=true;
     }
     const details=(label:string,key:string,cls:string)=>{const d=node('details','',cls);d.dataset.disclosure=key;
       const summary=node('summary',label);summary.dataset.researchFocus=key;d.append(summary);return d;};
@@ -89,25 +90,27 @@ export class ProjectResearchHome {
     const events=owned.flatMap(study=>history(study,activity[study.id])).sort((a,b)=>(b.at??0)-(a.at??0));
     const fresh=events.filter(event=>event.at&&event.at>this.seenAt);
     const eventList=node('ol');
-    for(const event of fresh.slice(0,this.eventLimit)){const li=node('li');li.append(node('time',researchDate(event.at)),node('span',event.title),node('small',`${event.actor} · ${event.detail}`),action('Inspect evidence','recent:'+event.study+':'+event.id,()=>this.actions.openStudy(event.study)));eventList.append(li);}
+    for(const event of fresh.slice(0,this.eventLimit)){const li=node('li');li.append(node('time',researchDate(event.at)),node('span',event.title,'project-event-preview'),node('small',`${event.actor} · ${event.detail}`),action('Inspect evidence','recent:'+event.study+':'+event.id,()=>this.actions.openStudy(event.study)));eventList.append(li);}
     recent.append(eventList);
     if(!fresh.length)recent.append(node('p','No newer dated research events in the loaded history.'));
     if(fresh.length>this.eventLimit)recent.append(action(`Show next ${Math.min(8,fresh.length-this.eventLimit)} changes`,'more-events',()=>{this.eventLimit+=8;this.signature='';this.update(session,studies,error,activity,researchers,material);}));
     recent.append(action('Mark seen','mark-seen',()=>{this.seenAt=Date.now()/1000;try{localStorage.setItem(`hooke:project-seen:${session}`,String(this.seenAt));}catch{/* View state only. */}this.signature='';this.update(session,studies,error,activity,researchers,material);}));
     const now=section('Now'),attention=section('Needs attention'),continuation=section('Continue');
     let issues=0;
-    for(const study of owned.slice(0,30)){
+    const ordered=[...owned].sort((a,b)=>studyGroup(a,activity[a.id])-studyGroup(b,activity[b.id]));
+    for(const study of ordered.slice(0,this.statusLimit)){
       const observed=studyActivity(study,error?{operations:activity[study.id]?.operations??[],error}:activity[study.id]);
       now.append(action(studyName(study),'now:'+study.id,()=>this.actions.openStudy(study.id)),node('p',observed.title));
       const reasons=[observed.unavailable?'Current execution could not be confirmed':'',observed.counts.failed?`${observed.counts.failed} failed experiments`:'',observed.assignments.review?`${observed.assignments.review} reports awaiting review`:'',observed.assignments.check?'Assignment ownership needs checking':'',study.claimChanges?.length?'Challenges are recorded; inspect their evidence':''].filter(Boolean);
       if(reasons.length){issues++;attention.append(action(studyName(study),'attention:'+study.id,()=>this.actions.openStudy(study.id)),node('p',reasons.join(' · ')));}
     }
     if(!owned.length)now.append(node('p',local.length?'Open a researcher to inspect its observed activity.':'No Study work recorded yet.'));
-    if(!issues)attention.append(node('p',error?'Refresh the Project to check its current state.':'No attention items in the loaded Study records.'));
+    if(!issues)attention.append(node('p',error?'Refresh the Project to check its current state.':'No attention items in the displayed Studies.'));
+    if(ordered.length>this.statusLimit){attention.append(node('p',`Showing ${this.statusLimit} of ${ordered.length} Studies, attention first.`),action('Show more current work','more-status',()=>{this.statusLimit+=12;this.signature='';this.update(session,studies,error,activity,researchers,material);}));}
     if(owned[0])continuation.append(node('p','Inspect the latest evidence, then propose the next experiment in its Study.'),action('Continue investigation','continue',()=>this.actions.openStudy(owned[0].id)));
     else if(this.actions.startResearch)continuation.append(action('Start research','continue',this.actions.startResearch));
     continuation.append(node('small','Connected agents and Hooke researchers contribute to the same Project. Opening work starts nothing.'));
-    this.root.append(sections);
+    sections.replaceChildren(purpose,now,attention,continuation,recent);purpose.classList.add('project-overview-purpose');recent.classList.add('project-overview-recent');this.root.append(sections);
     const studyIndex=details(`Studies · ${owned.length}`,'studies','project-overview-studies');
     studyIndex.open=false;
     const stats=node('div','','project-research-stats');
@@ -137,7 +140,9 @@ export class ProjectResearchHome {
         if(this.actions.openResearcher)row.append(action('Open researcher',`researcher:${r.rid}`,()=>this.actions.openResearcher!(r.rid)));workers.append(row);}
       supporting.push(node('p',`${local.filter(isWorking).length} Hooke researchers working in this Project`,'project-research-caption'),workers);
     }
-    for(const s of owned.slice(0,this.studyLimit)){
+    let lastGroup=-1;
+    for(const s of ordered.slice(0,this.studyLimit)){
+      const group=studyGroup(s,activity[s.id]);if(group!==lastGroup){studyIndex.append(node('h3',['Needs attention','Ongoing','Completed or stopped'][group]));lastGroup=group;}
       const open=()=>this.actions.openStudy(s.id),key=`study:${s.id}`;
       const receipt=error?{operations:activity[s.id]?.operations??[],error}:activity[s.id];
       const observed=studyActivity(s,receipt);
@@ -179,4 +184,11 @@ export class ProjectResearchHome {
     for(const d of this.root.querySelectorAll('details'))d.open=disclosures.get(d.dataset.disclosure)??false;
     if(same&&focus)for(const item of this.root.querySelectorAll<HTMLElement>('[data-research-focus]'))if(item.dataset.researchFocus===focus){item.focus();break;}
   }
+}
+
+/** Groups use retained lifecycle and observed work, never a guessed completion percentage. */
+function studyGroup(study:Effort,snapshot?:ActivitySnapshot):number{
+ const seen=studyActivity(study,snapshot);
+ if(seen.unavailable||seen.counts.failed||seen.counts.check||seen.assignments.check||seen.assignments.review||study.claimChanges?.length)return 0;
+ return study.status==='stopped'?2:1;
 }

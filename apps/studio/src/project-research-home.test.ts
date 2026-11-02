@@ -191,3 +191,18 @@ test('the agent entrance copies this Project and cannot act after a Project swit
  expect(start).not.toHaveBeenCalled();
  current='different-project';fire(b,'click');await Promise.resolve();expect(copy).toHaveBeenCalledOnce();
 });
+
+test('lease expiry refreshes unchanged records and shows the ownership check',()=>{
+ const {home,root}=setup();const value=study();value.experiments={};
+ value.tasks={assigned:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:100}}};
+ vi.spyOn(Date,'now').mockReturnValue(90000);home.update('p1',[value]);expect(root.textContent).toContain('Agent assignment claimed');
+ vi.spyOn(Date,'now').mockReturnValue(110000);home.update('p1',[value]);expect(root.textContent).toContain('Assignment ownership needs checking');
+ vi.restoreAllMocks();
+});
+test('hundreds of synthetic Studies are grouped and paginated without hiding a later blocker',()=>{
+ const {home,root}=setup();const rows=Array.from({length:200},(_,i)=>({...study(),id:'s'+i,title:'Study '+i,experiments:{},claims:[]}));
+ rows[199].tasks={pending:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:1}}};
+ home.update('p1',rows);expect(root.textContent).toContain('Study 199');
+ expect(root.textContent).toContain('Showing 12 of 200 Studies');
+ expect(root.querySelectorAll('article').filter(e=>e.className==='project-research-summary')).toHaveLength(12);
+});
