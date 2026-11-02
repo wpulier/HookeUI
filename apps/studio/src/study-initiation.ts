@@ -98,7 +98,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
           else{remember();status.textContent='Earlier edits saved. Your newer draft is kept here; save again when ready.';}
         }
       },true);form.onsubmit=e=>{e.preventDefault();save.click();};form.append(save);content.append(form);
-      if(state.plan?.status==='draft'&&!amending){review=button('Review this saved plan',async()=>{if(box.dataset.draft){status.textContent='Save your edited plan before reviewing it.';return;}const response=await call('review',{basis:state!.basis});if(current()){clearDraft();state=response.coordination;draw();}},true);review.disabled=!!box.dataset.draft;content.append(review);} 
+      if(state.plan?.status==='draft'&&!amending){review=button('Review this saved plan',async()=>{if(box.dataset.draft){status.textContent='Save your edited plan before reviewing it.';return;}const response=await call('review',{basis:state!.basis});if(current()){clearDraft();state=response.coordination;draw();}},true);review.disabled=!!box.dataset.draft;content.append(review);}
     }else{
       if(state.plan.actorMode==='manual')content.append(n('p','Open Tools or Workflows, choose the exact Study inputs, and run your first experiment. Keep its outputs with this Study.','study-note'));
       if(state.plan.actorMode==='local-researcher')content.append(n('p','Use the Hooke researcher controls in this Study. Its model must be configured before Start research can run it; saving this plan has not started it.','study-note'));
