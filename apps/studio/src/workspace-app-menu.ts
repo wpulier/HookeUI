@@ -12,6 +12,8 @@ interface Options {
   scientificSessions?: () => void;
   projectFolder?: () => void;
   openProjectFolder?: () => void;
+  /** Start a working copy of a published project (ADR 0028). */
+  startFrom?: () => void;
   /** Opens the Spending panel (the Stage's status pill owns it). */
   spending?: () => void;
   openSession: (id: string) => void;
@@ -52,6 +54,7 @@ export class WorkspaceAppMenu {
     const closeThen = (action: () => void) => { this.close(); action(); };
     add('New project', () => closeThen(opts.newSession), '+');
     if (opts.openProjectFolder) add('Open Project folder…', () => closeThen(opts.openProjectFolder!));
+    if (opts.startFrom) add('Start from a project…', () => closeThen(opts.startFrom!));
     if (opts.projectFolder) add('Project folder…', () => closeThen(opts.projectFolder!));
     add('Workflows', () => closeThen(() => opts.navigate('#workflows'))); this.main.append(node('hr'));
     const sessions = this.sessionsItem = add('All Projects', () => closeThen(() => opts.navigate('#sessions')), '›');

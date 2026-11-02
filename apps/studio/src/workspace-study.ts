@@ -3,6 +3,7 @@ import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
+import { openStartFrom, type GitHubCode, type PublishActions } from './project-publish';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
 import {sameMediaReference} from './project-media-reference';
@@ -1302,11 +1303,26 @@ function openCurrentProjectFolder():void {
         read: async operation => { const r = await bridge.request('project-record-status', {session: owner.session, operation}); if (!r.operation) throw new Error('Inclusion status is unavailable.'); return r.operation; },
         stop: async operation => { const r = await bridge.request('project-record-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
       },
+      publishActions: projectPublishActions(owner.session),
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
         if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
     });
+}
+/** Publish, Update and GitHub sign-in for one Project (ADR 0028); the server reviews, seals and checks. */
+function projectPublishActions(session: string): PublishActions {
+  return {
+    prepare: async options => { const r = await bridge.request('project-publish-prepare', {session, ...options}); if (!r.review) throw new Error(r.error ?? 'The publication could not be prepared.'); return r.review; },
+    publish: async (review, signoff, destination) => { const r = await bridge.request('project-publish', {session, staging: review.staging, reviewDigest: review.reviewDigest, signoff, destination}); if (!r.published) throw new Error(r.error ?? 'The publication was not sent.'); return {published: r.published, location: r.location ?? ''}; },
+    status: async () => { const r = await bridge.request('project-remote-status', {session}); return {published: r.published ?? [], startedFrom: r.startedFrom ?? null}; },
+    update: async () => { const r = await bridge.request('project-update-from', {session}); if (!r.update) throw new Error(r.error ?? 'The update could not be fetched.'); return r.update; },
+    github: {
+      status: async () => { const r = await bridge.request('github-signin', {do: 'status'}); return {setUp: r.setUp === true, signedIn: r.signedIn === true, says: String(r.says ?? '')}; },
+      start: async () => { const r = await bridge.request('github-signin', {do: 'start'}); if (!r.code) throw new Error(r.error ?? 'GitHub sign-in could not start.'); return r as unknown as GitHubCode; },
+      poll: async id => { const r = await bridge.request('github-signin', {do: 'poll', id}); return {state: String(r.state ?? 'expired'), every: typeof r.every === 'number' ? r.every : undefined, says: String(r.says ?? r.error ?? '')}; },
+    },
+  };
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
@@ -1323,6 +1339,7 @@ const appMenu = new WorkspaceAppMenu({
     });
   },
   projectFolder: openCurrentProjectFolder,
+  startFrom: () => { if (switching) return; openStartFrom({start: async (source, name) => { const r = await bridge.request('project-start-from', {source, name}); if (!r.project) throw new Error(r.error ?? 'The project could not be started.'); return {project: r.project}; }}, session => void changeSession(session)); },
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });
