@@ -1171,7 +1171,13 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
     if(!restoring) { await workspaceViews.flush(); await rememberSession(); }
     workspaceViews.pause();
     const target=await bridge.switchSession(id);
-    tabs=activateTab(tabs??emptyTabs(),target); snapshot=bridge.state(); entries=[];resourceSession='';if(dataOpen)renderResults();void refreshResults();
+    tabs=activateTab(tabs??emptyTabs(),target); snapshot=bridge.state();
+    // switchSession can publish the new Project before its promise resolves. A
+    // conditional inventory read may already be in flight against that Project.
+    // Retire it together with the cache, or an unchanged reply can refill this
+    // emptied cache with no entries and hide the retained material indefinitely.
+    resourceReads.cancel(); entries=[];resourceSession='';resourceRevision='';
+    if(dataOpen)renderResults();void refreshResults();
     const saved=sessionUI[target];snapshot=bridge.state();
     if(saved) { bridge.restoreDraft(saved.presentation);const recovery={recovered:true,missing:[] as string[]}; snapshot=bridge.state(); preferences.inspector=saved.agent; drawerOpen=saved.section==='library'?false:saved.drawer; showSection(saved.section==='library'?'inputs':saved.section); drawerBody.scrollTop=saved.scroll; dataMode=saved.dataMode??'outputs';setDataOpen(saved.dataOpen??false,false);dataBody.scrollTop=saved.dataScroll??0;
       if(!recovery.recovered) actionError(`Some evidence could not be restored: ${recovery.missing.join('; ')}`); }
@@ -1718,7 +1724,10 @@ async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<voi
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
     if (!ownsRead() || generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
-    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    if (data.unchanged === true) {
+      if (resourceSession !== session || !resourceRevision) throw new Error('Project material needs a fresh read. Retry to load its retained inputs.');
+      if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return;
+    }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
     // ticket). Its lessons, pictures, tables and sources are the server's own entries now (S4), no longer made up here.
     const next = (data.entries ?? []).map(entry => {const base={...entry,day:entry.day??session};if(entry.kind!=='research')return base;

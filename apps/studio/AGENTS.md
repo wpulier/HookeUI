@@ -2166,3 +2166,9 @@ Main explains both research entrances: describe a question in Hooke or copy a Pr
 Local research Studies open on Plan & results, including at widths where the
 write-up is a separate tab. Continue to research plan must not land on the empty
 activity view. The Study tab remains available for operations and discussion.
+
+Completing a Project switch retires any in-flight inventory read together with
+its cached contents and revision. A server `unchanged` response cannot establish
+an inventory when that cache has been cleared; it must produce recoverable retry,
+never an empty successful list. This also applies when the bridge publishes the
+new Project before its switch promise resolves.
