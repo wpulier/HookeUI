@@ -38,6 +38,7 @@ Component contracts (read the relevant file before editing):
 - `catalog/AGENTS.md`
 - `contract/AGENTS.md`
 - `docs/architecture/freshness-and-overlay.md`
+- `docs/architecture/hooke-project-format-v2.md` (publishing and starting from a Project, ADR 0028)
 - `docs/architecture/on-screen.md`
 - `docs/architecture/scientific-matrices.md`
 - `docs/architecture/scientific-workflows.md`

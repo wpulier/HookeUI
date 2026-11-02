@@ -57,7 +57,7 @@ def _remote_for(destination, *, anonymous=False):
 
 
 def _refused(error):
-    return tools.ToolError(str(error), next=None)
+    return tools.ToolError(str(error), next=None)  # no next: the refusal's own words say what to do
 
 
 @command('project-publish-prepare')
@@ -164,7 +164,7 @@ async def project_update_from(app, client, msg) -> dict:
     events = ProjectRepository(root).events()
     started = [e for e in events if e.get('type') == 'project-started-from']
     if not started:
-        raise tools.ToolError('This Project was not started from a publication.', next=None)
+        raise tools.ToolError('This Project was not started from a publication.', next=None)  # no next: there is nothing to update from
     source = started[-1]['source']
     def work():
         locations.writable(day.sid)
