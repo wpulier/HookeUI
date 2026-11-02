@@ -99,3 +99,42 @@ test('a switched Project cannot replace a retained reader after waiting for a sa
  await expect(current.openReaderPage({...item,resource:{...item.resource,version:3}})).rejects.toThrow('layout');
  expect(first.items[0].resource.version).toBe(2);
 });
+
+test.each(['new','existing','replace'] as const)('opening a %s reader leaves the covering research page before navigating',async mode=>{
+ const order:string[]=[],leaveResearch=vi.fn(()=>{order.push('leave');return true;});
+ const current=views({opts:{leaveResearch},readerPinned:()=>false});
+ if(mode!=='new'){const view=readerView('reading',item);current.layout.views.push(view);current.layout.active='reading';current.active=()=>view;}
+ current.goTo=vi.fn(async()=>{order.push('navigate');return true;});current.activate=current.goTo;
+ const chosen=mode==='replace'?{...item,resource:{...item.resource,version:3}}:item;
+ expect(await current.openReaderPage(chosen)).toBe(true);
+ expect(order).toEqual(['leave','navigate']);
+});
+
+test.each(['new','existing','replace'] as const)('a retained draft refusal prevents %s reader navigation or layout changes',async mode=>{
+ const current=views({opts:{leaveResearch:()=>false},readerPinned:()=>false});
+ if(mode!=='new'){const view=readerView('reading',item);current.layout.views.push(view);current.layout.active='reading';current.active=()=>view;}
+ const before=JSON.stringify(current.layout),chosen=mode==='replace'?{...item,resource:{...item.resource,version:3}}:item;
+ expect(await current.openReaderPage(chosen)).toBe(false);
+ expect(JSON.stringify(current.layout)).toBe(before);expect(current.capture).not.toHaveBeenCalled();expect(current.flush).not.toHaveBeenCalled();expect(current.goTo).not.toHaveBeenCalled();expect(current.activate).not.toHaveBeenCalled();
+});
+
+
+test.each(['new','existing','replace'] as const)('confirmed departure resumes the requested %s reader',async mode=>{
+ let resume:(()=>void)|undefined,allowed=false;
+ const current=views({opts:{leaveResearch:(then?:()=>void)=>{resume=then;return allowed;},notice:vi.fn()},readerPinned:()=>false});
+ if(mode!=='new'){const view=readerView('reading',item);current.layout.views.push(view);current.layout.active='reading';current.active=()=>view;}
+ const chosen=mode==='replace'?{...item,resource:{...item.resource,version:3}}:item;
+ expect(await current.openReaderPage(chosen)).toBe(false);
+ expect(current.goTo).not.toHaveBeenCalled();expect(current.activate).not.toHaveBeenCalled();
+ allowed=true;resume!();
+ await vi.waitFor(()=>expect(mode==='replace'?current.activate:current.goTo).toHaveBeenCalledTimes(1));
+});
+
+test('a deferred reader request cannot cross a Project switch',async()=>{
+ let resume:(()=>void)|undefined;
+ const notice=vi.fn(),current=views({opts:{leaveResearch:(then?:()=>void)=>{resume=then;return false;},notice}});
+ expect(await current.openReaderPage(item)).toBe(false);
+ current.generation++;resume!();
+ await vi.waitFor(()=>expect(notice).toHaveBeenCalledWith(expect.objectContaining({message:expect.stringContaining('Project changed')})));
+ expect(current.goTo).not.toHaveBeenCalled();expect(current.capture).not.toHaveBeenCalled();
+});

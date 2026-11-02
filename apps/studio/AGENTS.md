@@ -42,6 +42,8 @@ rather than offering an implicit new Project. This is client-neutral; named prov
 
 # The studio
 
+All retained-reader entrances, including an already-visible Inputs/Data panel, leave the covering research page through the existing unsaved-form guard before selecting, creating or replacing a reader tab. A refused departure changes neither the layout nor its selected evidence.
+
 A Study's home is laid out as a researcher's Tab (workspace-feel step 7, the mock's `studyHome()`; `study-view.ts`
 `renderStudy`, root `.study-home`): on the left, Experiments by phase (Needs you, In progress, Done, each a row with its
 lit cell, its name, who runs it and its state; a row brings its step into view and lets it glow), then the inputs

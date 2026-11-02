@@ -23,7 +23,7 @@ interface Options {
  /** Where a closed Tab's content lives, for the close motion: Data (an input or result Tab) or Researchers. */
  closeTarget?:(kind:'data'|'researchers')=>HTMLElement|null;
  /** Leave a researcher or Study page in the Stage's place, as a click on a work Tab does; false when it cannot. */
- leaveResearch?:()=>boolean;
+ leaveResearch?:(then?:()=>void)=>boolean;
  /** Researcher and Study Tabs for the Assistant: listed in its Tab report, and its switch and close reach them. */
  research?:{report:()=>ResearchTabReport[];switch:(id:string)=>boolean|Promise<boolean>;close:(id:string)=>boolean};
  /** A researcher whose own Tab is in the row: its server-made results Tab is kept, but not opened beside it. */
@@ -786,6 +786,7 @@ private revision=0;private generation=0;private revealSequence=0;
  async openReaderTab(item:ReaderTabItem,owner=this.tabOwner()):Promise<boolean>{
   if(!this.ownsTabChoice(owner))throw new Error('The Project changed. Open it again from its Data.');
   if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
+  if(this.opts.leaveResearch&&!this.opts.leaveResearch(()=>{void this.openReaderTab(item,owner).catch(error=>this.opts.notice(error));}))return false;
   const same=this.layout.views.find(v=>{const shown=readerItem(v);return !!shown&&shown.resource.day===item.resource.day&&shown.resource.id===item.resource.id&&shown.resource.version===item.resource.version;});
   if(same)return this.goTo(same.id,owner);
   if(this.layout.views.length>=24)throw new Error('24 Tabs are saved. Remove one you no longer use to make room; its Data stays.');
@@ -803,9 +804,10 @@ private revision=0;private generation=0;private revealSequence=0;
   if(!this.ownsTabChoice(owner))throw new Error('The Project changed. Open it again from its Data.');
   if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
   const same=this.layout.views.find(v=>{const r=readerItem(v);return r&&r.resource.day===item.resource.day&&r.resource.id===item.resource.id&&r.resource.version===item.resource.version;});
-  if(same)return this.goTo(same.id,owner);
+  if(same)return this.openReaderTab(item,owner);
   const view=this.active();
   if(view?.kind!=='reader'||this.readerPinned(view.id)||view.notes.length)return this.openReaderTab(item,owner);
+  if(this.opts.leaveResearch&&!this.opts.leaveResearch(()=>{void this.openReaderPage(item,owner).catch(error=>this.opts.notice(error));}))return false;
   this.capture();await this.flush();
   if(!this.ownsTabChoice(owner)||this.active()?.id!==view.id||this.dirty||this.conflict)throw new Error('The layout is not saved. Retry before opening another page.');
   const previous=readerItem(view);
