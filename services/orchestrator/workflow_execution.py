@@ -114,9 +114,8 @@ class ScientificSteps:
                             if declared['generation']!=s['generation']:raise InvalidProject('The pinned capability generation is unavailable; save a new workflow version')
                             if 'execution' in s:
                                 from .matrix_execution import validate
-                                validate(self.hub, s['execution'], s['capability'], session)
-                                if getattr(getattr(self, 'day', None), 'elsewhere', None) and self.day.elsewhere(session).local_only:
-                                    raise InvalidProject('This Project is local only; external execution is unavailable')
+                                local_only = bool(getattr(getattr(self, 'day', None), 'elsewhere', None) and self.day.elsewhere(session).local_only)
+                                validate(self.hub, s['execution'], s['capability'], session, local_only=local_only)
                             elif not declared['ready']:raise InvalidProject(declared['reason'])
                             parameters(s['capability'],s['parameters'])
                             ports=[p['id'] for p in declared['inputs']]

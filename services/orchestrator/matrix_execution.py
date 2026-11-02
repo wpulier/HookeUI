@@ -56,6 +56,7 @@ def profiles(hub):
             or any(type(s) is not str for s in value['sessions'])
             or type(value['capabilities']) is not list
             or type(value['limits']) is not dict
+            or type(value.get('localOnlyAuthorizations', {})) is not dict
             or any(type(s) is not str for s in value['capabilities'])):
         raise InvalidProject('The installed execution profile is malformed')
     selection({'profile': value['id'], 'generation': value['generation']})
@@ -65,7 +66,7 @@ def profiles(hub):
     return [copy.deepcopy(value)]
 
 
-def validate(hub, chosen, capability, session):
+def validate(hub, chosen, capability, session, *, local_only=False):
     chosen = selection(chosen)
     found = profiles(hub)
     if not found:
@@ -75,12 +76,21 @@ def validate(hub, chosen, capability, session):
         raise InvalidProject('The installed execution generation changed; explicitly revise the workflow')
     if session not in profile['sessions'] or capability not in profile['capabilities']:
         raise InvalidProject('This Project or capability is outside the operator-approved execution profile')
+    if local_only:
+        authorization = profile.get('localOnlyAuthorizations', {}).get(session)
+        if (type(authorization) is not dict or set(authorization) != {'reason', 'evidence'}
+                or type(authorization['reason']) is not str or not authorization['reason'].strip() or len(authorization['reason']) > 1000
+                or type(authorization['evidence']) is not dict
+                or authorization['evidence'].get('session') != session):
+            raise InvalidProject('This Project is local only; external execution needs an explicit operator allowance with retained evidence')
+        from .scientific_comparisons import exact
+        exact(hub.resources.projects, authorization['evidence'], session)
     return profile
 
 
 def discovery(hub):
     """Describe available execution without disclosing operator Project allowlists."""
-    return [{k: v for k, v in profile.items() if k != 'sessions'} for profile in profiles(hub)]
+    return [{k: v for k, v in profile.items() if k not in ('sessions', 'localOnlyAuthorizations')} for profile in profiles(hub)]
 
 
 def _receipt(value):
@@ -181,9 +191,8 @@ def _run(steps, claim, inputs, *, reconcile):
         receipt, fresh = prior['receipt'], False
     else:
         settings = claim['node']['settings']
-        if steps.day.elsewhere(claim['session']).local_only:
-            raise InvalidProject('This Project is local only; external execution is unavailable')
-        profile = validate(steps.hub, settings['execution'], settings['capability'], claim['session'])
+        local_only = steps.day.elsewhere(claim['session']).local_only
+        profile = validate(steps.hub, settings['execution'], settings['capability'], claim['session'], local_only=local_only)
         store = steps.store.for_session(claim['session'], write=True)
         declared = local.descriptor(settings['capability'])
         if declared['generation'] != settings['generation']:
@@ -197,6 +206,8 @@ def _run(steps, claim, inputs, *, reconcile):
         intent = {'session': claim['session'], 'run': claim['run'], 'attempt': claim['attempt']['id'],
                   'capability': settings['capability'], 'generation': settings['generation'],
                   'params': params, 'inputs': exact, 'execution': selection(settings['execution'])}
+        if local_only:
+            intent['localOnlyAuthorization'] = copy.deepcopy(profile['localOnlyAuthorizations'][claim['session']])
         maximum = min(profile['limits']['maximumOutputBytes'], local.MAX_INPUT_BYTES)
         if shutil.disk_usage(store.root).free < 2 * maximum + WORKING_BYTES + SPARE:
             raise InvalidProject('Insufficient local space to retain the admitted external output')

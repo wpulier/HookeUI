@@ -119,7 +119,14 @@ omitting it preserves local execution. Discovery exposes installed profiles with
 their Project allowlists. Trusted startup code installs the optional
 `HOOKEUI_MATRIX_EXECUTION_EXTENSION`; saved definitions cannot import code, choose
 credentials or increase operator resource ceilings. Managed provider code remains
-outside the public core. Local-only Projects refuse external admission.
+outside the public core. Local-only Projects refuse external admission unless
+the installed operator profile carries an explicit, Project-scoped allowance with
+an exact retained evidence reference and reason. Fresh admission verifies that
+reference and copies the allowance into the original intent. Saved workflows and
+connected agents cannot grant this exception. It applies only to the installed
+profile's capabilities and ceilings; it does not rewrite Project history or alter
+other local-only guards. Discovery omits these private per-Project allowances.
+Cancellation uses the original intent even if current evidence becomes unavailable.
 
 The original attempt stores exact inputs, parameters, scientific generation,
 execution generation, deterministic provider identity and maximum cost before

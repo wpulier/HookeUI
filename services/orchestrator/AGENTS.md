@@ -1129,6 +1129,9 @@ Scientific workflows use `workflow_service.py` for Studio, local researchers and
 Original workflow attempts own provider identities, conservative cost reservations
 and recovery; managed provider code stays outside the core. No saved workflow may
 select code, credentials or raise limits. Unknown termination remains uncertain.
+Local-only Projects need an explicit installed operator allowance with a verified
+retained evidence reference. The original intent keeps it; other local-only
+policies and the Project journal are unchanged, and recovery needs no new allowance.
 
 Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
 coordinate checks and atomic publication with worker outputs but retaining their own versioned

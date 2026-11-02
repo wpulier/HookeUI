@@ -52,7 +52,7 @@ def fixture(tmp_path, monkeypatch):
     b = Backend()
     day = SimpleNamespace(local_only=False)
     day.elsewhere = lambda _: day
-    steps = ScientificSteps(w, SimpleNamespace(matrix_executor=b))
+    steps = ScientificSteps(w, SimpleNamespace(matrix_executor=b, resources=SimpleNamespace(projects=w.store)))
     steps.day = day
     graph = {'format': 1, 'input': {'kind': 'source-file'}, 'nodes': [{
         'id': 'fit', 'name': 'Fit', 'kind': 'tool', 'needs': ['input'], 'settings': {
@@ -165,3 +165,30 @@ def test_concurrent_recovery_has_one_original_observer(tmp_path, monkeypatch):
     finally:
         release.set(); thread.join(10)
     assert w.status(c['run'], 's1')['status'] == 'completed'
+
+
+def test_explicit_operator_allowance_is_exact_retained_and_scoped(tmp_path, monkeypatch):
+    w, steps, b, source, claim = fixture(tmp_path, monkeypatch)
+    steps.day.local_only = True
+    from orchestrator.workflow_execution import keep_file
+    evidence = keep_file(w.store, 's1', 'f'*32, 'owner-allowance.txt', b'Explicit scoped operator authorization')
+    authorization = {'reason': 'Owner explicitly authorized this bounded profile', 'evidence': identity(evidence)}
+    original = b.describe
+    monkeypatch.setattr(b, 'describe', lambda: {**original(), 'localOnlyAuthorizations': {'s1': authorization}})
+    assert 'localOnlyAuthorizations' not in external.discovery(steps.hub)[0]
+    c = claim()
+    authorization['evidence']['digest'] = '0'*64
+    with pytest.raises(InvalidProject): external.run(steps, c, {'effects': identity(source)})
+    assert not b.calls
+    authorization['evidence'] = identity(evidence)
+    b.failure = OSError('lost reply')
+    with pytest.raises(external.ExecutionUncertain): external.run(steps, c, {'effects': identity(source)})
+    saved = w.status(c['run'], 's1')['attempts'][0]['execution']['intent']
+    assert saved['localOnlyAuthorization'] == authorization
+    assert steps.day.local_only is True
+    # Cancellation does not require the authorization document to remain readable.
+    import orchestrator.scientific_comparisons as comparisons
+    monkeypatch.setattr(comparisons, 'exact', lambda *a: (_ for _ in ()).throw(AssertionError('read current evidence')))
+    w.control(c['run'], 's1', 'stop', actor='studio')
+    external.recover(steps, c['run'], 's1')
+    assert w.status(c['run'], 's1')['status'] == 'stopped'
