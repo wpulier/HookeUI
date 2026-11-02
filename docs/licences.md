@@ -49,6 +49,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [A Cellpose model you added (its weights are its maker's)](https://github.com/MouseLand/cellpose) | **non-commercial** | code BSD-3-Clause; the weights under their maker's licence (on the model's card), most fine-tuned from Cellpose-SAM's, which were trained on data licensed for non-commercial use | weights | - | `cells` (cellpose-file) |
 | [micro-sam light-microscopy SAM, vit_b_lm (cells and click outlines)](https://github.com/computational-cell-analytics/micro-sam) | **non-commercial** | code MIT; weights CC-BY-4.0, trained on data licensed for non-commercial use (LIVECell CC BY-NC 4.0, TissueNet, Cellpose's dataset) | weights | outline: `micro-sam-lm`, cells: `micro-sam-lm`, outline_repair: `micro-sam-lm` | `segment` (micro-sam-lm), `cells` (micro-sam-lm) |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `aggregate-profile-prepare` | - |
+| [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `cell-evaluation-rank` | - |
 | [Upstream cell-eval2 0.20.0 and CPU dependencies](https://github.com/ArcInstitute/cell-eval2/blob/main/LICENSE) | open | MIT (cell-eval2); BSD-3-Clause (scientific libraries); transitive packages retain their own terms | code | catalog: `cell-evaluation-runtime` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `cell-evaluation-select` | - |
 | [InstanSeg brightfield nuclei (code and weights)](https://github.com/instanseg/instanseg) | open | Apache-2.0 | code | catalog: `instanseg-brightfield` | - |
@@ -59,6 +60,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-evaluate-cell` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-export` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-inspect` | - |
+| [Bundled official final-panel packaging integration](https://pypi.org/project/vcc-cli/0.3.0/) | open | Apache-2.0 adapter; MIT vcc-cli; dependencies retain their own licenses | code | catalog: `matrix-package-vcc` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-prepare` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-project-counts` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-combine` | - |
@@ -70,6 +72,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Spot measure, an example capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-measure` | - |
 | [Spot shape, an example derived capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-shape` | - |
 | [Swin2SR lightweight x2 (Conde, Choi, Burchi, Timofte)](https://huggingface.co/caidas/swin2SR-lightweight-x2-64) | open | Apache-2.0 | code | catalog: `swin2sr-enlarge` | - |
+| [Official vcc-cli 0.3.0 and scientific Python dependencies](https://pypi.org/project/vcc-cli/0.3.0/) | open | MIT (vcc-cli); transitive packages retain their own licenses | code | catalog: `vcc-packaging-runtime` | - |
 
 ## Defaults by edition
 
