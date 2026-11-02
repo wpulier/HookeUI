@@ -113,7 +113,7 @@ Read the retained plan, exact material, prior failures and decisions through the
       const card=n('details','','study-assignment'),p=item.proposal;
       card.append(n('summary',`${p.title} · awaiting your review`),n('p',`Proposed by ${item.byLabel}`),n('p',p.gap));
       for(const [label,value]of [['Licence',p.licence],['Dependencies',p.dependencies],['Permissions',p.permissions],['Resources',p.resources],['Checks',p.proofPlan]])card.append(n('h4',label),n('p',value));
-      card.append(n('p','Nothing has been installed or activated. Inspect the exact retained package, then use the existing Models preparation, checks and review controls.','study-note'));
+      card.append(n('p','A proposal does not install or activate its package. Models shows its current setup, checks and activation state.','study-note'));
       if(openFile)card.append(button('Open proposed package',async()=>{await openFile(p.package,p.title);},false,'Opening package…'));
       const setup=n('a','Review in Models');setup.href='#models';card.append(setup);content.append(card);
     }
