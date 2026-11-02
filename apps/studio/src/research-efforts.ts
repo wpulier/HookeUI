@@ -93,7 +93,7 @@ export function studySpending(e: Pick<Effort, 'capMicrousd' | 'spentMicrousd' | 
 
 /** Its experiments counted by state, in the order they matter ("1 needs checking · 2 running · 3 finished"). */
 export function taskCounts(e: Pick<Effort, 'tasks' | 'experiments'>): string {
-  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'finished', 'completed', 'cancelled'];
+  const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'reported', 'finished', 'completed', 'cancelled'];
   const counts = new Map<string, number>();
   for (const task of Object.values(e.tasks ?? {})) {
     if(task.specification?.provider==='scientific-gcp-grant')continue;
@@ -178,6 +178,7 @@ export function retainStudyFinding(id: string, session: string, request: string,
 }
 /** A single observed lifecycle drives the list, summary and available actions. */
 export function taskPhase(task: EffortTask): string {
+  if (task.specification?.provider === 'collaboration' && task.status === 'completed') return 'reported';
   if (task.execution?.provider === 'local-researcher' && task.status === 'completed') return 'finished';
   if (task.status === 'cancel_requested' || task.status === 'unknown' || task.chargedMicrousd != null) return task.status;
   const seen = task.observation;
@@ -186,7 +187,7 @@ export function taskPhase(task: EffortTask): string {
   if (task.status === 'running' && seen?.providerStatus === 'idle') return 'waiting';
   return task.status;
 }
-function phaseWords(phase: string): string { return ({ finished: 'Finished · findings not yet reviewed', review: 'Ready for review', waiting: 'Waiting, not finished' } as Record<string, string>)[phase] ?? TASK_WORDS[phase] ?? phase; }
+function phaseWords(phase: string): string { return ({ reported: 'Report awaiting review', finished: 'Finished · findings not yet reviewed', review: 'Ready for review', waiting: 'Waiting, not finished' } as Record<string, string>)[phase] ?? TASK_WORDS[phase] ?? phase; }
 export function taskState(task: EffortTask): string { return phaseWords(taskPhase(task)); }
 export function providerName(provider?: string): string { return ({ 'claude-managed-google': 'Claude', 'gemini-google': 'Gemini' } as Record<string, string>)[provider ?? ''] ?? 'Researcher'; }
 export function studyState(study: Effort): string {

@@ -14,10 +14,12 @@ from __future__ import annotations
 
 import argparse
 import copy
+from datetime import datetime, timedelta
 from functools import wraps
 import asyncio
 import hashlib
 import json
+import math
 import os
 import signal
 import struct
@@ -46,6 +48,21 @@ DEFAULT_VIDEO_ID = "2026-06-14-leaf-epidermis-3m43s"
 def default_video() -> Path:
     """Resolve real simulation input only when requested, never while importing helpers."""
     return store().real_file(DEFAULT_VIDEO_ID)
+
+
+def next_local_midnight(now: float) -> float:
+    """Calendar boundary used by the isolated session-continuity scenario."""
+    tomorrow = datetime.fromtimestamp(now).date() + timedelta(days=1)
+    # Resolve tomorrow's local offset: a calendar day can be 23, 24 or 25 hours.
+    return time.mktime(datetime.combine(tomorrow, datetime.min.time()).timetuple())
+
+
+def reported_time_is_near(label: str, observed: float, seconds: int = 3) -> bool:
+    """Compare a displayed clock to nearby instants without guessing a DST fold."""
+    first = math.ceil(observed - seconds)
+    last = math.floor(observed + seconds)
+    return any(label == time.strftime('%H:%M:%S', time.localtime(stamp))
+               for stamp in range(first, last + 1))
 
 
 RESULTS = SERVICES / "sim" / "results"
@@ -2089,9 +2106,8 @@ async def scenario_identity(stack: Stack, viewer: Viewer) -> Outcome:
     out.check("continuity was lost", lost, f"epoch {viewer.latest()[1].get('epoch')}, theirs {epoch0}")
     out.check("while away, where they are is said to be unknown, never guessed",
               all(f"({i})" in words for i in ids) and words.count("can't tell: continuity was lost") == 2, words[:240])
-    told = [time.mktime(time.strptime(time.strftime("%Y-%m-%d ", time.localtime(jumped)) + t, "%Y-%m-%d %H:%M:%S"))
-            for t in re.findall(r"continuity was lost at (\d\d:\d\d:\d\d)", words)]
-    out.check("the loss is said at when the view left their epoch", bool(told) and all(abs(t - jumped) <= 3 for t in told),
+    told = re.findall(r"continuity was lost at (\d\d:\d\d:\d\d)", words)
+    out.check("the loss is said at when the view left their epoch", bool(told) and all(reported_time_is_near(t, jumped) for t in told),
               f"said {told}, the jump seen at {round(jumped)}")
     rejoined = False
     async def return_to_place(deadline):
@@ -2968,8 +2984,7 @@ async def scenario_sessions(stack: Stack, viewer: Viewer) -> Outcome:
             if not out.check("the labelled structure has an outline before midnight", bool(reply and reply.get("ok")), str(reply)):
                 return out
             mark = reply["objectId"]
-            today = time.strftime("%Y-%m-%d")
-            midnight = time.mktime(time.strptime(today, "%Y-%m-%d")) + 86400
+            midnight = next_local_midnight(time.time())
             (home / "clock-offset").write_text(str(midnight - 2.0 - time.time()))
             cleared = again.cleared
             await asyncio.sleep(3.5)  # the clock is read again at most twice a second

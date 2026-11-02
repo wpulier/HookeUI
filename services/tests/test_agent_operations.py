@@ -609,6 +609,12 @@ def test_only_reviewed_catalog_entries_are_runnable_for_agents():
     assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace="mine"))
     assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace="someones-channel"))
     assert not agent_runnable.catalog_runnable(None)
+    approved = SimpleNamespace(namespace='shared', runner='python-env', members=(),
+                               implements=(SimpleNamespace(input='image.2d.rgb8', output='table.objects'),))
+    assert not agent_runnable.catalog_runnable(approved)
+    assert agent_runnable.catalog_runnable(approved, owner_reviewed=True)
+    assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace='shared', runner='fiji'), owner_reviewed=True)
+    assert not agent_runnable.catalog_runnable(SimpleNamespace(namespace='shared', runner='python-env', members=('child',)), owner_reviewed=True)
 
 
 def test_operations_and_keys_are_each_connections_own(tmp_path):

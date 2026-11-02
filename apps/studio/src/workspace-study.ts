@@ -461,6 +461,7 @@ const researcherBrowser=el('section','study-researcher-browser');
 let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+  startResearch: () => newStudy(),
   openResearcher: id => openResearcher(id),
   retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
@@ -549,7 +550,7 @@ const draftStatus=el('p','study-view-notice');draftStatus.setAttribute('role','s
 const draftGo=button('Start',()=>startDraftResearcher(),'study-primary');draftGo.disabled=true;
 const draftUses=el('p','draft-uses');
 /** What it can use, named: this Project's inputs (the first few by name) and the models set up here. */
-function renderDraftUses():void{const names=snapshot.sources.map(asset=>asset.title);const list=names.length?`Can use ${names.slice(0,3).join(', ')}${names.length>3?` and ${names.length-3} more`:''}, and the models set up in Models.`:'Can use this Project’s inputs (none yet) and the models set up in Models.';draftUses.textContent=`${list} Starts through the Assistant, so it shows in the conversation too.`;}
+function renderDraftUses():void{const names=[...new Set([...snapshot.sources.map(asset=>asset.title),...(resourceSession===snapshot.session?projectInputs(entries).map(entry=>entry.title):[])])];const list=names.length?`Can use ${names.slice(0,3).join(', ')}${names.length>3?` and ${names.length-3} more`:''}, and the models set up in Models.`:'Can use this Project’s inputs (none yet) and the models set up in Models.';draftUses.textContent=`${list} Starts through the Assistant, so it shows in the conversation too.`;}
 draftBrief.addEventListener('input',()=>{if(!draftStart)draftGo.disabled=!draftBrief.value.trim();});
 // One column, one box, one button (Will, 2026-10-23: "cleaner"): the words are the page. What it may use and how it
 // starts are one quiet line; a Study is one quiet sentence under it.
@@ -1001,11 +1002,10 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('Return to the originating Study to open its result.');
     if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
     clearStudyDraftMarkers();
-    // Evidence opens in its own workspace Tab; it must never appear behind the Study on Main.
-    if(!await workspaceViews.newTab(owner)||!inputOwnerCurrent(owner)||switching||!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The evidence Tab could not be opened. Its result stays in Project Data.');
+    // Reuse Data's retained reader Tab: named, revision-pinned and reopened rather than duplicated.
     closeResearchStage();
-    const opened=await openStudyScientific({title,resource:{id:ref.id,day:session,version:ref.revision,picture:null},zoom:1,pan:[.5,.5]});
-    if(!opened)throw new Error('It could not be opened. Its saved revision remains in Project Data.');
+    const opened=await workspaceViews.openReaderTab({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
+    if(!opened)throw new Error('The evidence Tab could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
     material,
@@ -1071,12 +1071,16 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const title=el('input');title.required=true;title.placeholder='Name this study';
   const objective=el('textarea');objective.rows=3;objective.className='study-question-input';objective.required=true;objective.placeholder='For example: which segmentation model transfers best to the withheld cell lines?';
   const criteria=el('textarea');criteria.rows=2;criteria.className='study-criteria-input';criteria.required=true;criteria.placeholder='For example: mean IoU against the hand-corrected masks, by line';
-  const budget=el('input');budget.type='number';budget.min='0';budget.step='0.10';budget.value='1.00';budget.required=true;
+  const budget=el('input');budget.type='number';budget.min='0';budget.step='0.10';budget.value='0.00';budget.required=true;
   const field=(label:string,control:HTMLElement)=>{const checkbox=control.tagName==='INPUT'&&(control as HTMLInputElement).type==='checkbox';const row=el('label',checkbox?'study-new-study-field study-choice':'study-new-study-field');if(checkbox)row.append(control,el('span','',label));else row.append(el('span','',label),control);return row;};
   const status=el('p','study-note');status.setAttribute('role','status');
   const choices=el('fieldset','study-pick-field');choices.append(el('legend','visually-hidden','What it may use'),el('p','study-note','Loading this Project’s saved inputs…'));
+  const draftKey=`hooke:research-draft:${session}`;
+  let draftInputs:{id:string;revision:number;digest:string}[]=[];
+  try{const kept=JSON.parse(localStorage.getItem(draftKey)||'null');if(kept){title.value=kept.title||'';objective.value=kept.objective||'';criteria.value=kept.criteria||'';budget.value=kept.budget||'0.00';draftInputs=Array.isArray(kept.inputs)?kept.inputs:[];}}catch{/* Storage may be disabled; the visible form remains usable. */}
   const selected=new Map<HTMLInputElement,StudyInput>();
-  const save=button('Create study',()=>{},'study-primary');save.type='submit';save.disabled=true;
+  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value,inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
+  const save=button('Continue to research plan',()=>{},'study-primary');save.type='submit';save.disabled=true;
   const cancel=button('Cancel',()=>{if(!pending)dialog.close();},'study-quiet');
   const body=el('div','study-new-study-body'),footer=el('footer','study-new-study-footer');
   // The question first, then how it will be judged; the short name third, since people name a question after writing it.
@@ -1085,18 +1089,18 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const allowance=el('label','study-new-study-field study-allowance');const allowanceWords=el('span','study-allowance-words');
   allowanceWords.append(el('span','','Most it may spend'));allowance.title='The most all its experiments may spend together';allowance.append(allowanceWords,dollar);
   // A header that says what a study is, then three groups: the question, what it may use, and what it may spend.
-  const head=el('header','study-new-study-head');head.append(el('h2','','New study'),el('p','','A question you want answered, the inputs it may use and what it may spend. You review each experiment before it counts.'));
+  const head=el('header','study-new-study-head');head.append(el('h2','','Start research'),el('p','','First, describe your question and select its material. Next, review the approach and choose who will do the work. This investigation is saved as a Study in your Project.'));
   const group=(name:string,...nodes:HTMLElement[])=>{const box=el('section','study-new-study-group');if(name)box.append(el('h3','',name));box.append(...nodes);return box;};
   const pair=el('div','study-new-study-pair');pair.append(field('Short name',title),allowance);
   body.append(head,group('',field('What do you want to find out?',objective),field('How will you judge the result?',criteria),pair),
     group('What it may use',choices),status);
-  footer.append(el('p','study-note study-new-study-starts','Creating a study starts nothing. You start each experiment.'),cancel,save);form.append(body,footer);
+  footer.append(el('p','study-note study-new-study-starts','Next: review the research plan. Saving this draft does not start an agent or an experiment.'),cancel,save);form.append(body,footer);
   const load=()=>{void studyInputs(session).then(inputs=>{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
     if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];
     // Each input says how it will be used (or why it can't be), by name; its kind and version are on hover.
     // One row an input (concept frame): its name and kind · version, then how it will be used, or why it can't be.
-    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!!initial&&input.id===initial.reference.id&&input.revision===initial.reference.revision&&input.digest===initial.reference.digest&&!check.disabled;
+    for(const input of inputs){const check=el('input');check.type='checkbox';check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible);selected.set(check,input);check.checked=!check.disabled&&[...(initial?[initial.reference]:[]),...draftInputs].some(ref=>ref?.id===input.id&&ref.revision===input.revision&&ref.digest===input.digest);
       const use=input.localInputEligible?'Exact saved version available to this Study’s local tools and researchers':input.managedFileEligible?'Sent to each experiment':input.scientificInputEligible?'Too large to send; copied to your private Google Cloud storage when an experiment runs':`Can’t be used yet: ${(input.limitation||'not supported by this file route').replace(/^./,c=>c.toLowerCase())}`;
       const kind=studyInputDescription(input).split(' · ')[0]||'Input';
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
@@ -1109,7 +1113,7 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
     captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
-    void createStudy(captured).then(study=>{if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
+    void createStudy(captured).then(study=>{try{localStorage.removeItem(draftKey);}catch{/* Saved Study is authoritative. */}if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
   dialog.addEventListener('cancel',event=>{if(pending)event.preventDefault();});
   dialog.append(form);dialog.addEventListener('close',()=>dialog.remove());document.body.append(dialog);dialog.showModal();objective.focus();load();
@@ -1167,7 +1171,13 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
     if(!restoring) { await workspaceViews.flush(); await rememberSession(); }
     workspaceViews.pause();
     const target=await bridge.switchSession(id);
-    tabs=activateTab(tabs??emptyTabs(),target); snapshot=bridge.state(); entries=[];resourceSession='';if(dataOpen)renderResults();void refreshResults();
+    tabs=activateTab(tabs??emptyTabs(),target); snapshot=bridge.state();
+    // switchSession can publish the new Project before its promise resolves. A
+    // conditional inventory read may already be in flight against that Project.
+    // Retire it together with the cache, or an unchanged reply can refill this
+    // emptied cache with no entries and hide the retained material indefinitely.
+    resourceReads.cancel(); entries=[];resourceSession='';resourceRevision='';
+    if(dataOpen)renderResults();void refreshResults();
     const saved=sessionUI[target];snapshot=bridge.state();
     if(saved) { bridge.restoreDraft(saved.presentation);const recovery={recovered:true,missing:[] as string[]}; snapshot=bridge.state(); preferences.inspector=saved.agent; drawerOpen=saved.section==='library'?false:saved.drawer; showSection(saved.section==='library'?'inputs':saved.section); drawerBody.scrollTop=saved.scroll; dataMode=saved.dataMode??'outputs';setDataOpen(saved.dataOpen??false,false);dataBody.scrollTop=saved.dataScroll??0;
       if(!recovery.recovered) actionError(`Some evidence could not be restored: ${recovery.missing.join('; ')}`); }
@@ -1714,7 +1724,10 @@ async function loadResults(signal:AbortSignal,ownsRead:()=>boolean): Promise<voi
     const data = await response.json() as { entries?: DataEntry[]; unreadable?: string[]; revision?: string; unchanged?: boolean };
     if (!ownsRead() || generation !== refreshGeneration || snapshot.session !== session) return;
     // Unchanged: nothing is drawn, unless a failed read's notice stands in Data's place.
-    if (data.unchanged === true && resourceSession === session) { if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return; }
+    if (data.unchanged === true) {
+      if (resourceSession !== session || !resourceRevision) throw new Error('Project material needs a fresh read. Retry to load its retained inputs.');
+      if (resultsFailed()) { resultsFailedSession = ''; renderResults(); renderBoard(); if (drawerOpen && section === 'inputs') refreshInputRows?.(); } if (readerPending || tabReaderPending) readerEntriesChanged(); return;
+    }
     // A researcher's report is dated by its start on the server; here it rises when it finishes (the server fix is a
     // ticket). Its lessons, pictures, tables and sources are the server's own entries now (S4), no longer made up here.
     const next = (data.entries ?? []).map(entry => {const base={...entry,day:entry.day??session};if(entry.kind!=='research')return base;

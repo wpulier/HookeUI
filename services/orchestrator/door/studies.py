@@ -45,6 +45,39 @@ def register(app, built, connected, body, reply, refusal):
         return refusal(Refused(409 if isinstance(error, Conflict) else 400, 'research-refused', str(error),
                               next='read the Study and exact input revisions before retrying'))
 
+    @app.get(prefix + '/research-instructions')
+    async def research_instructions(request: Request):
+        try:
+            connected(request)
+            if not agent_runnable.door_resource('research.instructions'):
+                raise Refused(403, 'action-not-admitted', 'Research instructions are unavailable.', next='discover available tools')
+            from ..research.instructions import packages
+            return reply({'ok': True, 'packages': await asyncio.to_thread(packages)})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
+    @app.get(prefix + '/studies/{study}/coordination')
+    async def coordination_read(study: str, request: Request, session: str):
+        try:
+            authorized(request, session, resource='study-coordination')
+            from ..research.coordination import Coordination
+            result = await asyncio.to_thread(Coordination(service(built)).read, study, session)
+            return reply({'ok': True, **result})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
+    @app.post(prefix + '/studies/{study}/coordination/{action}')
+    async def coordination_write(study: str, action: str, request: Request):
+        try:
+            b = await body(request)
+            session = b.pop('session', None)
+            caller = authorized(request, session, True, resource='study-coordination')
+            from ..research.coordination_api import execute
+            result = await asyncio.to_thread(execute, built, study, session, action, b, caller.actor, caller.label)
+            return reply({'ok': True, 'coordination': result})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
     @app.get(prefix + '/artifacts/{artifact}/bytes')
     async def download(artifact: str, request: Request, session: str, revision: int):
         from fastapi.responses import StreamingResponse

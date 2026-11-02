@@ -20,6 +20,22 @@ function draw(s: Effort) {
 }
 
 describe('a study in its Tab', () => {
+  it('opens the research plan at narrow widths and lets the person return to activity', () => {
+    const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
+    vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn(), removeItem: vi.fn() });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status: 503 })));
+    const root = new TestElement('article');
+    renderStudy(root as unknown as HTMLElement, { ...study, tasks: {}, findings: [] }, { control: vi.fn(), localWorkflows: true });
+    const tabs = root.querySelectorAll('button').filter(b => b.getAttribute('role') === 'tab');
+    const plan = tabs.find(b => b.textContent === 'Plan & results')!;
+    const activity = tabs.find(b => b.textContent === 'Study')!;
+    expect(root.querySelector('.rpage')!.dataset.one).toBe('art');
+    expect(plan.getAttribute('aria-selected')).toBe('true');
+    expect(activity.getAttribute('aria-selected')).toBe('false');
+    fire(activity, 'click');
+    expect(root.querySelector('.rpage')!.dataset.one).toBe('conv');
+    expect(activity.getAttribute('aria-selected')).toBe('true');
+  });
   it('says what needs you first, then its objective, experiments with state and money, and findings with their experiments', () => {
     const { root, text } = draw(study);
     expect(root.querySelector('.study-view-needs')?.textContent).toContain('1 experiment needs checking');
@@ -331,4 +347,11 @@ it('an unavailable Study ask keeps the question in place and does not hand it of
   reason=null;fire(form,'assistant-readiness');expect(form.querySelector('.mm-composer-send')!.disabled).toBe(false);
   expect(field.value).toBe('what does it mean?');
   fire(form,'submit');expect(ask).toHaveBeenCalledOnce();expect(field.value).toBe('');
+});
+
+
+it('keeps collaboration reports out of the provider experiment rail',()=>{
+ const {root}=draw({...study,tasks:{report:{status:'completed',specification:{provider:'collaboration'},chargedMicrousd:0,reservedMicrousd:0}}});
+ expect(root.querySelectorAll('.study-view-task')).toHaveLength(0);
+ expect(root.querySelectorAll('.sgroup')).toHaveLength(0);
 });

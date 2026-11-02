@@ -1,0 +1,58 @@
+{
+  "$id": "hooke:agent/research-assignment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "objective",
+    "deliverable",
+    "uncertainty",
+    "decisionImpact",
+    "whyNewWork",
+    "evidence",
+    "dependsOn"
+  ],
+  "properties": {
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "deliverable": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "uncertainty": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "decisionImpact": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "whyNewWork": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 8000
+    },
+    "evidence": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "artifact-reference.schema.json"
+      }
+    },
+    "dependsOn": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      }
+    }
+  }
+}

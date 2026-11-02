@@ -53,6 +53,12 @@ in MT4 through the same package.
   with everything it started. On a busy Mac that priority can starve it for minutes; that is the intent.
 - **Reading is cheap.** `status.of` reads the profile's maintenance files (each parsed once per change), receipts and the
   observed environments. It starts no check, download, build or package code (`test_reading_status_starts_nothing`).
+  The existing off-loop environment observer also captures policy, check, pin, decision and per-entry attempt
+  records. Only the read-only `status.of` and `env_runner.update_waiting` projections opt into those exact-path
+  observations within an active synchronous display scope, including missing files. Ordinary store reads and
+  mutation prechecks stay live even inside that outer scope. Unrelated files and other profiles stay live.
+  Maintenance writer locks additionally enter live mode; observations are replaced on refresh, never mutated by a
+  command. This does not remove all catalog filesystem reads.
 - **Checks back off.** A failed check is tried again after 15 minutes, doubling up to a day. It never means "no update"
   and never touches the installation.
 - **Removal keeps what is pinned** (`envs.removal` → `pins.require_removable`); a rollback hold goes with the software.

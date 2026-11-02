@@ -138,6 +138,61 @@ through `project.import`; never edit Project storage directly. Keep source, synt
 checks, real computations and official scientific acceptance distinct.
 
 
+## Start a research initiative from this agent
+
+The person can say: “Create a Hooke Project for this question, add these files,
+propose a bounded investigation, and keep its results there.” They do not need to
+write JSON, choose internal IDs or open Hooke first. Perform the steps below with
+their existing named connection. Show the proposed plan before admitting work.
+
+1. Check `status` and discover `project.create`, `project.import`, `material.organize`,
+   `study.coordination`, `study.coordinate`, `research.instructions` and `workflow`.
+   If the person supplied a Project locator, read `project.state` there instead of
+   creating a duplicate. If they explicitly want a new Project, run
+   `project.create` with `{"name":"<their Project name>"}` and a stable request key.
+   Read the returned Project ID; never infer it from a date or filename.
+2. For each authorized input, run `project.import {"file":"<absolute path>"}` in
+   that Project, then `material.organize` with its returned exact reference, an
+   explicit role, `input:true` and the returned/current membership revision (0 for
+   a new membership). Keep training inputs, conditioning controls, assignment and
+   output requirements distinct. Read substantive material through `artifact.read`.
+   A retained file is not necessarily readable by the required scientific tool.
+3. Create a Study using `api POST studies` with `session`, a stable `requestKey`,
+   `title`, `objective`, `criteria`, `budgetUsd`, and `inputs` (exact id, revision,
+   digest). This saves the question; it does not start research execution.
+4. Read `study.coordination` with `{"study":"<returned Study ID>"}` in the Project.
+   Its `basis` pins the current Study revision. Use `study.coordinate` with
+   `study`, `action:"plan"`, and `fields:{basis,plan}`. The plan contains
+   `desiredOutput`, `evaluation`, `materials` (exact references including session),
+   `methodNotes`, `actorMode:"connected-agent"`, and `limits` with `experiments`,
+   `modelMinutes` and `tokens`. Discover/pin an appropriate instruction package
+   when available. Do not invent capabilities or claim model-budget enforcement.
+5. Explain the approach, permitted evidence, intended output, limits and missing
+   readiness to the person. Once the plan is agreed, use action `review` with
+   `fields:{basis:<latest basis>}`. Reviewing neither launches a model nor grants
+   access. Never silently increase limits to get around a refusal.
+6. Use action `propose` with `fields:{request,assignment}`. The assignment contains
+   `objective`, `deliverable`, `uncertainty`, `decisionImpact`, `whyNewWork`,
+   `evidence` (exact references) and `dependsOn` (assignment IDs, or []). Read earlier
+   results and failures first. Another agent may continue from this saved assignment.
+7. When this agent is actually ready, use action `claim` with
+   `fields:{assignment:<ID>,harness:<actual harness>,model:<actual model>}`. Do not
+   label a connection as a running worker. Qualify the required model limits and
+   tool scope before the bounded benchmark; report a blocker instead of claiming
+   the assignment is doing science. Discover and admit a frozen workflow through
+   the existing workflow tool; keep and read its original operation ID.
+8. Read measured outputs. Return action `complete` with
+   `fields:{assignment,statement,evidence,limitations}`. Reports await review;
+   they are not accepted findings. Give the person the Project name/ID and Study
+   title/ID: the same work appears in Hooke → Projects → Main → Open Study.
+
+Every `study.coordinate` call uses the selected Project and a request key; discover
+its current schema rather than inventing a private route. Reuse keys for retries,
+not for new work. After reconnecting, read the existing coordination and operations;
+do not create a replacement effort. For UI-created Projects, the owner confirms
+Project access in Settings before the outside agent can contribute. An agent cannot
+grant that access itself. Copying a handoff does not launch an external agent.
+
 ## Other agents and external orchestrators
 
 An external orchestrator or a client such as a Grok-based bot can use the same local
@@ -156,3 +211,10 @@ qualified local client/bridge; do not expose the port, copy credentials to a rem
 service or infer hosted support. The same API and retained evidence apply regardless
 of which compatible client orchestrates the work. Qualify an actual client before
 claiming Grok, Hermes or another orchestrator has passed an end-to-end journey.
+
+An owner-approved imported Python image-to-table diagnostic can now appear in the
+same discovery list after its exact package is installed, proven and accepted in
+Models. Discover it normally; no CLI update or private execution path is needed.
+Other imported routes may still be unavailable. Permission to run never permits
+installing, activating or changing the package. A changed generation refuses the
+old admission instead of silently using replacement code.

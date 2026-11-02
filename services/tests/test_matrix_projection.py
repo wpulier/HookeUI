@@ -67,6 +67,34 @@ def test_sampling_uses_cell_identity_not_source_order_or_expression(tmp_path):
     assert all(g['selected'] == 1 and g['available'] == 2 for g in report['groups'])
 
 
+def test_sparse_projection_splits_reads_without_changing_counts_or_selection(tmp_path, monkeypatch):
+    """A fixed row count can exceed the byte budget even for valid cell counts."""
+    from scientific_compute import bounded_h5
+    ad = pytest.importorskip('anndata')
+    inputs = fixture(tmp_path, 'csr')
+    expected, _ = run(tmp_path, inputs, 'expected')
+    # Two complete rows fit; the ordinary five-row block does not.
+    monkeypatch.setattr(bounded_h5, 'BLOCK_BYTES', 2 * 3 * 64)
+    path, summary = run(tmp_path, inputs, 'bounded')
+    left, right = ad.read_h5ad(expected), ad.read_h5ad(path)
+    np.testing.assert_array_equal(left.X.toarray(), right.X.toarray())
+    # AnnData may choose categorical versus text storage by chunk; values and
+    # immutable identities, rather than that storage optimization, must match.
+    assert left.obs_names.equals(right.obs_names) and left.var_names.equals(right.var_names)
+    np.testing.assert_array_equal(left.obs.to_numpy(), right.obs.to_numpy())
+    np.testing.assert_array_equal(left.var.to_numpy(), right.var.to_numpy())
+    assert left.uns['projection'] == right.uns['projection']
+    assert summary['shape'] == [4, 2]
+
+
+def test_sparse_projection_still_refuses_an_individually_oversized_row(tmp_path, monkeypatch):
+    from scientific_compute import bounded_h5
+    monkeypatch.setattr(bounded_h5, 'BLOCK_BYTES', 2 * 64)
+    with pytest.raises(engine.Refused, match='sparse row block'):
+        run(tmp_path, fixture(tmp_path, 'csr'))
+    assert not list(tmp_path.glob('*/projected-counts.h5ad'))
+
+
 @pytest.mark.parametrize('changes,match', [
     ({'selected_genes': ['absent']}, 'Every selected gene'),
     ({'target_mapping': {'nt': 'control', 'absent': 'target-a'}}, 'annotation is absent'),

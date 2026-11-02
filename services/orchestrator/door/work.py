@@ -263,11 +263,28 @@ async def run_capability(app, record: dict, progress, tool: str, preset: dict, a
     if stage_revision(app) != record.get('inputRevision'):
         raise Refused(409, 'input-changed', 'The retained input changed before this operation started.',
                       next='open the intended revision, then ask with a new request key')
+    if tool == 'run_capability' and '/' in str(preset.get('capability', '')):
+        # Imported code must still be the approved installed generation after queueing.
+        from .api import _listed
+        current = next((item for item in await _listed(app) if item['id'] == record['tool']), None)
+        if current is None or current['state'] != 'available' or current['generation'] != record.get('generation'):
+            raise Refused(409, 'capability-changed', 'The approved capability changed before this operation started.',
+                          next='review its current readiness in Models, then use a new request key')
+        refused = own_project(app, record['project'], record['by'])
+        if refused is not None:
+            raise refused
+        if stage_revision(app) != record.get('inputRevision'):
+            raise Refused(409, 'input-changed', 'The retained input changed while checking the capability.',
+                          next='open the intended revision, then use a new request key')
     # A catalog row names its entry in the preset, and the agent's arguments are its parameters; otherwise (any other
     # tool) the arguments are the tool's own.
     tool_args = {**preset, "params": args} if tool == "run_capability" and "capability" in preset else {**preset, **args}
     from research_worker import api_usage
-    with api_usage.local_only(True):  # local work only: no paid provider, no cloud model, whatever the arguments say
+    from contextlib import nullcontext
+    from ..capability_identity import admitted_entry
+    pin = (admitted_entry(preset['capability'], record['generation'])
+           if tool == 'run_capability' and '/' in str(preset.get('capability', '')) else nullcontext())
+    with api_usage.local_only(True), pin:  # no paid provider; imported code keeps its trusted admission pin
         done = await commands.run_tool(app, tool, tool_args)
     if not done.get("ok"):
         raise Refused(409, "failed", str(done.get("summary") or done.get("error") or "It didn't work."),

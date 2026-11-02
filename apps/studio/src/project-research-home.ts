@@ -3,11 +3,11 @@ import type {ResearchSession} from './protocol';
 import {isWorking} from './research-state';
 import {todaysResearch} from './shelf';
 import {studyName, studyState, type Effort} from './research-efforts';
-import {contributors, actorOrigin, history, researchDate, studyActivity, type ActivitySnapshot} from './project-research-history';
+import {contributors, actorOrigin, history, researchDate, studyActivity, experimentCount, type ActivitySnapshot} from './project-research-history';
 const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')=>{
   const item=document.createElement(tag);item.textContent=text;item.className=className;return item;
 };
-type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void};
+type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void;startResearch?():void};
 export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean;slow?:boolean};
 export class ProjectResearchHome {
   readonly root=node('section');
@@ -29,8 +29,8 @@ export class ProjectResearchHome {
     const populated=!!(owned.length||local.length||material.count);
     const waiting=!populated&&!!material.loading;
     const unavailable=!populated&&!!(error||material.error);
-    this.root.hidden=!(populated||waiting||unavailable);this.host.dataset.projectResearch=String(populated||waiting||unavailable);this.root.replaceChildren();
-    if(!populated&&!waiting&&!unavailable)return;
+    this.root.hidden=!(populated||waiting||unavailable||this.actions.startResearch);this.host.dataset.projectResearch=String(populated||waiting||unavailable||!!this.actions.startResearch);this.root.replaceChildren();
+    if(!populated&&!waiting&&!unavailable&&!this.actions.startResearch)return;
     const action=(label:string,key:string,run:()=>void,cls='quiet')=>{
       const b=node('button',label,cls);b.type='button';b.dataset.researchFocus=key;
       b.addEventListener('click',()=>{if(this.opening===opening&&this.actions.current()===session)run();});return b;
@@ -45,12 +45,23 @@ export class ProjectResearchHome {
       }
       return;
     }
+    if(this.actions.startResearch){
+      const start=node('div','','project-research-actions');
+      start.append(action('Add material','add-material',this.actions.inputs), action('Start research','start-research',this.actions.startResearch,'mm-primary'));
+      this.root.append(start);
+      const guide=node('p',owned.length?'Start another question here, or continue this Project with your connected agent.':'Add your files, then Start research to describe a question and review a plan. A Study keeps that investigation and its results in this Project.','project-research-caption');
+      const handoff=node('div','','project-research-actions'),message=node('p','','project-research-caption');message.setAttribute('role','status');
+      handoff.append(action('Copy instructions for my agent','agent-handoff',()=>{
+        const prompt=`Use Hooke through its supported connector and installed Hooke skill. Continue in Project ${session}; do not create a duplicate Project. Read project.state, the existing Studies, exact material and prior decisions first. ${owned.length?'Show me what is already planned or running and the next useful step.':'Help me describe a research question, desired output and evaluation; prepare a retained Study and research plan using the selected material.'} Review the plan and limits with me before execution. Use study.coordination and study.coordinate from tool discovery to prepare, claim and return assignments. Use admitted capabilities and frozen workflows; retain exact outputs and limitations in this Project. A connected agent is not necessarily running. Do not change grants, install tools, use paid services or submit results externally. If access or readiness is missing, explain the specific next step. Return the Project and Study locators so I can open the same work in Hooke.`;
+        void Promise.resolve().then(()=>navigator.clipboard.writeText(prompt)).then(()=>{if(this.opening===opening&&this.actions.current()===session)message.textContent='Copied. Paste into your connected Claude, Codex or other agent. Work starts there; results stay in this Project.';}).catch(()=>{if(this.opening!==opening||this.actions.current()!==session)return;const text=node('textarea');text.value=prompt;text.readOnly=true;text.setAttribute('aria-label','Instructions for connected agent');handoff.append(text);text.select();message.textContent='Copy these instructions into your connected agent.';});
+      }));this.root.append(guide,handoff,message);
+    }
     const details=(label:string,key:string,cls:string)=>{const d=node('details','',cls);d.dataset.disclosure=key;
       const summary=node('summary',label);summary.dataset.researchFocus=key;d.append(summary);return d;};
     const team=contributors(owned);
     for(const r of local)if(!team.some(c=>c.id===`researcher:${r.rid}`))team.push({id:`researcher:${r.rid}`,label:r.name,origin:'Hooke researcher',experiments:0,reports:0,replies:0});
     const agentCount=team.filter(c=>c.origin==='Connected agent'||c.origin==='Hooke researcher').length;
-    const experiments=owned.reduce((n,s)=>n+Object.keys(s.experiments??{}).length+Object.values(s.tasks??{}).filter(t=>t.specification?.provider!=='scientific-gcp-grant').length,0);
+    const experiments=owned.reduce((n,s)=>n+experimentCount(s),0);
     const start=owned.map(s=>s.createdAt).filter((t):t is number=>typeof t==='number'&&Number.isFinite(t)&&t>0).sort((a,b)=>a-b)[0];
     const intro=node('header','','project-research-intro');
     intro.append(node('h2',owned.length||local.length?'Research overview':'Your Project material'),node('p',start?`First effort created ${researchDate(start)}`:owned.length?'Creation time not recorded':'Keep your sources together, then build on them.','project-research-caption'));
@@ -70,7 +81,7 @@ export class ProjectResearchHome {
       materials.append(node('h3',`${material.count} Project ${material.count===1?'input':'inputs'}`),
         node('p',material.groups.length?material.groups.join(' · '):'Retained files and selected research inputs','project-research-caption'),
         action('Browse inputs','material',this.actions.inputs,owned.length?'quiet':'mm-primary'));
-      if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material or start a research effort from Researchers.','project-research-caption'));
+      if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material, then choose Start research to shape a question and plan.','project-research-caption'));
       supporting.push(materials);
     }
     if(team.length){const people=details('Contributors & origins','team','project-research-team');
@@ -103,7 +114,7 @@ export class ProjectResearchHome {
       const now=node('div','','project-research-now');now.dataset.activity=observed.unavailable?'unknown':observed.counts.running?'running':'idle';
       now.append(node('span','Now','project-research-eyebrow'),node('strong',observed.title));
       const parts=[observed.counts.finished?`${observed.counts.finished} finished`:'',observed.counts.failed?`${observed.counts.failed} failed experiments retained`:'',observed.pending?`${observed.pending} unanswered questions`:''].filter(Boolean);
-      now.append(node('p',observed.unavailable?'Open the Study to inspect original executions.':parts.join(' · ')||'Ready for the next experiment.','project-research-caption'));card.append(now);
+      now.append(node('p',observed.unavailable?'Open the Study to inspect original executions.':parts.join(' · ')||(observed.assignments.waiting?'Open the Study and copy its handoff into your connected agent.':observed.assignments.working?'Open the Study to check the claimed assignment. Scientific runs appear separately when admitted.':'Open the Study to review the plan and choose the next step.'),'project-research-caption'));card.append(now);
       const latest=[...(s.claims??[])].sort((a,b)=>(a.at??0)-(b.at??0)).at(-1);
       if(latest){const report=details('',key+':report:'+latest.request,'project-research-report');const summary=report.querySelector('summary')!;
         const meta=node('span','','project-research-report-meta');meta.append(node('span','Latest report'),node('span',`${latest.byLabel||'Author not recorded'} · ${researchDate(latest.at)}`));

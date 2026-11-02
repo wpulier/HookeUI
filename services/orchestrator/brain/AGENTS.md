@@ -635,3 +635,8 @@ Identity tools await the captured Project's history and use its serialized
 background mutation path for portable Projects. They preserve the existing event
 model and legacy path. No live-loop filesystem mutation or accepted state before
 durable publication is introduced; a changed owner refuses further work.
+
+Door-admitted imported diagnostics carry a trusted `capability_identity.admitted_entry`
+context. `toolbox/kinds` checks its exact owner-approved installed entry off-loop and
+passes its generation into the existing runtime check, including retained-image
+execution. This is dispatch state, never a model-supplied scientific parameter.

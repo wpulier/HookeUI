@@ -170,6 +170,22 @@ def pending(m, environ=os.environ):
         return True
 
 
+def explicitly_accepted(m, environ=os.environ):
+    """Exact owner comparison approval; absence is never the legacy implicit opt-in.
+
+    Call on an installed manifest, off the event loop. Installation, trust, enablement
+    and proof remain the shared runtime registry's responsibility.
+    """
+    try:
+        record = json.loads(marker(m.key, environ).read_text())
+        digest = comparison_digest(m, environ)
+        return (isinstance(record, dict) and record.get('model') == m.key and
+                isinstance(record.get('trial'), str) and bool(record['trial']) and
+                bool(digest) and record.get('adoptedDigest') == digest)
+    except (OSError, ValueError, TypeError):
+        return False
+
+
 def output(d: Path, name, out, data, ms):
     """Keep actual bounded output, plus a display preview; an overlay is never the scientific original."""
     import cv2

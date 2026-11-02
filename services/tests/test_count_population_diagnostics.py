@@ -16,7 +16,10 @@ def compare(tmp_path, prediction, reference, **params):
         output(tmp_path, 'diagnostics'), lambda: None)
 
 
-def test_hand_calculated_population_moments_and_distinct_labels(tmp_path):
+@pytest.mark.parametrize('byte_budget', [64 << 20, 128])
+def test_hand_calculated_population_moments_and_distinct_labels(tmp_path, monkeypatch, byte_budget):
+    from scientific_compute import bounded_h5
+    monkeypatch.setattr(bounded_h5, 'BLOCK_BYTES', byte_budget)
     reference = adata(tmp_path/'reference.h5ad', [[0, 2], [2, 2]], ['a']*2, ['control']*2)
     prediction = adata(tmp_path/'prediction.h5ad', [[1, 1], [1, 3]], ['a']*2, ['null']*2)
     path, summary = compare(tmp_path, prediction, reference, normalization_total=4)

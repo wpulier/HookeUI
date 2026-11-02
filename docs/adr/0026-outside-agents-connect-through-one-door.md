@@ -206,3 +206,16 @@ until a response is actually retained, and shows replies inline with evidence.
 ## Portable Project ownership amendment — 2026-10-29
 
 ADR 0027 defines durable Project folders and one shared material inventory. Location never grants authority: moving a Project retains its origin; opening an imported independent copy requires local owner-established access. Historical attribution remains history, not a connection identity. The existing read/contribute checks and default-deny action declarations apply to collection, opening and export. Partial scientific bundles do not establish complete Project portability.
+
+### Owner-approved diagnostic extensions — November 1
+
+The research-initiation milestone qualifies imported Python image-to-table diagnostics
+through the existing door. The owner must allow the package's code, pass its confined
+proof, compare its actual output and accept that exact installed entry. Missing
+comparison receipts are default-no, including legacy installations. Agent discovery
+reads the shared current installed/proven registry and exact acceptance off-loop;
+it grants no installation, activation, settings or spending authority. Other imported
+execution routes remain default-no until qualified. The trusted dispatch pins the
+admitted generation through the existing adapter check, rechecking owner acceptance
+at selection; changed, disabled, untrusted or unproven entries cannot silently replace
+admitted work. Project ownership and local-only execution rules remain unchanged.

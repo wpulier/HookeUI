@@ -39,6 +39,7 @@ def run(client, headers, tool, args, key, project=None):
 def test_detached_project_creation_is_retained_without_switching(project_door):
     client,built=project_door
     c=connect(client); h=bearer(c['token'])
+    notifications=[];built.sessions_changed=lambda **kw:notifications.append(kw)
     original=built.day.sid; built.day.on_stage='existing-specimen'
     result=run(client,h,'project.create',{'name':'New research'},'new-project-0001')
     sid=result['outcome']['project']['session']
@@ -46,6 +47,7 @@ def test_detached_project_creation_is_retained_without_switching(project_door):
     assert built.day.elsewhere(sid).name == 'New research' and built.day.elsewhere(sid).local_only
     again=run(client,h,'project.create',{'name':'New research'},'new-project-0001')
     assert again['id']==result['id']
+    assert notifications==[{'at_once':True}]
     assert SessionStore(built.day.root,session=sid).name=='New research'
     rows=run(client,h,'project.list',{},'list-projects-001')['outcome']['projects']
     assert [r['session'] for r in rows]==[sid]

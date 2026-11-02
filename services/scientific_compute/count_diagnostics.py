@@ -39,9 +39,7 @@ def _population(file, params, check):
         records[context] = {'population': str(next(iter(populations))), 'depths': [],
                             'mean': np.zeros(len(genes)), 'm2': np.zeros(len(genes)),
                             'detected': np.zeros(len(genes)), 'normalized': np.zeros(len(genes))}
-    for start in range(0, matrix.shape[0], engine.BLOCK_ROWS):
-        check()
-        end = min(start + engine.BLOCK_ROWS, matrix.shape[0])
+    for start, end in bounded_h5.row_ranges(matrix, engine.BLOCK_ROWS, check):
         values = bounded_h5.row_block(matrix, start, end, list(range(len(genes))))
         engine._finite(values, counts=True)
         values = sparse.csr_matrix(values, dtype=np.float64)

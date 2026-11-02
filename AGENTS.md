@@ -34,6 +34,8 @@ passing check alone. Official commands
 and credentials belong to the private publisher, not this core repository.
 
 Component contracts (read the relevant file before editing):
+- `docs/architecture/scoped-agent-client.md`
+- `services/agent_client/AGENTS.md` (optional Project-bound external MCP read client)
 - `apps/studio/AGENTS.md`
 - `catalog/AGENTS.md`
 - `contract/AGENTS.md`
@@ -54,4 +56,5 @@ Component contracts (read the relevant file before editing):
 - `services/orchestrator/day/AGENTS.md`
 - `services/orchestrator/maintenance/AGENTS.md`
 - `services/orchestrator/research/AGENTS.md`
+- `docs/architecture/research-initiation.md`
 - `services/tests/AGENTS.md`
