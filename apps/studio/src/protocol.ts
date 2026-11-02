@@ -1708,6 +1708,11 @@ export type ClientCommand =
   | { type: 'project-storage'; session: string }
   | { type: 'project-reveal'; session: string }
   | { type: 'project-export-prepare'; session: string }
+  | { type: 'project-publish-prepare'; session: string; includeTranscripts?: boolean; licence?: string }
+  | { type: 'project-publish'; session: string; staging: string; reviewDigest: string; signoff: import('./project-publish').Signoff; destination: import('./project-publish').Destination }
+  | { type: 'project-start-from'; source: string | {kind: 'folder'; path: string}; name?: string }
+  | { type: 'project-update-from'; session: string }
+  | { type: 'project-remote-status'; session: string }
   | { type: 'project-export'; session: string; requestKey: string; acknowledgeIncomplete: true }
   | { type: 'project-export-status'; session: string; operation: string }
   | { type: 'project-export-stop'; session: string; operation: string }
@@ -1794,6 +1799,11 @@ interface Replies {
   'project-open-folder': { project: import('./project-open').OpenedProject; current: boolean };
   'project-reveal': { path: string; error?: string };
   'project-export-prepare': {export: import('./project-export').ExportPlan};
+  'project-publish-prepare': {review: import('./project-publish').PublicationReview};
+  'project-publish': {published: import('./project-publish').Published; location: string};
+  'project-start-from': {project: import('./project-open').OpenedProject; startedFrom: unknown};
+  'project-update-from': {update: import('./project-publish').UpdateResult};
+  'project-remote-status': import('./project-publish').RemoteStatus;
   'project-export': {operation: import('./project-export').ExportOperation};
   'project-export-status': {operation: import('./project-export').ExportOperation};
   'project-export-stop': {operation: import('./project-export').ExportOperation};
