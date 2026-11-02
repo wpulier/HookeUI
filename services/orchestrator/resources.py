@@ -39,7 +39,7 @@ import time
 import weakref
 from collections import OrderedDict
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace as _replace
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
@@ -1386,7 +1386,9 @@ class Index:
                     "annotations": dict(getattr(store, "annotations", {}) or {}),
                     "datatables": dict(getattr(store, "datatables", {}) or {}),
                     "table_derivatives": dict(getattr(store, "table_derivatives", {}) or {}), "made": made}
-        root = store.root_for(sid) if store is not None and hasattr(store, 'root_for') and sids.is_sid(sid) else \
+        reader = getattr(getattr(store, "locations", None), "read_root_for", None)
+        root = (reader(sid) if reader is not None else store.root_for(sid)) \
+            if store is not None and hasattr(store, 'root_for') and sids.is_sid(sid) else \
             getattr(getattr(store, "journal", None), "root", None)
         found = _journal_records(Path(root), sid) if root is not None and sids.is_sid(sid) else \
             {"evidence": {}, "tracks": {}, "annotations": {}, "datatables": {}, "table_derivatives": {}}
@@ -1486,6 +1488,13 @@ class Index:
                 out.extend(provider(day, discover_tables=True) if name == 'results' and discover_tables else provider(day))
             except Exception as exc:  # one store that cannot be read never hides the others
                 unreadable.append(f"{name} ({exc})" if isinstance(exc, Unread) else f"{name} ({type(exc).__name__})")
+        inherited = self._inherited(day)
+        for owner in sorted(inherited - {day}):
+            try:
+                out.extend(e for e in self._inherited_results(owner) if kinds is None or e.kind in kinds)
+            except Exception as exc:
+                unreadable.append(f"results from the project this one was started from ({type(exc).__name__})")
+        out = [_inherited_entry(e) if e.day in inherited and e.kind != 'project' else e for e in out]
         from .project_material import attach_usage
         unreadable.extend(attach_usage(out, self.projects))
         who = None
@@ -1498,6 +1507,26 @@ class Index:
                     who = Researchers()  # names unknown: a researcher's own work still says who by its id
             entry.maker = maker_of(entry.kind, entry.id, made, who)
         return sorted(out, key=lambda e: e.at), unreadable
+
+    def _inherited(self, day: str) -> set[str]:
+        """The sessions whose results session `day` shows read-only (ADR 0028): a started Project's inherited owners,
+        or `day` itself when it is one."""
+        locations = getattr(self.day, "locations", None)
+        if locations is None or not hasattr(locations, "holder") or not sids.is_sid(day or ""):
+            return set()
+        from .project_inherited import owners
+        try:
+            project = locations.project(day)
+            if project is not None:
+                return set(owners(project.path, project.session))
+            return {day} if locations.holder(day) is not None else set()
+        except (OSError, ValueError):  # ProjectLocationError is a ValueError
+            return set()
+
+    def _inherited_results(self, owner: str) -> list[Entry]:
+        """An inherited owner's published results, as its own session lists them (its journal's lines)."""
+        return (self._historical(owner, "evidence") + self._historical(owner, "tracks") + self._annotations(owner)
+                + self._datatables(owner) + self._table_derivatives(owner))
 
     def _read_badges(self, day: str, out: list[Entry], unreadable: list[str]) -> None:
         """Which researchers read each entry at its current content (`read_by`). The research journal is the authority.
@@ -2819,6 +2848,19 @@ def _journal_records(root: Path, sid: str) -> dict:
     with _JOURNALS_LOCK:
         _JOURNALS[str(path)] = (key, out)
     return out
+
+
+INHERITED_WORDS = " · from the project this one was started from (read-only)"
+
+
+def _inherited_entry(entry: Entry) -> Entry:
+    """A result of an inherited owner, said to be one: it came with the publication, and only a copy can change."""
+    title = entry.title
+    if entry.kind == "annotation" and title.startswith("Your note · "):
+        title = "Note · " + title[len("Your note · "):]  # the original author's words, not this user's
+    return _replace(entry, title=title, summary=(entry.summary or "") + INHERITED_WORDS,
+                    plain=(entry.plain or "") + (INHERITED_WORDS if entry.plain else ""),
+                    source={**(entry.source or {}), "inheritedFrom": entry.day})
 
 
 def resources_of(hub) -> Index:

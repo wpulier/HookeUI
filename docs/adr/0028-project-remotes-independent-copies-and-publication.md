@@ -38,8 +38,11 @@ remote sync or accepted-record filesystem editing. Owner-started remote mirrors 
    the owner signs off on rights, licence (CC BY 4.0 preselected) and the absence of identifiable human data. The
    review digest binds what is sent.
 6. **A publication is a filtered copy; starting from it makes an independent Project.** A publication keeps the
-   Project's origin and every accepted document byte for byte, but its journal is cut to the origin line alone (the
-   same origin-only journal the owner-aware import already writes for restored owners), so conversations never leave.
+   Project's origin and every accepted document byte for byte, but each journal is cut to its origin line (the
+   same origin-only journal the owner-aware import already writes for restored owners) and the lines that list the
+   Project's results (evidence and tracks saved, tables, analyses, graphs and notes, without the conversation each
+   was made in), so conversations never leave. A person's notes are published text: the review lists them and the
+   secret scan reads them (amended 2026-11-02, hooke-projects ticket 14).
    Research transcripts are left out unless chosen. Starting from a publication makes a new Project with its own
    origin and handle, so it sits beside the original or another copy on one host. The publication's documents come in
    byte for byte through the owner-aware import under their own owner, which the new Project holds as an *inherited

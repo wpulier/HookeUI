@@ -16,7 +16,8 @@ const review: PublicationReview = {
   origin: 'a'.repeat(32), name: 'Research', licence: 'CC-BY-4.0', licenceName: 'Creative Commons Attribution 4.0',
   snapshotSha256: 'b'.repeat(64), reviewDigest: 'c'.repeat(64), staging: 'publication-0123456789ab', bytes: 2_000_000,
   recordFiles: 12, largeFiles: 2, memberCount: 14, members: [{path: 'project.json', bytes: 120, sha256: 'd'.repeat(64)}],
-  leftOut: {conversations: '1 journal(s) reduced to their identity line', transcripts: 3, otherFiles: []},
+  leftOut: {conversations: '1 journal(s) reduced to their identity line and 3 line(s) that list results', transcripts: 3, otherFiles: []},
+  publishedText: [{session: '2026-11-02', id: 'a1', version: 1, title: 'Division', text: '<b>Looks like</b> a dividing cell'}],
   includeTranscripts: false, findings: [{path: 'artifacts/results/r.json', line: 4, kind: 'home-path', blocks: false}], blocked: false,
 };
 function actions(overrides: Partial<PublishActions> = {}): PublishActions {
@@ -46,6 +47,10 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   click(view.element, 'Review what will be published');
   await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: 1 journal(s) reduced'));
   expect(view.element.textContent).toContain('Research transcripts left out: 3');
+  expect(view.element.textContent).toContain('Your notes, published as written');
+  const note = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('Division'))!;
+  expect(note.textContent).toBe('Division: <b>Looks like</b> a dividing cell'); // as text, never markup
+  expect(note.querySelectorAll('b').length).toBe(0);
   expect(view.element.textContent).toContain('names a folder in your home folder (check it)');
   await vi.waitFor(() => expect(a.github.status).toHaveBeenCalled());
   const send = Array.from(view.element.querySelectorAll('button')).find(b => b.textContent === 'Publish') as HTMLButtonElement;
@@ -93,11 +98,11 @@ test('GitHub sign-in shows the code and keeps waiting until it is approved', asy
 test('a started-from copy can update, and says plainly what it kept', async () => {
   dom();
   const a = actions({status: vi.fn(async () => ({published: [], startedFrom: {type: 'project-started-from'}})),
-    update: vi.fn(async () => ({added: [], extended: ['p1'], unchanged: [], refused: [{id: 'p2', reason: 'diverged'}], filesAdded: 2, fileConflicts: []}))});
+    update: vi.fn(async () => ({added: [], extended: ['p1'], unchanged: [], refused: [{id: 'p2', reason: 'diverged'}], filesAdded: 2, fileConflicts: [], resultsAdded: 3}))});
   const view = projectPublish(a, () => true, 'Research');
   await vi.waitFor(() => expect(Array.from(view.element.querySelectorAll('button')).some(b => b.textContent === 'Update from the published version')).toBe(true));
   click(view.element, 'Update from the published version');
-  await vi.waitFor(() => expect(view.element.textContent).toContain('1 document updated, 2 files added.'));
+  await vi.waitFor(() => expect(view.element.textContent).toContain('1 document updated, 3 results and 2 files added.'));
   expect(view.element.textContent).toContain('no longer follows the version here, so it was left as it was');
 });
 

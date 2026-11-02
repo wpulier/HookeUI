@@ -67,6 +67,34 @@ class ProjectLocations:
         root = self.project(sid)
         return session_root(root) if root is not None else self.legacy
 
+    def holder(self, sid):
+        """The one registered Project here that holds `sid` as an inherited owner (project_inherited), for reading
+        only; None for a Project's own handle, a legacy session, or when several copies hold it and `sid` alone cannot
+        say which. Never grants a writer lease."""
+        if not sids.is_sid(sid):
+            return None
+        from .project_inherited import owners
+        found = []
+        for origin, locator in self.registry.locations().items():
+            if locator['session'] == sid:
+                return None
+            if not (Path(locator['path']) / 'history' / 'sessions' / sid / sids.JOURNAL).is_file():
+                continue  # cheap: most Projects hold no such session
+            try:
+                root = self.project(locator['session'])
+            except ProjectLocationError:
+                continue
+            if root is not None and root.origin == origin and sid in owners(root.path, root.session):
+                found.append(root)
+        return found[0] if len(found) == 1 else None
+
+    def read_root_for(self, sid):
+        """Where session `sid`'s journal is read: its own Project's, the Project holding it inherited, or legacy."""
+        root = self.project(sid)
+        if root is None:
+            root = self.holder(sid)
+        return session_root(root) if root is not None else self.legacy
+
     def writable(self, sid):
         """Capture one host lease; later calls verify the same location and journal owner."""
         with self._lock:

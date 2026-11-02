@@ -90,6 +90,12 @@ def resolve_entry(day, session, entry, *, max_manifest_bytes=None, check=lambda:
     path = entry['path']
     locations = getattr(day, 'locations', None)
     project = locations.project(session) if locations is not None else None
+    origin = project.origin if project is not None else None
+    if project is None and getattr(locations, 'holder', None) is not None:
+        project = locations.holder(session)  # an inherited owner: its saves name the Project that made them
+        if project is not None:
+            from .project_inherited import origin_of, owners
+            origin = origin_of(owners(project.path, project.session)[session])
     if not isinstance(path, str):
         raise ProjectLocationError('Evidence has an invalid retained location')
     if not path.startswith('project:'):
@@ -99,7 +105,7 @@ def resolve_entry(day, session, entry, *, max_manifest_bytes=None, check=lambda:
     if project is None:
         raise ProjectLocationError('The evidence Project location is unavailable')
     match = re.fullmatch(r'project:([a-f0-9]{32})/artifacts/evidence/(\d{4}-\d{2}-\d{2})/([em]\d+)/([a-f0-9]{32})', path)
-    if match is None or match[1] != project.origin:
+    if match is None or match[1] != origin:
         raise ProjectLocationError('Evidence belongs to a different or invalid Project origin')
     root = _directories(project.path, project.folder('artifacts') / 'evidence')
     folder = _directories(root, root / match[2] / match[3] / match[4])
