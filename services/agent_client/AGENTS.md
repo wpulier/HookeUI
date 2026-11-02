@@ -57,3 +57,5 @@ research runtime. SDK protocol tests use synthetic transports. Actual external
 client/Keychain and science qualification are separate evidence.
 
 The scoped research client can read retained coordination, claim/renew an assignment and return its evidence-linked report. It cannot rewrite the reviewed plan, propose new executable authority or alter its fixed workflow/admission scope. Assignment identity is passed in the existing workflow request. General connector clients can initiate plans through the shared door; the confined solver surface remains narrower by design.
+
+An explicit workflow repeat carries the shared repeat identity and scientific reason. Fixed admission scopes pin those fields too; changing a repeat cannot widen the allowance. Reconnecting can observe its original Study-linked operation.

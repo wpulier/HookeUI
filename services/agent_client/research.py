@@ -145,7 +145,7 @@ class ProjectResearcher(ProjectReader):
 
     def _admission(self, args):
         schema.check(args, 'workflow-admission')
-        if set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings', 'assignment'}:
+        if set(args) - {'study', 'session', 'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'}:
             raise ValueError('Unqualified workflow arguments')
         if args['study'] != self.config.study or args['session'] != self.config.project:
             raise ValueError('The experiment belongs to another Study or Project')
@@ -160,7 +160,7 @@ class ProjectResearcher(ProjectReader):
         return pin
 
     def _arguments(self, arguments):
-        if type(arguments) is not dict or set(arguments) - {'workflow', 'revision', 'inputs', 'bindings', 'assignment'}:
+        if type(arguments) is not dict or set(arguments) - {'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'}:
             raise ValueError('Only exact inputs to qualified frozen workflows are admitted')
         args = {**arguments, 'study': self.config.study, 'session': self.config.project}
         return args, self._admission(args)

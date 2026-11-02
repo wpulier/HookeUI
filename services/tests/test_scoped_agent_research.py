@@ -287,3 +287,22 @@ def test_sdk_hides_execution_for_empty_admission_allowance():
             assert denied.is_error
             assert not any(method == 'POST' for method, _, _ in door.calls)
     asyncio.run(scenario())
+
+
+def test_fixed_repeat_scope_runs_retries_and_recovers_without_widening():
+    async def scenario():
+        door = ResearchDoor()
+        args = ARGS | {'repeat': {'id': 'repeat-1', 'reason': 'Measure unchanged-method repeatability'}}
+        scope = [{'requestKey': 'repeat-request', 'arguments': args}]
+        def scoped():
+            return ProjectResearcher(config(study=STUDY), (PIN,), door, admissions=scope)
+        reader = scoped()
+        first = await reader.run(args, 'repeat-request')
+        retry = await scoped().run(args, 'repeat-request')
+        assert retry['operation']['id'] == first['operation']['id']
+        recovered = await scoped().observe(OP)
+        assert recovered['operation']['params']['repeat'] == args['repeat']
+        with pytest.raises(ValueError, match='allowance'):
+            await scoped().run(args | {'repeat': {'id': 'repeat-2', 'reason': 'Extra work'}}, 'repeat-request')
+        assert len([c for c in door.calls if c[:2] == ('POST', 'operations')]) == 2
+    asyncio.run(scenario())
