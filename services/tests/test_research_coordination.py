@@ -90,6 +90,25 @@ def test_paused_study_refuses_new_claim(context):
     c.efforts.control(s.id,s.session,'pause')
     with pytest.raises(InvalidProject): claim(c,s,a['id'])
 
+
+def test_capability_proposal_pins_package_and_never_accepts_activation(context):
+    from orchestrator.scientific_file_intake import FileIntake
+    c,s=context
+    intake=FileIntake(c.studies.store,s.session,'diagnostic-package',name='diagnostic.zip',size=3,max_bytes=10)
+    intake.write(b'zip');package=intake.publish();intake.close()
+    proposal={'title':'Intensity summary','gap':'A bounded diagnostic', 'package':identity(package),
+              'licence':'MIT','dependencies':'Existing image runtime','permissions':'Selected image only',
+              'resources':'CPU, 1 MiB','proofPlan':'Compare exact reference intensities'}
+    fields=dict(request='diagnostic',proposal=proposal,actor='agent:a',label='Lead')
+    first=c.propose_capability(s.id,s.session,**fields)
+    assert c.propose_capability(s.id,s.session,**fields)==first
+    assert first['capabilityProposals'][0]['status']=='awaiting-owner-review'
+    with pytest.raises(Conflict):
+        c.propose_capability(s.id,s.session,**{**fields,'proposal':{**proposal,'permissions':'Network'}})
+    with pytest.raises(ValueError):
+        c.propose_capability(s.id,s.session,**{**fields,'proposal':{**proposal,'activate':True}})
+    assert first['experiments']==[]
+
 def test_reviewed_plan_bounds_and_deduplicates_scientific_admissions(tmp_path):
     import asyncio
     from tests.test_study_workflows import setup, A, B

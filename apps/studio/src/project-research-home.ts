@@ -75,7 +75,7 @@ export class ProjectResearchHome {
       materials.append(node('h3',`${material.count} Project ${material.count===1?'input':'inputs'}`),
         node('p',material.groups.length?material.groups.join(' · '):'Retained files and selected research inputs','project-research-caption'),
         action('Browse inputs','material',this.actions.inputs,owned.length?'quiet':'mm-primary'));
-      if(!owned.length&&!material.loading&&!error)materials.append(node('p','Explore your material, then choose Start research to shape a question and plan.','project-research-caption'));
+      if(!owned.length&&!material.loading&&!error)materials.append(node('p','No Study yet. Explore your material, then choose Start research to shape a question and plan.','project-research-caption'));
       supporting.push(materials);
     }
     if(team.length){const people=details('Contributors & origins','team','project-research-team');

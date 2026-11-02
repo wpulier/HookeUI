@@ -143,7 +143,7 @@ def runnable(tool_name: str) -> bool:
 # These are not Assistant stage tools: each has its own explicit Project contract.
 DOOR_RESOURCES = {
     "study.coordination": "reads this Project’s retained research plan, assignments, claims and original experiment references",
-    "study.coordinate": "prepares or reviews plans and claims or completes assignments; starts no model or scientific operation",
+    "study.coordinate": "prepares plans, coordinates assignments and retains capability proposals for owner review; starts no model, scientific operation or installation",
     "research.instructions": "reads versioned non-executable research instruction packages; grants no runtime authority",
     "study-coordination.read": "reads retained plans and assignments within the authorized Project",
     "study-coordination.write": "prepares plans and coordinates attributed assignments; grants no runtime or installation authority",

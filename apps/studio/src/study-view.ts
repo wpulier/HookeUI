@@ -606,26 +606,28 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
     dock.append(compose.root); centre.append(dock);
   }
   // The write-up on paper: the question as its title, what was concluded from reviewed experiments, and a finding to add.
-  const right = column('section', 'rart study-writeup', 'The write-up');
+  const right = column('section', 'rart study-writeup', actions.localWorkflows ? 'Research plan and results' : 'The write-up');
+  if(actions.localWorkflows)right.classList.add('study-research-home');
   const rightHead = node('div', 'rhead rart-head');
   const pill = node('span', 'spill is-static'); pill.title = 'The Study’s state';
   const state: LitCellState = studyNeeds(study) ? 'needs' : study.status === 'stopped' ? 'stopped' : study.status === 'paused' ? 'still'
     : tasks.some(([, task]) => ['running', 'launching'].includes(taskPhase(task))) ? 'working' : tasks.length ? 'partial' : 'idle';
   pill.append(litCell(state, { size: 12, label: studyState(study) }), statePill);
   statePill.className = 'spill-w';
-  writeupButton.append(litCell(state, { size: 12, decorative: true }), node('span', '', 'The write-up'));
+  writeupButton.append(litCell(state, { size: 12, decorative: true }), node('span', '', actions.localWorkflows ? 'Plan & results' : 'The write-up'));
   rightHead.append(pill, node('span', 'rflex'), controls);
   const desk = node('div', 'desk'); desk.dataset.fit = 'width';
   const pages = node('div', 'desk-pages'), paper = node('article', 'page'), inside = node('div', 'page-in');
   paper.dataset.theme = 'paper';
-  inside.append(node('h3', 'study-writeup-title', study.objective), node('p', 'byline', `Judged by ${study.criteria}`), findings);
+  const initiation = node('div');
+  inside.append(node('h3', 'study-writeup-title', study.objective), node('p', 'byline', `Judged by ${study.criteria}`), initiation, findings);
   paper.append(inside); pages.append(paper); desk.append(pages);
   right.append(rightHead, desk);
   grid.append(left, centre, right);
   const wrap = node('div', 'rwrap'); wrap.append(grid);
   root.append(wrap, scrim, sheet);
   if (actions.localWorkflows) {
-    mountStudyInitiation(log, study, availableInputs);
+    mountStudyInitiation(initiation, study, availableInputs, fetch, actions.openFile);
     mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log);
     mountLocalStudyResearcher(rail, study);
   }

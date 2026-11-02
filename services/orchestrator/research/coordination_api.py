@@ -13,6 +13,7 @@ def execute(built, study, session, action, fields, actor, label):
     methods = {'plan': ('save_plan', {'basis', 'plan'}),
                'review': ('review_plan', {'basis'}),
                'propose': ('propose', {'request', 'assignment'}),
+               'propose-capability': ('propose_capability', {'request', 'proposal'}),
                'claim': ('claim', {'assignment', 'harness', 'model'}),
                'complete': ('complete', {'assignment', 'statement', 'evidence', 'limitations'})}
     if action not in methods or set(fields) != methods[action][1]:

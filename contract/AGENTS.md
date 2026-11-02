@@ -146,3 +146,5 @@ from connected `agent` identities. An unnamed legacy researcher has kind `resear
 without an invented ID. These are provenance categories, never connection authority.
 
 Agent research-plan and research-assignment schemas describe retained intent, explicit limits, exact evidence and justified delegation. Workflow admission may carry an assignment identity; execution still belongs to WorkflowService. These contracts do not certify model-budget enforcement or hosted execution availability.
+
+`agent/capability-proposal.schema.json` pins a retained proposal package and its declared scope; it is not a runtime approval, proof or credential.

@@ -281,3 +281,5 @@ Legacy/unavailable storage refuses; no complete-Project claim is made.
 Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding.
 
 Detached Project creation and material/coordination contributions notify the existing sessions projection. Open Studio choosers refresh without changing the active Project or stage; request retries do not emit another creation.
+
+Study coordination admits capability proposals only as non-executable retained intent under contribute access. Arbitrary activation fields are refused. Existing catalog owner confirmation is still required for exact-package preparation and activation.

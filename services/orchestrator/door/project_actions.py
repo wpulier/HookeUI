@@ -12,7 +12,7 @@ from .. import agent_runnable
 # Schemas describe transport only; scientific capabilities remain catalog-owned.
 SCHEMAS = {
     "study.coordination": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}},
-    "study.coordinate": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}, "action": {"type":"string", "enum":["plan","review","propose","claim","complete"]}, "fields": {"type":"object"}},
+    "study.coordinate": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}, "action": {"type":"string", "enum":["plan","review","propose","claim","complete","propose-capability"]}, "fields": {"type":"object"}},
     "research.instructions": {},
     'project.create': {'name': {'type': 'string', 'minLength': 1, 'maxLength': 80}},
     'project.list': {},

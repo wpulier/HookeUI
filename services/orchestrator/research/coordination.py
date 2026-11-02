@@ -38,12 +38,36 @@ class Coordination:
                 materials.append({'reference': ref, 'available': False,
                                   'reason': 'This exact retained revision is unavailable; restore or replace the draft selection.'})
         return {'basis': identity(saved), 'plan': state.get('researchPlan'), 'assignments': assignments,
+                'capabilityProposals': list(state.get('capabilityProposals', {}).values()),
                 'materials': materials,
                 'readiness': {'materialAvailable': all(row['available'] for row in materials),
                               'scientificExecution': 'Checked against the selected frozen workflow at admission',
                               'modelAllowance': 'Requires a qualified external harness; connection is not budget enforcement'},
                 'experiments': list(state.get('experiments', {}).values()),
                 'claims': state.get('claims', []), 'challenges': state.get('claimChanges', [])}
+
+    def propose_capability(self, study, session, *, request, proposal, actor, label):
+        """Retain a package for owner review; no filesystem installation or code execution."""
+        text(request, 'Proposal request', 128)
+        check(proposal, 'capability-proposal')
+        package = exact(self.studies.store, proposal['package'], session)
+        if package.document['kind'] not in ('source-file', 'source-directory'):
+            raise InvalidProject('Choose an exact retained package file or folder')
+        key = fingerprint({'actor': actor, 'request': request})[:32]
+        row = {'id': key, 'proposal': proposal, 'status': 'awaiting-owner-review',
+               **self.studies.attribution(actor, label)}
+        def change(state):
+            proposals = state.setdefault('capabilityProposals', {})
+            if key in proposals:
+                if proposals[key] != row:
+                    raise Conflict('This proposal request already names another package or scope')
+                return False
+            if state['status'] != 'active' or len(proposals) >= 32:
+                raise InvalidProject('This Study cannot accept another capability proposal')
+            proposals[key] = row
+            return True
+        self.efforts._change(study, session, change)
+        return self.read(study, session)
 
     def save_plan(self, study, session, *, basis, plan, actor, label):
         check(plan, 'research-plan')
