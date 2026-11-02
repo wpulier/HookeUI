@@ -43,11 +43,11 @@ def register_studio(app, built, studio_origin, header):
         try:
             if (request.headers.get(header) != 'research-effort'
                     or not studio_origin(request.headers.get('origin'), request.url.port)):
-                raise Refused('Manage research from its Project.', 403)
+                raise Refused('Manage research from its Project.', 403, next='open the Study in its Project to review or update its plan')
             body = await _body(request)
             session = body.pop('session', None)
             if session != built.day.sid:
-                raise Refused('The active Project changed.', 409)
+                raise Refused('The active Project changed.', 409, next='return to the original Project and reopen its Study before saving')
             result = await asyncio.to_thread(execute, built, study, session, action, body, 'studio', 'You')
             return JSONResponse({'ok': True, 'coordination': result}, headers={'Cache-Control': 'no-store'})
         except (ValueError, OSError) as error:

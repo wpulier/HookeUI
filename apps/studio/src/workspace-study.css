@@ -88,3 +88,24 @@ body[data-workspace-study='true'] .project-input-material .mm-row-title { displa
 .study-plan-limits span { display:block; font-size:11px; color:var(--mm-text-2); }
 .study-plan-limits strong { display:block; font-size:18px; }
 @media(max-width:650px){.study-research-home .page-in{padding:18px}.study-plan-limits{grid-template-columns:1fr}}
+
+/* The interactive research home uses interface colors, not an artifact's paper theme. */
+body[data-workspace-study='true'] .study-home .study-research-home .page {
+  --s-bg: var(--mm-bg, #171719); --s-body: var(--mm-text, #ededee);
+  --s-title: var(--mm-text, #ededee); --s-muted: var(--mm-text-2, #a0a0a6);
+  --s-line: var(--mm-line); --s-link: var(--mm-accent, #78aaff);
+  width: min(calc(100cqw - 48px), 960px); min-height: 0;
+  background: var(--s-bg); color: var(--s-body); box-shadow: none; border-radius: 12px;
+}
+body[data-workspace-study='true'] .study-home .study-research-home .page-in { padding: 28px; }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-writeup-title { font: 600 24px/1.3 var(--mm-sans); text-wrap: pretty; }
+body[data-workspace-study='true'] .study-home .study-research-home .page .byline { margin: 12px 0 24px; font: 400 13px/1.5 var(--mm-sans); }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-initiation { margin: 0 0 28px; color: var(--mm-text); }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-initiation :is(p,li,small) { font: 400 14px/1.55 var(--mm-sans); color: var(--mm-text-2); margin: 0 0 12px; }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-initiation h3 { margin: 8px 0 12px; font: 600 20px/1.3 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-initiation h4 { font: 600 16px/1.45 var(--mm-sans); color: var(--mm-text); }
+body[data-workspace-study='true'] .study-home .study-research-home .page .study-initiation details > summary { margin: 12px 0; font: 500 13px/1.5 var(--mm-sans); color: var(--mm-text-2); }
+@media(max-width:650px){
+  body[data-workspace-study='true'] .study-home .study-research-home .page { width: calc(100cqw - 16px); }
+  body[data-workspace-study='true'] .study-home .study-research-home .page-in { padding: 16px; }
+}
