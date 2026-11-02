@@ -9,6 +9,11 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+`test_count_output_space.py` checks the 32-bit sparse-index transition and refuses
+the former disk envelope before prediction or count assembly. Its large dimensions
+use synthetic metadata and empty sparse inputs, not full-density computation;
+passing does not qualify full-shape memory, disk use or packaging time.
+
 `test_matrix_execution.py` uses synthetic provider transport over real workflow
 attempts and FileIntake to test original-job recovery, lost replies, cancellation,
 reserved allowance, local-only/disk refusal and bounded explicit worker resources.

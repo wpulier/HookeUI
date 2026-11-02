@@ -246,7 +246,11 @@ runtime canary exercised the actual upstream evaluator; this does not establish 
 
 Dense intermediate effect preparation and fitting are bounded to 512 MiB; large training sources need a declared
 compact preparation/fold recipe or further qualified streaming aggregation. Prediction preflights worst-case sparse
-output plus temporary assembly space. Scoring and aggregate preparation project only X and requested metadata,
+output plus temporary assembly space. Emission and count assembly reserve float32 values plus
+eight-byte sparse indices when the possible entry count exceeds the signed 32-bit range;
+their two-copy disk guard also retains the existing pointer and safety allowances.
+This is conservative admission arithmetic, not measured full-shape qualification.
+Scoring and aggregate preparation project only X and requested metadata,
 using HDF5/AnnData access; they do not load auxiliary layers, raw or embeddings. Sparse pointer/index dimensions and
 integer dtypes, monotone pointer contents and in-range indices are checked in cancellable bounded chunks before
 AnnData can cache pointers or invoke native sparse operations. Label arrays and categorical metadata are bounded before

@@ -56,6 +56,15 @@ def _dense_budget(rows, columns, *, copies=1):
         raise Refused('This compact operation exceeds its 512 MiB dense working allowance')
 
 
+def _count_output_bytes(rows, columns):
+    """Worst-case CSR float32 payload, including promotion to 64-bit indices."""
+    rows, columns = int(rows), int(columns)
+    entries = rows * columns
+    index_bytes = 8 if max(rows, columns, entries) > 2 ** 31 - 1 else 4
+    # Keep the existing conservative 64-bit indptr allowance for small outputs too.
+    return entries * (4 + index_bytes) + (rows + 1) * 8
+
+
 def _npz(path, required):
     with zipfile.ZipFile(path) as archive:
         names = [i.filename for i in archive.infolist()]
@@ -415,8 +424,8 @@ def predict(inputs, params, output, check):
             raise Refused('Prediction exceeds the declared observation allowance')
         _dense_budget(BLOCK_ROWS, data.n_vars, copies=5)
         gene_indices = np.array([model_genes.get(g, -1) for g in data.var_names]); covered = gene_indices >= 0
-        # CSR float32 value/index pairs plus indptr; allow chunks + merged output + safety margin.
-        worst_case_bytes = nout * data.n_vars * 8 + (nout + 1) * 8
+        # CSR float32 values and 32/64-bit indices; chunks + merged output + margin.
+        worst_case_bytes = _count_output_bytes(nout, data.n_vars)
         if shutil.disk_usage(output).free < worst_case_bytes * 2 + (512 << 20):
             raise Refused('Free space for sparse prediction chunks and the merged output before inference')
         for context in sorted(set(contexts)):
