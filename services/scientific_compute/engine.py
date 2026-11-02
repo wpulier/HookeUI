@@ -600,7 +600,16 @@ def select_development_candidate(inputs, params, output, check):
     return select(inputs, params, output, check)
 
 
-OPERATIONS = {'response-development-check': check_development_fold, 'cell-evaluation-select': select_development_candidate, 'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
+
+def rank_development_candidates(inputs, params, output, check):
+    if __package__:
+        from .development_bundle import rank_bundle
+    else:
+        from development_bundle import rank_bundle
+    return rank_bundle(inputs, params, output, check)
+
+
+OPERATIONS = {'cell-evaluation-rank': rank_development_candidates, 'response-development-check': check_development_fold, 'cell-evaluation-select': select_development_candidate, 'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,

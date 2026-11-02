@@ -357,3 +357,25 @@ rank ties; equally simple tied methods remain joint leaders. The output is label
 **development selection measure**, never an official overall score. This is an
 explicit fallback when scaling anchors are unavailable; it neither invents anchors
 nor implements reference scaling or a multi-candidate campaign tournament.
+
+`cell-evaluation-rank` supplies the joint comparison needed for three or more
+candidates; pairwise rankings must never be chained into a campaign winner. It
+accepts an ordinary retained ZIP `reports` and a `development-ranking-v1` config:
+`rule: "equal-metric-ranks"`, and two to six `candidates`, each with `name`,
+`method`, a flat `.json` member `file`, and its exact `sha256`. It reads bounded
+members without extracting or executing them. Missing, extra or duplicate members,
+duplicate JSON keys, changed hashes and excessive compressed/uncompressed bytes
+refuse. The output keeps a canonical candidate-set digest so adding or removing a
+candidate explicitly changes the comparison.
+
+All reports must satisfy the same pinned configuration/reference/panel checks.
+Joint per-metric midranks, six equal metric weights, equal context weights and the
+same simplicity rule determine the development measure. The original upstream
+aggregates are preserved. Each context/metric also records raw support counts
+`n_rows`, `n_used`, `n_nonfinite`, `n_missing` and the corresponding target IDs.
+The derived expression-error metric records its numerator and denominator support
+separately. Reference-ineligible upstream nulls or omitted rows may remain: the
+capability never drops a difficult target from the declared panel or requires all
+DE values to be finite. Unexplained support differences between candidates refuse
+selection and require investigation. These mechanics neither validate reference
+anchors nor establish a real scientific improvement.

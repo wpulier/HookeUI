@@ -985,3 +985,10 @@ six-metric ranking oracles cover directions, midranks, equal context weights,
 simplicity ties, missing/nonfinite measurements and mismatched reference hashes.
 The optional upstream-catalog check requires cell-eval2 0.20.0. These tests do not
 qualify a biological fold, fit resources, full-panel scoring or a real decision.
+
+`test_development_bundle.py` checks joint two-to-six-candidate midranks, fixed-set
+identity, simplicity ties, exact report hashes, duplicate/extra ZIP members,
+duplicate JSON keys and bounded reads. Synthetic raw metric rows retain legitimate
+null/omitted reference support, including derived numerator/denominator counts;
+unexplained candidate support differences refuse. No test result is a contest
+metric, real fold qualification or proof of a winning candidate.

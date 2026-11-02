@@ -29,12 +29,25 @@ METRICS = {
 METHODS = ('null', 'existing-transfer', 'low-rank-transfer', 'embedding', 'blend')
 
 
+def _decode(data):
+    def pairs(items):
+        value = {}
+        for key, item in items:
+            if key in value:
+                raise Refused('Duplicate JSON keys cannot define a scientific comparison')
+            value[key] = item
+        return value
+    def constant(value):
+        raise Refused('Nonfinite JSON constants are not valid scientific metadata')
+    return json.loads(data, object_pairs_hook=pairs, parse_constant=constant)
+
+
 def _read(path, limit=16 << 20):
     with path.open('rb') as stream:
         data = stream.read(limit + 1)
     if len(data) > limit:
         raise Refused('Development metadata exceeds its bounded allowance')
-    value = json.loads(data)
+    value = _decode(data)
     if type(value) is not dict:
         raise Refused('Development metadata must be an object')
     return value
