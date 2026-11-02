@@ -2160,3 +2160,5 @@ claim or rerun the already completed assignment.
 Study evidence uses Data's existing named reader Tab, pinned to the selected
 Project/document/revision and reused on repeated opens; it does not create a
 generic workspace Tab containing a second floating file window.
+
+Main explains both research entrances: describe a question in Hooke or copy a Project-scoped brief into an already-connected agent. Copy sends nothing and preserves the current Project locator; it never creates a duplicate or grants access. Main counts admitted scientific executions, excluding collaboration assignments, and distinguishes waiting/claimed assignments from running experiments. Study handoff explains pickup and retained results; plan review does not start a provider.

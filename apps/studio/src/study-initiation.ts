@@ -21,7 +21,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
   const button=(label:string,run:()=>Promise<void>,primary=false,busy='Saving…')=>{const b=n('button',label,primary?'study-primary':'study-quiet');b.type='button';b.onclick=()=>{if(pending||!current())return;pending=true;b.disabled=true;const previous=status.textContent;status.textContent=busy;void run().then(()=>{if(current()&&status.textContent===busy)status.textContent=previous;}).catch(e=>{if(current())status.textContent=String(e.message||e);}).finally(()=>{pending=false;if(current())b.disabled=false;});};return b;};
   function draw(){
     if(!current()||!state)return;content.replaceChildren();delete box.dataset.draft;
-    status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Scientific work starts only when an authorized actor admits an experiment.':'Save your approach, then review it before handing work to an agent.';
+    status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Next, hand the work to your agent or run the tools yourself.':'Save your approach, then review it before handing work to an agent.';
     if(!state.plan||state.plan.status==='draft'){
       const form=n('form'),output=n('textarea'),evaluation=n('textarea'),method=n('textarea'),mode=n('select');
       output.value=state.plan?.desiredOutput||'';evaluation.value=state.plan?.evaluation||study.criteria;method.value=state.plan?.methodNotes||'';
@@ -73,6 +73,8 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       },true);form.onsubmit=e=>{e.preventDefault();save.click();};form.append(save);content.append(form);
       if(state.plan){review=button('Review this saved plan',async()=>{if(box.dataset.draft){status.textContent='Save your edited plan before reviewing it.';return;}const response=await call('review',{basis:state!.basis});if(current()){clearDraft();state=response.coordination;draw();}},true);review.disabled=!!box.dataset.draft;content.append(review);} 
     }else{
+      if(state.plan.actorMode==='manual')content.append(n('p','Open Tools or Workflows, choose the exact Study inputs, and run your first experiment. Keep its outputs with this Study.','study-note'));
+      if(state.plan.actorMode==='local-researcher')content.append(n('p','Use the Hooke researcher controls in this Study. Its model must be configured before Start research can run it; saving this plan has not started it.','study-note'));
       const summary=n('div','','study-initiation-summary');summary.append(n('h4',state.plan.desiredOutput),n('p',state.plan.methodNotes));
       const evaluation=n('details');evaluation.append(n('summary','Evaluation and limits'),n('p',state.plan.evaluation));
       const bounds=n('div','','study-plan-limits');
@@ -84,7 +86,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
         const recipients=reply.recipients as {actor:string;label:string}[];
         actors.textContent=recipients.length?`Authorized contributors: ${recipients.map(r=>r.label).join(', ')}. Connection does not mean an agent is running.`:'No connected agent has contribute access. Open Settings → Connected agents → Project access to authorize one.';
         if(state?.plan?.actorMode==='connected-agent'&&recipients.length&&!state.assignments.length){
-          content.append(button('Prepare agent assignment',async()=>{
+          content.append(button('Prepare handoff for my agent',async()=>{
             const plan=state!.plan!;
             await call('propose',{request:`initial:${study.id}`,assignment:{objective:study.objective,deliverable:plan.desiredOutput,uncertainty:plan.evaluation,decisionImpact:'Choose the next experiment from measured results',whyNewWork:'Begin the reviewed research plan; inspect existing evidence before admitting work',evidence:plan.materials,dependsOn:[]}});
             await load();
@@ -94,6 +96,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
     }
     for(const assignment of state.assignments){
       const card=n('article','','study-assignment');card.append(n('h4',assignment.objective),n('p',`${assignment.observedState==='planned'?'Waiting for an agent':assignment.report?'Report awaiting review':assignment.observedState}${assignment.claimedBy?` · ${assignment.claimedBy.byLabel}`:''}`));
+      if(!assignment.report&&assignment.observedState==='planned')card.append(n('p','Copy the handoff below and paste it into your connected agent. The agent reads this saved plan and claims the assignment; replies and results return here.','study-note'));
       if(assignment.report){
         card.append(n('p',assignment.report.statement),n('small',assignment.report.limitations));
         for(const [index,ref]of (assignment.report.evidence||[]).entries())if(openFile)card.append(button(`Open evidence ${index+1} · version ${ref.revision}`,async()=>{await openFile(ref,`Report evidence ${index+1}`);},false,'Opening evidence…'));
@@ -107,7 +110,7 @@ Hooke origin: ${typeof location!=='undefined'?location.origin:'the existing conf
 Use the skill's hooke command and your existing --agent/--connection selector. Discover tools, then run:
 hooke api GET 'studies/${study.id}/coordination?session=${study.session}' --json
 Read the retained plan, exact material, prior failures and decisions through the connector. ${next} Follow the reviewed allowance. If your harness cannot enforce and report its model limits, report that before running a model experiment. Use only admitted capabilities and frozen workflows; return exact output references through action complete. Do not rewrite Project storage, change grants, install or activate extensions, or use unrelated Projects. Reported results await review; they are not automatically accepted findings.`;
-      card.append(button(assignment.report?'Copy report context':'Copy agent handoff',async()=>{try{await navigator.clipboard.writeText(prompt);status.textContent='Copied. Paste into your connected agent to start; Hooke has not launched a model.';}catch{const text=n('textarea');text.value=prompt;text.readOnly=true;text.setAttribute('aria-label','Agent handoff');card.append(text);text.select();status.textContent='Copy this handoff into your connected agent.';}}));content.append(card);
+      card.append(button(assignment.report?'Copy report context':'Copy agent handoff',async()=>{try{await navigator.clipboard.writeText(prompt);status.textContent=assignment.report?'Copied report context. This does not restart the assignment.':'Copied. Paste into your connected agent to start. Waiting here does not launch it.';}catch{const text=n('textarea');text.value=prompt;text.readOnly=true;text.setAttribute('aria-label','Agent handoff');card.append(text);text.select();status.textContent='Copy this handoff into your connected agent.';}}));content.append(card);
     }
     for(const item of state.capabilityProposals||[]){
       const card=n('details','','study-assignment'),p=item.proposal;

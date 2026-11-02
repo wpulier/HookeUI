@@ -1089,12 +1089,12 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const allowance=el('label','study-new-study-field study-allowance');const allowanceWords=el('span','study-allowance-words');
   allowanceWords.append(el('span','','Most it may spend'));allowance.title='The most all its experiments may spend together';allowance.append(allowanceWords,dollar);
   // A header that says what a study is, then three groups: the question, what it may use, and what it may spend.
-  const head=el('header','study-new-study-head');head.append(el('h2','','Start research'),el('p','','A question you want answered, the inputs it may use and what it may spend. You review each experiment before it counts.'));
+  const head=el('header','study-new-study-head');head.append(el('h2','','Start research'),el('p','','First, describe your question and select its material. Next, review the approach and choose who will do the work. This investigation is saved as a Study in your Project.'));
   const group=(name:string,...nodes:HTMLElement[])=>{const box=el('section','study-new-study-group');if(name)box.append(el('h3','',name));box.append(...nodes);return box;};
   const pair=el('div','study-new-study-pair');pair.append(field('Short name',title),allowance);
   body.append(head,group('',field('What do you want to find out?',objective),field('How will you judge the result?',criteria),pair),
     group('What it may use',choices),status);
-  footer.append(el('p','study-note study-new-study-starts','Creating a study starts nothing. You start each experiment.'),cancel,save);form.append(body,footer);
+  footer.append(el('p','study-note study-new-study-starts','Next: review the research plan. Saving this draft does not start an agent or an experiment.'),cancel,save);form.append(body,footer);
   const load=()=>{void studyInputs(session).then(inputs=>{
     if(!current())return;choices.replaceChildren(el('legend','visually-hidden','What it may use'));selected.clear();const pick=el('ul','study-pick');
     if(initial&&!inputs.some(i=>i.id===initial.reference.id&&i.revision===initial.reference.revision&&i.digest===initial.reference.digest))inputs=[{...initial.reference,title:initial.title,kind:'retained material',localInputEligible:true,managedFileEligible:false},...inputs.filter(i=>i.id!==initial.reference.id)];

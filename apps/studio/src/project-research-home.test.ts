@@ -176,3 +176,18 @@ test('partially loaded and failed refreshes preserve the overview with Retry',()
  home.update('p1',[study()],'Study refresh failed',{},[],{count:0,groups:[],loading:true,slow:true});
  expect(root.textContent).toContain('Response transfer');expect(button('Retry')).toBeDefined();
 });
+
+test('the agent entrance copies this Project and cannot act after a Project switch',async()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const copy=vi.fn(async(_text:string)=>undefined);vi.stubGlobal('navigator',{clipboard:{writeText:copy}});
+ let current='new-project';const host=new TestElement('section');
+ const start=vi.fn(),home=new ProjectResearchHome(host as unknown as HTMLElement,{current:()=>current,openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),startResearch:start});
+ home.update(current,[]);const root=home.root as unknown as TestElement;
+ const b=root.querySelectorAll('button').find(x=>x.textContent==='Copy instructions for my agent')!;
+ fire(b,'click');await vi.waitFor(()=>expect(copy).toHaveBeenCalledOnce());
+ expect(copy.mock.calls[0][0]).toContain('Project new-project');
+ expect(copy.mock.calls[0][0]).toContain('do not create a duplicate');
+ expect(root.textContent).toContain('Work starts there; results stay in this Project.');
+ expect(start).not.toHaveBeenCalled();
+ current='different-project';fire(b,'click');await Promise.resolve();expect(copy).toHaveBeenCalledOnce();
+});

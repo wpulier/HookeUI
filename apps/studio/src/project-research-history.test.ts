@@ -1,6 +1,6 @@
 // Synthetic domain/transport checks. Actual Project browser evidence is separate.
 import {expect,test,vi} from 'vitest';
-import {actorOrigin,contributors,history,operationPhase,readProjectActivity,studyActivity,type ResearchOperation} from './project-research-history';
+import {actorOrigin,contributors,experimentCount,history,operationPhase,readProjectActivity,studyActivity,type ResearchOperation} from './project-research-history';
 import type {Effort} from './research-efforts';
 const study=():Effort=>({id:'s',session:'p',revision:1,digest:'d',objective:'Compare',criteria:'Measured',status:'active',capMicrousd:0,spentMicrousd:0,heldMicrousd:0,availableMicrousd:0,inputs:[],tasks:{},findings:[],experiments:{e:{operation:'o',by:'agent:ac_a',byLabel:'Worker',execution:{id:'r',session:'p'}}}});
 const op=():ResearchOperation=>({id:'o',project:'p',by:'agent:ac_a',byLabel:'Worker',state:'succeeded',at:20,workflow:{id:'r',session:'p',status:'completed'}});
@@ -61,4 +61,17 @@ test('returned collaboration reports wait for review, not execution reconciliati
  const result=studyActivity(s,{operations:[]});
  expect(result.title).toBe('Waiting for review or a next step');
  expect(result.counts).toMatchObject({waiting:1,check:0,running:0});
+});
+
+
+test('planned and claimed collaboration are separate from scientific experiments',()=>{
+ const s=study();s.experiments={};s.tasks={a:{status:'planned',specification:{provider:'collaboration'},reservedMicrousd:0,chargedMicrousd:0}};
+ expect(experimentCount(s)).toBe(0);expect(studyActivity(s,{operations:[]}).title).toBe('Waiting for an agent');
+ s.tasks.a.status='running';expect(experimentCount(s)).toBe(0);
+ expect(studyActivity(s,{operations:[]}).title).toBe('Agent assignment claimed');
+ expect(studyActivity(s,{operations:[]}).counts.running).toBe(0);
+ s.experiments={e:{operation:'o',byLabel:'Worker',execution:{id:'r',session:'p'}}};
+ expect(experimentCount(s)).toBe(1);
+ s.tasks.local={status:'completed',reservedMicrousd:0,chargedMicrousd:0,execution:{provider:'local-researcher',id:'r1'}};
+ expect(experimentCount(s)).toBe(2);
 });
