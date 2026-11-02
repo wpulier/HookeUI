@@ -1,8 +1,10 @@
 """A GitHub repository as a Project remote, with no Git installed (ADR 0028, format v2).
 
-Records: one commit per push through the Git data API. Changed text files travel inline in batched tree requests
-(13 requests for 5,000 files in the U0 spike, against 5,000 for one blob each); binary record files become blobs.
-Unchanged files are reused from the parent tree. Every blob read back is checked against its Git blob id, and every
+Records: one commit per push. Signed in, the new objects go in one Git pack over smart HTTP (github_pack) to a pending
+branch, and the published branch then moves by compare-and-swap as before. When a pack cannot be sent, the Git data
+API is used: changed text files travel inline in batched tree requests (13 requests for 5,000 files in the U0 spike,
+against 5,000 for one blob each) and binary record files become blobs. Unchanged files are reused from the parent
+tree either way. Every blob read back is checked against its Git blob id, and every
 project file again against the snapshot manifest by `project_remote.fetch`.
 
 Anyone may read a public repository with no account: the commit and its listing come from two API calls, and file
@@ -62,6 +64,7 @@ class GitHubRecords:
         self.client, self.repo, self.branch = client, repository(repo), branch
         self.placeholder = placeholder  # the commit GitHub made when Hooke created the repository
         self._trees = {}
+        self._pending = set()  # pack-push branches to remove once the version is published or refused
 
     def describe(self):
         return {'kind': 'github', 'location': f'https://github.com/{self.repo}', 'branch': self.branch}
@@ -139,27 +142,74 @@ class GitHubRecords:
         if parent is not None:
             _, base, _ = self._commit(parent)
             previous = {path: sha for path, (sha, _) in self._tree(base).items()}
-        wanted = {}
-        changes = []
+        wanted, changed = {}, {}
         for item in files:
             check()
             body = item.read()
             if item.sha256 is not None and sha256(body) != item.sha256:
                 raise RemoteRefused(f'{item.path} changed while sending; nothing was sent')
-            blob = git_blob_id(body)
-            wanted[item.path] = blob
-            if previous.get(item.path) == blob:
-                continue
+            wanted[item.path] = git_blob_id(body)
+            if previous.get(item.path) != wanted[item.path]:
+                changed[item.path] = body
+        commit = self._pack(changed, wanted, previous, parent=parent, message=message, check=check)
+        if commit is not None:
+            return commit
+        tree = self._rest_tree(changed, wanted, previous, base, check=check)
+        payload = {'message': message, 'tree': tree, 'parents': [parent] if parent else []}
+        _, data = self.client.ok('POST', f'/repos/{self.repo}/git/commits', payload, what='recording the version')
+        commit = data.get('sha')
+        if not isinstance(commit, str) or not SHA1.fullmatch(commit):
+            raise RemoteRefused('GitHub did not record the version')
+        return commit
+
+    def _author(self):
+        """The signed-in account as GitHub names it in commits it makes itself (its no-reply address)."""
+        status, data = self.client.ok('GET', '/user', what='reading your GitHub account', allow=(403, 404))
+        login, number = (data.get('login'), data.get('id')) if status == 200 and isinstance(data, dict) else (None, None)
+        if isinstance(login, str) and re.fullmatch(r'[A-Za-z0-9-]{1,39}', login) and type(number) is int:
+            return login, f'{number}+{login}@users.noreply.github.com'
+        return 'HookeUI', 'hookeui@users.noreply.github.com'
+
+    def _pack(self, changed, wanted, previous, *, parent, message, check):
+        """The version as one pack push (github_pack), checked by reading back what GitHub holds; None when a pack
+        cannot be sent, and REST is used instead."""
+        from .github_pack import MAX_PACK_BYTES, PackUnavailable, build
+        if not getattr(self.client, 'packs', False) or sum(len(b) for b in changed.values()) > MAX_PACK_BYTES:
+            return None
+        try:
+            commit, objects, built = build({path: changed.get(path, sha) for path, sha in wanted.items()}, previous,
+                                           parent=parent, message=message, author=self._author())
+            check()
+            branch = self.client.push_pack(self.repo, objects, commit)
+        except PackUnavailable:
+            return None
+        self._pending.add(branch)
+        # What a server says of its own push is never proof: GitHub must now hold this commit and exactly these files.
+        status, data = self.client.ok('GET', f'/repos/{self.repo}/git/ref/heads/{quote(branch)}',
+                                      what='checking the sent version', allow=(404,))
+        if built != wanted or status != 200 or (data.get('object') or {}).get('sha') != commit:
+            raise RemoteRefused('GitHub does not hold the version that was sent; nothing was published')
+        message_back, tree, parent_back = self._commit(commit)
+        stored = {path: sha for path, (sha, _) in self._tree(tree).items()}
+        if parent_back != parent or message_back != message or stored != wanted:
+            raise RemoteRefused('GitHub holds different files than were sent; nothing was published')
+        return commit
+
+    def _rest_tree(self, changed, wanted, previous, base, *, check):
+        """The version's tree through the Git data API: text inline in batched trees, binary files as blobs."""
+        changes = []
+        for path, body in changed.items():
+            check()
             text = _text(body)
             if text is None:
                 _, data = self.client.ok('POST', f'/repos/{self.repo}/git/blobs',
                                          {'content': base64.b64encode(body).decode(), 'encoding': 'base64'},
                                          what='sending a project file')
-                if data.get('sha') != blob:
+                if data.get('sha') != wanted[path]:
                     raise RemoteRefused('GitHub stored a project file differently; nothing was published')
-                changes.append(({'path': item.path, 'mode': '100644', 'type': 'blob', 'sha': blob}, 64))
+                changes.append(({'path': path, 'mode': '100644', 'type': 'blob', 'sha': wanted[path]}, 64))
             else:
-                changes.append(({'path': item.path, 'mode': '100644', 'type': 'blob', 'content': text}, len(body)))
+                changes.append(({'path': path, 'mode': '100644', 'type': 'blob', 'content': text}, len(body)))
         for path in sorted(set(previous) - set(wanted)):
             changes.append(({'path': path, 'mode': '100644', 'type': 'blob', 'sha': None}, 64))
         tree = base
@@ -186,14 +236,30 @@ class GitHubRecords:
         stored = {path: sha for path, (sha, _) in self._tree(tree).items()}
         if stored != wanted:
             raise RemoteRefused('GitHub holds different files than were sent; nothing was published')
-        payload = {'message': message, 'tree': tree, 'parents': [parent] if parent else []}
-        _, data = self.client.ok('POST', f'/repos/{self.repo}/git/commits', payload, what='recording the version')
-        commit = data.get('sha')
-        if not isinstance(commit, str) or not SHA1.fullmatch(commit):
-            raise RemoteRefused('GitHub did not record the version')
-        return commit
+        return tree
 
     def advance(self, old, new):
+        try:
+            self._advance(old, new)
+        finally:
+            self._clean()
+
+    def _clean(self):
+        """Remove the pending branches pack pushes left (this one's, and any an interrupted publication left)."""
+        if not self._pending:
+            return
+        from .github_pack import PENDING
+        status, data = self.client.ok('GET', f'/repos/{self.repo}/git/matching-refs/heads/{PENDING}',
+                                      what='tidying the sent version', allow=(404, 409))
+        names = {str(r.get('ref', '')).removeprefix('refs/heads/') for r in data if isinstance(r, dict)} \
+            if status == 200 and isinstance(data, list) else set()
+        for branch in sorted((names | self._pending)):
+            if branch.startswith(PENDING) and re.fullmatch(r'[0-9a-z-]{1,60}', branch):
+                self.client.ok('DELETE', f'/repos/{self.repo}/git/refs/heads/{quote(branch)}',
+                               what='tidying the sent version', allow=(404, 422))
+        self._pending.clear()
+
+    def _advance(self, old, new):
         if self.head() != old:
             raise Diverged('This project changed in two places: GitHub has a version this Mac did not send. '
                            'Nothing was changed.')
