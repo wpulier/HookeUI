@@ -1040,6 +1040,8 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     if(!canLeaveStudy(()=>void openRetained(ref,title)))return;
     clearStudyDraftMarkers();
     // Reuse Data's retained reader Tab: named, revision-pinned and reopened rather than duplicated.
+    readerStudyOrigins.set(`${session}:${ref.id}:${ref.revision}`,{id:study.id,title:studyName(study),session});
+    if(readerStudyOrigins.size>100)readerStudyOrigins.delete(readerStudyOrigins.keys().next().value!);
     closeResearchStage();
     rememberProjectDestination(null);
     const opened=await workspaceViews.openReaderPage({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
@@ -2165,6 +2167,7 @@ function openResearcherTab(rid: string): void {
 }
 /** A reader Tab's Stage bar names its item where a work Tab names its specimen ("Bright regions in Human cells ·
  * Presentation · Researcher 3"). */
+const readerStudyOrigins=new Map<string,{id:string;title:string;session:string}>();
 function renderReaderLabel(): void {
   const slot = workspaceViews.stageSlots().reader;
   const shown = document.body.dataset.readerTab === 'true' && tabReader.current();
@@ -2172,9 +2175,15 @@ function renderReaderLabel(): void {
   const title = el('strong', '', tabReader.title()), kind = el('span', '', tabReader.kindLine());
   title.title = tabReader.title();
   if (workspaceViews.readerTabsUnsaved()) kind.title = 'This Hooke server cannot save a Tab like this one: it stays open for this session.';
-  const back=button('Back',()=>void workspaceViews.readerBack().catch(actionError));back.disabled=!workspaceViews.readerCanGoBack();
+  const origin=readerStudyOrigins.get(`${shown.day??snapshot.session}:${shown.id}:${shown.version}`);
+  const use=shown.material?.uses?.find(use=>use.study&&use.available);
+  const studyContext=origin??(use?.study?{id:use.study,title:use.studyTitle||use.title,session:shown.day??snapshot.session}:undefined);
+  const back=button('Back',()=>{if(workspaceViews.readerCanGoBack())void workspaceViews.readerBack().catch(actionError);else if(studyContext)void openStudy(studyContext.id);});back.disabled=!workspaceViews.readerCanGoBack()&&!studyContext;
   const pin=button(workspaceViews.readerPinned()?'Unpin':'Pin',()=>{workspaceViews.pinReader();renderReaderLabel();});pin.setAttribute('aria-pressed',String(workspaceViews.readerPinned()));
-  slot.replaceChildren(back,title,kind,pin);
+  const project=button('Project',()=>openProjectDestination('overview'));project.title='Return to this Project overview';
+  slot.replaceChildren(back,project);
+  if(studyContext){const link=button(studyContext.title,()=>void openStudy(studyContext.id));link.title=origin?'Return to the Study you opened this evidence from':'Study using this exact material';link.className='reader-study-breadcrumb';slot.append(el('span','','›'),link);}
+  slot.append(el('span','','›'),title,kind,pin);
 }
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
 /** Opening setup never starts work; all choices retain the originating revision. */

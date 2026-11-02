@@ -31,9 +31,10 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       for(const [value,label]of [['connected-agent','Connected agent'],['manual','I’ll run the tools'],['local-researcher','Hooke researcher']]){const o=n('option',label);o.value=value;mode.append(o);}mode.value=state.plan?.actorMode||'connected-agent';
       const field=(label:string,e:HTMLElement)=>{const l=n('label');l.append(n('span',label),e);form.append(l);};
       field('What should this produce?',output);field('How will we judge it?',evaluation);field('Proposed approach',method);field('Who will do the work?',mode);
-      const materials=n('div','','study-initiation-materials');materials.append(n('h4',`${study.inputs.length} selected inputs`));
-      for(const ref of study.inputs){const named=inputs.find(i=>i.id===ref.id&&i.revision===ref.revision&&i.digest===ref.digest);materials.append(n('p',`${named?.title||'Retained input'} · version ${ref.revision}`));}
-      if(!study.inputs.length)materials.append(n('p','No material selected. Add the required evidence before planning a data experiment.'));
+      const selectedMaterials=state.plan?.materials??study.inputs;
+      const materials=n('div','','study-initiation-materials');materials.append(n('h4',`${selectedMaterials.length} selected inputs`));
+      for(const ref of selectedMaterials){const named=inputs.find(i=>i.id===ref.id&&i.revision===ref.revision&&i.digest===ref.digest);materials.append(n('p',`${named?.title||'Retained input'} · version ${ref.revision}`));}
+      if(!selectedMaterials.length)materials.append(n('p','No material selected. Add the required evidence before planning a data experiment.'));
       for(const item of state.materials||[])if(!item.available)materials.append(n('p',item.reason||'Selected material is unavailable.','study-problem'));
       form.append(materials);
       const bounds=state.plan?.limits||{experiments:2,modelMinutes:30,tokens:60000};
@@ -42,7 +43,9 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       form.append(n('p','Hooke enforces the experiment allowance. Your connected harness must enforce and report its model token/time limits before execution.','study-note'));
       const packages=n('select');const none=n('option','No instruction package');none.value='';packages.append(none);field('Research instructions',packages);
       let packageRows:{id:string;version:number;digest:string;content:{title:string}}[]=[],packageId=state?.plan?.instructionPackage?.id||'';
-      void fetcher('/api/research-instructions').then(result).then(reply=>{if(!current()||!form.contains(packages))return;packageRows=reply.packages;for(const row of packageRows){const option=n('option',`${row.content.title} · v${row.version}`);option.value=row.id;packages.append(option);}packages.value=packageId;}).catch(()=>{if(current())packages.title='Instruction packages could not be loaded; the plan can still be saved.';});
+      const pinnedPackage=state.plan?.instructionPackage;
+      if(pinnedPackage){const kept=n('option',`Retained instructions · v${pinnedPackage.version}`);kept.value=pinnedPackage.id;packages.append(kept);packages.value=pinnedPackage.id;}
+      void fetcher('/api/research-instructions').then(result).then(reply=>{if(!current()||!form.contains(packages))return;packageRows=reply.packages;for(const row of packageRows){if(row.id===pinnedPackage?.id)continue;const option=n('option',`${row.content.title} · v${row.version}`);option.value=row.id;packages.append(option);}packages.value=packageId;}).catch(()=>{if(current())packages.title='Instruction packages could not be loaded; the plan can still be saved.';});
       let review:HTMLButtonElement|null=null,editVersion=0;
       const fields={output,evaluation,method,mode,...limits};
       const values=():PlanFields=>({...Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),packageId});
@@ -57,7 +60,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
         try{localStorage.setItem(draftKey,JSON.stringify({basis:conflicts.size?'unresolved-field-conflicts':state!.basis.digest,output:kept.output,evaluation:kept.evaluation,method:kept.method,mode:kept.mode,limits:Object.fromEntries(Object.keys(limits).map(k=>[k,kept[k]])),packageId:kept.packageId,base}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
       };
       form.oninput=e=>{e.stopPropagation();remember();};
-      form.onchange=e=>{e.stopPropagation();remember();};
+      form.onchange=e=>{e.stopPropagation();if(e.target===packages)packageId=packages.value;remember();};
       try{
         const draft=JSON.parse(localStorage.getItem(draftKey)||'null');
         if(draft&&draft.basis===state.basis.digest){
@@ -81,8 +84,12 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       const save=button('Save research plan',async()=>{
         if(conflicts.size){status.textContent='Resolve each conflicting field before saving.';return;}
         if(!form.checkValidity()||!output.value.trim()||!evaluation.value.trim()||!method.value.trim()){status.textContent='Describe the output, evaluation and proposed approach.';return;}
-        const plan:Plan={desiredOutput:output.value.trim(),evaluation:evaluation.value.trim(),methodNotes:method.value.trim(),actorMode:mode.value as Plan['actorMode'],materials:study.inputs.map(r=>({...r,session:study.session})),limits:{experiments:Number(limits.experiments.value),modelMinutes:Number(limits.modelMinutes.value),tokens:Number(limits.tokens.value)}};
-        const pack=packageRows.find(row=>row.id===packages.value);if(pack)plan.instructionPackage={id:pack.id,version:pack.version,digest:pack.digest};
+        const plan:Plan={desiredOutput:output.value.trim(),evaluation:evaluation.value.trim(),methodNotes:method.value.trim(),actorMode:mode.value as Plan['actorMode'],materials:state!.plan?.materials??study.inputs.map(r=>({...r,session:study.session})),limits:{experiments:Number(limits.experiments.value),modelMinutes:Number(limits.modelMinutes.value),tokens:Number(limits.tokens.value)}};
+        if(packageId){
+          const pack=packageId===pinnedPackage?.id?pinnedPackage:packageRows.find(row=>row.id===packageId);
+          if(!pack){status.textContent='The selected instruction package is unavailable. Choose a ready package or explicitly choose no instructions.';return;}
+          plan.instructionPackage={id:pack.id,version:pack.version,digest:pack.digest};
+        }
         const savingVersion=editVersion;
         const response=await call('plan',{basis:state!.basis,plan});
         if(current()){

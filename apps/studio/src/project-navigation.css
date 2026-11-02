@@ -36,3 +36,5 @@
 #project-overview-page .project-research-notice{margin:0;font-size:12px}
 #project-overview-page .project-overview-purpose p{margin:0}
 @media(max-width:900px){.project-overview-recent ol{grid-template-columns:1fr}.project-overview-recent li+li{border-left:0;border-top:1px solid var(--mm-line);padding:14px 0 0}}
+
+.reader-study-breadcrumb{max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

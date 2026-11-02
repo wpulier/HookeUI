@@ -262,3 +262,30 @@ def test_plan_amendment_waits_for_original_admission(tmp_path, monkeypatch):
         await until_async(lambda:not runner.tasks)
         await runner.close()
     asyncio.run(go())
+
+
+def test_cancelled_plan_writer_holds_admission_lock_until_drained(tmp_path, monkeypatch):
+    import threading
+    from orchestrator.research import coordination_api
+    async def go():
+        studies, runner, study, image, definition=setup(tmp_path)
+        entered=threading.Event();release=threading.Event()
+        monkeypatch.setattr(coordination_api,'service',lambda built:studies)
+        def blocked(*args):
+            entered.set();release.wait(timeout=10)
+            return {'saved':True}
+        monkeypatch.setattr(coordination_api,'execute',blocked)
+        writer=asyncio.create_task(coordination_api.execute_command(None,study.id,'s1','plan',{},'studio','You'))
+        await asyncio.to_thread(entered.wait,5)
+        writer.cancel()
+        lock=studies._locks[('s1',study.id)]
+        waiter=asyncio.create_task(lock.acquire())
+        try:
+            await asyncio.sleep(.01)
+            assert lock.locked() and not waiter.done() and not writer.done()
+        finally:
+            release.set()
+        with pytest.raises(asyncio.CancelledError):await writer
+        assert await asyncio.wait_for(waiter,1)
+        lock.release();await runner.close()
+    asyncio.run(go())

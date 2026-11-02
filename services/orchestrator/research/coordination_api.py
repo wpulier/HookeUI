@@ -4,7 +4,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from .coordination import Coordination
 from .studies import service
-from ..scientific_project_api import _body, _error, Refused
+from ..scientific_project_api import _body, _error, _owned, Refused
 from ..scientific_projects import InvalidProject
 
 
@@ -29,8 +29,8 @@ async def execute_command(built, study, session, action, fields, actor, label):
         studies = service(built)
         lock = studies._locks.setdefault((session, study), asyncio.Lock())
         async with lock:
-            return await asyncio.to_thread(execute, built, study, session, action, fields, actor, label)
-    return await asyncio.to_thread(execute, built, study, session, action, fields, actor, label)
+            return await _owned(execute, built, study, session, action, fields, actor, label)
+    return await _owned(execute, built, study, session, action, fields, actor, label)
 
 
 def register_studio(app, built, studio_origin, header):
