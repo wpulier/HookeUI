@@ -1,3 +1,5 @@
+import {ProjectNavigation,type ProjectDestination} from './project-navigation';
+import './project-navigation.css';
 import {ProjectRead} from './project-read';
 import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
@@ -149,7 +151,7 @@ const leftNowWidth = () => leftColumnWidth(leftWidth, innerWidth);
 const toolsNow = () => leftColumnWidth(toolsWidth, innerWidth);
 const presentationKey = `${storageKey}:sessions`;
 type Presentation = Awaited<ReturnType<typeof bridge.capturePresentation>>;
-type SessionUI = { presentation: Presentation; section: StudySection; scroll: number; agent: boolean; drawer: boolean; dataOpen?: boolean; dataMode?: 'outputs'|'history'; dataScroll?: number };
+type SessionUI = { presentation: Presentation; section: StudySection; scroll: number; agent: boolean; drawer: boolean; dataOpen?: boolean; dataMode?: 'outputs'|'history'; dataScroll?: number; overview?:boolean; resultsOnly?:boolean };
 let sessionUI: Record<string, SessionUI> = {};
 try { sessionUI = JSON.parse(localStorage.getItem(presentationKey) ?? '{}'); } catch {}
 function readPreferences(): { layout: StudyLayout; inspector: boolean; width: number; drawer: boolean; section: StudySection; rightTab: 'agent' | 'analyze' } {
@@ -247,7 +249,7 @@ railButtons.set('inputs',inputsButton);
 // opens or closes like every other place.
 const toolsButton=railItem('tools','Tools',()=>press(openTools));railButtons.set('tools',toolsButton);
 // Data and Activity switch the one panel between its two modes; a second press on the mode already shown closes it.
-const dataButton=button('',()=>press(()=>{if(dataOpen&&dataMode==='outputs')setDataOpen(false);else{surfaces.dismiss();bridge.navigate('#');dataMode='outputs';setDataOpen(true);}}));dataButton.append(icon('data'),el('span','','Data'));dataButton.setAttribute('aria-label','Data');
+const dataButton=button('',()=>press(()=>{if(dataOpen&&dataMode==='outputs'&&!resultsOnly)setDataOpen(false);else{surfaces.dismiss();bridge.navigate('#');resultsOnly=false;dataMode='outputs';setDataOpen(true);}}));dataButton.append(icon('data'),el('span','','Data'));dataButton.setAttribute('aria-label','Data');
 const activityButton=button('',()=>press(()=>showActivity(!dataOpen||dataMode!=='history')));activityButton.append(icon('activity'),el('span','','Activity'));activityButton.setAttribute('aria-label','Activity');
 const researchersButton=button('',()=>press(()=>{if(drawerOpen&&section==='research')setDrawer(false);else openResearchers();}));researchersButton.append(icon('researchers'),el('span','','Researchers'));researchersButton.setAttribute('aria-label','Researchers');
 const hookeImage=el('img','hooke-dark-mark');hookeImage.src=hookeMark;hookeImage.alt='';
@@ -398,6 +400,7 @@ document.body.append(rail, drawer, rightPanel, reader.root);
 
 let dataOpen=false;
 let dataMode: 'outputs'|'history'='outputs';
+let resultsOnly=false;
 const dataWindow=el('section','study-data-window');dataWindow.hidden=true;dataWindow.setAttribute('aria-label','Project DATA');
 // The drawer's one header (the mock's dataDrawer()): Data, its two doors Contents | Activity as quiet tabs, ⋯ (Import)
 // and ×. "One home, two doors": the rail's Data and Activity open the same window on either tab.
@@ -418,7 +421,7 @@ const dataList=new DataList({view:row=>dataRowView(row),
   researcherCell:name=>{const row=todaysResearch(bridge.researchers(),snapshot.session).find(item=>item.name===name);return row?{state:researcherCell(row),label:`${row.name}: ${researcherWords(row)}`}:null;}});
 const dataView=new DataWindowBody(dataBody,dataSearchWrap,dataList.filter,dataList.list);
 const dataTabs=el('div','mm-dtabs study-data-tabs');dataTabs.setAttribute('role','tablist');dataTabs.setAttribute('aria-label','Data');
-for(const [id,label] of [['outputs','Contents'],['history','Activity']] as const){const tab=button(label,()=>{dataMode=id;setDataOpen(true,false);},'');tab.dataset.mode=id;tab.setAttribute('role','tab');dataTabs.append(tab);}
+for(const [id,label] of [['outputs','Contents'],['history','Activity']] as const){const tab=button(label,()=>{resultsOnly=false;dataMode=id;setDataOpen(true,false);},'');tab.dataset.mode=id;tab.setAttribute('role','tab');dataTabs.append(tab);}
 // Imports are not views: they sit in the header's ⋯.
 // Inputs has Data's one header: its title, ⋯ with the ways to bring an input in (in their old order), and ×.
 const inputsMore=moreButton('More for Inputs',()=>{const owner=workspaceViews.tabOwner();return [
@@ -460,8 +463,10 @@ const researcherBrowser=el('section','study-researcher-browser');
 /** This Project's studies as last read (All Tabs ⌄ and the Researchers list); null when this build has none. */
 let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
-const projectResearchHome = new ProjectResearchHome(find('session-home'), {
+const overviewPage=el('section');overviewPage.id='project-overview-page';overviewPage.setAttribute('aria-label','Project overview');
+const projectResearchHome = new ProjectResearchHome(overviewPage, {
   startResearch: () => newStudy(),
+  camera: () => {closeResearchStage();showSection('inputs');setDrawer(true);},
   openResearcher: id => openResearcher(id),
   retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
@@ -494,7 +499,7 @@ async function loadStudies(signal:AbortSignal, ownsRead:()=>boolean):Promise<voi
 function studyCell(study:Effort):{cell:LitCellState;label:string}{
   if(studyNeeds(study))return {cell:'needs',label:'Needs you'};
   if(study.stopPending)return {cell:'still',label:'Stop requested'};
-  const tasks=Object.values(study.tasks??{});
+  const tasks=Object.values(study.tasks??{}).filter(task=>task.specification?.provider!=='collaboration'&&task.specification?.provider!=='scientific-gcp-grant');
   if(study.status==='active'&&tasks.some(task=>['running','launching','waiting'].includes(task.status)))return {cell:'working',label:'Working'};
   return study.status==='active'?{cell:'idle',label:studyState(study)}:{cell:'stopped',label:studyState(study)};
 }
@@ -897,7 +902,7 @@ configureScientificDocuments({currentProject:()=>snapshot.session,recovery:{stor
 drawerBody.id='workspace-research-panel';
 // Closed researcher Tabs and the row's order are remembered per Project (localStorage, so a closed Tab does not return on
 // relaunch); researchers opened this session keep their Tab (sessionStorage).
-const researchTabs:WorkspaceResearchTabs=new WorkspaceResearchTabs({host:()=>workspaceViews.researchHost(),storage:localStorage,session:sessionStorage,key:`${storageKey}:research-tabs`,
+const researchTabs:WorkspaceResearchTabs=new WorkspaceResearchTabs({backgroundTabs:false,host:()=>workspaceViews.researchHost(),storage:localStorage,session:sessionStorage,key:`${storageKey}:research-tabs`,
  open:row=>{bridge.researchOpened(row.rid);bridge.navigate(`#research/${encodeURIComponent(row.rid)}?day=${encodeURIComponent(row.day||snapshot.session)}`);},
  close:()=>closeResearchStage(),isNew:row=>bridge.researchNew(row),isNews:row=>bridge.researchNews(row),
  closed:tab=>workspaceViews.researchClosed(tab.text,tab.name,tab.reopen,tab.from,tab.mark),
@@ -946,7 +951,7 @@ function renderResearchStudy():void{
   if(!openStudyNow)researchBar.querySelector('.study-view-controls')?.remove();
   researchSince=bar?.since??null;
   // The bar names what it was asked to do (research-tab.ts researchStageBar), not the findings' title its page shows.
-  const summary=openStudyNow?{title:studyName(openStudyNow),words:studyAllowanceWords(openStudyNow),tip:studyAllowanceTitle(openStudyNow)}
+  const summary=shownResearch===overviewPage?{title:'Project overview',words:'',tip:'Purpose, retained evidence and observed activity'}:openStudyNow?{title:studyName(openStudyNow),words:studyAllowanceWords(openStudyNow),tip:studyAllowanceTitle(openStudyNow)}
     :row&&bar?{title:bar.title,words:bar.words,tip:bar.tip}:null;
   const key=JSON.stringify([summary,researchSince!==null]);if(key===researchStudyKey){tickResearchClock();return;}researchStudyKey=key;
   researchStudy.replaceChildren();
@@ -965,12 +970,13 @@ researchStage.append(researchHolder);find('stage').append(researchStage);workspa
 // to any moment stay.
 let shownResearch:HTMLElement|null=null;
 function openResearchStage(node:HTMLElement):void{
+  if(node!==overviewPage)projectResearchHome.leave();
   if(node!==currentStudyPage){if(!canLeaveStudy(()=>openResearchStage(node)))return;++studyOpening;retireStudyStaging?.();retireStudyStaging=null;currentStudyPage=null;openStudyNow=null;clearInterval(studyTimer);}
   if(drawerOpen&&section==='research')setDrawer(false);
   for(const child of [...researchHolder.children] as HTMLElement[])if(child!==node&&child!==draftPage&&!child.id)child.remove();
   if(node.parentElement!==researchHolder)researchHolder.append(node);
   for(const child of researchHolder.children as HTMLCollectionOf<HTMLElement>)child.hidden=child!==node;
-  shownResearch=node;researchStage.hidden=false;document.body.dataset.researchOpen='true';researchStudyKey='';
+  projectNavigation?.select(node===overviewPage?'overview':null);shownResearch=node;researchStage.hidden=false;document.body.dataset.researchOpen='true';researchStudyKey='';
   // The Assistant panel steps aside on a researcher's or a Study's Tab (its Stage bar button opens it over the page).
   applyLayout();
   // Opening a researcher's page counts as reading it: its finished pill leaves the Working strip (shelf.ts markOpened).
@@ -982,6 +988,26 @@ function openResearchStage(node:HTMLElement):void{
   renderContext();
 }
 let openStudyNow:Effort|null=null,studyTimer=0,studyOpening=0;
+const projectNavigation=new ProjectNavigation(openProjectDestination);
+find('workspace-tabs-strip').prepend(projectNavigation.root);
+function openProjectDestination(destination:ProjectDestination):void{
+  if(!canLeaveStudy(()=>openProjectDestination(destination)))return;
+  bridge.navigate('#');
+  if(destination==='overview'||destination==='studies'){
+    projectResearchHome.enter(snapshot.session);renderBoard();openResearchStage(overviewPage);projectNavigation.select(destination);
+    if(destination==='studies'){
+      const studies=overviewPage.querySelector<HTMLDetailsElement>('.project-overview-studies');
+      if(studies){studies.open=true;studies.scrollIntoView({block:'start'});}
+    }
+  }else{
+    closeResearchStage();
+    if(destination==='inputs'){showSection('inputs');setDrawer(true);}
+    else if(destination==='activity'){showActivity(true);}
+    else{resultsOnly=true;dataMode='outputs';setDataOpen(true);}
+    projectNavigation.select(destination);
+  }
+}
+
 let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
@@ -1004,7 +1030,7 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     clearStudyDraftMarkers();
     // Reuse Data's retained reader Tab: named, revision-pinned and reopened rather than duplicated.
     closeResearchStage();
-    const opened=await workspaceViews.openReaderTab({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
+    const opened=await workspaceViews.openReaderPage({title,resource:{id:ref.id,day:session,version:ref.revision}},owner);
     if(!opened)throw new Error('The evidence Tab could not be opened. Its saved revision remains in Project Data.');
   };
   const conversation=studyConversation(study,{
@@ -1076,10 +1102,10 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
   const status=el('p','study-note');status.setAttribute('role','status');
   const choices=el('fieldset','study-pick-field');choices.append(el('legend','visually-hidden','What it may use'),el('p','study-note','Loading this Project’s saved inputs…'));
   const draftKey=`hooke:research-draft:${session}`;
-  let draftInputs:{id:string;revision:number;digest:string}[]=[];
+  let inputsReady=false;let draftInputs:{id:string;revision:number;digest:string}[]=[];
   try{const kept=JSON.parse(localStorage.getItem(draftKey)||'null');if(kept){title.value=kept.title||'';objective.value=kept.objective||'';criteria.value=kept.criteria||'';budget.value=kept.budget||'0.00';draftInputs=Array.isArray(kept.inputs)?kept.inputs:[];}}catch{/* Storage may be disabled; the visible form remains usable. */}
   const selected=new Map<HTMLInputElement,StudyInput>();
-  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value,inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
+  form.addEventListener('input',()=>{try{localStorage.setItem(draftKey,JSON.stringify({title:title.value,objective:objective.value,criteria:criteria.value,budget:budget.value,inputs:inputsReady?[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest})):draftInputs}));}catch{status.textContent='Draft stays in this window; browser storage is unavailable.';}});
   const save=button('Continue to research plan',()=>{},'study-primary');save.type='submit';save.disabled=true;
   const cancel=button('Cancel',()=>{if(!pending)dialog.close();},'study-quiet');
   const body=el('div','study-new-study-body'),footer=el('footer','study-new-study-footer');
@@ -1106,12 +1132,12 @@ function newStudy(initial?:{reference:Reference;title:string},created?:(study:Ef
       const row=el('li',check.disabled?'study-pick-off':'');if(check.disabled)row.setAttribute('aria-disabled','true');const name=el('label','study-pick-name'),words=el('span','study-pick-words');
       words.append(el('strong','',input.title),el('span','study-pick-kind',`${kind} · v${input.revision}`),el('span','study-pick-why',use));
       name.append(check,words);row.append(name);row.title=studyInputDescription(input);pick.append(row);}
-    if(inputs.length)choices.append(pick);
+    inputsReady=true;if(inputs.length)choices.append(pick);
     choices.append(el('p','study-note',inputs.length?'Kept at these versions; later edits don’t change the study. Each tool checks its supported inputs. Starting a model researcher shares the context it reads with your configured provider.':'No saved input documents yet. You can save a question-only Study.'));save.disabled=false;
   }).catch(error=>{if(current()){status.textContent=error instanceof Error?error.message:String(error);choices.replaceChildren(button('Retry inputs',load));}});};
   form.addEventListener('submit',event=>{event.preventDefault();
     if(pending)return;if(!current()){status.textContent='The Project changed; open New study again from it.';return;}
-    captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest}))};
+    captured??={session,request,title:title.value.trim(),objective:objective.value.trim(),criteria:criteria.value.trim(),budgetUsd:Number(budget.value),inputs:inputsReady?[...selected].filter(([check])=>check.checked).map(([,input])=>({id:input.id,revision:input.revision,digest:input.digest})):draftInputs};
     pending=true;save.disabled=cancel.disabled=true;[title,objective,criteria,budget,...selected.keys()].forEach(control=>control.disabled=true);status.textContent='Saving the study draft…';
     void createStudy(captured).then(study=>{try{localStorage.removeItem(draftKey);}catch{/* Saved Study is authoritative. */}if(!current())return;dialog.close();void refreshStudies();if(created)created(study);else void openStudy(study.id);}).catch(error=>{if(current()){save.disabled=false;if(error instanceof StudyRefused){captured=null;[title,objective,criteria,budget].forEach(control=>control.disabled=false);selected.forEach((input,check)=>check.disabled=!(input.localInputEligible||input.managedFileEligible||input.scientificInputEligible));}status.textContent=error instanceof StudyRefused?`${error.message}${error.next?` (${error.next})`:''}`:String(error);}}).finally(()=>{pending=false;cancel.disabled=false;});
   });
@@ -1142,6 +1168,7 @@ function leaveStudyDialog(then?:()=>void):void{
 window.addEventListener('beforeunload',event=>{if(currentStudyPage?.dataset.draft||currentStudyPage?.querySelector('[data-draft]')||currentStudyPage?.dataset.pending||currentStudyPage?.querySelector('[data-pending]')){event.preventDefault();event.returnValue='';}});
 function closeResearchStage(navigate=true):void{
   if(!canLeaveStudy(()=>closeResearchStage(navigate)))return;
+  projectResearchHome.leave();projectNavigation.select(null);
   ++studyOpening;retireStudyStaging?.();retireStudyStaging=null;currentStudyPage=null;openStudyNow=null;clearInterval(studyTimer);
   if(researchStage.hidden)return;
   researchStage.hidden=true;delete document.body.dataset.researchOpen;researchTabs.virtualLeft();researchBar.querySelector('.study-view-controls')?.remove();
@@ -1156,7 +1183,7 @@ bindResearchStageRoute(() => currentStudyPage !== null, () => closeResearchStage
 async function rememberSession(): Promise<void> {
   if (!snapshot.session || !initialized || tabs?.active === null) return;
   const presentation = bridge.capturePresentationSync();
-  sessionUI[snapshot.session] = { presentation, section, scroll: drawerBody.scrollTop, agent: preferences.inspector, drawer: drawerOpen, dataOpen, dataMode, dataScroll:dataBody.scrollTop };
+  sessionUI[snapshot.session] = { presentation, section, scroll: drawerBody.scrollTop, agent: preferences.inspector, drawer: drawerOpen, dataOpen, dataMode, dataScroll:dataBody.scrollTop,resultsOnly,overview:!researchStage.hidden&&shownResearch===overviewPage };
   try {localStorage.setItem(presentationKey,JSON.stringify(sessionUI));}catch{actionError('Browser storage is full. Workspace changes cannot be remembered.');}
 }
 function persistTabs(): void { if(tabs) sessionStorage.setItem(tabStorageKey,JSON.stringify(tabs)); renderTabs(); }
@@ -1176,14 +1203,14 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
     // conditional inventory read may already be in flight against that Project.
     // Retire it together with the cache, or an unchanged reply can refill this
     // emptied cache with no entries and hide the retained material indefinitely.
-    resourceReads.cancel(); entries=[];resourceSession='';resourceRevision='';
+    resourceReads.cancel(); entries=[];resourceSession='';resourceRevision='';resultsOnly=sessionUI[target]?.resultsOnly??false;
     if(dataOpen)renderResults();void refreshResults();
     const saved=sessionUI[target];snapshot=bridge.state();
     if(saved) { bridge.restoreDraft(saved.presentation);const recovery={recovered:true,missing:[] as string[]}; snapshot=bridge.state(); preferences.inspector=saved.agent; drawerOpen=saved.section==='library'?false:saved.drawer; showSection(saved.section==='library'?'inputs':saved.section); drawerBody.scrollTop=saved.scroll; dataMode=saved.dataMode??'outputs';setDataOpen(saved.dataOpen??false,false);dataBody.scrollTop=saved.dataScroll??0;
       if(!recovery.recovered) actionError(`Some evidence could not be restored: ${recovery.missing.join('; ')}`); }
     else {showSection('inputs');setDataOpen(false,false);}
     await workspaceViews.load(target);
-    if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout(); return true;
+    if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout();if(!id||saved?.overview)openProjectDestination('overview');return true;
   } catch(error){workspaceViews.resume();actionError(error); return false;} finally {
     switching=false;
     // The wait was true only while that Project opened: once it has, the line is out of date and goes.
@@ -1858,13 +1885,15 @@ function entryActions(entry:DataEntry):{open:()=>void;menu:()=>MenuItem[];tip:st
  * and nothing is measured (inside a press, a read here was a forced style pass). */
 function renderResults(opened = false): void {
   if (!dataOpen) return;
+  dataTitle.textContent=dataMode==='history'?'Activity':resultsOnly?'Results':'Data';
+  dataSearch.placeholder=resultsOnly?'Search results':'Search Data';
   dataTabs.querySelectorAll<HTMLButtonElement>('button').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.mode===dataMode)));
   if(dataMode==='history'){historyNode.hidden=false;dataView.show(historyNode);return;}
   const readingPosition=opened?0:dataBody.scrollTop;
   // Data by what each thing is (data-roles.ts): narrowed to one maker (Made by, or a researcher's "Made …" in
   // Researchers), to what was made from one input (Inputs' Results), then by the search.
   const all=dataRowsNow(),here=hereNow();lastHereKey=hereKey(here);
-  const shown=all.filter(row=>(!makerFilter||rowMaker(row)===makerFilter)&&(!sourceFilter||rowFrom(row,sourceFilter))&&rowMatches(row,dataSearch.value));
+  const shown=all.filter(row=>(!resultsOnly||row.parts.some(part=>part.material?part.material.origin==='generated'&&!part.material.record:part.role==='analysis'||part.role==='writeup'||part.role==='model'))&&(!makerFilter||rowMaker(row)===makerFilter)&&(!sourceFilter||rowFrom(row,sourceFilter))&&rowMatches(row,dataSearch.value));
   dataList.render({rows:shown,choices:makerChoices(all),maker:makerFilter,query:dataSearch.value,loading:resourceSession!==snapshot.session,
     source:sourceFilter===null?null:snapshot.sources.find(item=>item.id===sourceFilter)?.title??'one input',
     here:row=>rowHere(row,here),seen:dataSeen(),now:Date.now()/1000,model:entry=>entry.madeBy?bridge.makerName(entry.madeBy):''});
@@ -1978,6 +2007,7 @@ function readerEntryOf(ref: { id: string; day: string; version: number | null })
  * drawer's place (‹ Data brings the list back). The Assistant steps aside (× brings it back if it was showing); a page
  * docked on the right parks, as it does when the Assistant opens. One layout write (press). */
 function openInReader(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): void {
+  if(entry.kind!=='asset'&&entry.kind!=='recording'){void openReaderTab(entry,view,false);return;}
   // A retained reader Tab owns one exact item. A different input gets its own
   // retained Tab so the label, visible content and restored reference stay aligned.
   if (document.body.dataset.readerTab === 'true' && researchStage.hidden) {
@@ -2114,7 +2144,9 @@ function renderReaderLabel(): void {
   const title = el('strong', '', tabReader.title()), kind = el('span', '', tabReader.kindLine());
   title.title = tabReader.title();
   if (workspaceViews.readerTabsUnsaved()) kind.title = 'This Hooke server cannot save a Tab like this one: it stays open for this session.';
-  slot.replaceChildren(title, kind);
+  const back=button('Back',()=>void workspaceViews.readerBack().catch(actionError));back.disabled=!workspaceViews.readerCanGoBack();
+  const pin=button(workspaceViews.readerPinned()?'Unpin':'Pin',()=>{workspaceViews.pinReader();renderReaderLabel();});pin.setAttribute('aria-pressed',String(workspaceViews.readerPinned()));
+  slot.replaceChildren(back,title,kind,pin);
 }
 /** What the reader needs from the workspace: names and facts it shows, and where each of its actions goes. */
 /** Opening setup never starts work; all choices retain the originating revision. */
@@ -2206,11 +2238,11 @@ provideResearchReader({
   },
 });
 /** Open in new Tab: the item in a Tab of its own, the same reader full width. */
-async function openReaderTab(entry: ReaderEntry, view: 'thing' | 'how' = 'thing'): Promise<void> {
+async function openReaderTab(entry: ReaderEntry, view: 'thing' | 'how' = 'thing', separate=true): Promise<void> {
   // Its Tab is named as the reader names it (a researcher's report by its findings' title once read).
   const shown = reader.current(), title = shown && sameItem(shown, entry) ? reader.title() : readerTitle(entry.title, entry.kind);
   try {
-    const opened = await workspaceViews.openReaderTab({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title });
+    const opened = await workspaceViews[separate?'openReaderTab':'openReaderPage']({ resource: { day: entry.day ?? snapshot.session, id: entry.id, version: entry.version ?? null }, title });
     const current = tabReader.current();
     if (opened && view === 'how' && current && sameItem(current, entry)) tabReader.show(entry, view);
   }

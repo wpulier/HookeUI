@@ -10,6 +10,8 @@ type Host={current:()=>boolean;row:HTMLElement;project:string;activeWorkId:strin
 /** A researcher's or Study's Tab the person closed: what to say, and where its copy flies from (workspace-views.ts researchClosed). */
 export type ClosedTab={id:string;name:string;text:string;from:DOMRect|null;mark:Element|null;reopen:()=>void};
 type Options={
+ /** False keeps background work in the Project index and progress strip, without opening tabs. */
+ backgroundTabs?:boolean;
  /** Closed researcher Tabs and the row's order, per Project: localStorage, so a closed Tab does not return on relaunch. */
  storage:Storage;
  /** Researchers opened this session (sessionStorage): they keep their Tab until closed. */
@@ -99,7 +101,7 @@ export class WorkspaceResearchTabs {
  /** The researchers that have a Tab in the row now. */
  private tabbed():ResearchSession[]{
   const news=this.options.isNews??this.options.isNew;
-  return this.rows.filter(row=>!this.hidden.has(row.rid)&&(row.rid===this.active||isWorking(row)||!!asking(row)||this.opened.has(row.rid)||!!news?.(row)));
+  return this.rows.filter(row=>!this.hidden.has(row.rid)&&(row.rid===this.active||this.opened.has(row.rid)||(this.options.backgroundTabs!==false&&(isWorking(row)||!!asking(row)||!!news?.(row)))));
  }
  /** True while this researcher's own Tab is in the row. */
  has(rid:string):boolean{return this.tabbed().some(row=>row.rid===rid);}

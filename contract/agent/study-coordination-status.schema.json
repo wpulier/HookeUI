@@ -1,0 +1,35 @@
+{
+  "$id": "hooke:agent/study-coordination-status",
+  "description": "Recorded assignment state, not live agent presence or scientific execution. Original operation receipts remain authoritative.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "waiting",
+    "claimed",
+    "reports",
+    "stopped",
+    "unresolvedAdmissions"
+  ],
+  "properties": {
+    "waiting": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "claimed": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "reports": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "stopped": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "unresolvedAdmissions": {
+      "type": "integer",
+      "minimum": 0
+    }
+  }
+}

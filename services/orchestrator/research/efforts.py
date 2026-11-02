@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 from decimal import Decimal, InvalidOperation
+from .task_kind import scientific, coordination_counts
 
 from ..scientific_projects import Conflict, InvalidProject, ProjectStore, _json
 
@@ -44,12 +45,12 @@ def fingerprint(value):
 
 def summary(saved):
     state = saved.document['state'][KEY]
-    held = sum(t['reservedMicrousd'] for t in state['tasks'].values() if t['chargedMicrousd'] is None)
-    spent = sum(t['chargedMicrousd'] or 0 for t in state['tasks'].values())
+    held = sum(t['reservedMicrousd'] for t in state['tasks'].values() if scientific(t) and t['chargedMicrousd'] is None)
+    spent = sum(t['chargedMicrousd'] or 0 for t in state['tasks'].values() if scientific(t))
     return {'id': saved.id, 'session': saved.session, 'revision': saved.revision, 'digest': saved.digest,
-            **state, 'title': saved.document['title'], 'spentMicrousd': spent, 'heldMicrousd': held,
+            **state, 'coordination': coordination_counts(state['tasks']), 'title': saved.document['title'], 'spentMicrousd': spent, 'heldMicrousd': held,
             'availableMicrousd': max(0, state['capMicrousd'] - spent - held),
-            'stopPending': state['status'] == 'stopped' and any(t['status'] not in FINAL for t in state['tasks'].values())}
+            'stopPending': state['status'] == 'stopped' and any(t['status'] not in FINAL or t.get('collaboration', {}).get('pendingAdmissions') for t in state['tasks'].values())}
 
 
 class Efforts:
@@ -322,9 +323,9 @@ class Efforts:
                 state['lastControl'] = {'action': action, 'by': actor}
             if action == 'stop':
                 for task in state['tasks'].values():
-                    if task['status'] == 'planned':
+                    if task['status'] == 'planned' or (task['specification'].get('provider') == 'collaboration' and task['status'] not in FINAL):
                         task.update(status='cancelled', chargedMicrousd=0,
-                                    result={'reason': 'Stopped before dispatch'})
+                                    result={'reason': 'Further assignment work stopped; linked scientific operations retain their own observed state' if task['specification'].get('provider') == 'collaboration' else 'Stopped before dispatch'})
                     elif task['status'] not in FINAL:
                         task['status'] = 'cancel_requested'
             return True

@@ -77,3 +77,25 @@ test('a reader Tab keeps its one item: capture never rebuilds it from windows, a
  expect(Reflect.get(WorkspaceViews.prototype,'rememberInput').call(Object.assign(current,{layout:{...current.layout,schema:6}}))).toBe(false);
  expect('input' in view).toBe(false);
 });
+
+test('ordinary page navigation replaces only the unpinned reader, preserving exact history and work tabs',async()=>{
+ const current=views({opts:{notice:vi.fn()},readerPinned:()=>false});
+ const first=readerView('reading',item);current.layout.views.push(first);current.layout.active='reading';
+ current.active=()=>current.layout.views.find((v:{id:string})=>v.id===current.layout.active);
+ const next={...item,title:'Another revision',resource:{...item.resource,version:3}};
+ await current.openReaderPage(next);
+ expect(current.layout.views).toHaveLength(3);expect(first.items[0].resource.version).toBe(3);
+ expect(current.readerCanGoBack()).toBe(true);
+ await current.readerBack();expect(first.items[0].resource.version).toBe(2);
+ expect(current.layout.views[1].title).toBe('Tab 2');
+ current.readerPinned=()=>true;await current.openReaderPage(next);
+ expect(current.layout.views).toHaveLength(4);expect(first.items[0].resource.version).toBe(2);
+});
+
+test('a switched Project cannot replace a retained reader after waiting for a save',async()=>{
+ const current=views({opts:{},readerPinned:()=>false});const first=readerView('reading',item);
+ current.layout.views.push(first);current.layout.active='reading';current.active=()=>first;
+ current.flush=vi.fn(async()=>{current.generation++;});
+ await expect(current.openReaderPage({...item,resource:{...item.resource,version:3}})).rejects.toThrow('layout');
+ expect(first.items[0].resource.version).toBe(2);
+});

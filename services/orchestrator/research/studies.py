@@ -122,7 +122,7 @@ class Studies:
                                 return True
                             await asyncio.to_thread(self.efforts._change, study, session, reuse)
                         return await self.operation(original), False
-                if len(state.get('experiments', {})) >= plan['limits']['experiments']:
+                if len(set(state.get('experiments', {})) - set(plan.get('priorExperiments', []))) >= plan['limits']['experiments']:
                     raise InvalidProject('The reviewed plan experiment allowance is exhausted')
                 if actor != 'studio' and assigned is None:
                     raise InvalidProject('Claim an assignment before admitting this plan’s experiment')
@@ -150,6 +150,8 @@ class Studies:
                 def reserve(current):
                     task = self._claim_for_admission(current, assignment, actor)
                     pending = task['collaboration'].setdefault('pendingAdmissions', {})
+                    if workflow_request in task['collaboration'].get('reconciledAdmissions', {}):
+                        raise Conflict('This admission was reconciled; inspect its retained receipt and use a new request for new work')
                     if workflow_request in pending:
                         raise Conflict('Reconcile the retained pending admission before retrying')
                     pending[workflow_request] = {'request': request, 'execution': execution}

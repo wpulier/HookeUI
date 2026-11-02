@@ -9,6 +9,7 @@ export type TaskStatus = 'planned' | 'launching' | 'running' | 'unknown' | 'canc
 export interface EffortTask {
   status: TaskStatus | string;
   specification?: Record<string, unknown>;
+  collaboration?: {completedAt?:number;report?:{statement:string;at?:number;byLabel?:string};leaseUntil?:number;claimedAt?:number;claimedBy?:{by:string;byLabel:string}};
   reservedMicrousd: number;
   chargedMicrousd: number | null;
   usageEstimated?: boolean;
@@ -25,6 +26,7 @@ export interface Effort {
   id: string; session: string; revision: number; digest: string;
   createdAt?:number; updatedAt?:number; createdBy?:{by:string;byLabel:string};
   questions?:{id:string;question:string;by?:string;byLabel:string;at?:number;recipient:{actor:string;label:string};answer:null|{by:string;byLabel:string;at?:number;statement:string}}[];
+  coordination?:{waiting:number;claimed:number;reports:number;stopped:number;unresolvedAdmissions:number};
   stopPending?: boolean; title?: string; objective: string; criteria: string; status: EffortStatus | string;
   controlProblems?: string[];
   capMicrousd: number; spentMicrousd: number; heldMicrousd: number; availableMicrousd: number;
@@ -96,7 +98,7 @@ export function taskCounts(e: Pick<Effort, 'tasks' | 'experiments'>): string {
   const order = ['review', 'unknown', 'waiting', 'running', 'launching', 'cancel_requested', 'planned', 'failed', 'reported', 'finished', 'completed', 'cancelled'];
   const counts = new Map<string, number>();
   for (const task of Object.values(e.tasks ?? {})) {
-    if(task.specification?.provider==='scientific-gcp-grant')continue;
+    if(!isScientificTask(task))continue;
     const phase = taskPhase(task); counts.set(phase, (counts.get(phase) ?? 0) + 1);
   }
   const words = order.filter(phase => counts.get(phase)).map(phase => `${counts.get(phase)} ${phaseWords(phase).toLowerCase()}`);
@@ -107,7 +109,7 @@ export function taskCounts(e: Pick<Effort, 'tasks' | 'experiments'>): string {
 
 /** What the study needs from you, if anything: experiments to check (their spending is held), or none. */
 export function studyNeeds(e: Pick<Effort, 'tasks'>): string | null {
-  const tasks = Object.values(e.tasks ?? {}).filter(task => task.specification?.provider !== 'scientific-gcp-grant');
+  const tasks = Object.values(e.tasks ?? {}).filter(isScientificTask);
   const review = tasks.filter(task => taskPhase(task) === 'review').length;
   const unknown = tasks.filter(task => task.status === 'unknown').length;
   const notes = [];
@@ -196,7 +198,11 @@ export function studyState(study: Effort): string {
   return STUDY_WORDS[study.status] ?? study.status;
 }
 
-/** Scientific grants reserve their own allowance; they are not an unfinished provider session. */
+/** Assignments coordinate contributors; grants reserve resources. Neither is an experiment. */
+export function isScientificTask(task: EffortTask): boolean {
+  return task.specification?.provider !== 'scientific-gcp-grant' && task.specification?.provider !== 'collaboration';
+}
+/** Only scientific tasks can block starting a provider experiment. */
 export function pendingProviderTask(task: EffortTask): boolean {
-  return task.chargedMicrousd == null && task.specification?.provider !== 'scientific-gcp-grant';
+  return task.chargedMicrousd == null && isScientificTask(task);
 }

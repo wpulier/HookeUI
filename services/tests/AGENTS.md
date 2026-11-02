@@ -969,3 +969,5 @@ approval, fresh readiness, queue-time changes and trusted generation propagation
 with synthetic boundaries. `test_own_comparison.py` verifies acceptance against the
 actual retained comparison records. Neither substitutes for private-package proof,
 actual UI activation or a genuine named connector run.
+
+Research-navigation regressions cover exact-revision page reuse, preserved work tabs, owner-only review/recovery, collaboration counts and lost-reply reconciliation through real isolated stores. These are synthetic lifecycle checks; actual Project/browser/connector evidence is retained separately.

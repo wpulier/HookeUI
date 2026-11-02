@@ -101,7 +101,7 @@ test('retained material replaces camera onboarding before any Study exists',()=>
  const {home,host,root,button,actions,setCurrent}=setup();
  home.update('p1',[],'',{},[],{count:3,groups:['Reference documents']});
  expect(host.dataset.projectResearch).toBe('true');expect(root.hidden).toBe(false);
- expect(root.textContent).toContain('Your Project material');
+ expect(root.textContent).toContain('Project overview');
  expect(root.textContent).toContain('3 Project inputs');
  expect(root.textContent).toContain('Reference documents');
  expect(root.textContent).toContain('No Study yet');

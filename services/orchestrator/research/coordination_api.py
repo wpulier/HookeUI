@@ -14,11 +14,23 @@ def execute(built, study, session, action, fields, actor, label):
                'review': ('review_plan', {'basis'}),
                'propose': ('propose', {'request', 'assignment'}),
                'propose-capability': ('propose_capability', {'request', 'proposal'}),
+               'recover': ('recover', {'assignment'}),
                'claim': ('claim', {'assignment', 'harness', 'model'}),
                'complete': ('complete', {'assignment', 'statement', 'evidence', 'limitations'})}
     if action not in methods or set(fields) != methods[action][1]:
         raise InvalidProject('Use the declared research coordination action and fields')
     return getattr(coordination, methods[action][0])(study, session, actor=actor, label=label, **fields)
+
+
+async def execute_command(built, study, session, action, fields, actor, label):
+    # Recovery and scientific admission use the same owner lock, so an absent
+    # receipt cannot be declared absent while its validation/admission is in flight.
+    if action == 'recover':
+        studies = service(built)
+        lock = studies._locks.setdefault((session, study), asyncio.Lock())
+        async with lock:
+            return await asyncio.to_thread(execute, built, study, session, action, fields, actor, label)
+    return await asyncio.to_thread(execute, built, study, session, action, fields, actor, label)
 
 
 def register_studio(app, built, studio_origin, header):
@@ -48,7 +60,7 @@ def register_studio(app, built, studio_origin, header):
             session = body.pop('session', None)
             if session != built.day.sid:
                 raise Refused('The active Project changed.', 409, next='return to the original Project and reopen its Study before saving')
-            result = await asyncio.to_thread(execute, built, study, session, action, body, 'studio', 'You')
+            result = await execute_command(built, study, session, action, body, 'studio', 'You')
             return JSONResponse({'ok': True, 'coordination': result}, headers={'Cache-Control': 'no-store'})
         except (ValueError, OSError) as error:
             return _error(error)

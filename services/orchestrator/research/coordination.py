@@ -77,36 +77,50 @@ class Coordination:
         saved = exact(self.studies.store, basis, session)
         for ref in plan['materials']:
             exact(self.studies.store, ref, session)
-        document = saved.document
-        state = document['state'][KEY]
-        if state['status'] != 'active':
-            raise InvalidProject('Continue the Study before preparing a plan')
-        old = state.get('researchPlan')
-        if old and old.get('status') == 'reviewed':
-            raise Conflict('The reviewed plan is pinned; retain it and propose a follow-up assignment')
-        state['researchPlan'] = {**plan, 'status': 'draft', **self.studies.attribution(actor, label)}
+        basis_plan = saved.document['state'][KEY].get('researchPlan')
+        proposed = {**plan, 'status': 'draft', **self.studies.attribution(actor, label)}
         if 'instructionPackage' in plan:
             from .instructions import pin
-            state['researchPlan']['retainedInstructions'] = pin(plan['instructionPackage'])
-        self.studies.store.save(study, session, document, expected_revision=saved.revision)
+            proposed['retainedInstructions'] = pin(plan['instructionPackage'])
+        def change(state):
+            if state['status'] != 'active':
+                raise InvalidProject('Continue the Study before preparing a plan')
+            old = state.get('researchPlan')
+            if old != basis_plan:
+                raise Conflict('The research plan changed. Compare the saved plan with your kept draft before saving again')
+            ceiling = state.get('ownerPlanLimits')
+            if actor != 'studio' and ceiling and any(plan['limits'][key] > ceiling[key] for key in ceiling):
+                raise InvalidProject('Only the Project owner can increase approved research limits')
+            if old and old.get('status') == 'reviewed':
+                state.setdefault('researchPlanHistory', []).append(old)
+            state['researchPlan'] = proposed
+            return True
+        self.efforts._change(study, session, change)
         return self.read(study, session)
 
     def review_plan(self, study, session, *, basis, actor, label):
+        if actor != 'studio':
+            raise InvalidProject('The Project owner must review this plan and its limits in Hooke')
         check(basis, 'artifact-reference')
         if basis['id'] != study:
             raise InvalidProject('Review this Study')
         saved = exact(self.studies.store, basis, session)
-        document = saved.document
-        state = document['state'][KEY]
-        plan = state.get('researchPlan')
-        if not plan or state['status'] != 'active':
-            raise InvalidProject('Save a plan in an active Study before reviewing it')
-        if plan['status'] == 'reviewed':
-            return self.read(study, session)
-        for ref in plan['materials']:
+        basis_plan = saved.document['state'][KEY].get('researchPlan')
+        if not basis_plan:
+            raise InvalidProject('Save a plan before reviewing it')
+        for ref in basis_plan['materials']:
             exact(self.studies.store, ref, session)
-        plan.update(status='reviewed', reviewedBy=self.studies.attribution(actor, label), reviewedAt=self.clock())
-        self.studies.store.save(study, session, document, expected_revision=saved.revision)
+        def change(state):
+            plan = state.get('researchPlan')
+            if state['status'] != 'active' or plan != basis_plan:
+                raise Conflict('The plan changed; review the current saved plan')
+            if plan['status'] == 'reviewed':
+                return False
+            plan.update(status='reviewed', reviewedBy=self.studies.attribution(actor, label),
+                        reviewedAt=self.clock(), priorExperiments=list(state.get('experiments', {})))
+            state['ownerPlanLimits'] = dict(plan['limits'])
+            return True
+        self.efforts._change(study, session, change)
         return self.read(study, session)
 
     def propose(self, study, session, *, request, assignment, actor, label):
@@ -128,6 +142,9 @@ class Coordination:
                 raise InvalidProject('Continue the Study before assigning work')
             if len(state['tasks']) >= MAX_TASKS:
                 raise InvalidProject('Study task capacity reached')
+            parent = assignment.get('parent')
+            if parent and (parent not in state['tasks'] or state['tasks'][parent]['specification'].get('provider') != 'collaboration'):
+                raise InvalidProject('The parent must be an existing assignment in this Study')
             for dep in assignment['dependsOn']:
                 if dep not in state['tasks'] or state['tasks'][dep]['specification'].get('provider') != 'collaboration':
                     raise InvalidProject('Dependencies must be existing assignments in this Study')
@@ -164,6 +181,70 @@ class Coordination:
             task['status'] = 'running'
             meta.update(claimedBy=attribution, claimedAt=self.clock(), leaseUntil=self.clock()+300,
                         harness=harness, model=model)
+            return True
+        self.efforts._change(study, session, change)
+        return self.read(study, session)
+
+    def recover(self, study, session, *, assignment, actor, label):
+        """Owner release after checking original executions; never dispatch replacements."""
+        if actor != 'studio':
+            raise InvalidProject('Only the Project owner can release an assignment for reassignment')
+        def reconcile(state):
+            task = self.efforts._task(state, assignment)
+            meta = task.get('collaboration')
+            if meta is None:
+                raise InvalidProject('Choose a collaborative assignment')
+            if task['status'] == 'planned':
+                return False
+            if task['status'] not in ('running', 'cancelled'):
+                raise Conflict('Only a claimed or stopped assignment can be reconciled')
+            recovered = []
+            for key, pending in meta.get('pendingAdmissions', {}).items():
+                by = meta.get('claimedBy', {}).get('by')
+                if not by or not pending.get('execution'):
+                    raise Conflict('The original admission is unresolved and lacks its execution identity')
+                receipt = self.studies.operations.request_receipt('study:' + key, by=by)
+                if receipt is not None:
+                    if (receipt.get('project') != session or receipt.get('execution') != pending['execution']
+                            or receipt.get('params', {}).get('study') != study):
+                        raise Conflict('The original admission receipt does not match this Study')
+                    state.setdefault('experiments', {})[key] = {
+                        'request': pending['request'], 'operation': receipt['id'], 'execution': receipt['execution'],
+                        'specification': receipt['params'], 'by': receipt['by'], 'byLabel': receipt['byLabel']}
+                    if receipt['id'] not in meta['operations']:
+                        meta['operations'].append(receipt['id'])
+                recovered.append((key, pending, receipt))
+            for key, pending, receipt in recovered:
+                meta.setdefault('reconciledAdmissions', {})[key] = {**pending, 'operation': receipt['id'] if receipt else None,
+                    'reconciledBy': actor, 'at': self.clock()}
+            meta.pop('pendingAdmissions', None)
+            return bool(recovered)
+        # Preserve the discovered original execution even if it is still running.
+        # A subsequent Stop can now address it; a failed release never hides it again.
+        self.efforts._change(study, session, reconcile)
+        def change(state):
+            task = self.efforts._task(state, assignment)
+            meta = task['collaboration']
+            if task['status'] in ('planned', 'cancelled'):
+                return False
+            if task['status'] != 'running' or state['status'] != 'active':
+                raise Conflict('Continue the Study before releasing its assignment')
+            for op_id in meta.get('operations', []):
+                operation = self.studies.operations.get(op_id)
+                execution = operation.get('execution') or {}
+                if operation.get('project') != session or execution.get('session') != session:
+                    raise InvalidProject('The original execution does not belong to this Project')
+                observed = self.studies.workflows.observed_status(execution['id'], session)
+                if (observed['status'] not in ('completed', 'failed', 'rejected', 'stopped')
+                        or observed.get('executionObservation', {}).get('state') in ('interrupted', 'unstarted')):
+                    raise Conflict('Original operations are now linked. Inspect or stop them before changing this assignment owner')
+            meta.setdefault('priorClaims', []).append({key: meta[key] for key in
+                ('claimedBy', 'claimedAt', 'leaseUntil', 'harness', 'model') if key in meta})
+            for key in ('claimedBy', 'claimedAt', 'leaseUntil', 'harness', 'model'):
+                meta.pop(key, None)
+            meta['releasedBy'] = self.studies.attribution(actor, label)
+            meta['releasedAt'] = self.clock()
+            task['status'] = 'planned'
             return True
         self.efforts._change(study, session, change)
         return self.read(study, session)

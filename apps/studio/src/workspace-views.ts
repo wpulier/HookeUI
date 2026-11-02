@@ -798,6 +798,42 @@ private revision=0;private generation=0;private revealSequence=0;
   if(!this.ownsTabChoice(owner))return false;
   return this.goTo(view.id,owner);
  }
+ /** Ordinary reading reuses only an unpinned reader view. It never changes a scientific record or a work arrangement. */
+ async openReaderPage(item:ReaderTabItem,owner=this.tabOwner()):Promise<boolean>{
+  if(!this.ownsTabChoice(owner))throw new Error('The Project changed. Open it again from its Data.');
+  if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
+  const same=this.layout.views.find(v=>{const r=readerItem(v);return r&&r.resource.day===item.resource.day&&r.resource.id===item.resource.id&&r.resource.version===item.resource.version;});
+  if(same)return this.goTo(same.id,owner);
+  const view=this.active();
+  if(view?.kind!=='reader'||this.readerPinned(view.id)||view.notes.length)return this.openReaderTab(item,owner);
+  this.capture();await this.flush();
+  if(!this.ownsTabChoice(owner)||this.active()?.id!==view.id||this.dirty||this.conflict)throw new Error('The layout is not saved. Retry before opening another page.');
+  const previous=readerItem(view);
+  if(previous){const history=this.readerBacks??=new Map();history.set(`${owner.session}:${view.id}`,[...(history.get(`${owner.session}:${view.id}`)??[]),previous].slice(-50));}
+  view.title=item.title.slice(0,80);view.items=readerView(view.id,item).items;this.loaded.delete(view.id);
+  this.changed();await this.flush();
+  if(!this.ownsTabChoice(owner))return false;
+  return !!await this.activate(view.id,true);
+ }
+ private readerBacks?:Map<string,ReaderTabItem[]>;
+ readerCanGoBack():boolean{return !!this.readerBacks?.get(`${this.session}:${this.layout.active}`)?.length;}
+ async readerBack():Promise<boolean>{
+  if(this.busy())return false;
+  const view=this.active(),owner=this.tabOwner();if(view?.kind!=='reader')return false;
+  const stack=this.readerBacks?.get(`${owner.session}:${view.id}`),item=stack?.at(-1);if(!item)return false;
+  this.capture();await this.flush();
+  if(!this.ownsTabChoice(owner)||this.active()?.id!==view.id||this.dirty||this.conflict)return false;
+  stack!.pop();view.title=item.title.slice(0,80);view.items=readerView(view.id,item).items;this.loaded.delete(view.id);this.changed();await this.flush();
+  return this.ownsTabChoice(owner)&&!!await this.activate(view.id,true);
+ }
+ readerPinned(id=this.layout.active):boolean{
+  // Additive, per-viewer preference. Old layouts are neither rewritten nor reinterpreted.
+  try{return JSON.parse(localStorage.getItem(`hooke:reader-pins:${this.session}`)??'[]').includes(id);}catch{return false;}
+ }
+ pinReader():void{
+  const view=this.active();if(view?.kind!=='reader')return;
+  try{const pins=new Set<string>(JSON.parse(localStorage.getItem(`hooke:reader-pins:${this.session}`)??'[]'));if(pins.has(view.id))pins.delete(view.id);else pins.add(view.id);localStorage.setItem(`hooke:reader-pins:${this.session}`,JSON.stringify([...pins]));}catch{this.opts.notice('This browser could not save the pin.');}
+ }
  /** True when this server keeps reader Tabs only for the session (it cannot save them). */
  readerTabsUnsaved():boolean{return this.schemaNow()<6;}
  /** Add to Tab… from Data or the reader: the item goes into that Tab (or a new one named after it) and you stay where

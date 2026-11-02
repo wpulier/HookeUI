@@ -2172,3 +2172,5 @@ its cached contents and revision. A server `unchanged` response cannot establish
 an inventory when that cache has been cleared; it must produce recoverable retry,
 never an empty successful list. This also applies when the bridge publishes the
 new Project before its switch promise resolves.
+
+Project research navigation and exact-reference page behavior are described in `docs/architecture/research-navigation.md`. Overview is separate from the preserved live stage; background efforts do not create tabs.

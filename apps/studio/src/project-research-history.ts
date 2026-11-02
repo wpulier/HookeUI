@@ -1,5 +1,5 @@
 /** Read models of retained authorship and original execution receipts. Never dispatches work. */
-import {taskPhase, type Effort} from './research-efforts';
+import {isScientificTask, taskPhase, type Effort} from './research-efforts';
 export type ResearchOperation = {
   id:string; project:string; by?:string; byLabel:string; at?:number; state:string;
   workflow?:{id:string;session:string;status:string;definition?:{name:string};executionObservation?:{state:string;reason:string}};
@@ -19,7 +19,7 @@ export function actorOrigin(id:string):string {
 /** Assignments coordinate people/agents; only admitted scientific work is an experiment. */
 export function experimentCount(study:Effort):number {
   return Object.keys(study.experiments??{}).length+Object.values(study.tasks??{}).filter(t=>
-    t.specification?.provider!=='scientific-gcp-grant'&&t.specification?.provider!=='collaboration'&&!!t.execution).length;
+    isScientificTask(t)&&!!t.execution).length;
 }
 export function contributors(studies:readonly Effort[]):Contributor[] {
   const found=new Map<string,Contributor>();
@@ -59,9 +59,9 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
     if(task.specification?.provider==='scientific-gcp-grant')continue;
     if(task.specification?.provider==='collaboration'){
       if(task.status==='planned')assignments.waiting++;
-      else if(task.status==='running')assignments.working++;
-      else if(task.status==='completed'){assignments.review++;counts.waiting++;}
-      else assignments.check++;
+      else if(task.status==='running'){if(typeof task.collaboration?.leaseUntil==='number'&&task.collaboration.leaseUntil<Date.now()/1000)assignments.check++;else assignments.working++;}
+      else if(task.status==='completed')assignments.review++;
+      else if(task.status!=='cancelled')assignments.check++;
       continue;
     }
     const phase=taskPhase(task);
@@ -72,12 +72,13 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
     else if(['finished','completed','cancelled'].includes(phase))counts.finished++;
     else counts.check++;
   }
+  if(study.coordination){assignments.waiting=study.coordination.waiting;assignments.review=study.coordination.reports;assignments.check=Math.max(assignments.check,study.coordination.unresolvedAdmissions);}
   const missing=ids.size-operations.length;
   const pending=(study.questions??[]).filter(q=>!q.answer).length;
   const unavailable=!!snapshot?.error||missing>0;
   // A failed refresh must not perpetuate a stale running/idle claim.
   const title=unavailable?'Activity needs refreshing':counts.running?`${counts.running} experiment${counts.running===1?'':'s'} running`:
-    counts.check||assignments.check?'Execution needs checking':assignments.working?'Agent assignment claimed':assignments.waiting?'Waiting for an agent':counts.waiting?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
+    counts.check||assignments.check?'Execution needs checking':assignments.working?'Agent assignment claimed':assignments.waiting?'Waiting for an agent':counts.waiting||assignments.review?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
   return {counts,assignments,pending,unavailable,title,operations};
 }
 export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
@@ -85,6 +86,12 @@ export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
   const add=(e:Omit<HistoryEvent,'study'>)=>out.push({...e,study:study.id});
   if(study.createdAt)add({id:'created',at:study.createdAt,title:'Research effort created',detail:study.title||study.objective,actor:study.createdBy?.byLabel||'Initiator not recorded'});
   for(const op of studyActivity(study,snapshot).operations)add({id:op.id,at:op.at,title:op.workflow?.definition?.name||'Workflow experiment',detail:`Admitted then · ${snapshot?.error?'last recorded state': 'current state'}: ${operationPhase(op)==='check'?'needs checking':operationPhase(op)}${op.workflow?.executionObservation?.reason?` — ${op.workflow.executionObservation.reason}`:''}`,actor:op.byLabel,run:op.workflow?.id});
+  for(const [id,t] of Object.entries(study.tasks??{})){
+    if(t.specification?.provider!=='collaboration')continue;
+    const a=t.specification.assignment as {objective?:string}|undefined,m=t.collaboration;
+    if(m?.claimedAt)add({id:'claim:'+id,at:m.claimedAt,title:a?.objective||'Research assignment',detail:'Assignment claimed · not proof of active execution',actor:m.claimedBy?.byLabel||'Contributor not recorded'});
+    if(m?.report)add({id:'report:'+id,at:m.completedAt,title:m.report.statement,detail:'Assignment report · awaiting review',actor:m.report.byLabel||m.claimedBy?.byLabel||'Contributor not recorded'});
+  }
   for(const c of study.claims??[])add({id:c.request,at:c.at,title:c.statement,detail:'Researcher report · not an accepted finding',actor:c.byLabel});
   for(const c of study.claimChanges??[])add({id:`challenge:${c.claim}:${c.at}`,at:c.at,title:c.reason,detail:'Report challenged',actor:c.byLabel});
   for(const q of study.questions??[]){

@@ -362,6 +362,11 @@ class Operations:
         finally:
             self._tasks.pop(record["id"], None)
 
+    def request_receipt(self, request_key: str, *, by: str) -> dict | None:
+        """Internal recovery lookup; the caller must enforce Project owner authority."""
+        record = self._records.get(self._keys.get((by, request_key)))
+        return wire(record) if record is not None else None
+
     def known(self, request_key, tool: str, params: dict, by: str = "") -> dict | None:
         """An operation already admitted under this key, for a retry: the same tool and parameters return it before
         anything else is checked (a retry while Hooke is busy finds its work, never a refusal); anything else under the

@@ -168,8 +168,9 @@ their existing named connection. Show the proposed plan before admitting work.
    `modelMinutes` and `tokens`. Discover/pin an appropriate instruction package
    when available. Do not invent capabilities or claim model-budget enforcement.
 5. Explain the approach, permitted evidence, intended output, limits and missing
-   readiness to the person. Once the plan is agreed, use action `review` with
-   `fields:{basis:<latest basis>}`. Reviewing neither launches a model nor grants
+   readiness to the person. The Project owner reviews the saved plan in Hooke;
+   connected contributors cannot approve their own authority or raise owner ceilings.
+   Read coordination again after review. Reviewing neither launches a model nor grants
    access. Never silently increase limits to get around a refusal.
 6. Use action `propose` with `fields:{request,assignment}`. The assignment contains
    `objective`, `deliverable`, `uncertainty`, `decisionImpact`, `whyNewWork`,
