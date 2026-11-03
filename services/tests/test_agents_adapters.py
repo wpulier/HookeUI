@@ -276,7 +276,7 @@ def test_codex_session_answer_covers_plain_hooke_commands_only():
                          {"dir": "out", "msg": {"id": 0, "result": {}}},
                          ask(1, f"/bin/zsh -lc '{hooke} --agent codex tools --json'"),
                          {"dir": "out", "msg": {"id": 1, "result": {}}},
-                         ask(2, f"/bin/zsh -lc '{hooke} --agent codex tools --json > caps.json'"),
+                         ask(2, f"/bin/zsh -lc '{hooke} --agent codex tools --json > ../caps.json'"),
                          {"dir": "out", "msg": {"id": 2, "result": {}}}])
         adapter = Codex(factory(replay))
         adapter.hooke, adapter.transport = hooke, replay
@@ -290,7 +290,9 @@ def test_codex_session_answer_covers_plain_hooke_commands_only():
         await events.until(lambda: len(replay.sent) >= 2)
         assert replay.sent[1] == {"id": 1, "result": {"decision": "acceptForSession"}}
         asks = await events.until(lambda: [e for e in events.of("permission") if e["id"] == "codex:2"])
-        assert "caps.json" in asks[0]["detail"] and len(events.of("permission")) == 2
+        assert "../caps.json" in asks[0]["detail"] and len(events.of("permission")) == 2
+        assert adapter._plain_hooke(f"{hooke} --agent codex tools --json > tools.json")  # into its own folder: covered
+        assert not adapter._plain_hooke(f"{hooke} tools > /etc/x") and not adapter._plain_hooke(f"{hooke} tools >> a")
         replay.end(0)
         await reader
     asyncio.run(scenario())

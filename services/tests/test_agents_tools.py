@@ -76,7 +76,7 @@ def test_start_only_on_the_users_words_and_once_per_request():
              said="what is this cell?")
     args = {"program": "codex", "task": "write a stomata tracker", "asked_with": "ask Codex to write a stomata tracker"}
     said = call(registry, "start_agent", args)
-    assert said.startswith("Codex is starting on it now") and "Leaf" not in said and "Study" not in said
+    assert said.startswith("Codex is starting on it now in this Project") and "Leaf" not in said and "Study" not in said
     assert conductor.started == [("codex", "write a stomata tracker", "voice")]
     assert "already started" in call(registry, "start_agent", args)
     assert len(conductor.started) == 1

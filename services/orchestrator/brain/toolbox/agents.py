@@ -50,14 +50,14 @@ def add_agent_tools(registry: Registry, services) -> None:
         started[key] = launch.id
         attach(values={"agentLaunch": launch.id})
         # What the voice says once: that it is working, and how it reports back. Not the Project, the Study or a cap.
-        return (f"{launch.label} is starting on it now; it will ask before doing anything outside its sandbox, and its "
-                f"report comes back for the user's review")
+        return (f"{launch.label} is starting on it now in this Project; it will ask before doing anything outside its "
+                f"sandbox, and its report comes back for the user's review")
 
     registry.add(Tool(
         "start_agent",
         "Start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user "
         "gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review. Only "
-        "when the user asked for that agent.",
+        "when the user asked for that agent. Say you are getting that agent on it, not that you will do it yourself.",
         schema({"program": PROGRAM,
                 "task": {"type": "string", "description": "what the agent should do, in the user's words"},
                 "asked_with": {"type": "string", "description": "the user's own words asking for the agent"}},

@@ -205,11 +205,13 @@ class Codex(Adapter):
         self.emit("resolved", id=permission, outcome="allowed" if allow else "declined")
 
     def _plain_hooke(self, command) -> bool:
-        """Hooke's own command alone, maybe inside Codex's shell wrapper: no pipes, redirects, chains or substitutions."""
+        """Hooke's own command alone, maybe inside Codex's shell wrapper: no pipes, chains or substitutions, and at most
+        its output saved to a plain file name in its own folder (`> tools.json`: no path, no `..`)."""
         if not self.hooke or not isinstance(command, str):
             return False
         inner = re.sub(r"""^/bin/(?:ba|z)?sh -l?c (['"])(.*)\1$""", r"\2", command.strip(), flags=re.S)
         inner = inner.replace(f"'{self.hooke}'", self.hooke)
+        inner = re.sub(r"\s+>\s*[A-Za-z0-9][A-Za-z0-9._-]*$", "", inner.rstrip())  # its output into its own folder
         unquoted = re.sub(r"'[^']*'", "''", inner)  # single quotes are literal in a shell; everything else is checked
         return inner.startswith(self.hooke + " ") and not re.search(r"[;&|<>`$()\\\n]", unquoted)
 

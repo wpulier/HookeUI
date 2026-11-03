@@ -1361,7 +1361,7 @@
   }
  },
  {
-  "description": "Start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review. Only when the user asked for that agent.",
+  "description": "Start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review. Only when the user asked for that agent. Say you are getting that agent on it, not that you will do it yourself.",
   "inline_ms": 4000,
   "kind": "effect",
   "name": "start_agent",
