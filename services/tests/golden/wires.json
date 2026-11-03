@@ -374,6 +374,7 @@
   "early_look_typed": "sequential",
   "embed": "dinov2-small",
   "fast": "off",
+  "guide": "model",
   "handoff_acts": "hands",
   "heard_cue": "tone",
   "hintsFirst": true,

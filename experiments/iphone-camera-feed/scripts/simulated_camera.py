@@ -23,6 +23,9 @@ from the phone and cannot tell the difference.
 - A picture plays too (a snapshot, a clearer picture, a photo the user added): one frame looped at
   the bridge's frame rate, read in real time like a recording, so frames keep arriving and
   downstream it is a slide at rest. It has no length, no place and nothing to pause.
+- A virtual stage plays too (the scenario harness's sim/virtual_scope.py, `POST /sim/stage`): a slide
+  that a simulated person's hands or motors move, its eyepiece view an MJPEG stream on this Mac read
+  live. It has no length, no place and nothing to pause; the harness alone knows where the stage is.
 
 Ground truth for test harnesses (which recording frame is on screen) is exposed only on
 /sim/* endpoints; /api/health and /iphone.mjpeg are identical to live operation.
@@ -47,6 +50,24 @@ AUDIO_DEVICES = ["MacBook Pro Microphone"]
 # library (footage_media.py) and the bridge's asset source read these, so the three agree on what a file is.
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".mkv", ".webm"}
 STILL_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+
+
+STAGE_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def stage_url(url: str) -> str:
+    """A virtual stage's stream address: plain http on this Mac only (the harness serves it); ValueError otherwise."""
+    from urllib.parse import urlsplit
+
+    try:
+        parts = urlsplit(url)
+        host = parts.hostname
+    except ValueError:
+        host = None
+        parts = None
+    if parts is None or parts.scheme != "http" or host not in STAGE_HOSTS or not parts.port:
+        raise ValueError("a virtual stage is an http address on this Mac, such as http://127.0.0.1:18990/stream.mjpeg")
+    return url
 
 
 def is_still(path: Path | str) -> bool:
@@ -152,16 +173,26 @@ class SimulatedCamera:
     # A picture rather than a recording (set from the file's suffix; a class default for cameras made without one).
     still = False
 
+    # A virtual stage's stream address (stage_url), or None for a file.
+    stage: str | None = None
+
     def __init__(self, video: str, target_device: str, start_frame: int = 0, reset_recovery_seconds: float = 3.0,
-                 still_fps: float = 30.0, probe=None) -> None:
-        self.video = Path(video).resolve()
-        if not self.video.exists():
-            raise SystemExit(f"Simulation recording not found: {self.video}")
+                 still_fps: float = 30.0, probe=None, stage: str | None = None) -> None:
         self.target_device = target_device
-        self.still = is_still(self.video)
-        # A picture plays at the bridge's own rate (`still_fps`, its --fps): one frame, so it is always that frame.
-        # `probe`: how its rate and frames are read (probe_kept with --probe-cache on), else read now.
-        self.fps, self.total_frames = (probe or _probe)(self.video, still_fps)
+        if stage is not None:
+            # A live stream from the harness: no file to find or probe, frames as they come.
+            self.stage = stage_url(stage)
+            self.video = Path("virtual-stage")
+            self.still = False
+            self.fps, self.total_frames = float(still_fps), 1
+        else:
+            self.video = Path(video).resolve()
+            if not self.video.exists():
+                raise SystemExit(f"Simulation recording not found: {self.video}")
+            self.still = is_still(self.video)
+            # A picture plays at the bridge's own rate (`still_fps`, its --fps): one frame, so it is always that frame.
+            # `probe`: how its rate and frames are read (probe_kept with --probe-cache on), else read now.
+            self.fps, self.total_frames = (probe or _probe)(self.video, still_fps)
         self.reset_recovery_seconds = reset_recovery_seconds
         self.lock = threading.RLock()
         self.bridge = None  # set by the bridge once constructed
@@ -204,7 +235,11 @@ class SimulatedCamera:
                 {"bridgeFrameCount": frame_count, "sourceFrame": world_frame, "at": time.time()}
             )
             self._capture_starts = self._capture_starts[-50:]
-        if self.still:
+        if self.stage:
+            # The virtual stage's view as it comes, timed by when each frame arrived (a live source has no clock of its
+            # own to read ahead of).
+            source = ["-f", "mpjpeg", "-use_wallclock_as_timestamps", "1", "-i", self.stage]
+        elif self.still:
             # One frame looped at the bridge's rate and read in real time (-re), as a recording is: frames arrive as
             # the camera's do, all the same picture (a slide at rest). It has one frame, so no place to start from.
             source = ["-re", "-loop", "1", "-framerate", f"{self.fps:g}", "-i", str(self.video)]
@@ -260,6 +295,8 @@ class SimulatedCamera:
     def playback(self) -> dict:
         """Where the recording is now, for the studio's player (it loops), and whether it is paused. A picture says so
         (`still`): no length, no place, always held."""
+        if self.stage:
+            return {"seconds": 0.0, "duration": 0.0, "paused": False, "still": False, "live": True}
         if self.still:
             return {"seconds": 0.0, "duration": 0.0, "paused": True, "still": True}
         return {"seconds": round(self.world_frame() / self.fps, 2), "duration": round(self.total_frames / self.fps, 2),
@@ -267,8 +304,9 @@ class SimulatedCamera:
 
     def pause(self) -> None:
         """Holds the picture (the next frame that arrives, then always that one) and stops the
-        recording's clock. Frames keep arriving: downstream it is a slide at rest. A picture is held already."""
-        if self.still:
+        recording's clock. Frames keep arriving: downstream it is a slide at rest. A picture is held already; a virtual
+        stage is live (its hands hold it still)."""
+        if self.still or self.stage:
             return
         with self.lock:
             if self.paused_frame is None:
@@ -278,7 +316,7 @@ class SimulatedCamera:
 
     def resume(self) -> None:
         """Plays on from the held frame (the caller restarts the capture there). A picture has nothing to play."""
-        if self.still:
+        if self.still or self.stage:
             return
         with self.lock:
             frame, self.paused_frame, self._held = self.paused_frame, None, None
@@ -288,8 +326,9 @@ class SimulatedCamera:
 
     def seek(self, frame: int) -> None:
         """Move the specimen: the next capture start (and the current one, restarted by the
-        caller) shows this recording frame. Paused, it holds that frame instead. A picture has one frame: nothing moves."""
-        if self.still:
+        caller) shows this recording frame. Paused, it holds that frame instead. A picture has one frame: nothing moves;
+        a virtual stage is moved by its own hands."""
+        if self.still or self.stage:
             return
         with self.lock:
             self._world_origin = time.monotonic() - max(0, frame) / self.fps
@@ -429,6 +468,7 @@ class SimulatedCamera:
                 "simulated": True,
                 "video": str(self.video),
                 "still": self.still,
+                "stage": self.stage,
                 "fps": self.fps,
                 "totalFrames": self.total_frames,
                 "plugged": self.plugged,

@@ -83,6 +83,9 @@ KINDS: dict[str, Kind] = {
     "population-changed": WATCHED,
     "cell-divided": Kind("interrupt", one_per="kind", newest=True, once=False),
     "reconnect": Kind("idle", kept_s=30.0),
+    # guiding the user's hands (guide.py): said at once, the newest line replacing one not yet said, never owed (a line
+    # the view has moved past is no help) and dropped when not said soon
+    "guide": Kind("interrupt", one_per="kind", newest=True, once=False, kept_s=6.0),
     # its first line as Talk connects (it talks first): in a pause, never owed, let go if the user speaks first or it
     # is not said soon (`withdraw`, RealtimeSession.talk_down)
     "opener": Kind("idle", kept_s=20.0),

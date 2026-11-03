@@ -121,6 +121,9 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
   the brain. The one-brain voice's is a job of its own (kind "hooke", Hooke's own work in progress), listed and
   numbered with think jobs and researchers, and stopped with `stop_work`.
 - **User leads**: the user finds things themselves; the app points and names only when asked.
+- **Guidance** (`guide`): the app directing the user's hands at the microscope, one short line at a time ("move the
+  slide left a little", "stop", "focus up"), until a thing is centred (and sharp). The app measures where it is and
+  what each move did; a model decides each line. The user's hands do the moving: the microscope has no motors here.
 - **Level**: how the user wants things explained, *simple* (the default) or *technical*,
   and whether a hint comes before the answer (*hints first*). A preference the user sets
   (settings, or `set_level` by voice or chat); every model writing for the user is told it in

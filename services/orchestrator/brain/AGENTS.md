@@ -45,7 +45,8 @@ other files.
   actions as `user-action`, chat notes). The text is facts as JSON (what was measured, when it happened, the ids to
   point at), never words to read out: the voice model decides how to say them, in one sentence. Each kind has one
   route in `events.KINDS`; the publisher may give its own (`delivery`: the watcher's per WATCH choice,
-  `view_watch.DELIVERY`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
+  `view_watch.DELIVERY`; a guidance's lines, kind "guide": said at once, the newest replacing one not yet said, never
+  owed, `orchestrator/guide.py`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
   nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (said as soon
   as the line playing now ends, without waiting for a pause: a line the voice starts is finished or yielded to the
   user, never cut by its own next one, Will 29 Oct; never over the user's answer); the user's quieter or "let me find things"

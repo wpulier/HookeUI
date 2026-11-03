@@ -961,6 +961,19 @@ WATCH = {
     ]
 }
 
+# Guiding the user's hands (orchestrator/guide.py, tool `guide`): who decides each line from the facts the app measures
+# (where the target is from the centre, what the last move did, sharpness against the best found here). bench/guide_bench.py,
+# a synthetic eyepiece with a simulated person following each line (docs/bench/guide.md).
+GUIDE = {
+    o.id: o
+    for o in [
+        Option("model", "The fast model decides", "the fast model reads the measurements and says each line; "
+                                                  "guide bench: see docs/bench/guide.md"),
+        Option("rule", "The app decides", "code moves toward the centre, then climbs the sharpness; no model call; "
+                                          "guide bench: see docs/bench/guide.md"),
+    ]
+}
+
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
@@ -968,7 +981,7 @@ GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": V
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
-          "watch": WATCH}
+          "watch": WATCH, "guide": GUIDE}
 
 # A group's choices change while the app runs (your models turned on or off: mine.register; contributed entries proven
 # or withdrawn: kinds.register), on worker threads, while the loop reads them (catalogue, resolve, the shelf). So a
@@ -1151,6 +1164,7 @@ class Settings:
     orb_every: str = "1"  # how often feature matches vote on the slide's move (MOTION_ORB_EVERY; measured)
     library_looks: str = "off"  # whether new assets' pictures are sent to be filed by look (LIBRARY_LOOKS; off by default)
     watch: str = "quiet"  # what the watcher says unasked (WATCH; view_watch.DELIVERY)
+    guide: str = "model"  # who decides each line when guiding the user's hands (GUIDE; guide.py)
     # USD a day for all researchers, or None: unlimited (the default; ADR 0004). Set in the
     # studio, by voice or chat (set_research_cap), or MICROMIND_RESEARCH_CAP; kept until changed.
     research_cap: float | None = field(default_factory=lambda: _cap_from_env())
@@ -1224,6 +1238,7 @@ class Settings:
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
                 "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "partner_speaks": self.partner_speaks, "handoff_acts": self.handoff_acts, "look_after": self.look_after, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "naming_model": self.naming_model, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "watch": self.watch,
+                "guide": self.guide,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}
 

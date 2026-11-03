@@ -208,6 +208,9 @@ TOOLS = {
     "stop_watching": "none: stops a watch",
     "watching": "none: reads the watches",
     "where_is": "result",
+    "guide": "named-outline",  # the thing it finds to guide to (find's outline); its lines are the conversation's
+    "stop_guiding": "none: stops guiding",
+    "guiding": "none: reads the guidance",
     "show_map": "none: opens the slide map",
     "bookmark": "bookmark",
     "way_to_bookmark": "result",  # a measurement of where it is from the view now, as where_is (review note)
@@ -410,6 +413,7 @@ BACKGROUND = {
     "enrich": "temporary: descriptions under labels, cached for the day",
     "seen": "named-outline",
     "watcher": "result",
+    "guide": "none: direction lines while guiding the user's hands, filed in the conversation",
     "datasets": "dataset",
     "recordings": "recording",
     "research": RESEARCH_WORK + ", population, result, tracks",  # researchers' work, and their hands' runs (research/hands.py), never on screen

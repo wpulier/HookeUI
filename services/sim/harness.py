@@ -4343,7 +4343,9 @@ async def scenario_research_lesson(stack: Stack, viewer: Viewer) -> Outcome:
     return out
 
 
-CLOUD_SCENARIOS = {"ask": scenario_ask_and_point, "voice": scenario_voice, "dissect-clicks": scenario_dissect_clicks,
+from .guided import scenario_guide, scenario_guide_words  # noqa: E402  (guiding the user's hands; sim/guided.py)
+
+CLOUD_SCENARIOS = {"guide-words": scenario_guide_words, "ask": scenario_ask_and_point, "voice": scenario_voice, "dissect-clicks": scenario_dissect_clicks,
                    "brain-chat": scenario_brain_chat, "voice-tools": scenario_voice_tools, "cross-channel": scenario_cross_channel,
                    "voice-while-researching": scenario_voice_while_researching, "research-image": scenario_research_image,
                    "descriptions": scenario_descriptions, "research-video": scenario_research_video,
@@ -4369,6 +4371,7 @@ SCENARIOS = {
     "arena": scenario_arena,
     "magnifier": scenario_magnifier,
     "slide-map": scenario_slide_map,
+    "guide": scenario_guide,
     "research": scenario_research_fake,
     "lesson-walkthrough": scenario_lesson_walkthrough,
     "revise-lesson": scenario_revise_lesson,
