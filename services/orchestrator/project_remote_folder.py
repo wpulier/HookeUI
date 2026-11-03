@@ -182,7 +182,7 @@ class FolderBulk:
     def put(self, digest, path, size, *, check=lambda: None):
         target = self._object(digest)
         if _intact(target, digest, size):
-            return
+            return False
         def write(stream):
             value = hashlib.sha256()
             written = 0
@@ -195,6 +195,7 @@ class FolderBulk:
             if written != size or value.hexdigest() != digest:
                 raise RemoteRefused('A large file changed while sending; nothing was sent')
         _publish(target, write)
+        return True
 
     def get(self, digest, size, target, *, check=lambda: None):
         source = self._object(digest)

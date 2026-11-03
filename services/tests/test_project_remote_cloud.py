@@ -67,12 +67,14 @@ def test_large_files_go_to_hooke_cloud_and_a_public_project_downloads_with_no_ac
     cloud = Cloud()
     receipt = push_sealed(copy_snapshot(root, tmp_path / 'Sealed').path, remote(tmp_path, cloud, root.origin),
                           parent=None, summary='Publish')
-    assert len(cloud.objects) == 2 and receipt['uploadedBytes'] == len(PIXELS)
+    assert len(cloud.objects) == 1 and receipt['uploadedBytes'] == len(PIXELS)  # both chunks in one pack
     cloud.public = True
     reader = Remote(FolderRemote(tmp_path / 'Records'), CloudBulk(BASE, root.origin, token=None, http=cloud))
+    pushed = len(cloud.calls)
     fetched, _ = fetch(reader, tmp_path / 'Fetched')
     assert ProjectRepository(fetched).read(source.id, 1) == source
-    assert all(auth is False for method, url, auth in cloud.calls[-4:])
+    assert [m for m, _, auth in cloud.calls[pushed:] if auth is not False] == []
+    assert [m for m, _, _ in cloud.calls[pushed:]] == ['POST', 'GET']  # one pack: one link, one download
 
 
 def test_a_second_push_uploads_nothing_already_kept(tmp_path):

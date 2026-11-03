@@ -112,7 +112,7 @@ async def project_publish(app, client, msg) -> dict:
         raise _refused(error) from error
     day._record(receipt['event'], strict=True)
     return {'ok': True, 'published': {k: receipt[k] for k in ('commit', 'snapshotSha256', 'recordFiles',
-                                                                'bulkObjects', 'uploadedBytes', 'bytes')},
+                                                                'bulkFiles', 'bulkObjects', 'uploadedBytes', 'bytes')},
             'location': receipt['remote']['records'].get('location') or receipt['remote']['records'].get('base')}
 
 

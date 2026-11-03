@@ -48,16 +48,32 @@ blobs do not match the snapshot's hashes, is reported as **changed outside Hooke
 ## 4. `hooke-bulk.json`
 
 ```json
-{"format": "hooke-bulk-v1",
+{"format": "hooke-bulk-v2",
  "origin": "<32 hex>",
  "snapshotSha256": "<64 hex>",
  "entries": [{"path": "artifacts/records/p…/files/<sha>.bin", "bytes": 1048576, "sha256": "<sha>"}],
+ "packs": [{"sha256": "<64 hex>", "bytes": 16777216,
+            "contents": [["<content sha256>", 0, 1048576], ["<content sha256>", 0, 524288]]}],
  "stores": [{"kind": "folder|s3|hooke-cloud|zenodo", "base": "<location>", "visibility": "public|private"}]}
 ```
 
-`entries` lists exactly the bulk-layer members of the snapshot, sorted by path. The object key is the SHA-256; one
-object serves every path with the same content. `stores` is advisory: a reader may fetch an object from any store
-and must verify its SHA-256 and size before placing it.
+`entries` lists exactly the bulk-layer members of the snapshot, sorted by path. `stores` is advisory: a reader may
+fetch an object from any store.
+
+The bulk members travel in **packs**, not one object each, because a store charges for every object read: serving
+1 TB a thousand times costs about $355 a month on R2 as 1 MiB objects and about $33 as 16 MiB ones. Each distinct
+content (by SHA-256; one content serves every path that holds it) goes into the packs once, in path order, laid end
+to end in packs of 16 MiB, and one content may run on from one pack into the next. A pack is an object named by the
+SHA-256 of its bytes. Its `contents` are its pieces in order, `[content sha256, offset in that content, bytes]`, and
+they fill the pack exactly. Every non-empty content is covered once, with no gap or overlap, and a pack holds nothing
+that is not in `entries`. A writer may make packs of up to 64 MiB, and a reader refuses a larger one.
+
+A new version reuses each pack of its parent that the store still holds, when every content in that pack is still in
+the version and every piece of those contents is in packs reused with it. Only the other contents go into new packs,
+so a second push sends only new data, and a version's packs never hold a file it does not list.
+
+A `hooke-bulk-v1` manifest has no `packs`: each content is its own object, named by its SHA-256. Readers still accept
+it, and writers make v2.
 
 ## 5. Object stores
 
@@ -69,7 +85,8 @@ same name is success, never an overwrite.
 
 1. Seal a snapshot under the writer lease; `verify_records` passes.
 2. Classify; scan the record layer for secrets (a finding stops the push and names the file).
-3. Upload every bulk object the store lacks; verify each upload.
+3. Pack the bulk layer (4), reusing the parent's packs the store still holds; upload each new pack the store lacks,
+   and verify each upload.
 4. Write one commit (parent = the last commit this host pushed there, or none for a new remote). On a Git host, a
    signed-in push sends the new objects in one Git pack over smart HTTP to a branch of their own
    (`hooke-pending-<12 hex of the commit>`); the host then re-reads that branch, the commit and its whole file
@@ -83,7 +100,8 @@ same name is success, never an overwrite.
 
 A reader validates the commit before writing anything: every path is relative, under `project/` or one of the root
 names above, has no `..`, NUL or control characters, and is not a link or special file; counts, sizes and JSON depth
-are bounded. It writes the record members and fetches the bulk members into a new folder marked incomplete, writes
+are bounded. Into a new folder marked incomplete, it writes the record members, then fetches each pack (verifying its
+SHA-256 and size) and writes its pieces at their offsets. It verifies every bulk member's SHA-256 and size, writes
 `snapshot.json`, verifies the whole folder (`verify_snapshot`, which re-runs `verify_records`), then clears the
 marker. The result is a sealed snapshot, which `restore_snapshot` turns into a working copy.
 

@@ -190,7 +190,7 @@ def test_publish_to_a_new_repository_and_start_from_it_with_no_account(tmp_path)
                       replaces=placeholder)
     commit = hub.repos[full]['commits'][receipt['commit']]
     assert commit['parents'] == [] and hub.repos[full]['refs']['main'] == receipt['commit']
-    assert len(hub.repos[full]['releases']['hooke-data']['assets']) == 2  # the image's two chunks
+    assert len(hub.repos[full]['releases']['hooke-data']['assets']) == 1  # the image's two chunks, in one pack
     # Someone else, no sign-in: two API calls, the rest from the raw host and release downloads.
     before = len(hub.calls)
     reader = github_remote(anonymous(hub), full)

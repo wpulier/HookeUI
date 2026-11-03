@@ -1,7 +1,8 @@
 """Push a sealed Project snapshot to a remote, and fetch one back as a verified sealed snapshot (ADR 0028).
 
-A remote is a record store (commits of small files) plus a bulk store (objects named by SHA-256). The order of a push
-is fixed: bulk objects first, then one commit, then a compare-and-swap of the remote's pointer, so a commit never
+A remote is a record store (commits of small files) plus a bulk store (objects named by SHA-256). A version's large
+files travel in packs of about 16 MiB (`project_remote_packs`). The order of a push is fixed: bulk objects first, then
+one commit, then a compare-and-swap of the remote's pointer, so a commit never
 names an object that is missing and a retry is always safe. A fetch writes nothing visible until every byte has been
 checked against the snapshot manifest and `verify_snapshot` passes.
 """
@@ -11,12 +12,14 @@ from dataclasses import dataclass, field
 import hashlib
 import os
 from pathlib import Path
+import tempfile
 from typing import Callable, Protocol
 
 from .project_folder_copy import MAX_MANIFEST, verify_snapshot
+from . import project_remote_packs as packs
 from .project_remote_layers import (HOOKE_FILES, MAX_ENTRIES, MAX_RECORD_BLOB, ChangedOutsideHooke, RemoteRefused,
-                                    bulk_document, bulk_manifest, classify, commit_message, remote_path, sha256,
-                                    snapshot_manifest, trailers)
+                                    bulk_document, bulk_manifest, classify, commit_message, previous_packs,
+                                    remote_path, sha256, snapshot_manifest, trailers)
 from .project_roots import COPY_INTENT, SNAPSHOT, ProjectRoot
 from .project_secret_scan import blocking, said, scan
 
@@ -45,7 +48,7 @@ class RecordRemote(Protocol):
 
 class BulkStore(Protocol):
     def missing(self, digests: list[str]) -> list[str]: ...
-    def put(self, digest: str, path: Path, size: int, *, check=lambda: None) -> None: ...
+    def put(self, digest: str, path: Path, size: int, *, check=lambda: None) -> bool: ...  # False: it was held already
     def get(self, digest: str, size: int, target: Path, *, check=lambda: None) -> None: ...
     def describe(self) -> dict: ...
 
@@ -112,20 +115,29 @@ def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: st
     if head != expected:
         raise Diverged('This project changed in two places: the remote has a version this Mac did not send. '
                        'Nothing was sent. Start an independent copy, or update first.')
-    # 1. Bulk objects, each verified by the store; one object serves every path with its content.
-    first = {}
+    # 1. Bulk objects: new contents in new packs, each verified by the store; the parent's packs are reused.
+    sizes, sources = {}, {}
     for entry in bulk:
-        first.setdefault(entry['sha256'], entry)
-    wanted = sorted(first)
-    uploaded = 0
-    for digest in remote.bulk.missing(wanted):
-        check()
-        entry = first[digest]
-        remote.bulk.put(digest, root.path / entry['path'], entry['bytes'], check=check)
-        uploaded += entry['bytes']
+        if entry['sha256'] not in sizes:
+            sizes[entry['sha256']], sources[entry['sha256']] = entry['bytes'], root.path / entry['path']
+    previous = _parent_packs(remote, parent, root.origin)
+    present = set()
+    if previous:
+        names = [p['sha256'] for p in previous]
+        present = set(names) - set(remote.bulk.missing(names))
+    reused, fresh = packs.plan(sizes, previous, present)
+    listed, uploaded = list(reused), 0
+    with tempfile.TemporaryDirectory(prefix='hooke-pack-') as scratch:
+        packer = packs.Packer(sizes, sources, Path(scratch), check=check)
+        for pieces in fresh:
+            check()
+            digest, path, size = packer.write(pieces)
+            if remote.bulk.put(digest, path, size, check=check) is not False:
+                uploaded += size
+            listed.append({'sha256': digest, 'bytes': size, 'contents': pieces})
     # 2. One commit naming the record layer, the manifest and the bulk manifest.
     stores = [remote.bulk.describe(), *remote.stores]
-    bulk_raw = bulk_document(root.origin, snapshot_sha, bulk, stores)
+    bulk_raw = bulk_document(root.origin, snapshot_sha, bulk, stores, listed)
     files = [RemoteFile('README.md', len(readme or NOTICE.encode()), (lambda b=readme or NOTICE.encode(): b)),
              RemoteFile('.hooke/snapshot.json', len(raw), (lambda: raw), snapshot_sha),
              RemoteFile('.hooke/bulk.json', len(bulk_raw), (lambda: bulk_raw), sha256(bulk_raw))]
@@ -141,9 +153,22 @@ def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: st
     # 3. Compare-and-swap: refuse rather than overwrite a version sent from elsewhere meanwhile.
     remote.records.advance(expected, commit)
     return {'commit': commit, 'parent': parent, 'origin': root.origin, 'snapshotSha256': snapshot_sha,
-            'recordFiles': len(record), 'bulkObjects': len(wanted), 'uploadedBytes': uploaded,
+            'recordFiles': len(record), 'bulkFiles': len(sizes), 'bulkObjects': len(listed),
+            'reusedObjects': len(reused), 'uploadedBytes': uploaded,
             'bytes': sum(e['bytes'] for e in manifest['entries']), 'findings': findings,
             'remote': remote.describe()}
+
+
+def _parent_packs(remote: Remote, parent: str | None, origin: str) -> list:
+    """The packs of the version this push follows, when it has any that can be reused; [] otherwise."""
+    if parent is None:
+        return []
+    try:
+        value = remote.records.read_commit(parent)
+        ref = next(e['ref'] for e in value.get('entries', []) if type(e) is dict and e.get('path') == '.hooke/bulk.json')
+        return previous_packs(remote.records.read_blob(ref, MAX_MANIFEST), origin=origin)
+    except (ChangedOutsideHooke, StopIteration, KeyError, TypeError, AttributeError):
+        return []  # nothing reusable: every content is packed again
 
 
 def _write_new(path: Path, body: bytes, mode=0o600):
@@ -153,6 +178,14 @@ def _write_new(path: Path, body: bytes, mode=0o600):
         stream.write(body)
         stream.flush()
         os.fsync(stream.fileno())
+
+
+def _digest(path: Path) -> str:
+    value = hashlib.sha256()
+    with path.open('rb') as stream:
+        for block in iter(lambda: stream.read(1 << 20), b''):
+            value.update(block)
+    return value.hexdigest()
 
 
 def fetch(remote: Remote, destination: Path, *, commit: str | None = None, check=lambda: None):
@@ -204,16 +237,37 @@ def fetch(remote: Remote, destination: Path, *, commit: str | None = None, check
         if len(body) != entry['bytes'] or sha256(body) != entry['sha256']:
             raise ChangedOutsideHooke(f'{entry["path"]} does not match its snapshot manifest')
         _write_new(destination / entry['path'], body)
+    if bulk_value['packs'] is None:  # hooke-bulk-v1: each content is its own object
+        for entry in bulk:
+            check()
+            target = destination / entry['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            remote.bulk.get(entry['sha256'], entry['bytes'], target, check=check)
+    else:
+        targets = {}
+        for entry in bulk:
+            target = destination / entry['path']
+            target.parent.mkdir(parents=True, exist_ok=True)
+            os.close(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600))
+            targets.setdefault(entry['sha256'], []).append(target)
+        with tempfile.TemporaryDirectory(prefix='hooke-fetch-') as scratch:
+            for pack in bulk_value['packs']:
+                check()
+                local = Path(scratch) / pack['sha256']
+                remote.bulk.get(pack['sha256'], pack['bytes'], local, check=check)
+                if local.stat().st_size != pack['bytes'] or _digest(local) != pack['sha256']:
+                    raise ChangedOutsideHooke('A pack of this version arrived damaged')
+                packs.unpack(pack, local, targets, check=check)
+                local.unlink()
     for entry in bulk:
         check()
         target = destination / entry['path']
-        target.parent.mkdir(parents=True, exist_ok=True)
-        remote.bulk.get(entry['sha256'], entry['bytes'], target, check=check)
-        digest = hashlib.sha256()
-        with target.open('rb') as stream:
-            for block in iter(lambda: stream.read(1 << 20), b''):
-                digest.update(block)
-        if target.stat().st_size != entry['bytes'] or digest.hexdigest() != entry['sha256']:
+        fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        if target.stat().st_size != entry['bytes'] or _digest(target) != entry['sha256']:
             raise ChangedOutsideHooke(f'{entry["path"]} arrived damaged')
         os.chmod(target, 0o400)
     _write_new(destination / SNAPSHOT, raw, 0o400)
