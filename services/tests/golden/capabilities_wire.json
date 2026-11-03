@@ -2889,7 +2889,9 @@
      "project-update-from",
      "project-remote-status",
      "project-backup",
-     "project-restore"
+     "project-restore",
+     "project-backup-delete",
+     "project-backup-keep"
     ],
     "command": "session",
     "control": "session"

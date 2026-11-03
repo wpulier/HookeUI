@@ -111,6 +111,33 @@ class GitHubRecords:
             raise ChangedOutsideHooke('This GitHub version is not a Hooke version')
         return data.get('message', ''), tree, (parents[0] if parents else None)
 
+    def deletion(self):
+        """An archived repository is a backup being deleted: it is read-only until it is kept or removed."""
+        _, data = self.client.ok('GET', f'/repos/{self.repo}', what='reading the repository')
+        return {'at': None} if data.get('archived') is True else None
+
+    def mark_deleted(self, at: float):
+        self.client.ok('PATCH', f'/repos/{self.repo}', {'archived': True}, what='archiving the backup')
+
+    def unmark(self):
+        self.client.ok('PATCH', f'/repos/{self.repo}', {'archived': False}, what='keeping the backup')
+
+    def purge(self):
+        if self.deletion() is None:
+            raise RemoteRefused('Only a backup marked for deletion is removed')
+        self.client.ok('DELETE', f'/repos/{self.repo}', what='deleting the backup repository', allow=(404,))
+
+    def arrived(self, commit: str) -> float:
+        from datetime import datetime
+        if not isinstance(commit, str) or not SHA1.fullmatch(commit):
+            raise RemoteRefused('Name a GitHub version by its full commit id')
+        _, data = self.client.ok('GET', f'/repos/{self.repo}/git/commits/{commit}', what='reading the project version')
+        when = ((data or {}).get('committer') or {}).get('date')
+        try:
+            return datetime.fromisoformat(str(when).replace('Z', '+00:00')).timestamp()
+        except ValueError as error:
+            raise ChangedOutsideHooke('This GitHub version has no readable date') from error
+
     def read_commit(self, commit):
         message, tree, parent = self._commit(commit)
         entries = [{'path': path, 'ref': f'{sha}:{commit}:{path}', 'bytes': size}
@@ -301,6 +328,28 @@ class GitHubReleaseBulk:
             self._release = data
         assets = {a.get('name'): a for a in self._release.get('assets', []) if isinstance(a, dict)}
         return self._release, assets
+
+    def listing(self):
+        """[(object name, when it arrived, bytes)] of every release file named by a SHA-256."""
+        from datetime import datetime
+        _, assets = self._assets()
+        found = []
+        for name, asset in assets.items():
+            try:
+                when = datetime.fromisoformat(str(asset.get('created_at')).replace('Z', '+00:00')).timestamp()
+            except ValueError:
+                continue  # an asset without a date is never removed
+            if isinstance(name, str) and DIGEST.fullmatch(name):
+                found.append((name, when, int(asset.get('size') or 0)))
+        return found
+
+    def remove(self, digest):
+        _, assets = self._assets()
+        asset = assets.get(digest)
+        if isinstance(asset, dict) and type(asset.get('id')) is int:
+            self.client.ok('DELETE', f'/repos/{self.repo}/releases/assets/{asset["id"]}', what='removing an old file',
+                           allow=(404,))
+            self._release['assets'] = [a for a in self._release.get('assets', []) if a.get('name') != digest]
 
     def missing(self, digests):
         _, assets = self._assets()

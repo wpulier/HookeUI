@@ -297,6 +297,68 @@ async def project_restore(app, client, msg) -> dict:
                                     'location': str(root.path)}, 'restored': event}
 
 
+def _backup_change(app, msg, change):
+    """Apply `change(remote)` to one of the open Project's backups and record its journal event."""
+    from .project_backup import place_of, backups
+    from .project_repository import ProjectRepository
+    from .project_roots import ProjectLocationError
+    day, locations, root = _project(app, msg.get('session'))
+    destination = msg.get('destination')
+    def work():
+        remote = _backup_remote(destination)
+        if place_of(remote.describe()) not in {place_of(b['destination']) for b in backups(ProjectRepository(root).events())}:
+            raise tools.ToolError('This Project was never backed up there.', next='choose one of its backups')
+        return change(remote)
+    return day, root, work, ProjectLocationError
+
+
+@command('project-backup-delete')
+async def project_backup_delete(app, client, msg) -> dict:
+    """Mark one of the open Project's backups for deletion: it stays restorable, and can be kept, for 30 days."""
+    import time
+    from .project_backup import mark_deleted
+    day, root, work, refusal = _backup_change(app, msg, lambda remote: mark_deleted(remote, now=time.time()))
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True, 'purgeAfter': event['purgeAfter']}
+
+
+@command('project-backup-keep')
+async def project_backup_keep(app, client, msg) -> dict:
+    """Keep a backup that was marked for deletion."""
+    from .project_backup import keep
+    day, root, work, refusal = _backup_change(app, msg, keep)
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True}
+
+
+def _purge_due(app, day, root, events):
+    """Remove the backups whose 30 days have passed since they were marked; each removal is recorded. A backup that
+    cannot be reached now waits for the next look."""
+    import time
+    from .project_backup import backups, purge
+    from .project_roots import ProjectLocationError
+    done = []
+    for entry in backups(events):
+        if entry.get('state') != 'deleting' or (entry.get('purgeAfter') or 0) > time.time():
+            continue
+        records = entry['destination']['records']
+        source = ({'kind': 'folder', 'path': records.get('base')} if records.get('kind') == 'folder' else
+                  {'kind': 'github', 'repo': str(records.get('location', '')).replace('https://github.com/', '')})
+        try:
+            done.append(purge(_backup_remote(source)))
+        except (OSError, ProjectLocationError, tools.ToolError):
+            continue
+    return done
+
+
 @command('project-remote-status')
 async def project_remote_status(app, client, msg) -> dict:
     """Where the open Project was published and backed up, and what it was started from, from its own journal."""
@@ -304,9 +366,15 @@ async def project_remote_status(app, client, msg) -> dict:
     from .project_repository import ProjectRepository
     day, locations, root = _project(app, msg.get('session'))
     events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
+    purged = await asyncio.to_thread(_purge_due, app, day, root, events)
+    for event in purged:
+        day._record(event, strict=True)
+    if purged:
+        events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
     return {'ok': True,
             'published': [{k: e.get(k) for k in ('destination', 'commit', 'snapshotSha256', 'licence', 'at')}
                           for e in events if e.get('type') == 'project-published'],
             'startedFrom': next((e for e in reversed(events) if e.get('type') == 'project-started-from'), None),
-            'backups': [{k: e.get(k) for k in ('type', 'destination', 'commit', 'snapshotSha256', 'bytes', 'at')}
+            'backups': [{k: e.get(k) for k in ('type', 'destination', 'commit', 'snapshotSha256', 'bytes', 'at',
+                                               'state', 'purgeAfter')}
                         for e in backups(events)]}
