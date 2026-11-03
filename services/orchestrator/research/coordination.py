@@ -98,9 +98,14 @@ class Coordination:
         self.efforts._change(study, session, change)
         return self.read(study, session)
 
-    def review_plan(self, study, session, *, basis, actor, label):
-        if actor != 'studio':
+    def review_plan(self, study, session, *, basis, actor, label, owner_yes=None):
+        """The owner's review: in Hooke's Study (actor "studio"), or the user's own yes to the plan's run, quoted by the
+        brain from what they said or a press of the plan's card (`owner_yes`, already checked by its caller). A yes
+        reviews only within the limits the owner already approved: raising them stays the owner's, in the Study."""
+        if actor != 'studio' and owner_yes is None:
             raise InvalidProject('The Project owner must review this plan and its limits in Hooke')
+        if owner_yes is not None:
+            text(owner_yes, "The owner's yes", 300)
         check(basis, 'artifact-reference')
         if basis['id'] != study:
             raise InvalidProject('Review this Study')
@@ -116,9 +121,16 @@ class Coordination:
                 raise Conflict('The plan changed; review the current saved plan')
             if plan['status'] == 'reviewed':
                 return False
-            plan.update(status='reviewed', reviewedBy=self.studies.attribution(actor, label),
+            ceiling = state.get('ownerPlanLimits')
+            if actor != 'studio' and ceiling and any(plan['limits'][key] > ceiling[key] for key in ceiling):
+                raise InvalidProject('Only the Project owner can increase approved research limits, in the Study in Hooke')
+            reviewer = self.studies.attribution(actor, label)
+            if owner_yes is not None and actor != 'studio':
+                reviewer = {**reviewer, 'ownerYes': owner_yes}
+            plan.update(status='reviewed', reviewedBy=reviewer,
                         reviewedAt=self.clock(), priorExperiments=list(state.get('experiments', {})))
-            state['ownerPlanLimits'] = dict(plan['limits'])
+            if actor == 'studio' or not ceiling:
+                state['ownerPlanLimits'] = dict(plan['limits'])
             return True
         self.efforts._change(study, session, change)
         return self.read(study, session)

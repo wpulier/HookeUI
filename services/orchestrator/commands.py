@@ -3539,8 +3539,8 @@ async def experiment_command(app, client, msg) -> dict:
     """The experiment card's buttons (experiments.py): Run it runs exactly the plan the card shows (its version), the
     user's own press; Stop stops it. Both go through the brain's `experiment` tool, as the brain's would."""
     action = msg.get("action")
-    if action not in ("run", "stop", "open"):
-        return {"ok": False, "error": "Choose Run it, Stop or Open results on the experiment's card."}
+    if action not in ("run", "stop", "open", "continue"):
+        return {"ok": False, "error": "Choose Run it, Stop, Continue or Open results on the experiment's card."}
     if action == "open":  # its results, in a Tab of their own, on this studio (done once its report shows them)
         from .experiments import experiments_of
 
@@ -3555,8 +3555,10 @@ async def experiment_command(app, client, msg) -> dict:
     args = {"do": action, "experiment": str(msg.get("id") or "")}
     if action == "run":
         args.update(by="card", **({"version": msg["version"]} if type(msg.get("version")) is int else {}))
-    return await run_tool(app, "experiment", args, question="Run the experiment" if action == "run"
-                          else "Stop the experiment", client=client)
+    if action == "continue":  # a design's plan waiting on the user's own step: their press says it is done
+        args.update(by="card")
+    question = {"run": "Run the experiment", "continue": "My step is done"}.get(action, "Stop the experiment")
+    return await run_tool(app, "experiment", args, question=question, client=client)
 
 
 @command("research-note")

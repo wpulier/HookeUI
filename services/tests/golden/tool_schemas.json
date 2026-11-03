@@ -2437,14 +2437,14 @@
   }
  },
  {
-  "description": "Plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records (\"compare Cellpose and micro-sam on this footage and have a researcher audit it\"). do=plan first: it shows the plan as a card and runs nothing; say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); do=change when they change it. Long work: it runs in the background and its results land in a Tab of their own when it finishes. One model on one view now is compare_models.",
+  "description": "Plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records (\"compare Cellpose and micro-sam on this footage and have a researcher audit it\"); or a design's Study plan run step by step (design: its id, from propose_experiments): the user's own steps, Hooke's schedules of clips or of an operation on the live view, researchers and saved workflows. do=plan first: it shows the plan as a card and runs nothing; say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); for a design their yes also approves its Study plan. do=change when they change it (a design: revise_design first). do=continue when they say a step of theirs is done (asked_with: their words). Long work: it runs in the background, its outcome said when it ends. One model on one view now is compare_models.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "experiment",
   "params": {
    "properties": {
     "asked_with": {
-     "description": "run: the user's own yes, quoted",
+     "description": "run/continue: the user's own words, quoted",
      "type": "string"
     },
     "audit": {
@@ -2458,11 +2458,16 @@
      ],
      "type": "string"
     },
+    "design": {
+     "description": "plan: a design's id (d2) whose Study plan it runs, in place of models",
+     "type": "string"
+    },
     "do": {
      "enum": [
       "plan",
       "change",
       "run",
+      "continue",
       "stop"
      ],
      "type": "string"
@@ -2482,7 +2487,7 @@
      "type": "number"
     },
     "experiment": {
-     "description": "change/run/stop: its id (x1) or number; default the latest",
+     "description": "change/run/continue/stop: its id (x1) or number; default the latest",
      "type": "string"
     },
     "frames": {
@@ -2549,6 +2554,129 @@
     }
    },
    "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Design experiments with the user (\"help me design an experiment on whether light opens these stomata\"): two or three designs drafted from this Project, what Hooke can capture and measure here and, when named, a researcher's literature pass (build_on), each with its question, conditions, controls, replicates, measures, duration and steps (what the user does by hand, what Hooke captures on a schedule and analyses); shown as plan cards in a Tab of their own. Nothing runs. For a literature pass first, start a quick researcher and name it in build_on once it is done.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "propose_experiments",
+  "params": {
+   "properties": {
+    "build_on": {
+     "description": "finished researchers whose work (a literature pass) the designs draw on, as the user named them",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 3,
+     "type": "array"
+    },
+    "designs": {
+     "description": "how many designs (default 3)",
+     "maximum": 3,
+     "minimum": 2,
+     "type": "integer"
+    },
+    "open": {
+     "description": "show the plan cards in a Tab (default true)",
+     "type": "boolean"
+    },
+    "question": {
+     "description": "what the experiment should find out, in the user's words",
+     "maxLength": 600,
+     "type": "string"
+    }
+   },
+   "required": [
+    "question"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Change one experiment design as the user says (\"three replicates, add a dark control\"): it becomes the design's next version (the old one kept), checked like the first, its cards shown again.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "revise_design",
+  "params": {
+   "properties": {
+    "change": {
+     "description": "the user's change, in their words",
+     "maxLength": 600,
+     "type": "string"
+    },
+    "design": {
+     "description": "the design by its id as its card shows it (d2), or its number",
+     "type": "string"
+    },
+    "open": {
+     "description": "show the cards again (default true)",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "design",
+    "change"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "A design's Study plan: do=save keeps a design (by id) as the plan of a Study of its own, a draft (nothing runs; saving again after a revision saves its next version); do=approve approves a saved plan on the user's own yes (asked_with: their words; their yes is the owner review, within the limits the owner already approved, raising them is the owner's in the Study); do=assign proposes an assignment in its Study for a contributor (a connected agent) to claim. Running the plan is experiment design=...",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "study_plan",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "approve: the user's own yes, quoted",
+     "type": "string"
+    },
+    "decision_impact": {
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "deliverable": {
+     "description": "assign: what to hand back",
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "design": {
+     "description": "the design by its id as its card shows it (d2), or its number",
+     "type": "string"
+    },
+    "do": {
+     "enum": [
+      "save",
+      "approve",
+      "assign"
+     ],
+     "type": "string"
+    },
+    "objective": {
+     "description": "assign: what to do",
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "request": {
+     "description": "assign: a short name for it; the same name is the same assignment",
+     "maxLength": 128,
+     "type": "string"
+    },
+    "uncertainty": {
+     "maxLength": 2000,
+     "type": "string"
+    },
+    "why_new": {
+     "maxLength": 2000,
+     "type": "string"
+    }
+   },
+   "required": [
+    "do",
+    "design"
+   ],
    "type": "object"
   }
  },

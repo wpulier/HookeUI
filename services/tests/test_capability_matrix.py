@@ -69,6 +69,7 @@ RUN_CHOOSES = ("the cell finder is the researcher's own choice in its `run` (res
                "request's that started it; the researcher row reaches it")
 RUN_ENGINE = ("a researcher's `run` asks the app for an operation; its own model was chosen when it started (chat and the "
               "voice reach it by starting one)")
+DESIGN_ASK = "help me design an experiment on whether light opens these stomata"
 PLANS: dict[str, Plan] = {
     # The real registry reads catalog descriptors and retains a frozen definition. No model or scientific run
     # is stood in for here; fitting and workflow execution have their separate exact-input/receipt checks.
@@ -88,6 +89,13 @@ PLANS: dict[str, Plan] = {
                      "research": "the audit researcher starts only in the approved run (test_experiments)"}),
     "experiment-status": Plan("how is the experiment going?", [("experiment_status", {})],
                               before=[("experiment", {"do": "plan", "models": ["cellpose-sam", "micro-sam-lm"]})]),
+    # Designing experiments with the user (Lane C; test_experiment_design runs the journey, a design run on a yes too).
+    "propose-experiments": Plan(DESIGN_ASK, [("propose_experiments", {"question": DESIGN_ASK, "open": False})]),
+    "revise-design": Plan("three replicates, add a dark control", [
+        ("revise_design", {"design": "d1", "change": "three replicates, add a dark control", "open": False})],
+        before=[("propose_experiments", {"question": DESIGN_ASK, "open": False})]),
+    "study-plan": Plan("save the first design as a plan", [("study_plan", {"do": "save", "design": "d1"})],
+                       before=[("propose_experiments", {"question": DESIGN_ASK, "open": False})]),
     "saved-make-table": Plan("keep these measurements in an editable table", [
         ("make_table", {"sources": [{"id": "e1", "revision": 0}], "mode": "frozen"})], ("cells",)),
     "saved-edit-table": Plan("name the saved table", [

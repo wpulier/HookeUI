@@ -61,6 +61,9 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
                               "outline_cells", "find", "start_researcher", "run_capability"})
 HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
+# Designing experiments with the user, their Study plans and their runs (Lane C; brain/toolbox/experiment_design.py).
+THINK_TOOLS += tuple(name for name in ("propose_experiments", "revise_design", "study_plan", "experiment",
+                                       "experiment_status") if name not in THINK_TOOLS)
 # The one tool the voice acts with when Hooke's brain does the work (PARTNER_ACTS "brain").
 DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Project, in the user's own words: outline, "
                "segment or find a thing, magnify it or move the magnifier, Tabs, windows and what is in them, reference "

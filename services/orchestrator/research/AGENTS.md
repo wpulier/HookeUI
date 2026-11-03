@@ -160,8 +160,11 @@ other files.
     session is opened again. A finished or cancelled mission
     is kept with its ledger when a new one starts (`past_missions`); an interrupted one must be carried on or
     cancelled first. A hand-edited mission that can't be read is dropped, never its researcher.
-  - **Not yet offered** to the brain: starting one from a request (ADMIT, the day's money), checkpoints and the
-    finding are P2c-2.
+  - **Started from a request**: `schedule_acquisition` (fresh clips, on the user's quoted request) and a design's plan
+    run (`orchestrator/plan_runs.py`, kind "steps": clips, or `segment`, `motion` or `enhance` on the live view, on the
+    user's yes to the plan) start one as their researcher's own, checked against that researcher's retained admission
+    (ADMIT) and its whole cost against the day's cap up front; its checkpoints and its finding are model runs of its
+    researcher. Carrying an interrupted mission on is not offered yet: it is cancelled first.
 - Progress in plain words (2026-10-11; a card read "Read d1: characters 0–4233"): a step's `text` is what its
   chat card and its Tab's steps say (its strip pill says only its state or its clock, the step in its tooltip): never
   an entry's id, a character range, an exception's name, a file or a URL. Those go in
@@ -542,6 +545,42 @@ including a cold non-active Project journal. It continues to project the origina
 WorkflowService run without replaying work or changing the admission receipt.
 
 ## Retained initiation and collaboration
+
+### Experiment designs, their Study plans and their runs
+
+"Help me design an experiment on whether light opens these stomata" (Lane C of the "Hooke drives everything" plan,
+3 Nov). `orchestrator/experiment_design.py` (the service), `orchestrator/plan_runs.py` (the run) and
+`brain/toolbox/experiment_design.py` (the brain's verbs, in reach of the voice's think: `voice/partner_tools.py`
+THINK_TOOLS, `tests/test_partner_reach.py`); `tests/test_experiment_design.py` is the journey.
+
+- **Designs** (`propose_experiments`): the brain's own model drafts two or three from the user's question, the Project
+  as every reader sees it (`project_state.brief`), what Hooke can run here (the capability rows with their availability,
+  the schedules a mission can run, the saved workflows) and, named in `build_on`, a finished researcher's literature
+  pass (its kept words, untrusted). The model judges the experiment; code checks every fact a step names
+  (`check_design`: a schedule's period, clip and window within a mission's limits, an operation and a workflow that
+  exist, a researcher's effort) and marks a measure whose capability cannot run here, never dropping it. Problems go
+  back to the model once; fewer than two runnable designs is a refusal with the reasons. Each proposal is a
+  Project-store document (`hooke-experiment-designs`), its designs numbered across the Project (d1, d2...), its plan cards
+  one document in Data (Write-ups) opened in a Tab of its own, until the live-partner canvas `draw` replaces it.
+- **A spoken edit** (`revise_design`, "three replicates, add a dark control"): the user's words and the design go to the
+  model; its revision is checked again and becomes the design's next version, the old one kept in its history. No
+  keyword decides what the edit means.
+- **A Study plan** (`study_plan` do=save): a Study of its own for the design (allowance: its researchers' caps), its plan
+  saved as a draft through `Coordination.save_plan`, attributed to the brain's channel (`agent:chat`, `agent:voice`).
+  Saving again after a revision saves the plan's next version. do=assign proposes an assignment
+  (`Coordination.propose`) for a connected contributor to claim through the door.
+- **The owner's review is the user's yes** (`Coordination.review_plan(owner_yes=...)`): `study_plan` do=approve with
+  their words quoted (`research.policy.quoted`), or the yes to the plan's run. A yes reviews only within the limits the
+  owner already approved (`ownerPlanLimits`); raising them stays the owner's, in the Study (actor `studio`). The door
+  and the studio's coordination API cannot pass a yes: their fields are fixed.
+- **The run** (`experiment` do=plan design=..., experiments.py kind "steps"): the card shows the plan's steps, time and
+  cost and runs nothing; do=run on the card's Run it or the user's quoted yes reviews the plan, then runs the steps in
+  order, each waited for and never replayed (`Experiment.ran`): a step the user does by hand waits for their word that
+  it is done (do=continue, quoted; the card's `continue`), a researcher step is a Study researcher
+  (`study_researchers.start`, reserved against the Study's allowance), a capture or watch step is a mission of the
+  plan's own Study researcher, and a workflow step holds the view now as a retained frame and admits the saved workflow
+  through `Studies.start_workflow` under an assignment the run proposes, claims (renewed while it runs) and completes.
+  A step that fails stops the run with its reason; Stop cancels its researchers and so their missions.
 
 `coordination.py` stores reviewed plans and collaborative assignments in the existing Study revision/task store. Plans pin exact material and instruction content. Claims are atomic, five-minute renewable leases; expiry requires reconciliation by the original actor and never starts replacement work. Completion retains an attributed report and waits for linked WorkflowService executions to settle. Assignment reports are not human findings. Study workflow admission enforces a reviewed plan's experiment count and reuses identical scientific specifications across contributors. Token/time limits are declared here, but need separately qualified external harness enforcement. Reads and reconnection never dispatch. `coordination_api.py` is shared by Studio and the authorized door.
 

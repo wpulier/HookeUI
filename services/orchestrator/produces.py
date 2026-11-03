@@ -96,7 +96,8 @@ PRODUCT_KINDS = frozenset({"population", "tracks", "research", "recording", "boo
 # and a snapshot's own "result" entry are sources (library.py), not products.
 PRODUCT_RESULTS = frozenset({"reference_photo", "show_web",  # a reference photo, a video or page from the web
                              "write_document",  # a document written from the Project's records
-                             "experiment"})  # an experiment's results and its comparison table (experiments.py)
+                             "experiment",  # an experiment's results and its comparison table (experiments.py)
+                             "propose_experiments", "revise_design"})  # experiment designs' plan cards
 
 
 # What a researcher makes: its report (`research`) and the rest of its work, read from its research session (S4).
@@ -175,6 +176,11 @@ TOOLS = {
     # results document (Write-ups), kept when it finishes; planning it makes only its plan.
     "experiment": "project, population, result",
     "experiment_status": "none: reads an experiment's records",
+    # Experiment designs (experiment_design.py): the plan cards, a document in Data (Write-ups); a design's Study plan is
+    # a Study of its own in the Project store.
+    "propose_experiments": "result",
+    "revise_design": "result",
+    "study_plan": "project",
     "close_magnifier": "none: closes the magnifier",
     "enhance": "result",
     "snapshot": "snapshot, result",  # its file, and with native windows the result a window opens by its id
