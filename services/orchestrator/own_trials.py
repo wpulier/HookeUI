@@ -170,6 +170,22 @@ def pending(m, environ=os.environ):
         return True
 
 
+def display_key(m, environ=os.environ):
+    return ('own-comparison', str(root(environ)), repr(m))
+
+
+def observe_comparison(m, environ=os.environ):
+    """Read comparison status off-loop for model cards, never execution authority."""
+    return (bool(pending(m, environ)), bool(awaiting_picture(m.key, environ)))
+
+
+def display_comparison(m, environ=os.environ):
+    from . import env_observations
+    # None in the tuple means not observed yet; do not announce approval or read disk.
+    found = env_observations.display_fact(display_key(m, environ), (None, False))
+    return found if found is not None else observe_comparison(m, environ)
+
+
 def explicitly_accepted(m, environ=os.environ):
     """Exact owner comparison approval; absence is never the legacy implicit opt-in.
 

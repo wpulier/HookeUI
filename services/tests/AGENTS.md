@@ -1007,3 +1007,9 @@ duplicate JSON keys and bounded reads. Synthetic raw metric rows retain legitima
 null/omitted reference support, including derived numerator/denominator counts;
 unexplained candidate support differences refuse. No test result is a contest
 metric, real fold qualification or proof of a winning candidate.
+
+Comparison-display regressions prohibit synchronous marker stats in the model-card path,
+preserve live execution approval during a stale display scope, and check changed generations,
+profiles, removal and recollection. Follow-clicks simulation sends each candidate's coordinates
+with that candidate's observed frame and records refusals. Synthetic moving-frame tests protect
+that pairing and preserve slow samples; real model latency remains a separate measured gate.
