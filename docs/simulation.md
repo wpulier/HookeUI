@@ -64,3 +64,14 @@ The cells-click scenario admits the same loaded cells RPC after setup, retains i
 first measured click, and still requires ten complete successful click intervals
 inside that exact RPC. Default-model residency and a fresh follower step replace
 setup races; no cell-finding run is added as a warm-up.
+
+The `guide` scenario (`sim/guided.py`) plays a virtual microscope (`sim/virtual_scope.py`) as the camera: the
+labelled frame of the qualified leaf recording is the slide, magnified inside an eyepiece disc, with a stage and a
+focus that a simulated person moves at a hand's speed. The bridge reads its view as an MJPEG stream on this Mac
+(`POST /sim/stage?url=http://127.0.0.1:PORT/stream.mjpeg`, the simulated camera's third kind beside a recording and a
+picture: live, with no length, place or pause), through its own FFmpeg command, so nothing downstream can tell. The
+person reads each guidance line from the conversation and moves the slide or the focus as asked; the truth (where the
+stoma is, how far from sharp) is the virtual scope's, read only by the harness. `guide` uses option GUIDE "rule" (no
+model call) and is in the gate; `guide-words` types "find me a stoma and centre it" to the brain with the default
+judge and needs `--cloud`. The virtual scope also answers the part of OpenFlexure's HTTP API a client needs (stage
+position and moves, actions, autofocus, the MJPEG stream and a snapshot), for the scope bridge's tests.

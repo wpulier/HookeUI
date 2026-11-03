@@ -83,6 +83,9 @@ Map: where things outlined earlier are from the view now; the slide map
 - keep this place on the slide with the user's words ("bookmark this", "mark this spot")
 - which way a bookmarked place is from here ("where was the stomata I marked?"), measured; never guess a direction
 - show the slide map beside the view, or close it (open: false): the still views seen so far, pasted where they are on the slide, with the view now and the outlines marked
+- guide the user's hands to a thing on the slide until it is centred (and sharp, by default): "find me a stoma and centre it", "help me get that cell in the middle", "bring it into focus"
+- stop guiding the user's hands ("stop guiding", "never mind, I've got it")
+- what the app is guiding the user to now: the thing, how far from the centre, the last line said
 Seeing: a clearer picture from real frames: averaged, the sharpest, focus-stacked
 - make a clearer picture of the view from real camera frames and show it in the magnifier
 Snapshots: a picture of the view with its outlines and labels, saved

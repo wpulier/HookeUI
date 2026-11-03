@@ -421,6 +421,18 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND, "Not simulating")
             return
         action = path[len("/sim/"):]
+        if action == "stage":
+            # A virtual stage's view in place of the footage (the harness's sim/virtual_scope.py): only while simulating,
+            # only an http stream on this Mac. Downstream it is the camera reconnecting, as any switch is.
+            try:
+                result = self.main.switch_feed(self.bridge_args, self.camera_bridge, None,
+                                               stage=query.get("url", [""])[0])
+            except ValueError as exc:
+                self.send_json({"ok": False, "error": str(exc)}, HTTPStatus.BAD_REQUEST)
+                return
+            self.camera_bridge.recording_event("sim-stage")
+            self.send_json({"ok": True, **result})
+            return
         if action == "freeze":
             sim.freeze(float(query.get("seconds", ["6"])[0]))
         elif action == "crash":
