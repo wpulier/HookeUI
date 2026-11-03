@@ -59,6 +59,10 @@ remote sync or accepted-record filesystem editing. Owner-started remote mirrors 
 8. **Reproduction is stated at three levels.** Inputs are byte-identical; deterministic CPU steps reproduce their
    hashes; GPU model results match within a stated tolerance, reported by comparison. Receipts record device, model
    version and seed.
+   *Amended 2026-11-03 (hooke-projects ticket 06):* the metadata scrub of decision 5 cleans a publication's
+   imported images at the byte level and leaves the originals' bytes out, so a cleaned input reproduces its pixels,
+   not its bytes, and says the original's SHA-256. The Project keeps its originals, and every document stays byte for
+   byte (format v2 section 8).
 
 ## Costs
 

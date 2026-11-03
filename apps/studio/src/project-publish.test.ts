@@ -66,6 +66,27 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   view.dispose();
 });
 
+test('names what was removed from each photo and can review again without cleaning', async () => {
+  dom();
+  const cleaned = {...review, cleanMetadata: true, cleanedFiles: 1, findings: [{path: 'scan.czi (p1)', line: 0, kind: 'metadata-unchecked', blocks: false}],
+    cleaned: [{path: 'bench-photo.jpg (p1)', removed: ['location', 'person', 'details'], bytes: 900, cleanedBytes: 700, pixels: 'identical'}]};
+  const prepare = vi.fn(async () => cleaned);
+  const view = projectPublish(actions({prepare}), () => true, 'Research');
+  click(view.element, 'Review what will be published');
+  expect(prepare).toHaveBeenCalledWith({includeTranscripts: false, licence: 'CC-BY-4.0', cleanMetadata: true});
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Personal metadata removed'));
+  expect(view.element.textContent).toContain('bench-photo.jpg (p1): a location, a person’s name, dates and device details');
+  expect(view.element.textContent).toContain('scan.czi (p1) is in a format Hooke can’t check for personal metadata (check it)');
+  const row = Array.from(view.element.querySelectorAll('label')).find(l => l.textContent?.includes('Remove personal metadata'))!;
+  const box = row.querySelector('input') as HTMLInputElement;
+  expect(box.checked).toBe(true);
+  box.checked = false;
+  click(view.element, 'Review again with these choices');
+  // The synthetic DOM's select reports no value, so only the two choices are compared.
+  expect(prepare).toHaveBeenLastCalledWith(expect.objectContaining({includeTranscripts: false, cleanMetadata: false}));
+  view.dispose();
+});
+
 test('a blocked review offers no way to publish', async () => {
   dom();
   const blocked = {...review, blocked: true, findings: [{path: 'artifacts/results/r.json', line: 2, kind: 'secret', blocks: true}]};
