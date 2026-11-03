@@ -8,6 +8,7 @@ import json
 import math
 import subprocess
 import time
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -156,14 +157,75 @@ def test_stop_interrupts_an_acquisition_from_another_thread(bridge, scope):
     assert "of 5 pictures" in r["why"]
 
 
-def test_limits_change_only_on_the_users_own_words(bridge):
+def test_limits_change_only_on_the_users_own_words_and_loosening_them_asks_first(bridge):
     with pytest.raises(ValueError):
-        bridge.set_limits({"step_xy": 1000}, "")
+        bridge.set_limits({"step_xy": 100}, "")
     with pytest.raises(ValueError):
         bridge.set_limits({"step_xy": -1}, "make it negative")
-    now = bridge.set_limits({"step_xy": 400}, "let it move 400 microns at a time")
-    assert now["step_xy"] == 400 and now["notes"][-1] == "let it move 400 microns at a time"
+    tighter = bridge.set_limits({"step_xy": 100}, "only 100 microns at a time")
+    assert tighter["status"] == "done" and tighter["limits"]["step_xy"] == 100  # tightening: at once
+    asked = bridge.set_limits({"step_xy": 400, "frames": 10_000}, "let it move 400 microns at a time")
+    assert asked["status"] == "needs-yes" and "400 µm across" in asked["ask"] and "10000 pictures" in asked["ask"]
+    assert bridge.limits.step_xy == 100  # nothing changed yet
+    assert bridge.set_limits({"step_xy": 400, "frames": 10_000}, "yes", "y-forged")["status"] == "needs-yes"
+    done = bridge.set_limits({"step_xy": 400, "frames": 10_000}, "yes", asked["offer"])
+    assert done["status"] == "done" and done["limits"]["step_xy"] == 400
+    assert done["limits"]["notes"][-1] == "yes"
     assert json.loads((bridge.folder / "limits.json").read_text())["step_xy"] == 400
+
+
+def test_a_stop_that_comes_while_an_action_waits_its_turn_stops_it(bridge, scope):
+    import threading
+
+    started = threading.Event()
+    real = bridge.backend.move_to
+
+    def slow(x, y, z):
+        started.set()
+        time.sleep(0.4)
+        return real(x, y, z)
+
+    bridge.backend.move_to = slow
+    first = threading.Thread(target=bridge.do, args=({"kind": "move", "x": 10.0, "relative": True},))
+    first.start()
+    started.wait(2)
+    waiting: list = []
+    second = threading.Thread(target=lambda: waiting.append(bridge.do({"kind": "move", "x": 10.0, "relative": True})))
+    second.start()
+    time.sleep(0.1)
+    bridge.stop()  # while the second waits for the first
+    first.join(5)
+    second.join(5)
+    assert waiting[0]["status"] == "stopped" and "before it started" in waiting[0]["why"]
+
+
+def test_a_plan_position_without_z_is_acquired_at_the_focus_it_was_asked_at(bridge, scope):
+    x, y, z = bridge.backend.position()
+    zs: list = []
+    real = bridge.backend.move_to
+
+    def seen(mx, my, mz):
+        real(mx, my, mz)
+        zs.append(bridge.backend.position()[2])
+
+    bridge.backend.move_to = seen
+    r = bridge.do({"kind": "acquire", "plan": {"stage_positions": [{"x": x + 20, "y": y}],
+                                               "z_plan": {"range": 2, "step": 1}}})
+    assert r["status"] == "done" and len(r["made"]) == 3
+    assert min(zs) >= z - 1 - 0.3 and max(zs) <= z + 1 + 0.3  # around where the focus was, never absolute 0
+
+
+def test_a_web_page_cannot_ask_the_bridge(bridge):
+    server = serve(bridge, 0)
+    url = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        req = urllib.request.Request(url + "/api/do", data=b'{"action": {"kind": "snap"}}', method="POST",
+                                     headers={"Content-Type": "text/plain", "Origin": "https://example.com"})
+        with pytest.raises(urllib.error.HTTPError) as err:
+            urllib.request.urlopen(req, timeout=5)
+        assert err.value.code == 403
+    finally:
+        server.shutdown()
 
 
 def test_the_http_api_acts_reads_and_never_serves_other_files(bridge, tmp_path):
@@ -192,6 +254,8 @@ def test_the_http_api_acts_reads_and_never_serves_other_files(bridge, tmp_path):
         assert call("GET", "/api/files/secret.txt")[0] == 404
         assert call("GET", "/api/files/../../etc/passwd")[0] == 404
         assert call("PUT", "/api/limits", {"limits": {"frames": 9}})[0] == 400  # no words
+        loosen = json.loads(call("PUT", "/api/limits", {"limits": {"frames": 99}, "words": "more pictures"})[1])
+        assert loosen["status"] == "needs-yes" and loosen["offer"].startswith("y-")
         assert json.loads(call("POST", "/api/stop")[1])["status"] == "done"
         receipts = json.loads(call("GET", "/api/receipts?since=0")[1])["receipts"]
         assert [r["kind"] for r in receipts][-2:] == ["snap", "stop"]

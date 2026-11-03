@@ -19,7 +19,9 @@
   action with that offer, within 3 minutes and once, goes ahead. The brain passes it only with the user's reply quoted
   from the request. Turning the light off and stopping never wait.
 - **A receipt for every action**, whatever happened, kept by the bridge and filed in the session's journal.
-- **Autofocus is the bridge's own bounded sweep**, so focusing never leaves the limits.
+- **Autofocus and acquisitions are the bridge's own bounded steps**, so focusing and acquiring never leave the limits
+  and every move is one the bridge made and the fuzz can witness.
+- **Loosening the limits waits for a yes too**; tightening them is at once.
 - **Proof:** a fuzz of random and hostile commands with a witness reading the hardware, zero breaches, in every
   `make check` (the virtual OpenFlexure microscope; Micro-Manager's demo when its environment is set up).
 

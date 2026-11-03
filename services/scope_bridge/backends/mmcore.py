@@ -9,8 +9,9 @@ On a Mac with Apple silicon Micro-Manager publishes only these test adapters; a 
 source (`mmcore build-dev`), and many vendors' are Windows only (AGENTS.md beside the bridge).
 
 The light is the configuration's shutter: on is the shutter held open (auto-shutter off), off closes it and gives the
-shutter back to the camera's exposures. Acquisitions run through pymmcore-plus's own engine (`core.mda`) from a
-useq-schema MDASequence made from the checked plan.
+shutter back to the camera's exposures. Acquisitions run as the bridge's own steps (bridge.py), never pymmcore-plus's
+engine, whose moves the bridge could not bound or witness (it went to absolute z for a position without one, and back
+to the start in one move); hardware-timed sequences through the engine are a later option, checked plane by plane.
 """
 from __future__ import annotations
 
@@ -145,42 +146,3 @@ class MMBackend:
                     c.stop(device)
                 except Exception:
                     pass
-
-    def acquire(self, plan, *, here, exposure_ms: float, on_frame, stopping: threading.Event) -> int:
-        """The plan through pymmcore-plus's acquisition engine (a useq-schema MDASequence)."""
-        import useq
-
-        positions = [{k: v for k, v in zip("xyz", p) if v is not None} for p in plan.positions]
-        seq = useq.MDASequence(
-            channels=[{"group": self.channel_group, "config": n, **({"exposure": e} if e is not None else {})}
-                      for n, e in plan.channels] if self.channel_group else [],
-            time_plan={"interval": plan.interval, "loops": plan.loops} if plan.loops > 1 else None,
-            z_plan={"relative": list(plan.z_offsets)} if plan.z_offsets != (0.0,) else None,
-            stage_positions=positions or [{"x": here[0], "y": here[1], "z": here[2]}],
-            axis_order=plan.axis_order)
-        made = 0
-
-        def ready(img, event, meta=None):
-            nonlocal made
-            made += 1
-            on_frame(Frame(pixels=img, meta={"exposureMs": event.exposure or exposure_ms}),
-                     {k: v for k, v in dict(event.index).items()})
-
-        finished = threading.Event()
-
-        def watch():  # a stop cancels the run; the watch ends with it
-            while not finished.is_set():
-                if stopping.wait(0.1):
-                    if self.core.mda.is_running():
-                        self.core.mda.cancel()
-                    return
-
-        self.core.mda.events.frameReady.connect(ready)
-        watcher = threading.Thread(target=watch, daemon=True)
-        watcher.start()
-        try:
-            self.core.mda.run(seq)
-        finally:
-            finished.set()
-            self.core.mda.events.frameReady.disconnect(ready)
-        return made

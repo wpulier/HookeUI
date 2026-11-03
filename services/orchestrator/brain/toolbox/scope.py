@@ -3,8 +3,9 @@
 Only when a scope bridge is connected (`MICROMIND_SCOPE_URL`). Every call is one typed action the bridge checks against
 the limits the user set and answers with a receipt, filed in the session's journal. The light going on and a large
 acquisition wait for the user's yes: the first call gets the bridge's offer and the words to ask with; the same call
-again with `confirms` (the offer) and `asked_with` (the user's reply, quoted as they said it) goes ahead. The quote is
-checked against what the user said in this request; the yes itself is the model's to judge.
+again with `confirms` (the offer) and `asked_with` (the user's reply, quoted as they said it) goes ahead, only in a
+later request than the one the question was asked in, the quote whole words of what the user said in it. Loosening the
+limits is offered the same way; tightening them is done at once. The yes itself is the model's to judge.
 """
 from __future__ import annotations
 
@@ -22,6 +23,16 @@ def add_scope_tools(registry: Registry, services) -> None:
     if client is None:
         return
     journal = getattr(services, "scope_journal", None)
+    asked_in: dict[str, tuple] = {}  # offer -> the request it was asked in (its yes must come in a later one)
+
+    def request_of(ctx: ToolContext) -> tuple:
+        return (ctx.channel, ctx.turn_id, ctx.request_id, " ".join(str(ctx.question or "").split()).lower())
+
+    def remember(offer: str | None, ctx: ToolContext) -> None:
+        if offer:
+            asked_in[offer] = request_of(ctx)
+            while len(asked_in) > 50:
+                asked_in.pop(next(iter(asked_in)))
 
     async def act(ctx: ToolContext, action: dict, approval: str | None = None, *, yes: str = "") -> str:
         import httpx
@@ -44,19 +55,30 @@ def add_scope_tools(registry: Registry, services) -> None:
         if receipt.get("status") == "failed":
             raise ToolFailed(words, next="say what happened and where the stage is now")
         if receipt.get("status") == "needs-yes":
+            remember(receipt.get("offer"), ctx)
             return (f"{words} Not done yet. Ask the user exactly this; on their yes call {yes} again with the same "
                     f"arguments, confirms={receipt['offer']!r} and asked_with set to their reply as they said it.")
         return words
 
     def approval_of(ctx: ToolContext, args: dict) -> str | None:
+        """The offer the user said yes to: asked in an earlier request than this one (the model never answers its own
+        question), with the user's reply quoted, as whole words, from what they said in this request."""
+        import re
+
         offer = str(args.get("confirms") or "").strip()
         if not offer:
             return None
-        quote = " ".join(str(args.get("asked_with") or "").split()).lower()
+        if offer not in asked_in:
+            raise ToolFailed("that offer was not asked about here", next="call it without confirms to ask again",
+                             argument=True)
+        if asked_in[offer] == request_of(ctx):
+            raise ToolFailed("the yes is the user's answer to your question, in their next words: ask them first",
+                             next="ask the user the question, and wait for their reply", argument=True)
+        quote = " ".join(str(args.get("asked_with") or "").split()).lower().strip(" .,!?")
         heard = " ".join(str(ctx.question or "").split()).lower()
-        if not quote or quote not in heard:
+        if len(quote) < 2 or not re.search(r"(?<!\w)" + re.escape(quote) + r"(?!\w)", heard):
             raise ToolFailed("a yes is the user's own words in this request, quoted in asked_with",
-                             next="ask the user, and quote their reply exactly", argument=True)
+                             next="quote the user's reply exactly", argument=True)
         return offer
 
     async def microscope(ctx: ToolContext, args: dict) -> str:
@@ -164,22 +186,34 @@ def add_scope_tools(registry: Registry, services) -> None:
                       schema({}), stop_scope, inline_ms=2000, family="scope"))
 
     async def scope_limits(ctx: ToolContext, args: dict) -> str:
+        import re
+
         change = args.get("set")
         if not change:
             return await microscope(ctx, {})
+        approval = approval_of(ctx, args)  # loosening them is offered and said yes to, as the light is
         words = " ".join(str(args.get("asked_with") or "").split())
-        if not words or words.lower() not in " ".join(str(ctx.question or "").split()).lower():
+        heard = " ".join(str(ctx.question or "").split()).lower()
+        if len(words) < 2 or not re.search(r"(?<!\w)" + re.escape(words.lower().strip(" .,!?")) + r"(?!\w)", heard):
             raise ToolFailed("the limits change on the user's own words in this request, quoted in asked_with",
                              next="quote what the user said", argument=True)
         try:
-            limits = await client.set_limits(change if isinstance(change, dict) else {}, words)
+            result = await client.set_limits(change if isinstance(change, dict) else {}, words, approval)
         except ValueError as exc:
             raise ToolFailed(str(exc), next="say what was wrong", argument=True) from None
-        return "the limits are now: " + json.dumps({k: v for k, v in limits.items() if k != "notes"})
+        if result.get("status") == "needs-yes":
+            remember(result.get("offer"), ctx)
+            return (f"waiting for the user's yes: {result['ask']} Not changed yet. Ask the user exactly this; on their "
+                    f"yes call scope_limits again with the same set, confirms={result['offer']!r} and asked_with set to "
+                    "their reply as they said it.")
+        return "the limits are now: " + json.dumps({k: v for k, v in (result.get("limits") or {}).items() if k != "notes"})
 
     registry.add(Tool("scope_limits", "Read, or on the user's own words change, the limits for the microscope's motors "
                       "and light: x, y, z boxes [lowest, highest] µm, step_xy and step_z (µm a move), exposure_ms "
                       "[lowest, highest], frames and seconds (above which an acquisition asks first).",
                       schema({"set": {"type": "object", "description": "the limits to change; empty: read them"},
-                              "asked_with": {"type": "string", "description": "the user's words asking for it"}}),
+                              "asked_with": {"type": "string", "description": "the user's words asking for it (or, "
+                                             "with confirms, their yes)"},
+                              "confirms": {"type": "string", "description": "the offer id, when loosening was asked "
+                                           "about"}}),
                       scope_limits, inline_ms=3000, family="scope"))

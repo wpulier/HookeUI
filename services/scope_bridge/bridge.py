@@ -17,13 +17,15 @@
    the limits; the orchestrator files each in the session's journal.
 
 Autofocus is the bridge's own sweep (snap at each plane, sharpness, then the sharpest), so it never leaves the limits
-whatever the microscope's own autofocus would do.
+whatever the microscope's own autofocus would do; acquisitions run as the bridge's own steps too (every move bounded and
+seen by the fuzz's witness), at the places the checks checked. A change of limits that loosens them waits for a yes.
 """
 from __future__ import annotations
 
 import itertools
 import json
 import math
+import secrets
 import struct
 import threading
 import time
@@ -71,9 +73,10 @@ class ScopeBridge:
         self.receipts = Receipts(self.folder / "receipts.jsonl")
         self.lock = threading.Lock()  # one action at a time
         self.stopping = threading.Event()
+        self._stops = 0  # how many stops so far: an action waiting its turn when one came does not start
         self.offers: dict[str, tuple[str, float, str]] = {}  # id -> (the action, as JSON; expires; why)
+        self._offers_lock = threading.Lock()
         self._n = itertools.count(1)
-        self._offer_ids = itertools.count(1)
         self.busy: str | None = None
 
     # --- reading -------------------------------------------------------------------------------------------------------
@@ -87,21 +90,28 @@ class ScopeBridge:
         return {"backend": self.backend.describe(), "state": self.state(), "channels": self.backend.channels(),
                 "limits": self.limits.wire(), "busy": self.busy}
 
-    def set_limits(self, data: dict, words: str) -> dict:
-        """The user's new limits (their words kept with them). Never while something runs."""
+    def set_limits(self, data: dict, words: str, approval: str | None = None) -> dict:
+        """The user's new limits, their words kept with them. Tightening is done at once; loosening (a larger box, larger
+        steps, a wider exposure range, a larger acquisition before asking) waits for their yes, as the light does.
+        Never while something runs."""
         words = (words or "").strip()
         if not words:
             raise ValueError("limits change on the user's own words, quoted")
         new = Limits.from_wire({**self.limits.wire(), **data})
+        looser = loosened(self.limits, new)
+        if looser and not self._approved(approval, {"limits": new.wire()}):
+            ask = "This lets the microscope do more than your limits allow now: " + "; ".join(looser)
+            return {"status": "needs-yes", "offer": self._offer({"limits": new.wire()}, ask), "ask": f"{ask}. Go ahead?"}
         new.notes = (self.limits.notes + [words[:300]])[-20:]
         with self.lock:
             self.limits = new
             self.limits_file.save(new)
-        return new.wire()
+        return {"status": "done", "limits": new.wire()}
 
     # --- doing ---------------------------------------------------------------------------------------------------------
     def do(self, data, approval: str | None = None) -> dict:
         started = time.monotonic()
+        stops = self._stops  # a stop that comes while this waits its turn stops it before it starts
         try:
             action = A.parse(data)
         except ValueError as exc:
@@ -110,26 +120,22 @@ class ScopeBridge:
             return self.stop()
         with self.lock:
             self.stopping.clear()
+            if self._stops != stops:
+                return self._receipt(data, action, "stopped", why="a stop came before it started; nothing was done",
+                                     started=started)
             self.busy = action.kind
+            before = None
             try:
                 before = self.state()
                 why = self.check(action, before)
                 if why:
                     return self._receipt(data, action, "refused", why=why, before=before, started=started)
                 ask = self.needs_yes(action, before)
-                if ask and not self._approved(approval, action):
-                    offer = f"y{next(self._offer_ids)}"
-                    self.offers[offer] = (json.dumps(action.wire(), sort_keys=True), self.clock() + OFFER_S, ask)
+                if ask and not self._approved(approval, action.wire()):
+                    offer = self._offer(action.wire(), ask)
                     return self._receipt(data, action, "needs-yes", why=ask, before=before, started=started,
                                          offer=offer, ask=f"{ask}. Go ahead?")
-                try:
-                    made, verified, note = self._run(action, before)
-                except Unavailable as exc:
-                    return self._receipt(data, action, "refused", why=str(exc), before=before, started=started)
-                except Exception as exc:  # the microscope failed: said, with where it is now
-                    after = self._safe_state()
-                    return self._receipt(data, action, "failed", why=f"{type(exc).__name__}: {exc}"[:300],
-                                         before=before, after=after, started=started)
+                made, verified, note = self._run(action, before)
                 after = self.state()
                 outside = self.outside(after)
                 if outside:  # never expected: the bridge checked first; stop everything and say it
@@ -139,11 +145,17 @@ class ScopeBridge:
                 status = "stopped" if self.stopping.is_set() else "done"
                 return self._receipt(data, action, status, before=before, after=after, made=made, started=started,
                                      verified=verified, why=note or None)
+            except Unavailable as exc:
+                return self._receipt(data, action, "refused", why=str(exc), before=before, started=started)
+            except Exception as exc:  # the microscope failed (or could not be read): said, with where it is now if known
+                return self._receipt(data, action, "failed", why=f"{type(exc).__name__}: {exc}"[:300],
+                                     before=before, after=self._safe_state(), started=started)
             finally:
                 self.busy = None
 
     def stop(self) -> dict:
         """Stop whatever is moving or acquiring, now (not waiting for the action it interrupts)."""
+        self._stops += 1
         self.stopping.set()
         try:
             self.backend.stop()
@@ -208,11 +220,7 @@ class ScopeBridge:
         return ""
 
     def _plan_points(self, plan: A.Plan, here: dict):
-        positions = list(plan.positions) or [(None, None, None)]
-        for px, py, pz in positions:
-            x = here["x"] if px is None else px
-            y = here["y"] if py is None else py
-            base = here["z"] if pz is None else pz
+        for x, y, base in absolute(plan, here).positions:
             for off in plan.z_offsets:
                 yield x, y, base, base + off
 
@@ -241,14 +249,25 @@ class ScopeBridge:
         hops = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip([(here["x"], here["y"])] + points, points)]
         return max(hops or [0.0])
 
-    def _approved(self, approval: str | None, action: A.Action) -> bool:
+    def _offer(self, what: dict, why: str) -> str:
+        """An offer for this exact action (or change of limits): an id no one can guess, used once, for OFFER_S."""
+        offer = "y-" + secrets.token_urlsafe(6)
+        with self._offers_lock:
+            now = self.clock()
+            for k in [k for k, (_, exp, _) in self.offers.items() if exp < now]:
+                del self.offers[k]
+            self.offers[offer] = (json.dumps(what, sort_keys=True), now + OFFER_S, why)
+        return offer
+
+    def _approved(self, approval: str | None, what: dict) -> bool:
         if not approval:
             return False
-        kept = self.offers.pop(approval, None)
-        if kept is None:
-            return False
-        wanted, expires, _ = kept
-        return expires >= self.clock() and wanted == json.dumps(action.wire(), sort_keys=True)
+        with self._offers_lock:
+            kept = self.offers.get(approval)
+            if kept is None or kept[0] != json.dumps(what, sort_keys=True):
+                return False  # an approval for another action is not spent on this one
+            del self.offers[approval]
+        return kept[1] >= self.clock()
 
     def outside(self, state: dict) -> str:
         bad = [f"{a} {state[a]:.1f}" for a in AXES
@@ -282,23 +301,28 @@ class ScopeBridge:
             return self._acquire(action, before)
         raise ValueError(f"nothing does {action.kind}")
 
-    def _step_to(self, x: float | None, y: float | None, z: float | None) -> None:
-        """A move the bridge makes for itself, in steps no larger than the user allows, each inside the box."""
+    def _step_to(self, x: float | None, y: float | None, z: float | None) -> bool:
+        """A move the bridge makes for itself, in steps no larger than the user allows (each measured from where the
+        stage is, read again), every one inside the box. False when a stop ended it."""
         lim = self.limits
         cx, cy, cz = self.backend.position()
         tx, ty, tz = cx if x is None else x, cy if y is None else y, cz if z is None else z
         for axis, v in (("x", tx), ("y", ty), ("z", tz)):
             if lim.box(axis) is not None and not lim.inside(axis, v):
                 raise ValueError(f"{axis} {v:.1f} µm is outside the limits")
-        n = max(1, math.ceil(math.hypot(tx - cx, ty - cy) / lim.step_xy - 1e-9),
-                math.ceil(abs(tz - cz) / lim.step_z - 1e-9))
-        for i in range(1, n + 1):
+        for _ in range(10_000):
             if self.stopping.is_set():
-                return
-            f = i / n
-            self.backend.move_to(cx + (tx - cx) * f if x is not None else None,
-                                 cy + (ty - cy) * f if y is not None else None,
-                                 cz + (tz - cz) * f if z is not None else None)
+                return False
+            dx, dy, dz = tx - cx, ty - cy, tz - cz
+            across, deep = math.hypot(dx, dy), abs(dz)
+            if across <= TOLERANCE["x"] and deep <= TOLERANCE["z"]:
+                return True
+            k = min(1.0, (lim.step_xy * 0.98) / across if across > 0 else 1.0, (lim.step_z * 0.98) / deep if deep > 0 else 1.0)
+            self.backend.move_to(cx + dx * k if (x is not None or y is not None) else None,
+                                 cy + dy * k if (x is not None or y is not None) else None,
+                                 cz + dz * k if z is not None else None)
+            cx, cy, cz = self.backend.position()
+        raise RuntimeError("the stage did not reach its target")
 
     def _autofocus(self, action: A.Autofocus, before: dict) -> tuple[list[str], bool, str]:
         lo, hi = self.limits.z
@@ -309,14 +333,14 @@ class ScopeBridge:
             raise Unavailable("there is no room inside your focus limits to search")
         scores = []
         for z in planes:
-            if self.stopping.is_set():
-                break
-            self._step_to(None, None, z)
+            if not self._step_to(None, None, z):
+                break  # stopped: nothing is taken at a place it did not reach
             scores.append((sharpness(self.backend.snap()), z))
         if not scores:
             return [], False, "stopped before it looked"
         best_score, best = max(scores)
-        self._step_to(None, None, best)
+        if not self._step_to(None, None, best):
+            return [], False, "stopped before it went back to the sharpest plane"
         at = self.backend.position()[2]
         return [], abs(at - best) <= TOLERANCE["z"], f"sharpest at z {best:.2f} µm of {len(scores)} planes"
 
@@ -329,15 +353,14 @@ class ScopeBridge:
             made.append(self._save(frame, f"{run}/" + "-".join(f"{k}{v}" for k, v in sorted(index.items())
                                                                  if isinstance(v, int))))
 
-        engine = getattr(self.backend, "acquire", None)
-        here = (before["x"], before["y"], before["z"])
-        if callable(engine):
-            n = engine(action.plan, here=here, exposure_ms=exposure, on_frame=on_frame, stopping=self.stopping)
-        else:
-            from .backends import acquire_by_steps
+        # Always the bridge's own steps (every move bounded by the step limits, inside the box, witnessed), at the places
+        # the checks checked: a position without x, y or z is where the stage was when it was asked.
+        from .backends import acquire_by_steps
 
-            n = acquire_by_steps(self.backend, action.plan, here=here, exposure_ms=exposure, on_frame=on_frame,
-                                 stopping=self.stopping, move=self._step_to)
+        plan = absolute(action.plan, before)
+        here = (before["x"], before["y"], before["z"])
+        n = acquire_by_steps(self.backend, plan, here=here, exposure_ms=exposure, on_frame=on_frame,
+                             stopping=self.stopping, move=self._step_to)
         complete = n == action.plan.frames
         return made, complete, "" if complete else f"made {n} of {action.plan.frames} pictures"
 
@@ -374,6 +397,35 @@ class ScopeBridge:
             receipt["breach"] = True
         self.receipts.add(receipt)
         return receipt
+
+
+def absolute(plan: A.Plan, here: dict) -> A.Plan:
+    """The plan with every position complete: what a position leaves out is where the stage was when it was asked (the
+    checks and the run use this one plan)."""
+    import dataclasses
+
+    positions = list(plan.positions) or [(None, None, None)]
+    full = tuple((here["x"] if px is None else px, here["y"] if py is None else py, here["z"] if pz is None else pz)
+                 for px, py, pz in positions)
+    return dataclasses.replace(plan, positions=full)
+
+
+def loosened(old: Limits, new: Limits) -> list[str]:
+    """What a change of limits would allow that the limits now do not, in words (empty: it only tightens)."""
+    out = []
+    for axis in AXES:
+        a, b = old.box(axis), new.box(axis)
+        if b is not None and (a is None or b[0] < a[0] or b[1] > a[1]):
+            out.append(f"{axis} from {b[0]:.0f} to {b[1]:.0f} µm")
+    if new.step_xy > old.step_xy:
+        out.append(f"{new.step_xy:g} µm across in one move")
+    if new.step_z > old.step_z:
+        out.append(f"{new.step_z:g} µm in focus in one move")
+    if new.exposure_ms[0] < old.exposure_ms[0] or new.exposure_ms[1] > old.exposure_ms[1]:
+        out.append(f"exposures of {new.exposure_ms[0]:g} to {new.exposure_ms[1]:g} ms")
+    if new.frames > old.frames or new.seconds > old.seconds:
+        out.append(f"acquisitions up to {new.frames} pictures or {new.seconds / 60:.1f} minutes without asking")
+    return out
 
 
 def _jsonable(v) -> bool:

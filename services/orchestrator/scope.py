@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import os
 
-TIMEOUT_S = 120.0  # an acquisition or an autofocus sweep can take a while; the bridge answers when it ends
+TIMEOUT_S = 60.0  # a move, a picture, a setting
+LONG_S = 3600.0  # an acquisition or a focus sweep: answered when it ends (its receipt is filed then)
 
 
 class ScopeClient:
@@ -30,8 +31,10 @@ class ScopeClient:
             return r.json()
 
     async def do(self, action: dict, approval: str | None = None) -> dict:
-        async with self._client() as c:
-            r = await c.post("/api/do", json={"action": action, **({"approval": approval} if approval else {})})
+        long = isinstance(action, dict) and action.get("kind") in ("acquire", "autofocus")
+        async with self._client() as c:  # an acquisition or a focus sweep is answered when it ends, however long
+            r = await c.post("/api/do", json={"action": action, **({"approval": approval} if approval else {})},
+                             timeout=LONG_S if long else self.timeout)
             r.raise_for_status()
             return r.json()
 
@@ -41,9 +44,10 @@ class ScopeClient:
             r.raise_for_status()
             return r.json()
 
-    async def set_limits(self, limits: dict, words: str) -> dict:
+    async def set_limits(self, limits: dict, words: str, approval: str | None = None) -> dict:
         async with self._client() as c:
-            r = await c.put("/api/limits", json={"limits": limits, "words": words})
+            r = await c.put("/api/limits", json={"limits": limits, "words": words,
+                                                 **({"approval": approval} if approval else {})})
             if r.status_code == 400:
                 raise ValueError(r.json().get("error") or "the limits were not changed")
             r.raise_for_status()

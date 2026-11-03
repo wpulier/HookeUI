@@ -298,6 +298,17 @@ class VirtualScope:
                 else:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
+            def do_DELETE(self) -> None:
+                path = self.path.split("?", 1)[0].rstrip("/")
+                if path.startswith("/api/v2/actions/"):
+                    scope.halt()  # a cancelled move stops where it is
+                    record = scope._actions.get(path.rsplit("/", 1)[1])
+                    if record is not None and record["status"] == "running":
+                        record["status"] = "cancelled"
+                    self._json({"ok": True})
+                else:
+                    self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+
             def do_POST(self) -> None:
                 path = self.path.split("?", 1)[0].rstrip("/") or "/"  # OpenFlexure's actions end in a slash
                 body = self._body()

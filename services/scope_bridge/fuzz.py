@@ -153,8 +153,10 @@ def fuzz(bridge: ScopeBridge, witness: Witness, n: int = 500, seed: int = 1, sto
     light_said_yes = False  # the user's last word on the light: a yes to on
     stop_flag = threading.Event()
 
+    timing = random.Random(seed + 1)  # the stops' own: the commands stay the same whatever the threads' timing
+
     def stops():
-        while not stop_flag.wait(rng.uniform(0.05, 0.6)):
+        while not stop_flag.wait(timing.uniform(0.05, 0.6)):
             bridge.stop()
 
     stopper_thread = threading.Thread(target=stops, daemon=True) if stopper else None

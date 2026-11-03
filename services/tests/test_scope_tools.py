@@ -43,8 +43,8 @@ def tools(tmp_path):
     scope.close()
 
 
-def run(registry, name: str, args: dict, question: str = "") -> str:
-    ctx = ToolContext(channel="chat", turn_id=1, frame_id=None, question=question)
+def run(registry, name: str, args: dict, question: str = "", turn: int = 1) -> str:
+    ctx = ToolContext(channel="chat", turn_id=turn, frame_id=None, question=question)
     return asyncio.run(registry.tools[name].handler(ctx, args))
 
 
@@ -75,13 +75,22 @@ def test_move_reads_the_state_and_files_a_receipt_for_every_action(tools):
 def test_a_large_acquisition_waits_for_the_users_own_yes(tools):
     registry, scope, filed = tools
     plan = {"time_plan": {"interval": 0, "loops": 3}, "z_plan": {"range": 2, "step": 1}}
-    asked = run(registry, "scope_acquire", {"plan": plan})
-    assert "waiting for the user's yes" in asked and "9 pictures" in asked and "confirms='y" in asked
+    asked = run(registry, "scope_acquire", {"plan": plan}, question="take a z stack three times", turn=1)
+    assert "waiting for the user's yes" in asked and "9 pictures" in asked and "confirms='y-" in asked
     offer = asked.split("confirms='", 1)[1].split("'", 1)[0]
-    with pytest.raises(ToolFailed, match="own words"):  # a yes the user did not say in this request
-        run(registry, "scope_acquire", {"plan": plan, "confirms": offer, "asked_with": "yes go ahead"}, question="hmm")
+    with pytest.raises(ToolFailed, match="ask them first"):  # the model answering its own question, in the same request
+        run(registry, "scope_acquire", {"plan": plan, "confirms": offer, "asked_with": "take a z stack"},
+            question="take a z stack three times", turn=1)
+    with pytest.raises(ToolFailed, match="own words"):  # a yes the user did not say
+        run(registry, "scope_acquire", {"plan": plan, "confirms": offer, "asked_with": "yes go ahead"}, question="hmm",
+            turn=2)
+    with pytest.raises(ToolFailed, match="own words"):  # a quote that is only a piece of a word
+        run(registry, "scope_acquire", {"plan": plan, "confirms": offer, "asked_with": "es"}, question="yes", turn=2)
+    with pytest.raises(ToolFailed, match="not asked about"):
+        run(registry, "scope_acquire", {"plan": plan, "confirms": "y-made-up", "asked_with": "yes"}, question="yes",
+            turn=2)
     done = run(registry, "scope_acquire", {"plan": plan, "confirms": offer, "asked_with": "yes, go ahead"},
-               question="Yes, go ahead")
+               question="Yes, go ahead", turn=2)
     assert done.startswith("acquire done, 9 pictures made")
     assert [r["status"] for r in filed] == ["needs-yes", "done"]
 
@@ -90,9 +99,15 @@ def test_limits_change_only_on_the_users_words_and_unavailable_things_are_said(t
     registry, scope, filed = tools
     with pytest.raises(ToolFailed, match="own words"):
         run(registry, "scope_limits", {"set": {"step_xy": 400}, "asked_with": "make it 400"}, question="what?")
-    now = run(registry, "scope_limits", {"set": {"step_xy": 400}, "asked_with": "let it move 400 microns"},
-              question="Let it move 400 microns at a time")
+    asked = run(registry, "scope_limits", {"set": {"step_xy": 400}, "asked_with": "let it move 400 microns"},
+                question="Let it move 400 microns at a time", turn=1)
+    assert asked.startswith("waiting for the user's yes") and "400 µm across" in asked  # loosening asks first
+    offer = asked.split("confirms='", 1)[1].split("'", 1)[0]
+    now = run(registry, "scope_limits", {"set": {"step_xy": 400}, "asked_with": "yes", "confirms": offer},
+              question="yes", turn=2)
     assert '"step_xy": 400' in now
+    tighter = run(registry, "scope_limits", {"set": {"step_xy": 50}, "asked_with": "only 50"}, question="only 50 please")
+    assert '"step_xy": 50' in tighter  # tightening: at once
     with pytest.raises(ToolFailed, match="not switched from here"):  # this microscope's light is not the bridge's
         run(registry, "scope_light", {"on": False})
 

@@ -13,6 +13,7 @@ import json
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import urljoin
 
 from . import Frame, Unavailable
 
@@ -32,7 +33,7 @@ class OpenFlexure:
 
     def _call(self, method: str, path: str, body: dict | None = None, *, raw: bool = False):
         data = json.dumps(body).encode() if body is not None else None
-        req = urllib.request.Request(self.url + path, data=data, method=method,
+        req = urllib.request.Request(urljoin(self.url + "/", path), data=data, method=method,
                                      headers={"Content-Type": "application/json"} if data else {})
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
@@ -102,4 +103,10 @@ class OpenFlexure:
         raise Unavailable("this OpenFlexure microscope's light is not switched from here")
 
     def stop(self) -> None:
-        """The server's move runs to its end; a stop is the bridge not sending the next one."""
+        """Cancel the move under way (DELETE on its action, as the server's API cancels one); the bridge sends no next."""
+        href = self._running
+        if href:
+            try:
+                self._call("DELETE", href)
+            except RuntimeError:
+                pass  # it ended meanwhile, or the server refused: the bridge still sends nothing more

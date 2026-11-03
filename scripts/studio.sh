@@ -46,7 +46,8 @@ DEV_PORT="${DEV_PORT:-5180}"
 CV_PORT="${CV_PORT:-8766}"
 CAMERA_URL="http://127.0.0.1:$CAMERA_PORT"
 # The scope bridge (services/scope_bridge/AGENTS.md): the microscope's motors, camera and light, only when asked for
-# (make start SCOPE_BACKEND=mm-demo, or openflexure with SCOPE_SERVER=http://...) and once make scope-setup made its
+# (make start SCOPE_BACKEND=mm-demo, or openflexure with SCOPE_SERVER=http://... SCOPE_UM_PER_STEP= SCOPE_UM_PER_Z_STEP=)
+# and once make scope-setup made its
 # environment. Nothing else touches the microscope.
 SCOPE_PORT="${SCOPE_PORT:-8780}"
 SCOPE_URL="http://127.0.0.1:$SCOPE_PORT"
@@ -333,6 +334,8 @@ cmd_start() {
       [ -n "$(pids_on "$SCOPE_PORT")" ] && foreign "$SCOPE_PORT" "the scope bridge" SCOPE_PORT
       local scope_options=(--backend "$SCOPE_BACKEND" --port "$SCOPE_PORT" --folder "$(dirname "$LOG_DIR")/scope")
       [ -n "${SCOPE_SERVER:-}" ] && scope_options+=(--url "$SCOPE_SERVER")
+      [ -n "${SCOPE_UM_PER_STEP:-}" ] && scope_options+=(--um-per-step "$SCOPE_UM_PER_STEP")  # an OpenFlexure's calibration
+      [ -n "${SCOPE_UM_PER_Z_STEP:-}" ] && scope_options+=(--um-per-z-step "$SCOPE_UM_PER_Z_STEP")
       [ -n "${SCOPE_CONFIG:-}" ] && scope_options+=(--config "$SCOPE_CONFIG")
       spawn "scope bridge" "$LOG_DIR/scope-bridge.log" \
         bash -c "cd '$ROOT/services' && exec '$SCOPE_PY' -m scope_bridge $(printf "'%s' " "${scope_options[@]}")"

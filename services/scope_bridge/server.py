@@ -4,11 +4,12 @@
   POST /api/do                    {"action": {...}, "approval": "y3"?}  ->  its receipt (bridge.py)
   POST /api/stop                  stop moving and acquiring now  ->  its receipt
   GET  /api/limits                the user's limits
-  PUT  /api/limits                {"limits": {...}, "words": "the user's own words"}  ->  the limits now
+  PUT  /api/limits                {"limits": {...}, "words": "...", "approval"?}  ->  done, or needs-yes to loosen them
   GET  /api/receipts?since=N      the receipts after N
   GET  /api/files/<path>          a picture it made (only under its own pictures folder)
 
-`stop` is served while an action runs (each request has its own thread); everything else that acts waits its turn.
+`stop` is served while an action runs (each request has its own thread); everything else that acts waits its turn. A
+request that carries an Origin (a web page's) is refused.
 """
 from __future__ import annotations
 
@@ -48,7 +49,17 @@ def serve(bridge: ScopeBridge, port: int = 0) -> ThreadingHTTPServer:
                 return None
             return data if isinstance(data, dict) else None
 
+        def _from_a_page(self) -> bool:
+            """A web page's request (browsers name its Origin) is refused: only Hooke's own programs ask the bridge."""
+            if self.headers.get("Origin") is not None:
+                self._json({"error": "the scope bridge answers Hooke's programs on this Mac, not web pages"},
+                           HTTPStatus.FORBIDDEN)
+                return True
+            return False
+
         def do_GET(self) -> None:
+            if self._from_a_page():
+                return
             parts = urlsplit(self.path)
             if parts.path == "/api/state":
                 self._json(bridge.wire())
@@ -79,6 +90,8 @@ def serve(bridge: ScopeBridge, port: int = 0) -> ThreadingHTTPServer:
             self.wfile.write(data)
 
         def do_POST(self) -> None:
+            if self._from_a_page():
+                return
             path = urlsplit(self.path).path
             if path == "/api/stop":
                 self._json(bridge.stop())
@@ -94,6 +107,8 @@ def serve(bridge: ScopeBridge, port: int = 0) -> ThreadingHTTPServer:
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
         def do_PUT(self) -> None:
+            if self._from_a_page():
+                return
             if urlsplit(self.path).path != "/api/limits":
                 self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
                 return
@@ -101,8 +116,10 @@ def serve(bridge: ScopeBridge, port: int = 0) -> ThreadingHTTPServer:
             if body is None or not isinstance(body.get("limits"), dict):
                 self._json({"error": "send {limits: {...}, words: ...}"}, HTTPStatus.BAD_REQUEST)
                 return
+            approval = body.get("approval")
             try:
-                self._json(bridge.set_limits(body["limits"], str(body.get("words") or "")))
+                self._json(bridge.set_limits(body["limits"], str(body.get("words") or ""),
+                                             approval if isinstance(approval, str) else None))
             except ValueError as exc:
                 self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
@@ -125,11 +142,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--config", help="mm: the Micro-Manager configuration file")
     parser.add_argument("--adapters", help="mm: the Micro-Manager folder with the device adapters")
     parser.add_argument("--url", help="openflexure: the microscope's server, http://...")
-    parser.add_argument("--um-per-step", type=float, default=1.0, help="openflexure: µm per motor step")
+    parser.add_argument("--um-per-step", type=float, help="openflexure: µm per motor step across (its calibration)")
+    parser.add_argument("--um-per-z-step", type=float, help="openflexure: µm per motor step in focus (its calibration)")
     parser.add_argument("--folder", required=True, help="where its limits, receipts and pictures are kept")
     parser.add_argument("--port", type=int, default=8780)
     args = parser.parse_args(argv)
-    backend = make(args.backend, config=args.config, adapters=args.adapters, url=args.url, um_per_step=args.um_per_step)
+    if args.backend == "openflexure" and (not args.url or not args.um_per_step or not args.um_per_z_step):
+        parser.error("an OpenFlexure needs --url and its stage's calibration: --um-per-step and --um-per-z-step "
+                     "(limits are in µm; a guess would make them mean something else)")
+    backend = make(args.backend, config=args.config, adapters=args.adapters, url=args.url, um_per_step=args.um_per_step,
+                   um_per_z_step=args.um_per_z_step)
     bridge = ScopeBridge(backend, Path(args.folder))
     server = serve(bridge, args.port)
     print(f"Scope bridge ({backend.describe().get('backend')}) on http://127.0.0.1:{server.server_address[1]}", flush=True)

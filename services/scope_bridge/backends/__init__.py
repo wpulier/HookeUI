@@ -103,7 +103,9 @@ def acquire_by_steps(backend: Backend, plan, *, here: tuple[float, float, float]
             last_t = at["t"]
         px, py, pz = positions[at["p"]]
         base_z = pz if pz is not None else here[2]
-        move(px, py, base_z + plan.z_offsets[at["z"]])
+        reached = move(px, py, base_z + plan.z_offsets[at["z"]])
+        if reached is False or stopping.is_set():
+            break  # stopped on the way: nothing is taken at a place it did not reach
         name, exposure = channels[at["c"]]
         if name is not None:
             backend.set_channel(name)
