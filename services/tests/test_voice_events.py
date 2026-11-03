@@ -467,3 +467,44 @@ def test_a_guidance_line_is_said_word_for_word_while_the_turn_waits_on_its_tools
         assert any(i["type"] == "function_call_output" for i in t.sb.items())
     asyncio.run(go())
 
+
+def test_a_guidance_stop_cuts_its_own_line_even_while_the_hand_off_runs(monkeypatch):
+    """The coordinator's bar, 3 Nov: "Stop." spoken within about a second of the guide deciding it. While the hand-off
+    that started the guidance is still running, the voice's own guidance line playing is cut for it (its own line at
+    any time; an answer to the user only when no tool call is under way)."""
+    from tests.test_voice_partner import partner_session, press, release
+
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 30.0)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "guiding you to the stoma"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(0.3)
+        n = t.sb.responses
+        await t.session.proactive(json.dumps({"line": "Move the slide right and away, a fair way."}), event="guide",
+                                  ref="g1")
+        await until_async(lambda: t.sb.responses == n + 1, 3)
+        rid = f"resp_{n + 1}"
+        await audio(t.sb, rid, "started")  # the first line playing, the hand-off still running
+        before = len(t.sb.sent)
+        await t.session.proactive(json.dumps({"line": "Stop."}), event="guide-stop", ref="g1:line:2")
+        await until_async(lambda: "response.cancel" in t.sb.types()[before:], 3)
+        t.sb.emit({"type": "response.done", "response": {"id": rid, "status": "cancelled"}})
+        await audio(t.sb, rid, "cleared")
+        await until_async(lambda: t.sb.responses == n + 2, 3)
+        assert given(creates(t.sb)[-1]).endswith("\nStop.")
+        gate.set()
+    asyncio.run(go())
+

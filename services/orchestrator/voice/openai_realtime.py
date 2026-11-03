@@ -1158,11 +1158,13 @@ class RealtimeSession(VoiceSession):
         due = self.bus.due()
         urgent = [e for e in due if e.route == "interrupt"]
         cuts = [e for e in urgent if self.bus.kind(e.kind).cuts]
-        if (cuts and self._held is None and self._sb is not None and not (self._calls or self._round)
-                and (self.audible() or (self.speaking() and not self._turn_pending()))):
+        if (cuts and self._held is None and self._sb is not None and (self.audible() or self.speaking())
+                and (self._own_line_now() or (not (self._calls or self._round)
+                                              and (self.audible() or not self._turn_pending())))):
             # The one exception to the rule below (events.Kind.cuts: a guidance's "Stop." and its end): the hand on the
-            # slide cannot wait for a sentence to end, so the words playing now are stopped for it, even an answer to
-            # the user; never while the user holds the key or a tool call is under way (Lane E, 3 Nov).
+            # slide cannot wait for a sentence to end, so the words playing now are stopped for it: its own line at any
+            # time, an answer to the user only when no tool call is under way; never while the user holds the key
+            # (Lane E, 3 Nov).
             self._saying = self._spawn(self._cut_in(self._one_voice(cuts + [e for e in urgent if e not in cuts])))
             return
         says = [e for e in urgent if self.bus.kind(e.kind).says]
@@ -1215,6 +1217,14 @@ class RealtimeSession(VoiceSession):
                     self.noted({"kind": "voice-note", "source": event.data.get("source") or event.kind,
                                 "sessionId": self.call_id, **(event.data.get("facts") or {}), "chars": len(event.text),
                                 "text": event.text})
+
+    def _own_line_now(self) -> bool:
+        """What is under way or playing now is a line nobody asked for (the bus's own, UNPROMPTED), not an answer."""
+        if self._response is not None:
+            return (self._causes.get(self._response) or {}).get("cause") in UNPROMPTED
+        if self._requested is not None:
+            return self._requested.get("cause") in UNPROMPTED
+        return self.audible() and self._audible_cause in UNPROMPTED
 
     def _waiting_on_tools(self) -> bool:
         """The user's turn waits only on its tools: a call running, nothing said, playing or asked for that turn."""

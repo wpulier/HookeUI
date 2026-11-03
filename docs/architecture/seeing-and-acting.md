@@ -88,7 +88,8 @@ other files.
   - **"Stop." and the end are never dropped**: they go as kind "guide-stop" (owed, never replaced by a newer line,
     each its own event; a waiting "guide" line is withdrawn for them) and cut in over the voice's own words, even an
     answer to the user (`Kind.cuts`, the one exception to "never cut by its own next one"): the hand on the slide
-    cannot wait for a sentence to end. Never while the user holds the key or a tool call is under way.
+    cannot wait for a sentence to end. The voice's own line is cut at any time; an answer to the user only when no
+    tool call is under way; never while the user holds the key.
     Every judgment is logged (`guide-judge`, with its facts and answer), and every guidance's end (`guide`).
 - A first guess, then the measurement (M2): "which is the biggest cell?" with nothing measured is
   answered by eye at once, the guess outlined and called a first guess, and every cell is segmented and
