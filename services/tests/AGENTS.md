@@ -24,6 +24,9 @@ passing does not qualify full-shape memory, disk use or packaging time.
 `test_matrix_execution.py` uses synthetic provider transport over real workflow
 attempts and FileIntake to test original-job recovery, lost replies, cancellation,
 reserved allowance, local-only/disk refusal and bounded explicit worker resources.
+It also qualifies exact-generation recovery after active-profile changes and
+revocation, separate startup recovery transports, and retained reservations after
+removing a Project from admission. Unreadable ownership refuses new execution.
 It does not establish live cloud execution, Linux environment compatibility,
 predictive quality or submission acceptance.
 

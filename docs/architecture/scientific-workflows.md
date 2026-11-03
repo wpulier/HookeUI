@@ -139,6 +139,14 @@ output intake remain uncertain. Human notes cannot substitute for an observed
 termination receipt. Stop records intent and requests provider cancellation;
 termination must still be observed before a retry is allowed.
 
+Trusted startup extensions may return `create_recovery_backends()` with at most
+eight original-generation transports. The core selects these only to reconcile
+or cancel already admitted attempts, using the original intent. They are never
+discoverable admission choices and their `execute` method is never invoked by
+recovery. Current admission permission can be removed without abandoning the
+original job; absent original transport is an explicit recovery-required state.
+Operator-managed credentials and original configurations remain outside Projects.
+
 Exact input FileSources cross the installed boundary. Local free-space admission
 reserves the maximum retained output plus overhead. Verified output returns through
 the ordinary FileIntake under a deterministic attempt-derived identity. Worker

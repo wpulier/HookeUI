@@ -13,54 +13,14 @@ import zipfile
 if __package__:
     from .engine import Refused, _json
     from .aggregate_profiles import _digest
-    from .development_protocol import METRICS, METHODS, _read, _decode, _report
+    from .development_protocol import METRICS, METHODS, DERIVED, _coverage, _read, _decode, _report
 else:
     from engine import Refused, _json
     from aggregate_profiles import _digest
-    from development_protocol import METRICS, METHODS, _read, _decode, _report
+    from development_protocol import METRICS, METHODS, DERIVED, _coverage, _read, _decode, _report
 
 MAX_BUNDLE_BYTES = 96 << 20
 MAX_REPORT_BYTES = 16 << 20
-DERIVED = {'expr_mse_unbiased_capped_norm': ('expr_mse_unbiased_capped', 'expr_distance_unbiased')}
-
-
-def _coverage(report):
-    result = {}
-    for context in report['contexts']:
-        panel = context['targets']; allowed = set(panel)
-        dependencies = {name for metric in METRICS for name in DERIVED.get(metric, (metric,))}
-        values = {name: {} for name in dependencies}
-        rows = context.get('metrics')
-        if type(rows) is not list:
-            raise Refused('Joint comparison requires retained raw upstream rows for coverage')
-        for row in rows:
-            name = row.get('metric')
-            if name not in dependencies:
-                continue
-            target = row.get('perturbation'); value = row.get('value')
-            if target not in allowed or target in values[name]:
-                raise Refused('Metric support contains extra or duplicate target rows')
-            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
-                raise Refused('Metric support must contain finite values or explicit nulls')
-            values[name][target] = value
-        support = {}
-        for metric in METRICS:
-            parts = {}
-            for name in DERIVED.get(metric, (metric,)):
-                observed = values[name]
-                used = [target for target in panel if target in observed and observed[target] is not None]
-                nonfinite = [target for target in panel if target in observed and observed[target] is None]
-                missing = [target for target in panel if target not in observed]
-                if not used:
-                    raise Refused('A ranked metric has no finite raw support')
-                parts[name] = {'n_rows': len(observed), 'n_used': len(used), 'n_nonfinite': len(nonfinite),
-                               'n_missing': len(missing), 'usedTargets': used,
-                               'nonfiniteTargets': nonfinite, 'missingTargets': missing}
-            support[metric] = {'aggregation': 'ratio_of_sums' if metric in DERIVED else 'upstream aggregate',
-                               'components': parts}
-        result[context['context']] = support
-    return result
-
 
 def rank_bundle(inputs, params, output, check):
     config = _read(inputs['config'], 1 << 20)

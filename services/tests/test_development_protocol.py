@@ -79,7 +79,10 @@ def report(contexts=('one',), values=None):
             'backend': {'device': 'cpu', 'differentialExpression': 'scanpy', 'threads': 1},
             'protocol': {'preset': 'vcc2026', 'panels': {context: ['x', 'y'] for context in contexts}},
             'config': {'version': 'v2', 'metrics': 'vcc2026'},
-            'contexts': [{'context': context, 'targets': ['x', 'y'], 'aggregate': [
+            'contexts': [{'context': context, 'targets': ['x', 'y'],
+                'metrics': [{'metric': source, 'perturbation': target, 'value': 1.}
+                    for metric in dev.METRICS for source in dev.DERIVED.get(metric, (metric,)) for target in ['x', 'y']],
+                'aggregate': [
                 {'metric': name, 'mean': value, 'agg': 'mean'} for name, value in values.items()]} for context in contexts]}
 
 
@@ -168,3 +171,25 @@ def test_aggregate_profile_does_not_substitute_a_missing_primary_metric(tmp_path
     right['contexts'][0]['aggregate'].append({'metric': 'diagnostic', 'mean': 99.})
     with pytest.raises(engine.Refused, match='Missing metrics'):
         invoke(tmp_path, 'cell-evaluation-select', selection(tmp_path, left, right))
+
+
+@pytest.mark.parametrize('kind', ['missing', 'null', 'duplicate', 'absent-rows'])
+def test_pair_selection_checks_same_metric_support_as_joint_ranking(tmp_path, kind):
+    left = report(); right = report()
+    rows = right['contexts'][0]['metrics']
+    if kind == 'missing': rows.pop()
+    elif kind == 'null': rows[-1]['value'] = None
+    elif kind == 'duplicate': rows.append(copy.deepcopy(rows[-1]))
+    else: right['contexts'][0].pop('metrics')
+    with pytest.raises(engine.Refused):
+        invoke(tmp_path, 'cell-evaluation-select', selection(tmp_path, left, right))
+
+
+def test_pair_preserves_shared_ineligible_targets(tmp_path):
+    left = report()
+    left['contexts'][0]['metrics'][-1]['value'] = None
+    path, _ = invoke(tmp_path, 'cell-evaluation-select', selection(tmp_path, left, copy.deepcopy(left)))
+    result = json.loads(path.read_text())
+    support = result['contexts'][0]['metrics'][-1]['support']['components']['de_wilcoxon_sig_jaccard']
+    assert support['nonfiniteTargets'] == ['y']
+    assert support['usedTargets'] == ['x']

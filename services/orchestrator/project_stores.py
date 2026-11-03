@@ -134,6 +134,11 @@ class ProjectStores:
     def list(self, session):
         return self.scan(session)[0]
 
+    def owner_sessions(self):
+        # Include registered locations even when absent: their unreadable receipts
+        # must block admission rather than silently resetting host reservations.
+        return self.legacy.owner_sessions() | set(self.locations.handles())
+
     def scan_sessions(self, sessions):
         requested = set(sessions)
         routed = requested.intersection(self.locations.handles())

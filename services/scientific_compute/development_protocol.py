@@ -118,6 +118,48 @@ def check_fold(inputs, params, output, check):
     return _json(output / 'development-admission.json', result), result
 
 
+DERIVED = {'expr_mse_unbiased_capped_norm': ('expr_mse_unbiased_capped', 'expr_distance_unbiased')}
+
+
+def _coverage(report):
+    result = {}
+    for context in report['contexts']:
+        panel = context['targets']; allowed = set(panel)
+        dependencies = {name for metric in METRICS for name in DERIVED.get(metric, (metric,))}
+        values = {name: {} for name in dependencies}
+        rows = context.get('metrics')
+        if type(rows) is not list:
+            raise Refused('Comparison requires retained raw upstream rows for coverage')
+        for row in rows:
+            name = row.get('metric')
+            if name not in dependencies:
+                continue
+            target = row.get('perturbation'); value = row.get('value')
+            if target not in allowed or target in values[name]:
+                raise Refused('Metric support contains extra or duplicate target rows')
+            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
+                raise Refused('Metric support must contain finite values or explicit nulls')
+            values[name][target] = value
+        support = {}
+        for metric in METRICS:
+            parts = {}
+            for name in DERIVED.get(metric, (metric,)):
+                observed = values[name]
+                used = [target for target in panel if target in observed and observed[target] is not None]
+                nonfinite = [target for target in panel if target in observed and observed[target] is None]
+                missing = [target for target in panel if target not in observed]
+                if not used:
+                    raise Refused('A ranked metric has no finite raw support')
+                parts[name] = {'n_rows': len(observed), 'n_used': len(used), 'n_nonfinite': len(nonfinite),
+                               'n_missing': len(missing), 'usedTargets': used,
+                               'nonfiniteTargets': nonfinite, 'missingTargets': missing}
+            support[metric] = {'aggregation': 'ratio_of_sums' if metric in DERIVED else 'upstream aggregate',
+                               'components': parts}
+        result[context['context']] = support
+    return result
+
+
+
 def _report(value):
     if (value.get('format') != 'cell-evaluation-v1' or value.get('evaluator') != 'cell-eval2'
             or value.get('version') != '0.20.0'):
@@ -182,6 +224,9 @@ def select(inputs, params, output, check):
     for key in ('config', 'protocol', 'backend', 'resolvedMetrics'):
         if left.get(key) != right.get(key):
             raise Refused('Candidates must use identical pinned evaluator configuration and complete panels')
+    support = _coverage(left)
+    if _coverage(right) != support:
+        raise Refused('Candidate metric support differs; investigate before selection')
     contexts = []
     for context in sorted(a):
         check(); metric_rows = []
@@ -189,7 +234,7 @@ def select(inputs, params, output, check):
             av, bv = a[context][metric], b[context][metric]
             ranks = (1.5, 1.5) if av == bv else ((1., 2.) if (av > bv) == (direction == 'higher') else (2., 1.))
             metric_rows.append({'metric': metric, 'direction': direction, 'left': av, 'right': bv,
-                                'leftRank': ranks[0], 'rightRank': ranks[1]})
+                                'leftRank': ranks[0], 'rightRank': ranks[1], 'support': support[context][metric]})
         contexts.append({'context': context, 'metrics': metric_rows,
                          'leftRank': sum(row['leftRank'] for row in metric_rows) / 6,
                          'rightRank': sum(row['rightRank'] for row in metric_rows) / 6})

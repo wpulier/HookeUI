@@ -40,6 +40,33 @@ class Backend:
         return output, {'evidenceClass': 'synthetic-provider'}
 
 
+def test_startup_recovery_transports_are_not_admission_profiles(monkeypatch):
+    old, current = Backend(), Backend()
+    describe = current.describe
+    current.describe = lambda: {**describe(), 'generation': 'frozen-2', 'sessions': []}
+    module = SimpleNamespace(create_backend=lambda: current, create_recovery_backends=lambda: [old])
+    monkeypatch.setenv('HOOKEUI_MATRIX_EXECUTION_EXTENSION', 'trusted_operator_extension')
+    monkeypatch.setattr(external.importlib, 'import_module', lambda _: module)
+    hub = SimpleNamespace()
+    external.install(hub)
+    assert external.profiles(hub) == [current.describe()]
+    chosen = {'profile': 'synthetic', 'generation': 'frozen-1'}
+    assert external.recovery_transport(hub, chosen)[0] is old
+    with pytest.raises(InvalidProject, match='generation changed'):
+        external.validate(hub, chosen, 'response-fit', 's1')
+    assert not old.calls and not current.calls
+
+
+def test_duplicate_recovery_generation_refuses_startup(monkeypatch):
+    backend = Backend()
+    module = SimpleNamespace(create_backend=lambda: backend,
+                             create_recovery_backends=lambda: [backend, backend])
+    monkeypatch.setenv('HOOKEUI_MATRIX_EXECUTION_EXTENSION', 'trusted_operator_extension')
+    monkeypatch.setattr(external.importlib, 'import_module', lambda _: module)
+    with pytest.raises(RuntimeError, match='Duplicate recovery'):
+        external.install(SimpleNamespace())
+
+
 def fixture(tmp_path, monkeypatch):
     from orchestrator.scientific_projects import ProjectStore
     from orchestrator.workflows import Workflows
@@ -94,6 +121,41 @@ def test_reservations_block_unsettled_and_exhausted_runs(tmp_path, monkeypatch):
     external.run(steps, second, {'effects': identity(source)})
     with pytest.raises(InvalidProject, match='allowance'): external.run(steps, claim('e'), {'effects': identity(source)})
     assert [x[0] for x in b.calls].count('submit') == 2
+
+
+@pytest.mark.parametrize('settled', [False, True])
+def test_removed_project_keeps_outstanding_and_spent_reservations(tmp_path, monkeypatch, settled):
+    from orchestrator.workflow_execution import keep_file
+    w, steps, b, source, claim = fixture(tmp_path, monkeypatch)
+    original = claim()
+    if not settled:
+        b.failure = OSError('Lost reply')
+        with pytest.raises(external.ExecutionUncertain):
+            external.run(steps, original, {'effects': identity(source)})
+    else:
+        external.run(steps, original, {'effects': identity(source)})
+    describe = b.describe
+    b.describe = lambda: {**describe(), 'sessions': ['s2']}
+    b.limits['maximumMicros'] = 10
+    new_source = keep_file(w.store, 's2', 'd'*32, 'effects.npz', b'synthetic input')
+    saved_run = w.store.read(original['run'], 's1').document['state']['workflowRun']
+    definition = saved_run['definition']
+    run = w.start(definition['id'], definition['revision'], 's2', [identity(new_source)], 'e'*32, actor='studio')
+    new_claim = w.claim(run.id, 's2')
+    with pytest.raises(InvalidProject, match='allowance' if settled else 'Reconcile'):
+        external.run(steps, new_claim, {'effects': identity(new_source)})
+    assert [x[0] for x in b.calls].count('submit') == 1
+
+
+def test_unreadable_reservation_scope_refuses_admission(tmp_path, monkeypatch):
+    from orchestrator.workflow_execution import keep_file
+    w, steps, b, source, claim = fixture(tmp_path, monkeypatch)
+    c = claim()
+    unrelated = keep_file(w.store, 's2', 'f'*32, 'effects.npz', b'synthetic input')
+    (w.store.root / unrelated.id / 'head.json').write_text('{}')
+    with pytest.raises(InvalidProject, match='ownership'):
+        external.run(steps, c, {'effects': identity(source)})
+    assert not b.calls
 
 
 def test_stopped_restart_observes_cancellation_and_never_resubmits(tmp_path, monkeypatch):
@@ -192,3 +254,50 @@ def test_explicit_operator_allowance_is_exact_retained_and_scoped(tmp_path, monk
     w.control(c['run'], 's1', 'stop', actor='studio')
     external.recover(steps, c['run'], 's1')
     assert w.status(c['run'], 's1')['status'] == 'stopped'
+
+
+@pytest.mark.parametrize('stop', [False, True])
+def test_original_transport_survives_profile_change(tmp_path, monkeypatch, stop):
+    w, steps, original, source, claim = fixture(tmp_path, monkeypatch)
+    c = claim(); original.failure = OSError('Lost reply')
+    with pytest.raises(external.ExecutionUncertain):
+        external.run(steps, c, {'effects': identity(source)})
+    replacement = Backend()
+    describe = replacement.describe
+    replacement.describe = lambda: {**describe(), 'generation': 'frozen-2', 'sessions': []}
+    steps.hub.matrix_executor = replacement
+    steps.hub.matrix_recovery_executors = {('synthetic', 'frozen-1'): original}
+    if stop: w.control(c['run'], 's1', 'stop', actor='studio')
+    external.recover(steps, c['run'], 's1')
+    assert w.status(c['run'], 's1')['status'] == ('stopped' if stop else 'completed')
+    assert [call[0] for call in original.calls] == ['submit', 'observe']
+    assert replacement.calls == []
+    with pytest.raises(InvalidProject):
+        external.run(steps, claim('d'), {'effects': identity(source)})
+
+
+def test_missing_original_transport_keeps_uncertainty(tmp_path, monkeypatch):
+    w, steps, b, source, claim = fixture(tmp_path, monkeypatch)
+    c = claim(); b.failure = OSError('Lost reply')
+    with pytest.raises(external.ExecutionUncertain):
+        external.run(steps, c, {'effects': identity(source)})
+    steps.hub.matrix_executor = None
+    external.recover(steps, c['run'], 's1')
+    result = w.status(c['run'], 's1')['attempts'][0]
+    assert result['status'] == 'uncertain'
+    assert 'original execution transport' in result['note']
+    assert len(b.calls) == 1
+
+
+def test_revoked_admission_does_not_revoke_existing_stop(tmp_path, monkeypatch):
+    w, steps, b, source, claim = fixture(tmp_path, monkeypatch)
+    c = claim(); b.failure = OSError('Lost reply')
+    with pytest.raises(external.ExecutionUncertain):
+        external.run(steps, c, {'effects': identity(source)})
+    describe = b.describe
+    monkeypatch.setattr(b, 'describe', lambda: {**describe(), 'sessions': [], 'capabilities': []})
+    w.control(c['run'], 's1', 'stop', actor='studio')
+    external.recover(steps, c['run'], 's1')
+    assert w.status(c['run'], 's1')['status'] == 'stopped'
+    with pytest.raises(InvalidProject, match='outside'):
+        external.validate(steps.hub, {'profile': 'synthetic', 'generation': 'frozen-1'}, 'response-fit', 's1')

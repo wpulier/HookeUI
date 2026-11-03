@@ -1132,6 +1132,14 @@ select code, credentials or raise limits. Unknown termination remains uncertain.
 Local-only Projects need an explicit installed operator allowance with a verified
 retained evidence reference. The original intent keeps it; other local-only
 policies and the Project journal are unchanged, and recovery needs no new allowance.
+The trusted startup extension may retain up to eight exact-generation recovery
+transports through `create_recovery_backends`. Only observation/cancellation uses
+that registry; fresh admission always checks the current profile and permissions.
+Missing original transport keeps the attempt uncertain. Updating the active
+profile must not replace the original attempt's identity or execution intent.
+Changing the Project allowlist does not change accounting: admission inspects retained attempts
+across known Project owners, including removed Projects, and refuses unreadable
+ownership or receipts. Those reads grant no connector access and create no ledger.
 
 Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
 coordinate checks and atomic publication with worker outputs but retaining their own versioned

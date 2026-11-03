@@ -43,16 +43,34 @@ def install(hub):
         raise RuntimeError('A matrix execution extension needs describe, prepare, execute and reconcile')
     hub.matrix_executor = backend
     profiles(hub)
+    factory = getattr(importlib.import_module(module), 'create_recovery_backends', None)
+    retained = factory() if factory else []
+    if type(retained) is not list or len(retained) > 8:
+        raise RuntimeError('Install at most eight explicit recovery transports')
+    registry = {}
+    for transport in retained:
+        if not callable(getattr(transport, 'reconcile', None)):
+            raise RuntimeError('A recovery transport must support observation and cancellation')
+        profile = _profile(transport)
+        key = (profile['id'], profile['generation'])
+        if key in registry:
+            raise RuntimeError('Duplicate recovery transport generation')
+        registry[key] = transport
+    hub.matrix_recovery_executors = registry
 
 
 def profiles(hub):
     backend = getattr(hub, 'matrix_executor', None)
     if backend is None:
         return []
+    return [_profile(backend)]
+
+
+def _profile(backend):
     value = backend.describe()
     if (type(value) is not dict or len(_json(value)) > 16 << 10
             or not {'id', 'generation', 'capabilities', 'limits', 'sessions'} <= set(value)
-            or type(value['sessions']) is not list or not value['sessions']
+            or type(value['sessions']) is not list
             or any(type(s) is not str for s in value['sessions'])
             or type(value['capabilities']) is not list
             or type(value['limits']) is not dict
@@ -63,7 +81,23 @@ def profiles(hub):
     for key in ('maximumMicros', 'jobMaximumMicros', 'maximumOutputBytes'):
         if type(value['limits'].get(key)) is not int or value['limits'][key] <= 0:
             raise InvalidProject('The installed execution profile needs explicit resource ceilings')
-    return [copy.deepcopy(value)]
+    return copy.deepcopy(value)
+
+
+def recovery_transport(hub, chosen):
+    """Trusted startup transports only; this route cannot authorize new work."""
+    chosen = selection(chosen)
+    backend = getattr(hub, 'matrix_executor', None)
+    if backend is not None:
+        profile = _profile(backend)
+        if chosen == {'profile': profile['id'], 'generation': profile['generation']}:
+            return backend, profile
+    backend = getattr(hub, 'matrix_recovery_executors', {}).get((chosen['profile'], chosen['generation']))
+    if backend is not None:
+        profile = _profile(backend)
+        if chosen == {'profile': profile['id'], 'generation': profile['generation']}:
+            return backend, profile
+    raise ExecutionUncertain('Recovery requires the operator-installed original execution transport; no replacement was submitted')
 
 
 def validate(hub, chosen, capability, session, *, local_only=False):
@@ -136,8 +170,11 @@ def _admit(workflows, claim, intent, receipt, profile):
                 if state['status'] != 'running':
                     raise InvalidProject('Only the original running attempt can admit external work')
                 spent = 0
-                for session in profile['sessions']:
-                    for item in workflows.store.list(session):
+                for session in workflows.store.owner_sessions():
+                    records, problems = workflows.store.scan(session)
+                    if problems:
+                        raise InvalidProject('Recover unreadable Project records before admitting external work')
+                    for item in records:
                         a = item.document['state'].get('workflowAttempt', {})
                         e = a.get('execution')
                         if not e or e['intent']['execution']['profile'] != profile['id']:
@@ -187,12 +224,13 @@ def _run(steps, claim, inputs, *, reconcile):
         # Cancellation/observation requires no current source, scientific code or
         # local output space: those may have disappeared after submission.
         intent = copy.deepcopy(prior['intent'])
-        profile = validate(steps.hub, intent['execution'], intent['capability'], claim['session'])
+        backend, profile = recovery_transport(steps.hub, intent['execution'])
         receipt, fresh = prior['receipt'], False
     else:
         settings = claim['node']['settings']
         local_only = steps.day.elsewhere(claim['session']).local_only
         profile = validate(steps.hub, settings['execution'], settings['capability'], claim['session'], local_only=local_only)
+        backend = steps.hub.matrix_executor
         store = steps.store.for_session(claim['session'], write=True)
         declared = local.descriptor(settings['capability'])
         if declared['generation'] != settings['generation']:
@@ -236,7 +274,6 @@ def _run(steps, claim, inputs, *, reconcile):
         # The backend creates this only when retaining a result. Even mkdir can
         # fail on a full disk, so provider cancellation must precede it.
         scratch = Path(store.root) / ('.external-matrix-' + uuid4().hex)
-        backend = steps.hub.matrix_executor
         execute = backend.execute if fresh and not reconcile else backend.reconcile
         path, summary = execute(intent, sources, scratch, observe, stopped)
         path = Path(path)
