@@ -34,12 +34,30 @@ EDIT = "three replicates, add a dark control"
 class Studio(DocumentStudio):
     """The document studio, each reader Tab its own surface (a revised design's cards open in a Tab of their own)."""
 
+    replaced = 0
+
     def reader_row(self, mode, resource):
         row = super().reader_row(mode, resource)
         if mode == "tab":
-            row["lifetimeGeneration"] = f"synthetic-root:reader-tab:{self.active}"
-            row["sourceGeneration"] = list(self.reading).index(self.active) + 1
+            row["lifetimeGeneration"] = f"synthetic-root:reader-tab:{self.active}:{self.reading[self.active]['id']}"
+            row["sourceGeneration"] = list(self.reading).index(self.active) + 1 + self.replaced
         return row
+
+    async def tabs_reply(self, message):
+        """replaceReaderTab: the Tab showing the item a new version replaces shows the new one, in place and in front."""
+        from orchestrator.commands import COMMANDS
+
+        action = message["action"]
+        held = next((t for t, shown in self.reading.items() if shown["id"] == action.get("replaces")), None)
+        if action["action"] != "reader" or held is None:
+            return await super().tabs_reply(message)
+        self.reading[held] = dict(action["item"]["resource"])
+        self.active, self.replaced = held, self.replaced + 1
+        await self.send_report()
+        await COMMANDS["workspace-tabs-result"](self.app, self, {
+            "type": "workspace-tabs-result", "id": message["id"], "session": message["session"],
+            "workspacePin": message["workspacePin"],
+            "result": {"ok": True, "session": self.project, "studioVisible": self.in_view, "tabs": self.listed()}})
 
 
 async def built(tmp_path, monkeypatch, **kwargs):
@@ -63,7 +81,7 @@ def design(title, *, conditions, controls=(), replicates=2, steps=None, capabili
             "rationale": "Light is the variable.", "limitations": "One leaf."}
 
 
-THREE = {"designs": [
+THREE = {"recommended": 2, "why": "Shading half of one leaf controls for the leaf itself.", "designs": [
     design("Light time course", conditions=["Lamp on"], controls=["Before the lamp"]),
     design("Light against shade", conditions=["Lamp on", "Shaded half"]),
     design("Intensity series", conditions=["Low light", "High light"], replicates=3)]}
@@ -210,7 +228,11 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         text = app.hub.resources.read(cards, studio.project)
         assert "Design 2 (d2): Light against shade" in text and "Hooke captures:" in text and "You do:" in text
         assert "Nothing has run" in text
+        assert "Hooke would start with Design 2: Light against shade" in text, "a colleague's pick, with why"
+        assert "Shading half of one leaf" in text and "You would start with d2" in run.summary
+        assert "never ids" in run.summary, "the voice talks them through, never reading ids or the cards"
         nothing_ran(app)
+        cards_tab = studio.active
         # 2. A spoken edit revises one design: its next version, the old kept, shown again.
         run = await asked(app, studio, "revise_design", {"design": "d2", "change": EDIT}, EDIT)
         assert run.ok is True, run.summary
@@ -219,6 +241,10 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         assert [c["name"] for c in d2["controls"]] == ["Dark"] and d2["history"][0]["replicates"] == 2
         assert [s["kind"] for s in d2["steps"]] == ["manual", "capture", "manual", "researcher"]
         assert "Revised as asked" in run.summary and "3 replicates" in run.summary
+        assert studio.active == cards_tab and len(studio.reading) == 1, run.summary
+        (revised,) = [m for m in studio.sent("workspace-tabs") if m["action"].get("replaces")] or [run.summary]
+        assert isinstance(revised, dict), revised
+        assert revised["action"]["replaces"] == cards
         assert "Design 2 (d2): Light against shade · version 2" in app.hub.resources.read(
             studio.reading[studio.active]["id"], studio.project)
         nothing_ran(app)

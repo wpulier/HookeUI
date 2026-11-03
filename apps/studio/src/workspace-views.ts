@@ -817,6 +817,20 @@ private revision=0;private generation=0;private revealSequence=0;
   if(!this.ownsTabChoice(owner))return false;
   return !!await this.activate(view.id,true);
  }
+ /** The reader Tab showing `previous` (a saved item's id in this Project) shows `item` instead, in place and in front: a
+  * new version of the same thing, never a second Tab. No such Tab: it opens as Open in new Tab does. */
+ async replaceReaderTab(previous:string,item:ReaderTabItem,owner=this.tabOwner()):Promise<boolean>{
+  const view=this.layout.views.find(v=>{const r=readerItem(v);return !!r&&r.resource.day===item.resource.day&&r.resource.id===previous;});
+  if(!view)return this.openReaderTab(item,owner);
+  if(!this.ownsTabChoice(owner))throw new Error('The Project changed. Open it again from its Data.');
+  if(this.busy())throw new Error('A Tab is still opening. Try again in a moment.');
+  this.capture();await this.flush();
+  if(!this.ownsTabChoice(owner)||this.dirty||this.conflict)throw new Error('The layout is not saved. Retry before opening another page.');
+  view.title=item.title.slice(0,80);view.items=readerView(view.id,item).items;this.loaded.delete(view.id);
+  this.changed();await this.flush();
+  if(!this.ownsTabChoice(owner))return false;
+  return view.id===this.layout.active?!!await this.activate(view.id,true):this.goTo(view.id,owner);
+ }
  private readerBacks?:Map<string,ReaderTabItem[]>;
  readerCanGoBack():boolean{return !!this.readerBacks?.get(`${this.session}:${this.layout.active}`)?.length;}
  async readerBack():Promise<boolean>{
@@ -1254,7 +1268,10 @@ private revision=0;private generation=0;private revealSequence=0;
     if(!resource||resource.day!==session||typeof resource.id!=='string'||!resource.id)throw new Error('Choose a saved item in this Project.');
     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
     const title=String(item?.title??'').trim().slice(0,80)||resource.id;
-    if(!await this.openReaderTab({resource:{day:resource.day,id:resource.id,version:typeof resource.version==='number'?resource.version:null},title},owner))throw new Error('Its Tab did not open. Open it from Data.');
+    const shown={resource:{day:resource.day,id:resource.id,version:typeof resource.version==='number'?resource.version:null},title};
+    // A new version of an item already open in its own Tab (a revised design's plan cards) takes its place there.
+    const replaces=typeof args.replaces==='string'&&args.replaces?args.replaces:'';
+    if(!await (replaces?this.replaceReaderTab(replaces,shown,owner):this.openReaderTab(shown,owner)))throw new Error('Its Tab did not open. Open it from Data.');
     check();
    }else if(args.action==='create'){
     const id=await this.addView(String(args.title).trim().slice(0,80));check();if(!id)throw new Error('No Tab was created. Check the workspace.');

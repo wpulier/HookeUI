@@ -52,6 +52,28 @@ test('Open in new Tab makes a reader Tab for the item and goes to it; the same i
  expect(current.goTo).toHaveBeenCalledWith('new-id',{session:'p',generation:1});
 });
 
+test('a new version of an item open in its own Tab takes its place there, in front; with none open, a Tab opens',async()=>{
+ // A revised design's plan cards (orchestrator/experiment_design.py): the card updates where it is, never a second Tab.
+ const current=views({opts:{}});
+ current.layout.views.push(readerView('t9',item));current.openIds.push('t9');
+ const revised={resource:{day:'p',id:'r810834',version:0},title:'Experiment designs'};
+ expect(await current.replaceReaderTab('r810833',revised)).toBe(true);
+ const readers=current.layout.views.filter((v:{kind?:string})=>v.kind==='reader');
+ expect(readers).toHaveLength(1);
+ expect(readers[0]).toMatchObject({id:'t9',title:'Experiment designs',items:[revised]});
+ expect(current.goTo).toHaveBeenCalledWith('t9',{session:'p',generation:1});
+ expect(current.changed).toHaveBeenCalled();
+ // In front already: shown again in place.
+ current.layout.active='t9';current.goTo.mockClear();
+ const again={resource:{day:'p',id:'r810835',version:0},title:'Experiment designs'};
+ expect(await current.replaceReaderTab('r810834',again)).toBe(true);
+ expect(current.activate).toHaveBeenCalledWith('t9',true);
+ expect(current.goTo).not.toHaveBeenCalled();
+ // Nothing shows the earlier item: it opens in a Tab of its own, as Open in new Tab does.
+ expect(await current.replaceReaderTab('gone',{resource:{day:'p',id:'r9',version:0},title:'Other'})).toBe(true);
+ expect(current.layout.views.filter((v:{kind?:string})=>v.kind==='reader')).toHaveLength(2);
+});
+
 test('Add to Tab… adds without leaving and says where, with Go to that Tab',async()=>{
  const current=views({opts:{}});
  const placed={resource:{day:'p',id:'e8',version:0,picture:0},title:'Bright regions · Bright objects · 02:35',zoom:1,pan:[.5,.5],presentation:'masks' as const};

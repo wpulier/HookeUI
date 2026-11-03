@@ -39,7 +39,8 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
     async def facts(session: str, literature=()):
         return await designs().facts(session, capabilities=services.capability_status, literature=literature)
 
-    async def show(ctx: ToolContext, proposal: dict, *, tool: str, args: dict, open_it: bool) -> str:
+    async def show(ctx: ToolContext, proposal: dict, *, tool: str, args: dict, open_it: bool,
+                   replace: bool = False) -> str:
         """The plan cards kept as one document in Data (Write-ups) and opened in a Tab of its own."""
         from ... import documents
         from ...data_reader import reader_studio
@@ -59,6 +60,7 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
                                session=proposal["session"], actor="assistant", media="document")
         if kept is None:
             return "they could not be kept in Data, so no cards are shown"
+        previous = (proposal.get("documents") or [None])[-1] if replace else None
         proposal["documents"] = [*proposal.get("documents", []), kept["id"]]
         await designs().keep_document(proposal)
         saved = f"its plan cards are saved in Data as {kept['id']} (Write-ups)"
@@ -74,7 +76,7 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
 
         try:
             where = await documents.show(services, ctx, studio, entry, placement="new-tab", title=E.TAB_TITLE,
-                                         guard=guard)
+                                         guard=guard, replaces=previous)
         except ToolFailed as exc:
             return f"{saved}; not shown: {exc}"
         return f"{saved} and {where}"
@@ -117,11 +119,15 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
         where = await show(ctx, proposal, tool="propose_experiments", args={"question": question},
                            open_it=args.get("open", True) is not False)
         left = f"; {len(proposal['left'])} more could not be run here as drafted" if proposal["left"] else ""
+        pick = proposal.get("recommended") or {}
+        lead = (f" You would start with {pick['id']}: {pick.get('why') or 'say why in a few words'}." if pick.get("id")
+                else "")
         return (f"{len(proposal['designs'])} designs, nothing run{left}: "
-                + " | ".join(E.said(d) for d in proposal["designs"])
-                + f". {where[:1].upper()}{where[1:]}. Say the designs briefly, one line each by title and how they "
-                  "differ, then ask which they like or what to change; a change is revise_design, a pick to keep is "
-                  "study_plan save, and nothing runs before their yes to experiment's plan")
+                + " | ".join(E.said(d) for d in proposal["designs"]) + f".{lead} "
+                + f"{where[:1].upper()}{where[1:]}. Talk them through as a colleague would, briefly: one sentence each "
+                  "on what it tests and how it differs from the others (by number and what it does, never ids, Data or "
+                  "step names, never the cards read aloud), which you would start with and why, then one question: "
+                  "which they like or what to change. Nothing has run")
 
     registry.add(Tool(
         "propose_experiments", "Design experiments with the user (\"help me design an experiment on whether light opens "
@@ -155,11 +161,12 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
             progress(None)
         require_current(ctx, services.day)
         where = await show(ctx, proposal, tool="revise_design", args={"design": d["id"], "change": change},
-                           open_it=args.get("open", True) is not False)
+                           open_it=args.get("open", True) is not False, replace=True)
         unsaved = (f" Its Study plan is still version {d['study']['version']}: study_plan save keeps this version"
                    if d.get("study") else "")
-        return (f"Revised as asked (\"{change}\"): {E.said(d)}. {where[:1].upper()}{where[1:]}.{unsaved} Say what "
-                "changed in one sentence; nothing runs")
+        return (f"Revised as asked (\"{change}\"): {E.said(d)}. {where[:1].upper()}{where[1:]}.{unsaved} Say in one "
+                "sentence what changed and what follows from it (its time, a step of theirs), as a colleague would; "
+                "nothing has run")
 
     registry.add(Tool(
         "revise_design", "Change one experiment design as the user says (\"three replicates, add a dark control\"): it "
