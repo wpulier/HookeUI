@@ -1713,6 +1713,8 @@ export type ClientCommand =
   | { type: 'project-start-from'; source: string | {kind: 'folder'; path: string}; name?: string }
   | { type: 'project-update-from'; session: string }
   | { type: 'project-remote-status'; session: string }
+  | { type: 'project-backup'; session: string; destination: import('./project-backup').BackupDestination }
+  | { type: 'project-restore'; source: {kind: 'folder'; path: string} | {kind: 'github'; repo: string}; replaceMissing?: boolean }
   | { type: 'project-export'; session: string; requestKey: string; acknowledgeIncomplete: true }
   | { type: 'project-export-status'; session: string; operation: string }
   | { type: 'project-export-stop'; session: string; operation: string }
@@ -1803,7 +1805,9 @@ interface Replies {
   'project-publish': {published: import('./project-publish').Published; location: string};
   'project-start-from': {project: import('./project-open').OpenedProject; startedFrom: unknown};
   'project-update-from': {update: import('./project-publish').UpdateResult};
-  'project-remote-status': import('./project-publish').RemoteStatus;
+  'project-remote-status': import('./project-publish').RemoteStatus & {backups?: import('./project-backup').BackupEntry[]};
+  'project-backup': {backup: import('./project-backup').BackedUp; location: string};
+  'project-restore': {project?: import('./project-open').OpenedProject; restored?: unknown; missing?: boolean};
   'project-export': {operation: import('./project-export').ExportOperation};
   'project-export-status': {operation: import('./project-export').ExportOperation};
   'project-export-stop': {operation: import('./project-export').ExportOperation};

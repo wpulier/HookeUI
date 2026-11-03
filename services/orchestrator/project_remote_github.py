@@ -278,13 +278,13 @@ class GitHubRecords:
 class GitHubReleaseBulk:
     """Large files as assets of the `hooke-data` release: uploaded signed in, downloaded with no account."""
 
-    def __init__(self, client: Client, repo: str):
-        self.client, self.repo = client, repository(repo)
+    def __init__(self, client: Client, repo: str, *, private=False):
+        self.client, self.repo, self.private = client, repository(repo), bool(private)
         self._release = None
 
     def describe(self):
         return {'kind': 'github-release', 'base': f'https://github.com/{self.repo}/releases/download/{RELEASE_TAG}/',
-                'visibility': 'public'}
+                'visibility': 'private' if self.private else 'public'}
 
     def _assets(self, create=False):
         if self._release is None:
@@ -336,15 +336,25 @@ class GitHubReleaseBulk:
         if not DIGEST.fullmatch(digest):
             raise RemoteRefused('An object name is not a SHA-256')
         check()
-        body = self.client.download(f'https://github.com/{self.repo}/releases/download/{RELEASE_TAG}/{digest}', size)
+        if self.private:  # a private repository's assets come through the API, signed in
+            _, assets = self._assets()
+            asset = assets.get(digest)
+            if not isinstance(asset, dict) or type(asset.get('id')) is not int:
+                raise RemoteRefused('A large file of this version is not in its store')
+            body = self.client.asset(self.repo, asset['id'], size)
+        else:
+            body = self.client.download(f'https://github.com/{self.repo}/releases/download/{RELEASE_TAG}/{digest}',
+                                        size)
         if len(body) != size or sha256(body) != digest:
             raise ChangedOutsideHooke('A large file on GitHub does not match its name')
         with open(target, 'xb') as stream:
             stream.write(body)
 
 
-def github_remote(client: Client, repo: str, *, placeholder=None, bulk=None) -> Remote:
-    return Remote(GitHubRecords(client, repo, placeholder=placeholder), bulk or GitHubReleaseBulk(client, repo))
+def github_remote(client: Client, repo: str, *, placeholder=None, bulk=None, private=False) -> Remote:
+    """`private`: a private repository (a backup), whose large files are read signed in."""
+    return Remote(GitHubRecords(client, repo, placeholder=placeholder),
+                  bulk or GitHubReleaseBulk(client, repo, private=private))
 
 
 def create_repository(client: Client, name: str, *, private: bool, description: str, wait=time.sleep):
