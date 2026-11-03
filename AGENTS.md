@@ -17,7 +17,7 @@ checkout and an isolated MICROMIND_HOME protect an existing running workspace.
 Never use the owner's saved data or provider credentials in tests. Tests use
 synthetic inputs or explicitly cleared fixtures. Preserve user data and judgments.
 
-The camera bridge alone owns capture hardware. Keep live frame intake responsive;
+The camera bridge alone owns capture hardware; the scope bridge alone drives the microscope's motors and light. Keep live frame intake responsive;
 slow work runs outside the event loop. A rendered or scientific result is not
 complete until observed; distinguish tests, simulations, actual providers and hardware.
 
@@ -36,6 +36,7 @@ and credentials belong to the private publisher, not this core repository.
 Component contracts (read the relevant file before editing):
 - `docs/architecture/scoped-agent-client.md`
 - `services/agent_client/AGENTS.md` (optional Project-bound external MCP read client)
+- `services/scope_bridge/AGENTS.md` (the microscope's motors, camera and light: only it touches them, inside the user's limits)
 - `apps/studio/AGENTS.md`
 - `catalog/AGENTS.md`
 - `contract/AGENTS.md`

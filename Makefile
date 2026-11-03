@@ -253,6 +253,17 @@ check: test
 sim-test:
 	cd services && .venv/bin/python -m sim.harness $(if $(SIM_MANIFEST),--asset-manifest "$(SIM_MANIFEST)") $(if $(SIM_VIDEO),--video "../$(SIM_VIDEO)") $(if $(SIM_ONLY),--only "$(SIM_ONLY)")
 
+# The scope bridge's own environment (services/scope_bridge/AGENTS.md): pymmcore-plus, Micro-Manager's test adapters (the
+# demo configuration) and Pillow, pinned in requirements.txt, beside the services' and never in the app's runtime.
+.PHONY: scope-setup scope-fuzz
+scope-setup:
+	cd services/scope_bridge && uv venv --python 3.13 --allow-existing -q .venv && uv pip install --python .venv/bin/python -q -r requirements.txt
+	@echo "Scope bridge environment ready: make start SCOPE_BACKEND=mm-demo (or openflexure SCOPE_SERVER=http://...)"
+
+# Random commands at the scope bridge on Micro-Manager's demo configuration: zero limit breaches or it fails.
+scope-fuzz:
+	cd services && scope_bridge/.venv/bin/python -m scope_bridge.fuzz --backend mm-demo --n $(or $(N),2000)
+
 # Every model in the catalog (catalog/models): ready here, or what it needs and how (orchestrator/readiness.py). It reads
 # files and the keys file only: it loads no model, downloads nothing and calls no provider.
 doctor:

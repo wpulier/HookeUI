@@ -568,6 +568,21 @@ class App:
                       um_per_px=um_per_px, log=agent.log)
         hub.on_frame.append(guide.frame)  # after the coach's: its sweep for this frame is known
         hub.guide = guide
+        # The microscope's motors, camera and light, when a scope bridge was started with this app (scope.py,
+        # services/scope_bridge): every receipt filed in the session's journal, with what was asked.
+        from .scope import from_environment
+
+        scope = from_environment()
+
+        def scope_journal(receipt: dict, ctx) -> None:
+            asked = getattr(ctx, "asked", None)
+            dialogue.notice(producer={"kind": "scope", "id": str(receipt.get("id") or "")}, event=str(receipt.get("status")),
+                            summary=f"Microscope: {receipt.get('kind')} {receipt.get('status')}"
+                                    + (f": {receipt['why']}" if receipt.get("why") else ""),
+                            facts={"receipt": receipt}, asked=asked,
+                            origin={"day": getattr(asked, "day", None), "thread": getattr(asked, "thread", None),
+                                    "turnId": getattr(ctx, "turn_id", None), "requestId": getattr(ctx, "request_id", None)},
+                            tone="error" if receipt.get("status") == "failed" else "info")
 
         async def ask_quietly(prompt: str) -> dict:
             """The day's memory asks the fast model (summaries, settled facts); never on a reply's path."""
@@ -590,7 +605,7 @@ class App:
                             presenter=presenter, day=day, memory=memory, subjects=subjects, sight=sight, narrator=narrator,
                             outline_seen=partial(outline_seen, hub, lambda: sight.view),
                             publish_settings=lambda: app.publish_settings(), sweep=sweep,
-                            clip=clip, watcher=watcher, guide=guide, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
+                            clip=clip, watcher=watcher, guide=guide, scope=scope, scope_journal=scope_journal, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
                             capabilities=lambda: app.capabilities_wire(counts=False),  # the agent reads what the Capabilities page shows
                             capability_status=lambda: app.capability_status(),  # its awareness: the rows alone, fresh
                             # The Models page's download queue and its card, for the agent (brain/toolbox/catalog.py)

@@ -53,6 +53,7 @@ from .workflows import add_workflow_tools
 from .experiments import add_experiment_tools
 from .experiment_design import add_experiment_design_tools
 from .guiding import add_guide_tools
+from .scope import add_scope_tools
 
 
 @dataclass
@@ -91,6 +92,8 @@ class Services:
     clip: Any = None  # clip.ClipBuffer: the last minute of the view (what_happened)
     watcher: Any = None  # watcher.Watcher: watching for something to happen (watch)
     guide: Any = None  # guide.Guide: guiding the user's hands to a thing until it is centred and sharp (guide)
+    scope: Any = None  # scope.ScopeClient: the microscope's motors, camera and light through the scope bridge
+    scope_journal: Callable | None = None  # (receipt, ctx): files a scope bridge receipt in the session's journal
     sweep: Any = None  # sweep.SweepBuffer: the frames of the last turn of the focus knob (enhance how="stack")
     slidemap: Any = None  # slidemap.SlideMap: the slide map panel (where_is needs only the scene)
     snapshots: Any = None  # Path: where snapshots are saved (paths.Paths.snapshots; None: from the environment)
@@ -139,6 +142,7 @@ def build(services: Services) -> Registry:
     add_motion_tools(registry, services)
     add_where_tools(registry, services)
     add_guide_tools(registry, services)
+    add_scope_tools(registry, services)
     add_identity_tools(registry, services)
     add_outcome_tools(registry, services)
     add_time_tools(registry, services)

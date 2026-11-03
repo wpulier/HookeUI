@@ -212,6 +212,18 @@ TOOLS = {
     "stop_guiding": "none: stops guiding",
     "guiding": "none: reads the guidance",
     "show_map": "none: opens the slide map",
+    # The microscope through the scope bridge: its pictures and receipts are the bridge's (services/scope_bridge), each
+    # receipt filed in the session's journal as an app notice
+    "microscope": "none: reads the microscope's state",
+    "move_stage": "none: moves the microscope's stage; its receipt is in the journal",
+    "scope_snap": "none: a picture the scope bridge keeps; its receipt is in the journal",
+    "scope_focus": "none: moves the microscope's focus; its receipt is in the journal",
+    "scope_exposure": "none: sets the microscope's exposure; its receipt is in the journal",
+    "scope_channel": "none: switches the microscope's channel; its receipt is in the journal",
+    "scope_light": "none: switches the microscope's light; its receipt is in the journal",
+    "scope_acquire": "none: pictures the scope bridge keeps; its receipt is in the journal",
+    "stop_scope": "none: stops the microscope",
+    "scope_limits": "none: reads or changes the user's limits for the microscope",
     "bookmark": "bookmark",
     "way_to_bookmark": "result",  # a measurement of where it is from the view now, as where_is (review note)
     "seen_before": "none: reads what was named today",
