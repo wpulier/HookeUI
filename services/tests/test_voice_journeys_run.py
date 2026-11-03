@@ -177,7 +177,7 @@ def expects_of(plan: dict, step_id: str) -> dict:
 
 # The voice's own tools, and brain tools a hand-off's steps may name that the voice's golden schemas do not list.
 KNOWN = {"look_hard", "mark", "do_in_hooke", "stop_work", "think", "show_measurements", "run_capability", "web_search",
-         "models"}
+         "models", "activity"}
 
 
 @pytest.mark.parametrize("name", sorted(p.stem for p in stack.PLANS.glob("*.json")))

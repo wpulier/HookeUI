@@ -478,11 +478,15 @@ class Conductor:
             ask["at"] = self.clock()
             launch.asks.append(ask)
             pid = ask["id"]
+            # Its reason is in its own words ("May I run…"): said as the voice's own, it sounds like Hooke asking
+            # (will-agents run 3), so the voice is told whose ask it is.
             self.side.say({"agent": launch.label, "event": "asks your permission", "to": ask["title"].lower(),
-                           "what": short(ask["detail"], 200), "why": short(ask["reason"], 200),
+                           "what": short(ask["detail"], 200), f"{launch.label}'s reason, in its words": short(ask["reason"], 200),
                            "how the user answers": "yes or no by voice (answer_agent with their own words), or on "
                                                    "its approval card; Hooke never answers for them",
-                           "say it": "once, in one short sentence that asks whether to allow it"},
+                           "say it": f"once, in one short sentence that names {launch.label} as the one asking and asks "
+                                     f"the user whether to allow it (\"{launch.label} wants to …; allow it?\"); never "
+                                     "as your own request, never \"May I\""},
                           still=lambda: any(a["id"] == pid for a in launch.asks))
             self._note(launch, "ask", f"to {ask['title'].lower()}: {ask['detail']}", item=ask["id"])
             self.side.activity(f"{launch.label} asks to {ask['title'].lower()}", state="running",

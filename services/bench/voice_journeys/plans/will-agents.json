@@ -53,7 +53,8 @@
    "expect": {
     "tools": [
      "do_in_hooke",
-     "agents"
+     "agents",
+     "activity"
     ],
     "toolRequired": false,
     "judge": "says in one or two sentences what Codex is doing (and any researcher), in plain words, nothing out of date"
@@ -84,13 +85,16 @@
    "id": "go-ahead",
    "kind": "act",
    "say": "Yes, go ahead.",
+   "when": {
+    "agent": "asks"
+   },
    "expect": {
     "tools": [
      "do_in_hooke",
      "answer_agent"
     ],
-    "toolRequired": false,
-    "judge": "if Codex is waiting on an ask, passes the yes on and says so in a few words; if nothing is waiting, says so plainly in a few words; never answers anything the user did not answer"
+    "outcome": true,
+    "judge": "passes the yes on to Codex's waiting ask and says so in a few words; never answers anything the user did not answer"
    }
   },
   {

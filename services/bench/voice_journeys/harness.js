@@ -520,6 +520,9 @@
         if (spokenAhead) { await connect(true); await sleep(3000); await quiet(2500, 20000, 0); }
         for (let i = from; i < steps.length; i++) {
           const step = steps[i], next = steps[i + 1];
+          // Said only while it fits: "yes, go ahead" while an agent's ask waits. With nothing to answer a person
+          // would not say it (will-agents run 3: Codex no longer asked again), so the step is left out, not failed.
+          if (step.when && !satisfied(step.when, known())) { ev({ e: 'skipped', step: step.id, when: step.when }); continue; }
           if (step.footage) {
             await bridge(base, `/feed?source=footage&footage=${encodeURIComponent(step.footage)}`);
             await sleep(2500);
