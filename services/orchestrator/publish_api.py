@@ -36,7 +36,7 @@ from urllib.parse import urlencode
 
 from gpu_worker import manifests as catalog
 
-from . import bounded_files, untrusted
+from . import bounded_files
 from .publish import CantPublish, body, certification, problems
 
 API = "https://api.github.com"
@@ -76,8 +76,8 @@ def _api(token: str | None = None):
 
 def _ok(status: int, data, what: str):
     if status >= 400:
-        message = data.get("message") if isinstance(data, dict) else ""
-        raise CantPublish(f"GitHub refused {what} ({status}{': ' + untrusted.inline(message, 160) if message else ''})")
+        from .github_rest import refused
+        raise CantPublish(refused(what, status, data))
     return data
 
 
