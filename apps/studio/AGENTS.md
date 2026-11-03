@@ -36,7 +36,10 @@ its Tab), grouped Needs you, Working, Done in the drawer's one row anatomy, with
 stopped: the dim one). An outside agent's quiet line is "Codex · what it is doing", with "about $0.31 by its own count"
 only when it reports dollars. Its ask sits in its row with what it would do (the command, the paths) and Allow, Allow for
 this session (only when the program offers a session rule) and Decline: the only place an ask is answered, and nothing
-answers it on its own; the buttons say Sending your answer… until the list says it was answered. A click opens a peek
+answers it on its own; the buttons say Sending your answer… until the list says it was answered. The same ask shows as
+Hooke's approval card over the composer (`asksRoot`: up to three, then "N more in Agents"), with the same buttons and
+"Or say “allow it” or “no”.", hidden while nothing waits. A working row counts its time ("Working 1:12"); a finished
+one whose report the Study has offers "Review its report and claim ›", which opens its Study. A click opens a peek
 at its transcript (whose words each line is: Hooke's relays are "Hooke", never "You"; what it ran; its answer; what it
 is writing now) with a reply box sent as Hooke's note; ⋯ holds Interrupt, Stop (it ends and its connection is revoked;
 what it kept stays) and Show transcript. Start an agent: which program (one not installed is listed, not choosable, with

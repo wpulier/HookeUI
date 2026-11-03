@@ -1395,13 +1395,47 @@
   }
  },
  {
-  "description": "What every worker is doing: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed).",
+  "description": "What every worker is doing: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed); say it in one or two sentences.",
   "inline_ms": 300,
   "kind": "query",
   "name": "agents",
   "params": {
    "properties": {},
    "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Give the user's own answer to what an outside agent asked to do (allow or decline), after they said it; never on Hooke's own judgement.",
+  "inline_ms": 2000,
+  "kind": "effect",
+  "name": "answer_agent",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    },
+    "always": {
+     "description": "the user said yes for the rest of this session",
+     "type": "boolean"
+    },
+    "answer": {
+     "enum": [
+      "allow",
+      "decline"
+     ],
+     "type": "string"
+    },
+    "asked_with": {
+     "description": "the user's own answer, quoted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "answer",
+    "asked_with"
+   ],
    "type": "object"
   }
  },

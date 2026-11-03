@@ -1,0 +1,107 @@
+{
+ "id": "will-agents",
+ "about": "Will's ask of 3 Nov (Lane D, the conductor): Hooke drives the outside agents on this Mac the way he would, by voice, so he never pastes a prompt again. He asks for Codex to find out what Hooke can run here and write a short report; Codex works in its own Study assignment and asks to run Hooke's command outside its sandbox; the voice says the ask once and he answers it by voice; he asks what everyone is doing, steers Codex, hears what it found once its report is back for review, and stops it. Any internal language spoken (session ids, tool names, file paths, receipts) fails a step. Needs Codex installed and signed in on the Mac running the stack.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "start",
+   "kind": "act",
+   "say": "Ask Codex to find out which capabilities Hooke can run on this Mac, and write me a short report.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "start_agent"
+    ],
+    "outcome": true,
+    "judge": "acknowledges at once in a few words that it is getting Codex on it, then says once that Codex is working on it in this Project and will report back; never says ids, tool names or file paths",
+    "visible": "Codex working in the Agents list"
+   }
+  },
+  {
+   "id": "ask-waits",
+   "kind": "idle",
+   "wait": 240,
+   "waitFor": {
+    "agent": "asks"
+   }
+  },
+  {
+   "id": "allow",
+   "kind": "act",
+   "say": "Yes, let it do that for the rest of this session.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "answer_agent"
+    ],
+    "outcome": true,
+    "judge": "passes the yes on to Codex's waiting ask (for this session) and says so in a few words; never answers an ask the user did not answer"
+   }
+  },
+  {
+   "id": "status",
+   "kind": "status",
+   "say": "What's everyone doing?",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "agents"
+    ],
+    "toolRequired": false,
+    "judge": "says in one or two sentences what Codex is doing (and any researcher), in plain words, nothing out of date"
+   }
+  },
+  {
+   "id": "steer",
+   "kind": "act",
+   "say": "Tell Codex to also say which of them need a download.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "agent_note"
+    ],
+    "outcome": true,
+    "judge": "passes the note on to Codex as its own words of the user's request and says so in a few words"
+   }
+  },
+  {
+   "id": "finish",
+   "kind": "idle",
+   "wait": 600,
+   "waitFor": {
+    "agent": "done"
+   }
+  },
+  {
+   "id": "found",
+   "kind": "status",
+   "say": "What did Codex find?",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "agents"
+    ],
+    "toolRequired": false,
+    "judge": "says what Codex reported in a sentence or two, that its report is back in its Study for review, and does not present it as an accepted finding"
+   }
+  },
+  {
+   "id": "stop",
+   "kind": "act",
+   "say": "Okay, stop Codex.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "stop_agent"
+    ],
+    "outcome": true,
+    "judge": "stops Codex and says so once, in a few words",
+    "visible": "Codex stopped in the Agents list"
+   }
+  }
+ ]
+}

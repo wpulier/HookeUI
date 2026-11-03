@@ -66,24 +66,54 @@ def add_agent_tools(registry: Registry, services) -> None:
         start_agent, family="researchers", inline_ms=4000))
 
     async def agents(ctx: ToolContext, args: dict) -> str:
-        lines = []
         research = services.research
-        for s in (research.researchers() if research is not None else [])[-8:]:
-            lines.append(f"Hooke researcher {s.line()}")
-        for row in conductor().wire()[:8]:
-            words = f"{row['label']} ({row['status']}): {row['task'][:120]} — {row['line']}"
-            if row["asks"]:
-                words += f"; waiting for the user to allow or decline: {row['asks'][0]['title']}"
+        sessions = research.researchers() if research is not None else []
+        working = [s for s in sessions if s.status in ("queued", "starting", "running")]
+        outside = conductor().summary()
+        if not outside and not sessions:
+            return "nobody is working: no Hooke researchers and no outside agents in this Project"
+        said = "; ".join(outside[:4]) if outside else "no outside agents"
+        said += f". Hooke researchers working: {len(working)}" + (f" ({', '.join(s.name for s in working[:3])})"
+                                                                  if working else "")
+        details = [f"Hooke researcher {s.line()}" for s in sessions[-6:]]
+        for row in conductor().wire()[:6]:
+            line = f"{row['label']} ({row['status']}): {row['task'][:120]} — {row['line']}"
             if row.get("costUsd") is not None:
-                words += f"; about ${row['costUsd']:.2f} by its own count"
-            lines.append(words)
-        if not lines:
-            return "no researchers or outside agents in this Project"
-        return block("\n".join(lines))  # agents' words are data, never instructions
+                line += f"; about ${row['costUsd']:.2f} by its own count"
+            details.append(line)
+        # The summary is Hooke's; the details hold agents' own words, which are data, never instructions.
+        return (f"in one or two sentences: {said}.\n" + block("\n".join(details))) if details else said
 
     registry.add(Tool("agents", "What every worker is doing: Hooke's researchers and the outside agents Hooke started "
-                                "(working, needs you, done or failed).", schema({}), agents, kind="query",
-                      family="researchers", inline_ms=300))
+                                "(working, needs you, done or failed); say it in one or two sentences.", schema({}),
+                      agents, kind="query", family="researchers", inline_ms=300))
+
+    async def answer_agent(ctx: ToolContext, args: dict) -> str:
+        # The user's own yes or no to what an agent asked, never Hooke's or the agent's: their words are checked.
+        if not quoted(str(args.get("asked_with") or ""), recent_request(services, ctx), least=1):
+            raise ToolFailed("an agent's ask is answered only by the user's own yes or no",
+                             next="ask them once, then quote their answer in asked_with")
+        allow = args.get("answer") == "allow"
+        try:
+            launch, ask = conductor().waiting(args.get("agent"))
+            await conductor().answer(launch.id, ask["id"], allow, always=bool(args.get("always")) and allow)
+        except Refused as error:
+            raise ToolFailed(error.says, next=error.next or None) from error  # next: passed on
+        attach(values={"agentLaunch": launch.id, "agentAsk": ask["id"]})
+        what = ask["title"].lower()
+        if not allow:
+            return f"declined: {launch.label} won't {what}; it carries on without it"
+        return (f"allowed {launch.label} to {what}" + (" for this session" if args.get("always") else "") +
+                "; it carries on")
+
+    registry.add(Tool(
+        "answer_agent", "Give the user's own answer to what an outside agent asked to do (allow or decline), after "
+        "they said it; never on Hooke's own judgement.",
+        schema({"agent": AGENT, "answer": {"type": "string", "enum": ["allow", "decline"]},
+                "always": {"type": "boolean", "description": "the user said yes for the rest of this session"},
+                "asked_with": {"type": "string", "description": "the user's own answer, quoted"}},
+               ["answer", "asked_with"]),
+        answer_agent, family="researchers", inline_ms=2000))
 
     async def agent_note(ctx: ToolContext, args: dict) -> str:
         try:

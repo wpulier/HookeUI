@@ -249,6 +249,7 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - I: What everyone is doing: Says what researchers and outside agents are doing (say "what's everyone doing?")
 - I: Tell an outside agent: Passes an outside agent a note, marked as Hooke's (say "tell Codex to use micro-sam")
 - I: Stop an outside agent: Stops an outside agent and revokes its connection (say "stop Grok")
+- I: Answer an agent's ask: Gives your yes or no to what an agent asked (say "yes, allow it")
 - You: Stop a researcher: The Stop button on its work
 - I: Ask a researcher: Asks a researcher about its own work (say "ask the researcher why"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - You: Steer a working researcher: The pinned researcher composer sends a note to its existing inbox

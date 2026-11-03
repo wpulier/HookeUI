@@ -3059,6 +3059,20 @@
       ]
     },
     {
+      "id": "answer-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Answer an agent's ask",
+      "what": "Gives your yes or no to what an agent asked",
+      "how": {
+        "tool": "answer_agent",
+        "say": "yes, allow it"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
       "id": "cancel-research-button",
       "family": "researchers",
       "actor": "you",

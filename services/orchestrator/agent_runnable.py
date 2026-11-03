@@ -68,6 +68,7 @@ NOT_RUNNABLE: dict[str, str] = {
     "agents": "reads every worker, outside agents' transcripts included",
     "agent_note": "writes to another outside agent",
     "stop_agent": "stops another outside agent and revokes its connection",
+    "answer_agent": "answers another agent's ask: only the researcher's own yes or no",
     "start_researcher": "starts researchers, which spend the research allowance",
     "researcher_followup": "asks a researcher for more",
     "researcher_note": "writes to a researcher",

@@ -109,4 +109,33 @@ describe('the Agents panel', () => {
     expect(opened).toEqual(['r1']);
     expect(panel.counts()).toEqual({ working: 1, needs: 0 });
   });
+
+  it('shows each waiting ask on the card over the composer, answered there too', async () => {
+    const { panel, calls } = rig();
+    const card = panel.asksRoot as unknown as TestElement;
+    expect(card.hidden).toBe(true);
+    const ask = { id: 'claude:1', title: 'Write a file', detail: 'its folder/report.md' };
+    panel.message({ type: 'agents', agents: [row({ label: 'Claude Code', program: 'claude-code', status: 'needs-you', asks: [ask] })], programs: [] });
+    expect(card.hidden).toBe(false);
+    expect(card.textContent).toContain('Claude Code asks to write a file');
+    expect(card.textContent).toContain('its folder/report.md');
+    expect(card.textContent).toContain('Or say “allow it” or “no”.');
+    expect(button(card, 'Allow for this session')).toBeUndefined();  // offered only when the program has a session rule
+    fire(button(card, 'Decline')!, 'click'); await settleMicrotasks();
+    expect(JSON.parse(String(calls[0].init?.body))).toEqual({ permission: 'claude:1', answer: 'deny', always: false });
+    panel.message({ type: 'agents', agents: [row({ status: 'working' })], programs: [] });
+    expect(card.hidden).toBe(true);
+  });
+
+  it('offers the report for review once the Study has it, and counts its time while it works', () => {
+    const { panel, root } = rig();
+    const opened: string[] = [];
+    panel.configure({ openStudy: (id) => opened.push(id) });
+    panel.message({ type: 'agents', agents: [row({ status: 'done', line: 'Report returned for review', report: { returned: true, claims: 1 } }),
+      row({ id: 'ag_2', status: 'working', at: Date.now() / 1000 - 72 })], programs: [] });
+    fire(button(root, 'Review its report and claim ›')!, 'click');
+    expect(opened).toEqual(['p' + 'a'.repeat(32)]);
+    expect(root.textContent).toMatch(/Working 1:1\d/);
+  });
 });
+

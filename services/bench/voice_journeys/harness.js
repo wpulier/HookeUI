@@ -433,6 +433,10 @@
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
     if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }
     if (waitFor.frames) { const last = [...state.events].reverse().find((e) => e.e === 'frames'); return !!last && last.n > 0 && last.stage !== 'empty'; }
+    // An outside agent Hooke started (agents-panel.ts's approval card): one asks the user, or all have finished.
+    const asks = document.querySelector('.agents-asks');
+    if (waitFor.agent === 'asks') return !!document.querySelector('.agents-asks:not([hidden]) .agents-asks-card');
+    if (waitFor.agent === 'done') return !!asks && asks.hidden && Number(asks.dataset.done || 0) > 0 && asks.dataset.working === '0';
     return false;
   }
 

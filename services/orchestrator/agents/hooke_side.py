@@ -180,3 +180,19 @@ class HookeSide:
 
     def broadcast(self, payload: dict) -> None:
         self.built.hub.broadcast(payload)
+
+    def say(self, facts: dict, *, still=None, urgent: bool = False) -> None:
+        """Tell the voice, while Talk is on, so it says it once in its own words (the narrator): never when the fact no
+        longer holds by the time it would be said (`still`), never as the user's words."""
+        import json
+
+        brain = getattr(self.built, "brain", None)
+        voice = getattr(brain, "voice", None)
+        narrator = getattr(self.built, "narrator", None)
+        if narrator is None or voice is None or getattr(voice, "closed", False):
+            return
+        from ..brain.narrator import Line
+
+        narrator.offer(Line(json.dumps({"outside agent": facts}, ensure_ascii=False), "requested",
+                            delivery="interrupt" if urgent else "when_idle", provenance="data", notify=True,
+                            still=still, voice_owner=voice))

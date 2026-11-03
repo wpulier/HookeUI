@@ -147,7 +147,7 @@ class Records:
             return self._cancelled(result, before)
         if tool in ("researcher_note", "researcher_followup", "revise_work"):
             return self._steered(tool, result, before)
-        if tool in ("start_agent", "agent_note", "stop_agent"):
+        if tool in ("start_agent", "agent_note", "stop_agent", "answer_agent"):
             return self._agent(tool, run)
         if tool == "run_capability":
             return self._capability(result, run)
@@ -298,6 +298,11 @@ class Records:
         if launch is None:
             return {"result": "uncertain", "error": "Hooke has no record of that agent",
                     "said": "Not sure it was done: Hooke has no record of that agent."}
+        if tool == "answer_agent":
+            ask = ((getattr(run, "values", None) or {}) if run is not None else {}).get("agentAsk")
+            return ({"result": "verified", "said": f"{launch.label} has your answer and carries on."}
+                    if not any(a["id"] == ask for a in launch.asks) else
+                    {"result": "uncertain", "said": f"{launch.label} still shows the ask as waiting."})
         if tool == "stop_agent":
             return ({"result": "verified", "said": f"{launch.label} is stopped and disconnected."}
                     if launch.state == "stopped" else

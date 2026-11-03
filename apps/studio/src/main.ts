@@ -1875,6 +1875,7 @@ void micPermission((navigator as unknown as { permissions?: Parameters<typeof mi
 }).then((state) => { micState = state; });
 askForm.before(micCard.root);
 askForm.before(flightStrip.root); // right over the composer
+askForm.before(agentsPanel.asksRoot); // an outside agent's ask, answered here or by voice (ADR 0029)
 
 // --- The one-brain voice (PARTNER_VOICE): hold to talk, its window snapshots and its marks (talk.ts, marks.ts). ---
 let voiceSetting = '';

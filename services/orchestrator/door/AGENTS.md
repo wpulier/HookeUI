@@ -325,5 +325,5 @@ connected one does, as itself:
   crash). A revoked launch connection is final, as every disconnect is.
 - **Nothing on the door starts, steers, answers for or stops an agent.** The Agents panel's routes are the studio's
   (`/api/agents`, window only), and `start_agent`, `agents`, `agent_note` and `stop_agent` are declared not runnable for
-  agents in `agent_runnable.py`.
+  agents in `agent_runnable.py`, as is `answer_agent`.
 

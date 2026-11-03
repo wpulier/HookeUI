@@ -1222,6 +1222,9 @@ def main() -> None:
     parser.add_argument('--open-project', default=os.environ.get('HOOKE_OPEN_PROJECT'),
                         help='Explicit owner opening of a working Project folder; does not import agent access or replay work')
     args = parser.parse_args()
+    # Where a development `hooke` started for an outside agent finds this door (agents/hooke_side.py, ADR 0029); the
+    # Mac app's own `hooke` reads its app's state file instead.
+    os.environ.setdefault("HOOKE_DOOR_URL", f"http://127.0.0.1:{args.port}")
     from .project_launch import configured_locations
     paths = Paths.from_env()
     locations = configured_locations(paths, args.project_folders, reopen=args.reopen_project, opening=args.open_project)

@@ -542,7 +542,7 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
 /** The Agents drawer's view of this Project's researchers (agents-panel.ts), in the board's words and cells. */
-function agentsOptions(){return {project:()=>snapshot.session,openResearcher:(rid:string)=>openResearcher(rid),changed:()=>renderRailBadges(),
+function agentsOptions(){return {project:()=>snapshot.session,openResearcher:(rid:string)=>openResearcher(rid),changed:()=>renderRailBadges(),openStudy:(id:string)=>{void openStudy(id);},
   researchers:():ResearcherWorker[]=>todaysResearch(bridge.researchers(),snapshot.session).map(s=>{const group=boardGroup(s);
     return {rid:s.rid,name:s.name,title:(s.result?.title||s.label||s.brief||s.name).trim(),group:group==='queued'?'working':group,cell:researcherCell(s),words:researcherWords(s)};})};}
 agentsPanel.configure(agentsOptions());

@@ -62,17 +62,21 @@ local launches. Everything else in ADR 0026 stands: an agent Hooke starts uses t
   starts with `[Hooke]`, and each agent's standing instructions say such a message is Hooke's relay, never the
   researcher's consent to anything. (Codex 0.163's app-server has no separate message kind for this, so the mark is in
   the text.)
-- **Every ask goes to the user.** A command outside the sandbox, a file change, a tool use: each comes to the Agents
-  panel with what it would do, and is answered only by the user's Allow, Allow for this session or Decline there.
-  "For this session" is always the program's own session-scoped rule, never a change to the user's settings files.
-  Neither the brain nor the voice answers an ask; the `agents` tool says it is waiting.
+- **Every ask goes to the user.** A command outside the sandbox, a file change, a tool use: each comes to Hooke with
+  what it would do, as an approval card over the composer and on the agent's row in the Agents panel, and the voice
+  says it once while Talk is on (never after it was answered). Only the user answers it: their Allow, Allow for this
+  session or Decline on the card, or their own spoken yes or no, which the brain passes on with `answer_agent` only
+  with the user's words quoted and checked against what they said (as an experiment's Run it is). Hooke never answers
+  on its own judgement, and a note to an agent is never an answer. "For this session" is always the program's own
+  session-scoped rule, never a change to the user's settings files.
 - **Spend counts.** What an agent reports spending counts against the day's research allowance (`DayLedger.others`);
   Claude Code is held to a budget that fits what is left, and refused when less than $0.25 is. Spend billed to an API
   key also goes into Spending against the monthly cap; a subscription's notional cost does not. Codex and ACP agents
   report tokens, not dollars, and the panel says so. At most four agents work at once.
 - **Everyone sees them.** The Agents panel lists Hooke's researchers and outside agents together (working, needs you,
-  done, failed), with a live transcript peek and a reply box; Activity has a line for each start, ask and end; the
-  agents' words are shown and given to the brain as untrusted text.
+  done, failed), with a live transcript peek, a reply box and, once the Study has it, a link to review the report;
+  Activity has a line for each start, ask and end; the voice says an ask, a finish and a failure once, in its own
+  words; the agents' words are shown and given to the brain as untrusted text.
 - **Cloud later, behind the same interface.** `adapter.Adapter` is the seam (start, events, send, interrupt, answer,
   stop). A cloud adapter (Claude Managed Agents, as the private hosted service's research runtime already shapes it;
   Cursor's Cloud Agents API) implements it with its own transport; the conductor, the door connection, the Study

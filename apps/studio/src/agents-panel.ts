@@ -7,6 +7,7 @@
 import './agents-panel.css';
 import { litCell, type LitCellState } from './lit-cell';
 import { moreButton, type MenuItem } from './drawer-menu';
+import { clock } from './working-strip';
 
 export type AgentStatus = 'working' | 'needs-you' | 'done' | 'failed' | 'stopped';
 export type AgentAsk = { id: string; title: string; detail: string; reason?: string; always?: boolean; at?: number };
@@ -26,7 +27,7 @@ export type ResearcherWorker = { rid: string; name: string; title: string; group
   cell: LitCellState; words: string };
 
 type Options = { request?: typeof fetch; researchers?: () => ResearcherWorker[]; openResearcher?: (rid: string) => void;
-  project?: () => string; changed?: () => void };
+  project?: () => string; changed?: () => void; openStudy?: (id: string) => void };
 
 const STATUSES: AgentStatus[] = ['working', 'needs-you', 'done', 'failed', 'stopped'];
 const SECTIONS: { id: 'needs' | 'working' | 'done'; title: string }[] = [
@@ -64,6 +65,11 @@ export function agentSub(row: AgentRow): string {
   return `${row.label} · ${row.line || STATUS_WORDS[row.status]}${cost}`;
 }
 
+/** Its time words: "Working 1:12" while it works (from its start), else nothing. */
+export function agentTime(row: AgentRow, now = Date.now() / 1000): string {
+  return row.status === 'working' ? `Working ${clock((now - row.at) * 1000)}` : '';
+}
+
 /** An entry of the transcript, in words: whose it is first. Hooke's own are marked as Hooke's, never as yours. */
 export function entryWords(entry: AgentEntry): { who: string; text: string } {
   const text = entry.text.replace(/^\[Hooke\]\s*/, '');
@@ -96,6 +102,10 @@ export class AgentsPanel {
   private task!: HTMLTextAreaElement;
   private start!: HTMLButtonElement;
   private signature = '';
+  private asksBuilt: HTMLElement | null = null;
+  private asksSignature = '';
+  private readonly times = new Map<string, HTMLElement>();
+  private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: Options = {}) {
     this.options = options;
@@ -152,7 +162,49 @@ export class AgentsPanel {
     }
     this.sending.clear();
     this.draw(false);
+    this.drawAsks();
+    this.tickWhileWorking();
     this.options.changed?.();
+  }
+
+  /** The approval card over the composer (Hooke's ask card): every ask waiting, answered here, on the Agents panel's
+   * row, or by the person's own spoken yes or no. Hidden while nothing waits. */
+  get asksRoot(): HTMLElement {
+    if (this.asksBuilt) return this.asksBuilt;
+    const root = el('div', 'agents-asks'); root.setAttribute('role', 'region');
+    root.setAttribute('aria-label', 'Agents asking you'); root.hidden = true;
+    this.asksBuilt = root; this.drawAsks(); return root;
+  }
+
+  private drawAsks(): void {
+    const root = this.asksBuilt; if (!root) return;
+    // How many work and how many are done, on the card's root: what a journey's harness waits for.
+    root.dataset.working = String(this.agents.filter((row) => row.status === 'working').length);
+    root.dataset.done = String(this.agents.filter((row) => row.status === 'done').length);
+    const waiting = this.agents.flatMap((row) => row.asks.map((ask) => ({ row, ask })));
+    const signature = JSON.stringify([waiting.map(({ row, ask }) => [row.id, ask.id, ask.detail]), [...this.sending]]);
+    if (signature === this.asksSignature) return;
+    this.asksSignature = signature;
+    root.hidden = !waiting.length;
+    root.replaceChildren(...waiting.slice(0, 3).map(({ row, ask }) => {
+      const card = el('div', 'agents-asks-card'); card.dataset.ask = ask.id;
+      const head = el('div', 'agents-asks-head');
+      head.append(litCell('needs', { size: 12, label: `${row.label} needs you` }),
+        el('span', 'agents-asks-title', `${row.label} asks to ${ask.title.toLowerCase()}`));
+      card.append(head, this.ask(row, ask, true));
+      return card;
+    }));
+    if (waiting.length > 3) root.append(el('p', 'agents-asks-more', `${waiting.length - 3} more in Agents`));
+  }
+
+  private tickWhileWorking(): void {
+    const working = this.agents.some((row) => row.status === 'working');
+    if (working && this.timer === null) {
+      this.timer = setInterval(() => {
+        const now = Date.now() / 1000;
+        for (const row of this.agents) { const span = this.times.get(row.id); if (span) span.textContent = agentTime(row, now); }
+      }, 1000);
+    } else if (!working && this.timer !== null) { clearInterval(this.timer); this.timer = null; }
   }
 
   /** How many outside agents work, and how many wait for you (the rail's mark and badge). */
@@ -196,9 +248,9 @@ export class AgentsPanel {
 
   async answer(row: AgentRow, ask: AgentAsk, answer: 'allow' | 'deny', always = false): Promise<void> {
     if (this.sending.has(ask.id)) return;
-    this.sending.add(ask.id); this.draw(true);
+    this.sending.add(ask.id); this.draw(true); this.drawAsks();
     if (!await this.post(`/api/agents/${encodeURIComponent(row.id)}/answer`, { permission: ask.id, answer, always },
-      'Your answer did not reach the agent.')) { this.sending.delete(ask.id); this.draw(true); }
+      'Your answer did not reach the agent.')) { this.sending.delete(ask.id); this.draw(true); this.drawAsks(); }
   }
 
   async reply(row: AgentRow, text: string): Promise<boolean> {
@@ -238,6 +290,7 @@ export class AgentsPanel {
     if (!force && signature === this.signature) return;
     this.signature = signature;
     this.drawPrograms();
+    this.times.clear();
     const parts: HTMLElement[] = [];
     if (!this.agents.length && !researchers.length) {
       parts.push(el('p', 'mm-drawer-empty agents-empty', 'No agents yet. Start one here, or ask the Assistant ("ask Codex to…").'));
@@ -278,18 +331,29 @@ export class AgentsPanel {
     const thumb = el('span', 'mm-row-thumb agents-thumb'); thumb.dataset.program = row.program;
     thumb.append(el('span', 'agents-initial', row.label.charAt(0)), litCell(CELL[row.status], { size: 12, label: `${row.label}: ${STATUS_WORDS[row.status]}` }));
     const words = el('span', 'mm-row-words');
-    words.append(el('span', 'mm-row-title', row.task), el('span', 'mm-row-sub', agentSub(row)));
+    const sub = el('span', 'mm-row-sub', agentSub(row));
+    const time = el('span', 'agents-time', agentTime(row)); this.times.set(row.id, time);
+    if (time.textContent) sub.prepend(time, ' · ');
+    words.append(el('span', 'mm-row-title', row.task), sub);
     open.append(thumb, words);
     open.addEventListener('click', () => this.toggle(row));
     wrap.append(open, moreButton(`More for ${row.label}`, () => this.menu(row)));
+    // Its report, kept in the Project and awaiting the person's review in its Study.
+    if (row.report?.returned && row.study && this.options.openStudy) {
+      const review = el('button', 'agents-review data-plain', row.report.claims
+        ? `Review its report and ${row.report.claims === 1 ? 'claim' : `${row.report.claims} claims`} ›` : 'Review its report ›');
+      review.type = 'button'; review.title = 'Open its Study, where its report and claim wait for your review';
+      review.addEventListener('click', () => this.options.openStudy?.(row.study));
+      wrap.append(review);
+    }
     for (const ask of row.asks) wrap.append(this.ask(row, ask));
     if (this.opened.has(row.id)) wrap.append(this.peek(row));
     return wrap;
   }
 
-  private ask(row: AgentRow, ask: AgentAsk): HTMLElement {
-    const box = el('div', 'mm-row-question agents-ask'); box.dataset.ask = ask.id;
-    box.append(el('span', 'agents-ask-title', `${row.label} asks to ${ask.title.toLowerCase()}`));
+  private ask(row: AgentRow, ask: AgentAsk, card = false): HTMLElement {
+    const box = el('div', card ? 'agents-ask is-card' : 'mm-row-question agents-ask'); box.dataset.ask = ask.id;
+    if (!card) box.append(el('span', 'agents-ask-title', `${row.label} asks to ${ask.title.toLowerCase()}`));
     if (ask.detail) box.append(el('code', 'agents-ask-detail', ask.detail));
     if (ask.reason) box.append(el('span', 'agents-ask-reason', ask.reason));
     const sending = this.sending.has(ask.id);
@@ -302,6 +366,7 @@ export class AgentsPanel {
     buttons.append(make('Decline', 'mm-control', () => void this.answer(row, ask, 'deny')));
     box.append(buttons);
     if (sending) box.append(el('span', 'agents-sending', 'Sending your answer…'));
+    else if (card) box.append(el('span', 'agents-ask-voice', 'Or say “allow it” or “no”.'));
     return box;
   }
 

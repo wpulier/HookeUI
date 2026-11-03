@@ -17,7 +17,7 @@ from orchestrator.agents.conductor import Conductor, Refused
 
 class Side:
     def __init__(self, *, left=None):
-        self.calls, self.lines, self.sent, self.held, self.spends = [], [], [], {}, []
+        self.calls, self.lines, self.sent, self.held, self.spends, self.said = [], [], [], {}, [], []
         self.left = left
         self.door = "http://127.0.0.1:9"
 
@@ -44,6 +44,7 @@ class Side:
     def release(self, launch): self.held.pop(launch, None)
     def spent(self, launch, usd, billing, model, budget): self.spends.append((launch, usd, billing))
     def activity(self, text, **kw): self.lines.append((text, kw.get("state", "done")))
+    def say(self, facts, **kw): self.said.append((facts, kw))
     def broadcast(self, payload): self.sent.append(payload)
 
 
@@ -134,6 +135,9 @@ def test_asks_wait_for_the_user_and_are_answered_only_by_answer(made):
                      always=True)
         await settle(conductor, lambda: launch.status == "needs-you")
         assert launch.line() == "Asks to run a command"
+        # Said once by the voice, and only while it still waits (the narrator reads `still` as it speaks).
+        facts, how = side.said[-1]
+        assert facts["agent"] == "Codex" and facts["what"] == "pip install micro-sam" and how["still"]()
         assert any("asks to run a command" in text and state == "running" for text, state in side.lines)
         await asyncio.sleep(0.05)
         assert adapter.answers == []  # nothing answers it on its own
@@ -143,6 +147,7 @@ def test_asks_wait_for_the_user_and_are_answered_only_by_answer(made):
         await conductor.answer(launch.id, "codex:0", True, always=True)
         assert adapter.answers == [("codex:0", True, True)]
         await settle(conductor, lambda: not launch.asks)
+        assert not how["still"]()  # answered: the voice is never told to say it
         with pytest.raises(Refused, match="no longer waiting"):
             await conductor.answer(launch.id, "codex:0", True)
         await conductor.close()

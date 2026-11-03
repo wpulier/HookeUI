@@ -12,13 +12,26 @@ from orchestrator.brain.toolbox.agents import add_agent_tools
 
 class Conductor:
     def __init__(self):
-        self.launches, self.started, self.notes, self.stopped = {}, [], [], []
+        self.launches, self.started, self.notes, self.stopped, self.answers = {}, [], [], [], []
+
+    def summary(self):
+        return ["Codex is waiting for you to allow it to run a command",
+                "Claude Code finished, and its report is back for your review"]
+
+    def waiting(self, words):
+        if not any(getattr(l, "asks", None) for l in self.launches.values()):
+            raise Refused("No outside agent is asking for anything now.", next=None)
+        launch = next(l for l in self.launches.values() if l.asks)
+        return launch, launch.asks[0]
+
+    async def answer(self, lid, permission, allow, always=False):
+        self.answers.append((lid, permission, allow, always))
 
     async def start(self, program, task, *, by):
         if program == "grok":
             raise Refused("Grok Build isn't installed on this Mac.", next="install Grok Build from x.ai")
         launch = SimpleNamespace(id=f"ag_{len(self.started)}", label="Codex", status="working", project_name="Leaf",
-                                 budget_usd=None)
+                                 budget_usd=None, asks=[])
         self.started.append((program, task, by))
         self.launches[launch.id] = launch
         return launch
@@ -72,12 +85,33 @@ def test_start_only_on_the_users_words_and_once_per_request():
              said="give Grok the counting task")
 
 
-def test_agents_reads_as_untrusted_and_never_answers():
+def test_whats_everyone_doing_is_short_and_agents_words_are_untrusted():
     conductor = Conductor()
     registry = tools(conductor)
     said = call(registry, "agents", {})
-    assert 'untrusted="true"' in said and "waiting for the user to allow or decline" in said
+    first = said.splitlines()[0]
+    assert first.startswith("in one or two sentences: Codex is waiting for you to allow it to run a command; Claude")
+    assert "ag_" not in first and "assignment" not in first  # no internal words in what is said
+    assert 'untrusted="true"' in said
     assert registry.tools["agents"].kind == "query"
+
+
+def test_an_ask_is_answered_only_with_the_users_own_words():
+    conductor = Conductor()
+    registry = tools(conductor)
+    call(registry, "start_agent", {"program": "codex", "task": "t", "asked_with": "ask Codex to write a stomata tracker"})
+    with pytest.raises(ToolFailed, match="No outside agent is asking"):
+        call(registry, "answer_agent", {"answer": "allow", "asked_with": "yes"}, said="yes")
+    launch = next(iter(conductor.launches.values()))
+    launch.asks = [{"id": "codex:0", "title": "Run a command"}]
+    with pytest.raises(ToolFailed, match="only by the user's own yes or no"):
+        call(registry, "answer_agent", {"answer": "allow", "asked_with": "yes go ahead"}, said="what is this cell?")
+    assert conductor.answers == []
+    said = call(registry, "answer_agent", {"answer": "allow", "always": True, "asked_with": "yes, for the session"},
+                said="yes, for the session")
+    assert conductor.answers == [(launch.id, "codex:0", True, True)] and "allowed Codex to run a command" in said
+    said = call(registry, "answer_agent", {"answer": "decline", "always": True, "asked_with": "no"}, said="no")
+    assert conductor.answers[-1] == (launch.id, "codex:0", False, False) and said.startswith("declined")
 
 
 def test_note_and_stop():
@@ -89,4 +123,4 @@ def test_note_and_stop():
     with pytest.raises(ToolFailed, match="No agent called Grok"):
         call(registry, "stop_agent", {"agent": "Grok"})
     assert "revoked" in call(registry, "stop_agent", {"agent": "Codex"})
-    assert set(registry.tools) == {"start_agent", "agents", "agent_note", "stop_agent"}  # none answers an ask
+    assert set(registry.tools) == {"start_agent", "agents", "agent_note", "stop_agent", "answer_agent"}

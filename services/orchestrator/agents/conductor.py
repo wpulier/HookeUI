@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import secrets
 import time
 from dataclasses import asdict, dataclass, field
@@ -74,6 +75,7 @@ class Launch:
     transcript: list = field(default_factory=list)
     live: str = ""  # what it is saying right now, while it streams
     n: int = 0
+    cli: str = ""  # Hooke's own `hooke` command as this launch was given it: said as "hooke"
 
     @property
     def status(self) -> str:
@@ -103,6 +105,28 @@ class Launch:
                 "tokens": self.tokens, "why": self.why, "report": self.report, "asks": self.asks,
                 "transcript": self.transcript if full else self.transcript[-PEEK:], "live": self.live[-400:],
                 "folder": self.folder if full else None}
+
+
+_SHELL = re.compile(r"""^/bin/(?:ba|z)?sh -l?c (['"])(.*)\1$""", re.S)
+
+
+def tidy(text: str, launch: "Launch") -> str:
+    """An agent's line as a person reads it: Hooke's own command said as `hooke`, its folder as "its folder", and a
+    shell's wrapper left out. Nothing else is changed."""
+    text = text or ""
+    if ": " in text and text.split(": ", 1)[1].startswith("/bin/"):
+        head, body = text.split(": ", 1)
+        inner = _SHELL.match(body)
+        text = f"{head}: {inner.group(2)}" if inner else text
+    else:
+        inner = _SHELL.match(text)
+        text = inner.group(2) if inner else text
+    if launch.cli:
+        text = text.replace(f"'{launch.cli}'", "hooke").replace(launch.cli, "hooke")
+    text = re.sub(r"(hooke) --agent [a-z-]+", r"\1", text)
+    if launch.folder:
+        text = text.replace(launch.folder, "its folder")
+    return text
 
 
 def adapter_for(program: str, path: str) -> Adapter:
@@ -229,6 +253,35 @@ class Conductor:
                 return r
         raise Refused(f"No agent called {words}.", next="ask what's running")
 
+    def summary(self) -> list[str]:
+        """What every outside agent is doing, a few words each, as the user would say it (the newest first; stopped ones
+        are left out)."""
+        out = []
+        for r in sorted(self.launches.values(), key=lambda x: -x.at):
+            if r.status == "needs-you":
+                out.append(f"{r.label} is waiting for you to allow it to {r.asks[0]['title'].lower()}" if r.asks else
+                           f"{r.label} stopped its step and waits for your reply")
+            elif r.status == "working":
+                out.append(f"{r.label} is working on: {short(r.task, 80)}")
+            elif r.status == "done":
+                out.append(f"{r.label} finished" + (", and its report is back for your review" if r.report.get("returned")
+                                                    else ", with no report back yet"))
+            elif r.status == "failed":
+                out.append(f"{r.label} failed: {short(r.why, 100)}")
+        return out
+
+    def waiting(self, words: str | None) -> tuple[Launch, dict]:
+        """The ask the user means: the named agent's oldest, else the only agent asking."""
+        asking = [r for r in sorted(self.launches.values(), key=lambda x: x.at) if r.asks and r.id in self.adapters]
+        if words:
+            asking = [r for r in asking if words.strip().lower() in (r.program, r.label.lower(), r.id)
+                      or words.strip().lower() in r.label.lower()]
+        if not asking:
+            raise Refused("No outside agent is asking for anything now.", next=None)  # no next: nothing waits
+        if len(asking) > 1:
+            raise Refused("More than one agent is asking.", next="say which: " + ", ".join(r.label for r in asking))
+        return asking[0], asking[0].asks[0]
+
     async def programs(self, *, fresh: bool = False) -> list[dict]:
         if self._programs is None or fresh:
             self._programs = await asyncio.to_thread(installed.installed)
@@ -261,7 +314,7 @@ class Conductor:
         budget = self._budget(program, budget_usd)
         lid = "ag_" + secrets.token_hex(8)
         launch = Launch(id=lid, program=program, label=known.label, task=task, project=sid, project_name=name,
-                        by=by, at=self.clock(), budget_usd=budget, day=self.side.today())
+                        by=by, at=self.clock(), budget_usd=budget, day=self.side.today(), cli=cli)
         folder = self.root / "launches" / lid
         try:
             work = folder / "work"
@@ -346,7 +399,7 @@ class Conductor:
     # --- what an agent says ---------------------------------------------------------------------------------------
     def _note(self, launch: Launch, role: str, text: str, **extra) -> dict:
         launch.n += 1
-        entry = {"n": launch.n, "role": role, "text": short(text, 4000), "at": self.clock(), **extra}
+        entry = {"n": launch.n, "role": role, "text": short(tidy(text, launch), 4000), "at": self.clock(), **extra}
         launch.transcript.append(entry)
         del launch.transcript[:-TRANSCRIPT]
         return entry
@@ -369,6 +422,12 @@ class Conductor:
                     await self._observe(launch)
                     self.side.activity(f"{launch.label} finished: {launch.line()}", id=f"agent:{launch.id}",
                                        ref={"agent": launch.label})
+                    answer = next((e["text"] for e in reversed(launch.transcript) if e["role"] == "agent"), "")
+                    turns = launch.n
+                    self.side.say({"agent": launch.label, "event": "finished its turn", "task": short(launch.task, 160),
+                                   "report": "back in its Study for the user's review" if launch.report.get("returned")
+                                   else "not returned yet", "its own words": short(answer, 500)},
+                                  still=lambda: launch.state == "done" and launch.n == turns)
                 elif state == "interrupted":
                     launch.state = "idle"
                     self._note(launch, "note", "Interrupted")
@@ -376,6 +435,9 @@ class Conductor:
                     launch.state = "failed"
                     launch.why = event.get("error") or "Its turn failed"
                     self._note(launch, "note", launch.why)
+                    self.side.say({"agent": launch.label, "event": "failed", "why": short(launch.why, 200),
+                                   "what Hooke did": "ended it and revoked its connection; what it kept stays"},
+                                  urgent=True)
                     self.side.activity(f"{launch.label} failed: {short(launch.why, 160)}", state="failed",
                                        id=f"agent:{launch.id}", ref={"agent": launch.label})
         elif kind == "delta":
@@ -385,7 +447,7 @@ class Conductor:
             item = event.get("item")
             old = next((e for e in reversed(launch.transcript) if item and e.get("item") == item), None)
             if old is not None:
-                old["text"], old["final"] = short(event.get("text") or "", 4000), bool(event.get("final"))
+                old["text"], old["final"] = short(tidy(event.get("text") or "", launch), 4000), bool(event.get("final"))
             else:
                 self._note(launch, "agent", event.get("text") or "", item=item, final=bool(event.get("final")))
         elif kind == "tool":
@@ -394,15 +456,22 @@ class Conductor:
             if old is not None:
                 old["state"] = event.get("state")
                 if event.get("title"):
-                    old["text"] = event["title"] + (f": {event['detail']}" if event.get("detail") else "")
+                    old["text"] = tidy(event["title"] + (f": {event['detail']}" if event.get("detail") else ""), launch)
             else:
                 title = event.get("title") or "Used a tool"
                 self._note(launch, "tool", title + (f": {event['detail']}" if event.get("detail") else ""),
                            item=item, state=event.get("state"))
         elif kind == "permission":
             ask = {k: event.get(k) for k in ("id", "title", "detail", "reason", "always")}
+            ask["detail"], ask["reason"] = tidy(ask["detail"] or "", launch), tidy(ask["reason"] or "", launch)
             ask["at"] = self.clock()
             launch.asks.append(ask)
+            pid = ask["id"]
+            self.side.say({"agent": launch.label, "event": "asks your permission", "to": ask["title"].lower(),
+                           "what": short(ask["detail"], 200), "why": short(ask["reason"], 200),
+                           "how the user answers": "yes or no by voice (answer_agent with their own words), or on "
+                                                   "its approval card; Hooke never answers for them"},
+                          still=lambda: any(a["id"] == pid for a in launch.asks))
             self._note(launch, "ask", f"Asks to {ask['title'].lower()}: {ask['detail']}", item=ask["id"])
             self.side.activity(f"{launch.label} asks to {ask['title'].lower()}", state="running",
                                id=f"agent:{launch.id}:{ask['id']}", ref={"agent": launch.label},

@@ -38,6 +38,8 @@ it when asked.
   started. `child_env` strips Hooke's own variables, provider keys and a parent Claude Code session's markers.
 - `programs.py`: which programs are installed (the user's PATH and the usual install folders), and how to install
   and sign in when one isn't. Tests never find any (`MICROMIND_AGENT_PROGRAMS=none`, conftest).
+- `conductor.tidy`: an agent's line as a person reads it (Hooke's command as `hooke`, its folder as "its folder",
+  no shell wrapper), in the transcript and the asks. `summary` is "what's everyone doing" in a few words each.
 - `brief.py`: the standing instructions and the first message: the researcher's words as Hooke relayed them, the
   Project, Study and assignment, the `hooke` command, and the steps (claim, work, keep a report, complete, claim).
 - `conductor.py`: the launches. Starting checks, then makes the connection, the credential file, the Study and the
@@ -59,8 +61,11 @@ it when asked.
 
 ## Rules
 - **Only the user starts one**, in the Agents panel or by asking (`start_agent` checks the user's own recent words).
-- **Only the user answers an ask**, with the panel's Allow, Allow for this session or Decline (`POST …/answer`). A
-  note, the brain and the voice never answer one; `agents` says it waits.
+- **Only the user answers an ask**: Allow, Allow for this session or Decline on its approval card (over the composer)
+  or its row (`POST …/answer`), or their own spoken yes or no through `answer_agent`, which needs their words quoted
+  (`quoted`, as an experiment's Run it). Hooke never answers on its own judgement, and a note never answers one.
+- **The voice says it once**: an ask, a finish and a failure reach the voice through the narrator (`HookeSide.say`,
+  `notify`), each with a `still` check, so an ask already answered or a turn already followed is told, never said.
 - **Hooke's words are Hooke's**: everything relayed starts with `[Hooke]`; the instructions say it is never consent.
 - **It ends whole**: program, process group, credential file, connection and Project access, on Stop, failure,
   Hooke quitting, and at the next start after a crash.

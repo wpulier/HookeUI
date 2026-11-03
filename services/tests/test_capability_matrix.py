@@ -228,6 +228,8 @@ PLANS: dict[str, Plan] = {
     "agent-note": Plan("tell Codex to use micro-sam", [("agent_note", {"agent": "Codex", "text": "use micro-sam"})],
                        expect="refused: No agent called Codex"),
     "stop-agent": Plan("stop Grok", [("stop_agent", {"agent": "Grok"})], expect="refused: No agent called Grok"),
+    "answer-agent": Plan("yes, allow it", [("answer_agent", {"answer": "allow", "asked_with": "yes, allow it"})],
+                         expect="refused: No outside agent is asking for anything now"),
     "followup": Plan("ask the researcher why", [("researcher_followup", {"researcher": "r1", "question": "why do they close?"})],
                      ("lesson",), not_on_path={"research": ENGINE_KEPT}),
     "revise": Plan("make question 2 easier", [("revise_work", {"researcher": "r1", "change": "make question 2 easier",
