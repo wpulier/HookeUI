@@ -437,6 +437,7 @@
     const asks = document.querySelector('.agents-asks');
     if (waitFor.agent === 'asks') return !!document.querySelector('.agents-asks:not([hidden]) .agents-asks-card');
     if (waitFor.agent === 'done') return !!asks && asks.hidden && Number(asks.dataset.done || 0) > 0 && asks.dataset.working === '0';
+    if (waitFor.agent === 'asks-or-done') return satisfied({ agent: 'asks' }, before) || satisfied({ agent: 'done' }, before);
     return false;
   }
 

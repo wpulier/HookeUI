@@ -1182,6 +1182,7 @@ class App:
         looplag.warm_imports()  # what would stall the loop when first used, imported now off it (looplag.WARM_IMPORTS)
         if self.conductor is not None:  # connections a crash left to agents Hooke started are revoked (ADR 0029)
             await asyncio.to_thread(self.conductor.recover)
+            self._tasks.append(asyncio.create_task(asyncio.to_thread(self.conductor.warm)))  # off the loop, never awaited
         self._tasks.append(asyncio.create_task(self.warm_vision()))
         from . import fiji_sandbox
 

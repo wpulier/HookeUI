@@ -2,12 +2,16 @@
 
 The user's own Codex, signed in as they signed it in (ChatGPT or an API key): Hooke never sees or sets its credentials.
 One thread per launch, started in Codex's own workspace-write sandbox with approvals on request, so everything that
-leaves the sandbox comes to the user as an ask. Hooke's messages start a turn (`turn/start`) or steer the running one
+leaves the sandbox comes to the user as an ask. "Allow for this session" is Codex's `acceptForSession`, never its
+exec-policy amendment, which Codex keeps for good in the user's own ~/.codex/rules (seen 2026-11-03). After the user
+allows Hooke's own `hooke` command for the session, a later plain `hooke` command (no shell operators) is accepted
+for the session as their answer, as T3 Code does; anything else still asks. Hooke's messages start a turn (`turn/start`) or steer the running one
 (`turn/steer`); Interrupt is `turn/interrupt`. Recorded against codex-cli 0.163.0 (tests/fixtures/agents/).
 """
 from __future__ import annotations
 
 import asyncio
+import re
 
 from .adapter import Adapter, Permission, Spec, short
 from .jsonrpc import Peer, RpcError
@@ -31,12 +35,15 @@ class Codex(Adapter):
         self.turn: str | None = None
         self.model: str | None = None
         self._asks: dict[str, tuple[object, str, dict]] = {}  # permission id -> (request id, kind, params)
+        self.hooke: str | None = None  # Hooke's own command, as this launch was given it
+        self._hooke_allowed = False  # the user allowed plain `hooke` commands for this session
         self._reader: asyncio.Task | None = None
 
     def argv(self) -> list[str]:
         return [self.executable, "app-server"]
 
     async def start(self, spec: Spec) -> None:
+        self.hooke = spec.hooke
         self.transport = await self._factory(self.argv(), spec.cwd, spec.env)
         self.peer = Peer(self.transport, on_request=self._request, on_notification=self._notification)
         self._reader = asyncio.create_task(self._read())
@@ -157,6 +164,11 @@ class Codex(Adapter):
             await self.peer.reply(rid, error={"code": -32601, "message": "Hooke doesn't answer this request"})
             return
         pid = f"codex:{rid}"
+        if kind == "command" and self._hooke_allowed and self._plain_hooke(params.get("command")):
+            await self.peer.reply(rid, {"decision": "acceptForSession"})  # the user's own answer for this session
+            self.emit("tool", item=f"{pid}:allowed", title="Allowed for this session, as you said",
+                      detail=short(params.get("command") or ""), state="done")
+            return
         if kind in ("command", "legacy-command"):
             command = params.get("command")
             command = " ".join(command) if isinstance(command, list) else (command or "")
@@ -185,10 +197,19 @@ class Codex(Adapter):
         if kind.startswith("legacy"):
             decision = ("approved_for_session" if always else "approved") if allow else {
                 "denied": {"rejection": "The researcher declined this in Hooke."}}
-        elif kind == "command" and allow and always and params.get("proposedExecpolicyAmendment"):
-            decision = {"acceptWithExecpolicyAmendment": {
-                "execpolicy_amendment": params["proposedExecpolicyAmendment"]}}
         else:
             decision = ("acceptForSession" if always else "accept") if allow else "decline"
+            if kind == "command" and allow and always and self._plain_hooke(params.get("command")):
+                self._hooke_allowed = True
         await self.peer.reply(rid, {"decision": decision})
         self.emit("resolved", id=permission, outcome="allowed" if allow else "declined")
+
+    def _plain_hooke(self, command) -> bool:
+        """Hooke's own command alone, maybe inside Codex's shell wrapper: no pipes, redirects, chains or substitutions."""
+        if not self.hooke or not isinstance(command, str):
+            return False
+        inner = re.sub(r"""^/bin/(?:ba|z)?sh -l?c (['"])(.*)\1$""", r"\2", command.strip(), flags=re.S)
+        inner = inner.replace(f"'{self.hooke}'", self.hooke)
+        unquoted = re.sub(r"'[^']*'", "''", inner)  # single quotes are literal in a shell; everything else is checked
+        return inner.startswith(self.hooke + " ") and not re.search(r"[;&|<>`$()\\\n]", unquoted)
+

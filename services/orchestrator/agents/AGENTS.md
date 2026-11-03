@@ -17,14 +17,16 @@ it when asked.
 - `codex.py`: `codex app-server` over stdio JSON-RPC. `thread/start` (workspace-write sandbox, approvals on request,
   the standing instructions as developer text), `turn/start`, `turn/steer` while a turn runs, `turn/interrupt`. Asks:
   `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, `item/permissions/requestApproval` and the
-  legacy `execCommandApproval`/`applyPatchApproval`. "For this session" on a command is Codex's own proposed rule
-  (`acceptWithExecpolicyAmendment`). Anything else Codex asks (questions, elicitations, dynamic tools, sign-in
+  legacy `execCommandApproval`/`applyPatchApproval`. "For this session" on a command is `acceptForSession` (see
+  `claude.py` below for why Hooke's own command matters). Anything else Codex asks (questions, elicitations, dynamic tools, sign-in
   refreshes) is refused as not Hooke's to answer.
 - `claude.py`: the installed `claude -p`, stream-json in and out, `--permission-prompt-tool stdio`, `--safe-mode`,
   `--strict-mcp-config`, the sandbox on, `--max-budget-usd=…`, values always in `--flag=value` form. Only Hooke's own
   `hooke` command (that exact path) runs outside the sandbox without an ask, and Hooke's skill file is readable
-  (`settings`): both sandboxes block the loopback address the command needs. Codex asks once instead; its Allow for this
-  session is its own rule for that command. Never `--bare`
+  (`settings`): both sandboxes block the loopback address the command needs. Codex asks instead; after the user allows
+  a `hooke` command for the session, later plain `hooke` commands are accepted for the session as their answer
+  (`Codex._plain_hooke`: no shell operators outside single quotes). "For this session" is always `acceptForSession`,
+  never `acceptWithExecpolicyAmendment`, which Codex keeps for good in the user's own `~/.codex/rules`. Never `--bare`
   (it reads only an API key, never the user's sign-in). The control protocol's `initialize`, `can_use_tool` (asks),
   `interrupt`; a message while a turn runs steers it (`"priority": "now"`: the segment ends `aborted_streaming` and
   the turn carries on). Its `total_cost_usd` is cumulative for the program; `apiKeySource: none` is a subscription.

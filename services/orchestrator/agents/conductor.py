@@ -185,6 +185,12 @@ class Conductor:
                 launch.ended_at = launch.ended_at or self.clock()
             self.launches[launch.id] = launch
 
+    def warm(self) -> None:
+        """Make Hooke's own `hooke` command ready before the first launch needs it (a source checkout builds it once):
+        only on a Mac where an agent's program is installed. Blocking: called off the event loop."""
+        if any(self.find(p.id) for p in installed.PROGRAMS):
+            self.side.cli()
+
     def recover(self) -> None:
         """A launch's connection never outlives its program (ADR 0029): at start, once the door is there, withdraw any
         a crash left, with its credential file. Done again harmlessly."""
@@ -429,7 +435,9 @@ class Conductor:
                     turns = launch.n
                     self.side.say({"agent": launch.label, "event": "finished its turn", "task": short(launch.task, 160),
                                    "report": "back in its Study for the user's review" if launch.report.get("returned")
-                                   else "not returned yet", "its own words": short(answer, 500)},
+                                   else "not returned yet", "its own words": short(answer, 500),
+                                   "say it": "once, in one or two sentences: what it found, and that its report waits "
+                                             "for the user's review"},
                                   still=lambda: launch.state == "done" and launch.n == turns)
                 elif state == "interrupted":
                     launch.state = "idle"
@@ -473,7 +481,8 @@ class Conductor:
             self.side.say({"agent": launch.label, "event": "asks your permission", "to": ask["title"].lower(),
                            "what": short(ask["detail"], 200), "why": short(ask["reason"], 200),
                            "how the user answers": "yes or no by voice (answer_agent with their own words), or on "
-                                                   "its approval card; Hooke never answers for them"},
+                                                   "its approval card; Hooke never answers for them",
+                           "say it": "once, in one short sentence that asks whether to allow it"},
                           still=lambda: any(a["id"] == pid for a in launch.asks))
             self._note(launch, "ask", f"to {ask['title'].lower()}: {ask['detail']}", item=ask["id"])
             self.side.activity(f"{launch.label} asks to {ask['title'].lower()}", state="running",

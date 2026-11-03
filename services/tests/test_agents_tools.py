@@ -76,7 +76,7 @@ def test_start_only_on_the_users_words_and_once_per_request():
              said="what is this cell?")
     args = {"program": "codex", "task": "write a stomata tracker", "asked_with": "ask Codex to write a stomata tracker"}
     said = call(registry, "start_agent", args)
-    assert "starting Codex" in said and "Agents panel" in said
+    assert said.startswith("Codex is starting on it now") and "Leaf" not in said and "Study" not in said
     assert conductor.started == [("codex", "write a stomata tracker", "voice")]
     assert "already started" in call(registry, "start_agent", args)
     assert len(conductor.started) == 1
@@ -122,5 +122,5 @@ def test_note_and_stop():
     assert "Hooke's note, not the user's approval" in said and conductor.notes[0][1] == "use micro-sam"
     with pytest.raises(ToolFailed, match="No agent called Grok"):
         call(registry, "stop_agent", {"agent": "Grok"})
-    assert "revoked" in call(registry, "stop_agent", {"agent": "Codex"})
+    assert call(registry, "stop_agent", {"agent": "Codex"}) == "stopped Codex"
     assert set(registry.tools) == {"start_agent", "agents", "agent_note", "stop_agent", "answer_agent"}

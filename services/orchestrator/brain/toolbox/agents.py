@@ -49,10 +49,9 @@ def add_agent_tools(registry: Registry, services) -> None:
             raise ToolFailed(error.says, next=error.next or None) from error
         started[key] = launch.id
         attach(values={"agentLaunch": launch.id})
-        budget = f", held to ${launch.budget_usd:.2f}" if launch.budget_usd else ""
-        return (f"starting {launch.label} on this Mac in {launch.project_name}{budget}: it works on its own Study "
-                f"assignment and returns a report for the user's review; anything it asks to do comes to the user in "
-                f"the Agents panel")
+        # What the voice says once: that it is working, and how it reports back. Not the Project, the Study or a cap.
+        return (f"{launch.label} is starting on it now; it will ask before doing anything outside its sandbox, and its "
+                f"report comes back for the user's review")
 
     registry.add(Tool(
         "start_agent",
@@ -139,7 +138,7 @@ def add_agent_tools(registry: Registry, services) -> None:
         except Refused as error:
             raise ToolFailed(error.says, next=error.next or None) from error
         attach(values={"agentLaunch": launch.id})
-        return f"stopped {launch.label}; its connection to Hooke is revoked, and what it kept in the Project stays"
+        return f"stopped {launch.label}"
 
     registry.add(Tool("stop_agent", "Stop an outside agent Hooke started, and revoke its connection.",
                       schema({"agent": AGENT}), stop_agent, family="researchers", inline_ms=3000))

@@ -78,8 +78,8 @@ def test_codex_declined_and_always_answers():
         await adapter.send(marked("steer"))
         ask = (await events.until(lambda: events.of("permission")))[0]
         await adapter.answer(ask["id"], True, always=True)
-        # The program's own proposed rule, for this session: the user's "always" means exactly that command prefix.
-        assert "acceptWithExecpolicyAmendment" in replay.sent[-1]["result"]["decision"]
+        # For this session only: never Codex's exec-policy amendment, which it keeps in the user's own ~/.codex/rules.
+        assert replay.sent[-1]["result"] == {"decision": "acceptForSession"}
         with pytest.raises(KeyError):
             await adapter.answer(ask["id"], False)  # answered once; a second answer finds nothing waiting
         replay.end(0)
@@ -265,3 +265,32 @@ def test_claude_allows_only_hookes_own_command_outside_its_sandbox():
     assert settings(None) == {"sandbox": {"enabled": True}}
     assert settings("/opt/hooke", "/Apps/H/.agents/skills/hooke/SKILL.md")["permissions"]["allow"] == [
         "Bash(/opt/hooke:*)", "Read(//Apps/H/.agents/skills/hooke/SKILL.md)"]
+
+
+def test_codex_session_answer_covers_plain_hooke_commands_only():
+    async def scenario():
+        hooke = "/w/agents/bin/hooke-1"
+        ask = lambda rid, command: {"dir": "in", "msg": {"id": rid, "method": "item/commandExecution/requestApproval",
+                                                         "params": {"command": command, "reason": "outside the sandbox"}}}
+        replay = Replay([ask(0, f"/bin/zsh -lc '{hooke} --agent codex status --json'"),
+                         {"dir": "out", "msg": {"id": 0, "result": {}}},
+                         ask(1, f"/bin/zsh -lc '{hooke} --agent codex tools --json'"),
+                         {"dir": "out", "msg": {"id": 1, "result": {}}},
+                         ask(2, f"/bin/zsh -lc '{hooke} --agent codex tools --json > caps.json'"),
+                         {"dir": "out", "msg": {"id": 2, "result": {}}}])
+        adapter = Codex(factory(replay))
+        adapter.hooke, adapter.transport = hooke, replay
+        from orchestrator.agents.jsonrpc import Peer
+        adapter.peer = Peer(replay, on_request=adapter._request, on_notification=adapter._notification)
+        events = Events(adapter)
+        reader = asyncio.create_task(adapter.peer.run())
+        first = (await events.until(lambda: events.of("permission")))[0]
+        await adapter.answer(first["id"], True, always=True)
+        # The next plain hooke command is the user's own answer for this session; one that writes a file still asks.
+        await events.until(lambda: len(replay.sent) >= 2)
+        assert replay.sent[1] == {"id": 1, "result": {"decision": "acceptForSession"}}
+        asks = await events.until(lambda: [e for e in events.of("permission") if e["id"] == "codex:2"])
+        assert "caps.json" in asks[0]["detail"] and len(events.of("permission")) == 2
+        replay.end(0)
+        await reader
+    asyncio.run(scenario())

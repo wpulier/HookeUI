@@ -1,10 +1,14 @@
 {
  "id": "will-agents",
- "about": "Will's ask of 3 Nov (Lane D, the conductor): Hooke drives the outside agents on this Mac the way he would, by voice, so he never pastes a prompt again. He asks for Codex to find out what Hooke can run here and write a short report; Codex works in its own Study assignment and asks to run Hooke's command outside its sandbox; the voice says the ask once and he answers it by voice; he asks what everyone is doing, steers Codex, hears what it found once its report is back for review, and stops it. Any internal language spoken (session ids, tool names, file paths, receipts) fails a step. Needs Codex installed and signed in on the Mac running the stack.",
+ "about": "Will's ask of 3 Nov (Lane D, the conductor): Hooke drives the outside agents on this Mac the way he would, by voice, so he never pastes a prompt again. He asks for Codex to find out what Hooke can run here and write a short report; Codex works in its own Study assignment and asks to run Hooke's command outside its sandbox; the voice says the ask once and he answers it by voice; he asks what everyone is doing, steers Codex, hears what it found once its report is back for review, and stops it. Any internal language spoken (session ids, tool names, file paths, receipts) fails a step. Needs Codex installed and signed in on the Mac running the stack. Codex may ask more than once (a command that writes a file is asked again even after \"for this session\"); the user answers the next ask by voice too.",
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
   "user": "Samantha"
+ },
+ "camera": {
+  "still": "assets/examples/human_mitosis.png",
+  "footage": "human_mitosis-noise.mp4"
  },
  "steps": [
   {
@@ -66,6 +70,27 @@
     ],
     "outcome": true,
     "judge": "passes the note on to Codex as its own words of the user's request and says so in a few words"
+   }
+  },
+  {
+   "id": "more-asks",
+   "kind": "idle",
+   "wait": 300,
+   "waitFor": {
+    "agent": "asks-or-done"
+   }
+  },
+  {
+   "id": "go-ahead",
+   "kind": "act",
+   "say": "Yes, go ahead.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "answer_agent"
+    ],
+    "toolRequired": false,
+    "judge": "if Codex is waiting on an ask, passes the yes on and says so in a few words; if nothing is waiting, says so plainly in a few words; never answers anything the user did not answer"
    }
   },
   {

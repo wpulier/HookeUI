@@ -38,8 +38,12 @@ local launches. Everything else in ADR 0026 stands: an agent Hooke starts uses t
   - **Hooke's own command.** Both sandboxes block the loopback address the `hooke` command talks to (seen live,
     2026-11-03). That command reaches only Hooke's door, with this launch's own connection, so Claude Code is told to
     run that exact path outside its sandbox without asking, and may read Hooke's skill file. Codex has no such
-    setting: it asks once to run `hooke` outside its sandbox, and the user's Allow for this session is Codex's own rule
-    for that command. Nothing else is allowed in advance.
+    setting: it asks to run `hooke` outside its sandbox. Once the user allows that for the session, a later plain
+    `hooke` command (no pipes, redirects, chains or substitutions) is accepted for the session as their answer, as T3
+    Code does; anything else still asks. Nothing else is allowed in advance.
+  - **Nothing outlives the session.** "For this session" is the program's session-scoped answer (Codex's
+    `acceptForSession`, Claude Code's `destination: session` rules), never Codex's exec-policy amendment, which Codex
+    writes for good into the user's own `~/.codex/rules` (seen 2026-11-03).
   - **ACP agents** (Grok Build in its default permission mode, Gemini CLI) get no file system, terminal or MCP servers
     from Hooke: they use their own, in their own folder.
 - **A launch is asked for by the user, in Hooke.** The Agents panel's Start, or the brain's `start_agent`, which runs
