@@ -8,8 +8,8 @@ complete research-platform, swarm-scale or portability qualification.
 
 - Website: **The IDE for Research**, with local/cloud model choice, shared research
   assignments, Project access through Hooke, local files and optional private
-  GitHub backups. [Website PR 102](https://github.com/wpulier/hooke-web/pull/102)
-  shipped at `2391e40e969477c76345028beccf14090c1352ac`.
+  GitHub backups. Published on [hookeui.org](https://hookeui.org/); the deployment
+  receipt is retained in the private operator handoff.
 - Mac: the existing Project-folder inspector explains the local research home,
   puts private backup ahead of export/publication, and offers **Back up to GitHub…**
   directly. [Core PR 194](https://github.com/wpulier/HookeUI/pull/194) tracks
