@@ -335,9 +335,8 @@ def design_section(d: dict, *, recommended: bool = False) -> dict:
         return "; ".join(r["name"] for r in rows)
 
     measures = []
-    for m in d["measures"]:
-        by = f" ({m['title']})" if m.get("title") else ""
-        measures.append(m["what"] + by + (" (not available here)" if m.get("available") is False else ""))
+    for m in d["measures"]:  # what is measured; a capability that cannot run here is said so (its why in the plan)
+        measures.append(m["what"] + (" (not available here)" if m.get("available") is False else ""))
     captures = [s["says"] for s in d["steps"] if s["kind"] in ("capture", "watch")]
     analyses = [s["says"] for s in d["steps"] if s["kind"] in ("researcher", "workflow")]
     manual = [s["says"] for s in d["steps"] if s["kind"] == "manual"]
@@ -351,7 +350,7 @@ def design_section(d: dict, *, recommended: bool = False) -> dict:
     if d["material"]:
         rows.insert(0, ["Material", d["material"]])
     if d["researchUsd"]:
-        rows.append(["Cost", f"its researchers at most ${d['researchUsd']:.2f}"])
+        rows.append(["Cost", f"Its researchers at most ${d['researchUsd']:.2f}"])
     lead = d["question"] + (f" {d['hypothesis']}" if d["hypothesis"] else "")
     paragraphs = [{"text": lead, "cites": []}]
     if d.get("change"):

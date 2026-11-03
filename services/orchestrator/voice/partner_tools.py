@@ -195,7 +195,8 @@ JOB_ID = {"type": "string", "description": "the job's id from jobs (a think job'
 STOP_WORK = ("Stop Hooke's own work in progress, only when the user says stop or cancel for something Hooke is doing "
              "now (\"actually, stop that\"): a request you handed to Hooke, by its id from the brief's jobs, else the "
              "newest one still running. It returns once the work has stopped (or says it is still being stopped): say "
-             "it stopped only then. A researcher is stopped by asking Hooke with do_in_hooke.")
+             "it stopped only then. A researcher or an experiment (it runs on its own, never one of these jobs) is "
+             "stopped by asking Hooke with do_in_hooke.")
 STOP_WAIT_S = 3.0  # stop_work waits this long for the work it cancelled to end before saying it is still being stopped
 # stop_work with nothing running: nothing to stop, checked (no work of Hooke's runs now), never a failed stop.
 NOTHING_TO_STOP = {"ok": True, "result": "verified", "stopped": False}

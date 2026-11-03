@@ -318,6 +318,24 @@ describe('the reader on screen', () => {
     expect(open).toHaveBeenCalledWith({ id: 'r1', day: 'p' });
     expect(texts(page, 'rd-note')).toEqual(['Left out: 1 paragraph that cited no record of this Project.']);
   });
+  it('draws a key and value table as a card (a design\u2019s plan card), and a data table with its header', async () => {
+    mount();
+    const values = { document: { title: 'Experiment designs', sections: [
+      { heading: 'Design 2: Light against shade', paragraphs: [{ text: 'Does light open these stomata?', cites: [] }],
+        table: { columns: ['', 'Design 2'], rows: [['Replicates', '3'], ['Controls', 'Dark']] } },
+      { heading: 'The comparison', paragraphs: [{ text: 'Counts per frame.', cites: [] }],
+        table: { columns: ['Frame', 'Cells'], rows: [[1, 5]] } }] } };
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ entry: {}, detail: { text: '', values } }) })));
+    const reader = new DataReader(deps(), 'tab'), root = reader.root as unknown as TestElement;
+    reader.show(entry({ id: 'd8', kind: 'result', media: 'document', title: 'Document · 14:35', day: 'p', version: undefined }));
+    for (let i = 0; i < 8; i++) await Promise.resolve();
+    const [card, data] = root.querySelectorAll('.rd-doc-table');
+    expect(card.className).toContain('rd-doc-card');
+    expect(card.querySelectorAll('th')).toHaveLength(0);
+    expect(card.querySelectorAll('td').map((td) => td.textContent)).toEqual(['Replicates', '3', 'Controls', 'Dark']);
+    expect(data.className).not.toContain('rd-doc-card');
+    expect(data.querySelectorAll('th').map((th) => th.textContent)).toEqual(['Frame', 'Cells']);
+  });
   it('in a reader Tab keeps only its views, Talk and ⋯ (its title is on the Stage bar; no × and no Open in new Tab)', () => {
     mount();
     const reader = new DataReader(deps(), 'tab'), root = reader.root as unknown as TestElement;
