@@ -124,10 +124,10 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
                 else "")
         return (f"{len(proposal['designs'])} designs, nothing run{left}: "
                 + " | ".join(E.said(d) for d in proposal["designs"]) + f".{lead} "
-                + f"{where[:1].upper()}{where[1:]}. Talk them through as a colleague would, briefly: one sentence each "
-                  "on what it tests and how it differs from the others (by number and what it does, never ids, Data or "
-                  "step names, never the cards read aloud), which you would start with and why, then one question: "
-                  "which they like or what to change. Nothing has run")
+                + f"{where[:1].upper()}{where[1:]}. Talk them through as a colleague would, in two sentences: the "
+                  "first says what each design does and how they differ, in a few words each (by number and what it "
+                  "does; never ids, Data or step names, never the cards read aloud), and which you would start with and "
+                  "why; the second asks which they like or what to change. Nothing has run")
 
     registry.add(Tool(
         "propose_experiments", "Design experiments with the user (\"help me design an experiment on whether light opens "
@@ -165,8 +165,8 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
         unsaved = (f" Its Study plan is still version {d['study']['version']}: study_plan save keeps this version"
                    if d.get("study") else "")
         return (f"Revised as asked (\"{change}\"): {E.said(d)}. {where[:1].upper()}{where[1:]}.{unsaved} Say in one "
-                "sentence what changed and what follows from it (its time, a step of theirs), as a colleague would; "
-                "nothing has run")
+                "sentence what changed and what follows from it (its time, a step of theirs), as a colleague would, "
+                "and that nothing has run yet")
 
     registry.add(Tool(
         "revise_design", "Change one experiment design as the user says (\"three replicates, add a dark control\"): it "

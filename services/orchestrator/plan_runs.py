@@ -64,7 +64,7 @@ def plan_of_design(proposal: dict, d: dict, study: str) -> dict:
     says = (f"Its researchers at most ${research:.2f} from this Study's allowance" if research else "Nothing spent")
     if schedules:
         says += "; each schedule's analysis is charged to today's research cap when it starts"
-    return {"kind": "steps", "title": d["title"][:120], "question": d["question"],
+    return {"kind": "steps", "title": d["title"][:120], "question": d["question"], "duration": d.get("duration") or "",
             "design": {"id": d["id"], "n": d["n"], "version": d["version"], "proposal": proposal["key"]},
             "study": {"id": study}, "models": [], "measure": False, "audit": None,
             "input": {"kind": "plan", "says": f"Design {d['n']} ({d['id']}, version {d['version']}): {d['question']}"},
@@ -75,11 +75,23 @@ def plan_of_design(proposal: dict, d: dict, study: str) -> dict:
 
 
 def time_words(plan: dict) -> str:
+    """The whole run's time first (the design's own estimate, the user's steps in it), then Hooke's own part."""
     e = plan.get("estimate") or {}
-    hooke = f"Hooke's own steps take about {duration_words(e.get('seconds') or 0)}" if e.get("seconds") else \
-        "Hooke's own steps take little time"
+    hooke = (f"Hooke's own steps take about {duration_words(e.get('seconds') or 0)}" if e.get("seconds")
+             else "Hooke's own steps take little time")
     manual = e.get("manual") or 0
-    return hooke + (f", plus your {manual} step{'s' if manual != 1 else ''} by hand" if manual else "")
+    yours = f"your {manual} step{'s' if manual != 1 else ''} by hand" if manual else ""
+    if plan.get("duration"):
+        return f"In all {plan['duration']}" + (f" with {yours}" if yours else "") + f"; {hooke}"
+    return hooke + (f", plus {yours}" if yours else "")
+
+
+def first_words(plan: dict) -> str:
+    """What happens first when it starts: a step of the user's it waits for, or Hooke's own first step."""
+    step = plan["steps"][0]
+    if step["kind"] == "manual":
+        return f"first it waits for you to {step['what'][:1].lower()}{step['what'][1:]}, and goes on when you say it is done"
+    return f"first, {step['says'][:1].lower()}{step['says'][1:]}"
 
 
 def plan_said(x) -> str:
@@ -96,7 +108,8 @@ def plan_said(x) -> str:
         parts.append(f"{analyses} analysed by Hooke")
     return (f"{x.name}, not run yet: {p['title']}, the Study plan of design {p['design']['id']} "
             f"({len(kinds)} steps: {', '.join(parts)}; {p.get('replicates')} replicates). {time_words(p)}; "
-            f"{p['cost']['says']}; nothing runs until you say yes, and your yes approves the Study plan.")
+            f"{p['cost']['says'][:1].lower()}{p['cost']['says'][1:]}; nothing runs until you say yes, and your yes "
+            "approves the Study plan.")
 
 
 # --- the yes reviews the Study plan ----------------------------------------------------------------------------------

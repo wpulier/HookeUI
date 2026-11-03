@@ -595,7 +595,12 @@ class Experiments:
             from . import plan_runs
 
             await plan_runs.stop(self, x)
-            return f"stopping {x.name}: what its steps made so far stays in this Project"
+            if x.task is not None:  # its ending is this stop's own answer, said once, never again as a late event
+                with contextlib.suppress(Exception):
+                    await asyncio.wait({x.task}, timeout=5.0)
+            if x.status == "stopped":
+                return f"{x.name} ({x.title}) is stopped; what its steps made so far stays in this Project"
+            return f"stopping {x.name} ({x.title}): what its steps made so far stays in this Project"
         from .workflow_service import service
 
         runner = service(self.hub, self.day)
@@ -1324,7 +1329,10 @@ class Experiments:
         return f"{lead}: every run{' and the audit' if audit else ''} done; putting the results in a Tab of their own."
 
     def _tell(self, x: Experiment) -> None:
-        """One outcome, once: on the voice's bus (said at a pause, owed until heard) and in the conversation."""
+        """One outcome, once: on the voice's bus (said at a pause, owed until heard) and in the conversation. A design's
+        run the user stopped is not told again: the stop's own answer said it."""
+        if x.steps_kind and x.status == "stopped" and x.why == "you stopped it":
+            return
         if x.status == "done":
             text = f"{x.name} finished: {(x.outcome or {}).get('words')}"
         elif x.status == "stopped":

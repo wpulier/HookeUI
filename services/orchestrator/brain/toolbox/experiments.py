@@ -117,9 +117,12 @@ def add_experiment_tools(registry: Registry, services) -> None:
                        client=ctx.client)
         attach(values={"experiment": x.wire()})
         if x.steps_kind:
-            return (f"Started {x.name} ({x.title}), exactly as planned; your yes approved its Study plan. It takes its "
-                    f"{len(x.plan['steps'])} steps in order in the background, waits for you at a step of yours, and its "
-                    "card shows how it goes; its outcome is said when it ends")
+            from ... import plan_runs
+
+            return (f"Started {x.name} ({x.title}) exactly as planned; your yes approved its Study plan. "
+                    f"{plan_runs.first_words(x.plan)[:1].upper()}{plan_runs.first_words(x.plan)[1:]}. Its "
+                    f"{len(x.plan['steps'])} steps go in order in the background; its card shows how it goes, and its "
+                    "outcome is said when it ends. Say that it started and what happens first, in one sentence")
         return (f"Started {x.name} ({x.title}), exactly as planned: {x.plan['input']['says']}, then each model on every "
                 f"frame{', then the audit' if x.plan['audit'] else ''}. It works in the background; its card shows how it "
                 "goes, and its results open in a Tab of their own when it finishes, said then")

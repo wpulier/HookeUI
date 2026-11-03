@@ -226,9 +226,11 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         assert entry.media == "document" and entry.role == "writeup"
         assert studio.reading[studio.active]["id"] == cards, "the plan cards are in front, in a Tab of their own"
         text = app.hub.resources.read(cards, studio.project)
-        assert "Design 2 (d2): Light against shade" in text and "Hooke captures:" in text and "You do:" in text
+        assert "Design 2: Light against shade · Hooke would start here" in text and "(d2)" not in text, "no ids"
+        assert "Hooke captures | Clips of the open field" in text and "You do | Put the slide under the lamp" in text
+        assert "Replicates | 2" in text and "Controls | none" in text, "a card read at a glance: a row each"
         assert "Nothing has run" in text
-        assert "Hooke would start with Design 2: Light against shade" in text, "a colleague's pick, with why"
+        assert "Hooke would start with Design 2" in text, "a colleague's pick, with why"
         assert "Shading half of one leaf" in text and "You would start with d2" in run.summary
         assert "never ids" in run.summary, "the voice talks them through, never reading ids or the cards"
         nothing_ran(app)
@@ -245,8 +247,9 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         (revised,) = [m for m in studio.sent("workspace-tabs") if m["action"].get("replaces")] or [run.summary]
         assert isinstance(revised, dict), revised
         assert revised["action"]["replaces"] == cards
-        assert "Design 2 (d2): Light against shade · version 2" in app.hub.resources.read(
-            studio.reading[studio.active]["id"], studio.project)
+        card = app.hub.resources.read(studio.reading[studio.active]["id"], studio.project)
+        assert "Design 2: Light against shade · Hooke would start here · version 2" in card
+        assert "Changed as you asked" in card and "Replicates | 3" in card and "Controls | Dark" in card
         nothing_ran(app)
         # 3. Saved as a Study plan: a draft, nothing reviewed, nothing run.
         run = await asked(app, studio, "study_plan", {"do": "save", "design": "d2"}, "save the second one")
@@ -267,6 +270,7 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         assert x.steps_kind and x.status == "proposed" and x.wire()["canRun"]
         assert x.wire()["steps"][0] == "You: Put the slide under the lamp"
         assert "nothing runs until you say yes" in run.summary
+        assert "In all about 1 h with your 2 steps by hand; Hooke" in run.summary, run.summary
         started = []
 
         async def researcher(x_, *, request, brief, effort):
@@ -318,6 +322,7 @@ def test_on_the_yes_the_plan_is_approved_and_its_steps_run_in_order_waiting_for_
         run = await asked(app, studio, "experiment", {"do": "run", "asked_with": "yes, run it"}, "yes, run it")
         assert run.ok is True, run.summary
         assert "your yes approved its Study plan" in run.summary
+        assert "First it waits for you to put the slide under the lamp" in run.summary, "what happens first, named"
         study = x.plan["study"]["id"]
         plan = Coordination(app.hub.studies).read(study, app.day.sid)["plan"]
         assert plan["status"] == "reviewed" and plan["reviewedBy"]["ownerYes"] == "yes, run it"
@@ -360,5 +365,30 @@ def test_a_design_needs_two_runnable_designs_and_the_model_fixes_what_the_app_fo
         assert len(model.prompts) == 2 and "had problems the app found" in model.prompts[1]
         assert "at least 30 s apart" in model.prompts[1], "the model is told the facts, and judges again"
         assert E.designs_of(app.hub, app.day).all_designs(app.day.sid) == [] and not studio.sent("workspace-tabs")
+
+    asyncio.run(go())
+
+
+def test_a_stopped_run_is_said_stopped_once_by_the_stop_itself(tmp_path, monkeypatch):
+    """will-design run 1: "Experiment 1 has been stopped..." then "Experiment 1 is stopped..." again as a late event."""
+    from orchestrator.voice import events
+
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        E.designs_of(app.hub, app.day).write = Model()
+        await asked(app, studio, "propose_experiments", {"question": ASK, "open": False}, ASK)
+        await asked(app, studio, "experiment", {"do": "plan", "design": "d1"}, "plan the first one")
+        await asked(app, studio, "experiment", {"do": "run", "asked_with": "yes, run it"}, "yes, run it")
+        xs = experiments_of(app.hub, app.day)
+        (x,) = xs.of_session(app.day.sid)
+        for _ in range(200):
+            if x.waiting:
+                break
+            await asyncio.sleep(0.01)
+        told = []
+        monkeypatch.setattr(events, "bus_of", lambda brain: type("Bus", (), {"publish": lambda self, *a, **k: told.append(a)})())
+        run = await asked(app, studio, "experiment", {"do": "stop"}, "stop the experiment for now")
+        assert run.ok is True and "Experiment 1 (Light time course) is stopped" in run.summary, run.summary
+        assert x.status == "stopped" and told == [], "said once, by the stop's own answer"
 
     asyncio.run(go())
