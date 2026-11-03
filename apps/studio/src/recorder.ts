@@ -1,4 +1,5 @@
 import type { AnnotatedCapture } from './annotated-recording';
+import { openMicrophone } from './mic-choice';
 // Record explicitly chooses the raw camera, the existing annotated input canvas, or
 // the whole workspace. Browser media uses the same bounded chunk upload and finalization;
 // annotated capture requests neither screen sharing nor audio. Workspace can also retain
@@ -128,7 +129,9 @@ export class StudioRecorder {
       if (options.appAudio && display.getAudioTracks().length && ctx && mix) ctx.createMediaStreamSource(display).connect(mix);
       try {
         if (options.microphone && ctx && mix) {
-        const mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+        // The same microphone Talk uses: the Mac's own, never the iPhone (the camera) unless it was picked (mic-choice.ts).
+        const mic = await openMicrophone({ echoCancellation: true, noiseSuppression: true });
+        if (!mic) throw new Error('No microphone');
         this.streams.push(mic);
         ctx.createMediaStreamSource(mic).connect(mix);
         this.observe('microphone', mic.getAudioTracks()[0]);

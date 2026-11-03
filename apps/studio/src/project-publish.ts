@@ -10,6 +10,9 @@ export interface PublicationReview {
   includeTranscripts: boolean; findings: Finding[]; blocked: boolean;
   /** The person's own words that are published: their notes on results (the secret scan reads them too). */
   publishedText?: {session: string; id: string; version: number | null; title: string; text: string}[];
+  /** Imported images the publication carries cleaned: the same pixels, without the personal metadata named. */
+  cleanMetadata?: boolean; cleanedFiles?: number;
+  cleaned?: {path: string; removed: string[]; bytes: number; cleanedBytes: number; pixels: string}[];
 }
 export interface Published {commit: string; snapshotSha256: string; recordFiles: number; bulkFiles: number; bulkObjects: number; uploadedBytes: number; bytes: number}
 export interface GitHubStatus {setUp: boolean; signedIn: boolean; says: string}
@@ -19,7 +22,7 @@ export type Destination = {kind: 'github'; create: true; name: string} | {kind: 
 export interface UpdateResult {added: string[]; extended: string[]; unchanged: string[]; refused: {id: string; reason: string}[]; filesAdded: number; fileConflicts: string[]; resultsAdded?: number}
 export interface RemoteStatus {published: {destination: unknown; commit: string; snapshotSha256: string; licence: string}[]; startedFrom: unknown | null}
 export interface PublishActions {
-  prepare(options: {includeTranscripts: boolean; licence: string}): Promise<PublicationReview>;
+  prepare(options: {includeTranscripts: boolean; licence: string; cleanMetadata: boolean}): Promise<PublicationReview>;
   publish(review: PublicationReview, signoff: Signoff, destination: Destination): Promise<{published: Published; location: string}>;
   status(): Promise<RemoteStatus>;
   update(): Promise<UpdateResult>;
@@ -34,6 +37,11 @@ const words: Record<string, string> = {
   'secret': 'looks like a key or password', 'configured-key': 'contains one of this Mac’s keys',
   'home-path': 'names a folder in your home folder', 'unreadable': 'could not be read', 'more-not-listed': 'and more',
   'metadata-location': 'carries a location (GPS)', 'metadata-person': 'carries a person’s name', 'metadata-home-path': 'carries a path from your home folder',
+  'metadata-unchecked': 'is in a format Hooke can’t check for personal metadata', 'metadata-not-cleaned': 'carries metadata Hooke couldn’t remove',
+};
+const removedWords: Record<string, string> = {
+  'location': 'a location', 'person': 'a person’s name', 'home-path': 'a home-folder path',
+  'details': 'dates and device details', 'slide-label': 'the slide label photo',
 };
 const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'hooke-project';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
@@ -107,7 +115,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     content.replaceChildren(node('p', 'Share this project so anyone can start from it. You review every file first. '
       + 'Conversations stay on this Mac. What lists your results goes with it: tables, evidence, tracks and your notes.'));
     controls.replaceChildren(); status.textContent = '';
-    button('Review what will be published', () => review(false, 'CC-BY-4.0'), true);
+    button('Review what will be published', () => review(false, 'CC-BY-4.0', true), true);
     void showStatus();
   };
 
@@ -135,13 +143,13 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     } catch { /* status is informative only */ }
   };
 
-  const review = async (includeTranscripts: boolean, licence: string) => {
+  const review = async (includeTranscripts: boolean, licence: string, cleanMetadata: boolean) => {
     busy = true; controls.replaceChildren(); status.textContent = 'Sealing and checking what would be published…';
     try {
-      const r = await actions.prepare({includeTranscripts, licence});
+      const r = await actions.prepare({includeTranscripts, licence, cleanMetadata});
       if (!active()) return;
       show(r);
-    } catch (error) { if (active()) { status.textContent = message(error); button('Try again', () => review(includeTranscripts, licence)); } }
+    } catch (error) { if (active()) { status.textContent = message(error); button('Try again', () => review(includeTranscripts, licence, cleanMetadata)); } }
     finally { busy = false; }
   };
 
@@ -160,6 +168,13 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
       if (r.publishedText.length > 20) notes.append(node('li', `and ${r.publishedText.length - 20} more`));
       content.append(node('strong', 'Your notes, published as written'), notes);
     }
+    if (r.cleaned?.length) {
+      const list = node('ul', '', 'project-publish-cleaned');
+      for (const c of r.cleaned.slice(0, 20)) list.append(node('li', `${c.path}: ${c.removed.map(k => removedWords[k] ?? k).join(', ')}`));
+      const more = (r.cleanedFiles ?? r.cleaned.length) - Math.min(20, r.cleaned.length);
+      if (more > 0) list.append(node('li', `and ${more} more`));
+      content.append(node('strong', 'Personal metadata removed (pixels unchanged; your Project keeps the originals)'), list);
+    }
     if (r.findings.length) {
       const list = node('ul', '', 'project-publish-findings');
       for (const f of r.findings.slice(0, 20)) list.append(node('li', `${f.path}${f.line ? ` line ${f.line}` : ''} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`));
@@ -171,13 +186,14 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     if (r.memberCount > r.members.length) listing.append(node('li', `and ${r.memberCount - r.members.length} more`));
     files.append(summary, listing); content.append(files);
     const transcripts = checkbox('Include research transcripts'); transcripts.box.checked = r.includeTranscripts;
+    const clean = checkbox('Remove personal metadata from photos and scans'); clean.box.checked = r.cleanMetadata !== false;
     const licence = node('select'); licence.setAttribute('aria-label', 'Licence');
     for (const [id, label] of [['CC-BY-4.0', 'CC BY 4.0: anyone may reuse with credit'], ['CC0-1.0', 'CC0: no rights reserved']]) {
       const option = node('option', label); option.value = id; option.selected = id === r.licence; licence.append(option);
     }
     const again = node('button', 'Review again with these choices', 'study-quiet'); again.type = 'button';
-    again.addEventListener('click', () => { if (active() && !busy) void review(transcripts.box.checked, licence.value); });
-    content.append(transcripts.row, node('label', 'Licence ', 'project-publish-licence'), licence, again);
+    again.addEventListener('click', () => { if (active() && !busy) void review(transcripts.box.checked, licence.value, clean.box.checked); });
+    content.append(transcripts.row, clean.row, node('label', 'Licence ', 'project-publish-licence'), licence, again);
     if (r.blocked) { button('Back', intro); return; }
     // Where it goes.
     const where = node('fieldset', '', 'project-publish-where'); where.append(node('legend', 'Publish to'));

@@ -112,6 +112,30 @@ class Client:
                         raise RemoteRefused('A file of this project is larger than its manifest says')
                 return bytes(body)
 
+    def asset(self, repo: str, asset_id: int, limit: int) -> bytes:
+        """GET a release asset's bytes signed in (a private repository's), bounded. GitHub answers with a redirect to
+        its storage, to which the sign-in is not sent."""
+        if self.http is not None:
+            return self.http.asset(repo, asset_id, limit)
+        if type(asset_id) is not int or self.anonymous:
+            raise RemoteRefused('A private project file needs a GitHub sign-in')
+        import httpx
+        with self._client.stream('GET', f'/repos/{repo}/releases/assets/{asset_id}',
+                                 headers={'Accept': 'application/octet-stream'}) as response:
+            if response.status_code in (301, 302, 303, 307, 308):
+                target = httpx.URL(response.headers.get('location', ''))
+                if target.scheme != 'https' or not (target.host or '').endswith(('.githubusercontent.com', '.github.com')):
+                    raise RemoteRefused('A download was redirected away from GitHub; nothing was used')
+                return self.download(str(target), limit)
+            if response.status_code != 200:
+                raise RemoteRefused(f'GitHub could not provide a file of this project ({response.status_code})')
+            body = bytearray()
+            for block in response.iter_bytes():
+                body += block
+                if len(body) > limit:
+                    raise RemoteRefused('A file of this project is larger than its manifest says')
+            return bytes(body)
+
     def ok(self, method: str, path: str, payload=None, *, what: str, allow=()):
         status, data = self.call(method, path, payload)
         if status == 401:

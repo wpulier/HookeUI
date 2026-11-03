@@ -1,7 +1,7 @@
 """Find personal metadata in a publication's imported files, for the owner to judge (ADR 0028, ticket 06).
 
-Accepted files are kept byte for byte, so nothing is removed here: the review names the file and what it carries
-(a location, a person, a home-folder path). Only the first chunk of each file is read; JPEG, PNG and TIFF (including
+Nothing is removed here: the review names the file and what it carries (a location, a person, a home-folder path).
+A publication cleans what it can first (project_publish_clean), so what is found here is what would go out. Only the first chunk of each file is read; JPEG, PNG and TIFF (including
 OME-TIFF and ImageJ) headers are parsed with the standard library. Unknown formats are not guessed at.
 """
 from __future__ import annotations
@@ -101,21 +101,37 @@ def kinds_of(head: bytes):
 
 
 def scan(root: Path):
-    """Findings for every imported file whose first chunk carries personal metadata."""
+    """Findings for every imported file whose first chunk carries personal metadata. Where a publication holds a
+    cleaned copy instead of the original (project_publish_clean), the copy is what is read: it is what goes out."""
     findings = []
     records = Path(root) / 'artifacts' / 'records'
-    for manifest in sorted(records.glob('p*/files/*.json')) if records.is_dir() else ():
-        if not MANIFEST.fullmatch(manifest.name):
-            continue
-        try:
-            meta = json.loads(manifest.read_text())
-            name, chunks = str(meta.get('name', ''))[:200], meta.get('chunks') or []
-            if not chunks:
+    for folder in sorted(records.glob('p*/files')) if records.is_dir() else ():
+        plain, cleaned = [], {}
+        for manifest in sorted(folder.glob('*.json')):
+            if not MANIFEST.fullmatch(manifest.name):
                 continue
-            head = (manifest.parent / f'{chunks[0]}.bin').read_bytes()
-        except (OSError, ValueError, AttributeError):
-            continue
-        for kind in sorted(kinds_of(head)):
-            findings.append({'path': f'{name} ({manifest.parent.parent.name})', 'line': 0,
-                             'kind': f'metadata-{kind}', 'blocks': False})
+            try:
+                meta = json.loads(manifest.read_text())
+            except (OSError, ValueError):
+                continue
+            if type(meta) is not dict:
+                continue
+            if meta.get('format') == 'project-source-file-clean-v1':
+                cleaned[meta.get('of')] = meta
+            else:
+                plain.append((manifest.name[:-5], meta))
+        for revision, meta in plain:
+            try:
+                name, chunks = str(meta.get('name', ''))[:200], meta.get('chunks') or []
+                if not chunks:
+                    continue
+                first = folder / f'{chunks[0]}.bin'
+                if revision in cleaned:  # what goes out is the cleaned copy
+                    first = folder / f'{(cleaned[revision].get("chunks") or [""])[0]}.bin'
+                head = first.read_bytes()
+            except (OSError, ValueError, AttributeError, TypeError):
+                continue
+            for kind in sorted(kinds_of(head)):
+                findings.append({'path': f'{name} ({folder.parent.name})', 'line': 0,
+                                 'kind': f'metadata-{kind}', 'blocks': False})
     return findings

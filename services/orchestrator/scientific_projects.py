@@ -434,6 +434,32 @@ class ProjectStore:
     def list(self, session: str) -> list[ProjectRevision]:
         return self.scan(session)[0]
 
+    def owner_sessions(self):
+        """Host accounting scope, independent of today's admission allowlist.
+
+        This is not an access grant. Unreadable ownership refuses accounting;
+        silently dropping a Project could forget an outstanding reservation.
+        """
+        from .scientific_import_transaction import reading
+        owners = set()
+        with reading(self.root):
+            if not self.root.is_dir():
+                return owners
+            for count, path in enumerate(self.root.iterdir(), 1):
+                if count > 100_000:
+                    raise InvalidProject('Reservation inspection exceeds its directory allowance')
+                if PROJECT_ID.fullmatch(path.name) is None:
+                    continue
+                try:
+                    head = json.loads(self._read(path / 'head.json', MAX_HEAD))
+                    owner = head.get('session') if type(head) is dict else None
+                    _identity(owner, 'session')
+                    self._owned_head(self._folder(path.name), owner)
+                except (OSError, ValueError, RecursionError) as error:
+                    raise InvalidProject('Recover unreadable Project ownership before admitting external work') from error
+                owners.add(owner)
+        return owners
+
     INPUT_KINDS = ('source-file', 'source-directory')
 
     def inputs_by_session(self) -> dict[str, int]:

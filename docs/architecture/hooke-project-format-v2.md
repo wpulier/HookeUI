@@ -119,9 +119,28 @@ A publication is a filtered sealed snapshot of the Project:
 - A person's notes (`annotation` text and title) are published text: the review lists them as `publishedText`, and the
   secret scan reads them with every other text member.
 - It keeps the Project's origin and every revision digest.
+- An imported JPEG, PNG or TIFF (including OME-TIFF, ImageJ and Aperio SVS) whose metadata names a place, a person, a
+  home folder, a date or a device goes **cleaned** unless the owner turns cleaning off (`project_publish_clean`,
+  `project_metadata_scrub`). Every edit is at the byte level, so image data is copied verbatim; Hooke also decodes the
+  original and the copy and compares their pixels where this Mac can, and a copy that differs is not used. A slide
+  scanner's label and macro photographs are dropped. The file's manifest stays byte for byte, so no document changes;
+  the original's chunks are left out, and a second manifest in the same `files/` folder, named by its own SHA-256,
+  stands in for it:
 
-Before sending, the owner reviews the exact members and their sizes. A secret finding blocks; a home-directory path
-or metadata finding is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0
+  ```json
+  {"format": "project-source-file-clean-v1", "of": "<the original manifest's sha256>",
+   "originalSha256": "<the original file's sha256>", "removed": ["location", "person"],
+   "tool": "hooke-metadata-clean-1", "name": "<the original's name>", "size": 812345,
+   "sha256": "<the cleaned file's sha256>", "chunkBytes": 1048576, "chunks": ["<sha256>", "..."]}
+  ```
+
+  A reader uses the cleaned copy only where the original's chunks are absent; a file with two cleaned copies, or one
+  that names another original, is refused. The publisher's claim that the pixels are unchanged cannot be checked
+  without the original, and is shown as the publisher's (ADR 0012). The Project keeps its original.
+
+Before sending, the owner reviews the exact members and their sizes, and which files were cleaned of what. A secret
+finding blocks; a home-directory path, a metadata finding or a file in a format Hooke cannot check (HEIC, CZI, ND2,
+DICOM, video) is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0
 preselected) and the absence of identifiable human data; the review digest (SHA-256 over the canonical review) binds
 what is sent. The first publication is a parentless commit in its own destination; later publications of the same
 Project chain onto it. Publishing never changes the visibility of a backup.
@@ -159,5 +178,37 @@ again.
 
 ## 10. Reproduction levels
 
-Receipts record device, model version and seed. A re-run is reported at three levels: inputs byte-identical;
-deterministic CPU steps reproduce their hashes; GPU model results match within a stated tolerance.
+Receipts record device, model version and seed. A re-run is reported at three levels: inputs byte-identical (a
+cleaned image, section 8, has the original's pixels and says the original's SHA-256 instead); deterministic CPU steps
+reproduce their hashes; GPU model results match within a stated tolerance.
+
+## 11. Backups
+
+A backup is a push (6) of the **whole** sealed snapshot, journals and conversations included, to a destination only
+its owner reads: a folder, or a private Git-host repository (`project_backup`). A Git-host backup's large files are
+assets of its private `hooke-data` release, which are read signed in, never from the public download address. A
+backup to a public repository is refused before anything is sent. A destination outside the owner's own storage is
+scanned for secrets (6.2), and a folder is not.
+
+Each backup records a `project-backed-up` journal event (destination, commit, parent, snapshot SHA-256). The next
+backup to the same destination has the latest such commit as its parent, so when another Mac backed up since, the
+compare-and-swap (6.5) refuses and nothing is sent: the owner restores the newer backup first.
+
+**Restoring** fetches (7) and restores the snapshot as a working folder with the **same** origin, handle and history.
+It is then registered through the owner's folder registration: on a Mac that has never held the Project it becomes
+that Mac's Project, with no agent permissions; on a Mac whose registered location is gone, it takes that location's
+place. A Mac whose location still exists refuses, so one Project never has two working folders on one Mac. The
+restored journal records `project-restored-from-backup` (destination, commit), which is the next backup's parent there.
+
+**Deleting** a backup marks it first: a folder remote gains `deleted.json` (`hooke-remote-deleted-v1`, with `at`), and
+a Git-host repository is archived. A marked backup accepts no new version but can still be restored, and the owner
+can keep it (the mark is removed). Thirty days after it was marked (`project-backup-deleted` records `purgeAfter`), the
+next look at the Project's backups removes it: a folder loses only the entries a folder remote writes (`remote.json`,
+`HEAD`, `.lock`, `deleted.json`, `commits/`, `blobs/`, `objects/`), and the folder itself only when nothing else is in
+it; a repository is deleted. `project-backup-purged` is recorded, and a later backup there starts with no parent.
+
+**Old data.** After each backup, an object of the bulk store is removed when it arrived more than 30 days ago and no
+version of the window names it: the current version, every version that arrived in the last 30 days, and the one that
+was current when the window began. A store that cannot say when things arrived is left as it is, and anything
+unreadable stops the removal with nothing removed. Record blobs and older version records stay; a version older than
+the window may no longer be fetchable whole.

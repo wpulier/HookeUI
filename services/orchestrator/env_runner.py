@@ -376,6 +376,8 @@ def _update_waiting(m: catalog.Manifest, environ: Mapping[str, str]) -> str:
     if found is None or found.current:
         return ""
     from .maintenance import policy, promote, revocations, status
+    if error := revocations.display_error(m, environ):
+        return error
     # Maintained, ever moved by maintenance, or revoked: its words only (ticket 59). The pinned catalog may then be
     # behind the entry, and must never be offered as an update; a revoked one is never offered at all.
     if (policy.get(m.key, environ)["policy"] != "manual" or promote.decisions(m.key, environ, moves=True)

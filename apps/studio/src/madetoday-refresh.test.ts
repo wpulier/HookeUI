@@ -16,7 +16,79 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (url: string) => ({ok: !unavailable, json: async () => url.endsWith('/summary')
     ? {kinds: [], couldMake: [], running: []} : {entries}})));
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {vi.unstubAllGlobals();vi.useRealTimers();});
+
+test('slow inventory reads coalesce event refreshes instead of starving Project navigation', async () => {
+  vi.useFakeTimers();
+  const pending: {url:string; resolve:(value:unknown)=>void}[] = [];
+  vi.stubGlobal('fetch', vi.fn((url:string) => new Promise(resolve => pending.push({url,resolve}))));
+  const view = new MadeToday(() => {});
+  const first = view.refresh();
+  for (let n=0;n<8;n++) { view.changed(); await vi.advanceTimersByTimeAsync(400); }
+  const callsBeforeReply = pending.length;
+  for (const request of pending) request.resolve({ok:true,json:async()=>request.url.endsWith('/summary')
+    ? {kinds:[],couldMake:[],running:[]} : {entries:[]}});
+  await first;
+  expect(callsBeforeReply).toBe(2);
+  await vi.advanceTimersByTimeAsync(350);
+  expect(pending).toHaveLength(4); // One follow-up keeps changes made during the read.
+  for (const request of pending.slice(2)) request.resolve({ok:true,json:async()=>request.url.endsWith('/summary')
+    ? {kinds:[],couldMake:[],running:[]} : {entries:[]}});
+  await view.refresh();
+  await vi.advanceTimersByTimeAsync(350);
+  expect(pending).toHaveLength(4);
+});
+test('a hung read times out, aborts both requests and remains retryable', async () => {
+  vi.useFakeTimers();
+  const signals: AbortSignal[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url:string,init:RequestInit) => new Promise((_resolve,reject) => {
+    const signal=init.signal!;signals.push(signal);
+    signal.addEventListener('abort',()=>reject(new Error('Read aborted')));
+  })));
+  const view=new MadeToday(()=>{});
+  const first=view.refresh();
+  await vi.advanceTimersByTimeAsync(30_000);await first;
+  expect(signals).toHaveLength(2);expect(signals.every(s=>s.aborted)).toBe(true);
+  expect(nodes.get('made-today-note')!.textContent).toContain('could not be read');
+  vi.stubGlobal('fetch',vi.fn(async(url:string)=>({ok:true,json:async()=>url.endsWith('/summary')
+    ? {kinds:[],couldMake:[],running:[]} : {entries:[]}})));
+  await view.refresh();
+  expect(nodes.get('made-today-note')!.textContent).toBe('');
+});
+
+test('switching Project aborts both old reads and excludes their late results', async () => {
+  const pending: {url:string; signal?:AbortSignal; resolve:(value:unknown)=>void}[] = [];
+  vi.stubGlobal('fetch', vi.fn((url:string,init?:RequestInit) => new Promise(resolve => pending.push({url,signal:init?.signal??undefined,resolve}))));
+  const view = new MadeToday(() => {});
+  const first = view.refresh();
+  view.sessionChanged();
+  const aborted = pending.slice(0,2).map(p=>p.signal?.aborted);
+  for (const request of pending.slice(2)) request.resolve({ok:true,json:async()=>request.url.endsWith('/summary')
+    ? {kinds:[],couldMake:[],running:[]} : {entries:[{id:'new',kind:'result',title:'New Project evidence',summary:'',state:'done',actions:[],product:true}]}});
+  await view.refresh();
+  for (const request of pending.slice(0,2)) request.resolve({ok:true,json:async()=>request.url.endsWith('/summary')
+    ? {kinds:[],couldMake:[],running:[]} : {entries:[{id:'old',kind:'result',title:'Old Project evidence',summary:'',state:'done',actions:[]}]}});
+  await first;
+  expect(aborted).toEqual([true,true]);
+  expect(nodes.get('made-today-list')!.textContent).not.toContain('Old Project evidence');
+  expect(nodes.get('made-today-list')!.textContent).toContain('New Project evidence');
+});
+test('a failed half aborts its pending sibling and preserves retained rows', async () => {
+  entries=[{id:'kept',kind:'result',title:'Retained evidence',summary:'',state:'done',actions:[],product:true}];
+  const view=new MadeToday(()=>{});await view.refresh();
+  let sibling:AbortSignal|undefined;
+  vi.stubGlobal('fetch',vi.fn((url:string,init:RequestInit)=>{
+    if(!url.endsWith('/summary'))return Promise.resolve({ok:false});
+    return new Promise((_resolve,reject)=>{
+      sibling=init.signal!;
+      sibling.addEventListener('abort',()=>reject(new Error('Read aborted')));
+    });
+  }));
+  await view.refresh();
+  expect(sibling?.aborted).toBe(true);
+  expect(nodes.get('made-today-list')!.textContent).toContain('Retained evidence');
+  expect(nodes.get('made-today-note')!.textContent).toContain('could not be read');
+});
 test('successful unchanged refresh clears the preceding read failure without replacing retained rows', async () => {
   const view = new MadeToday(() => {});
   await view.refresh();

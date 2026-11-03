@@ -3,6 +3,13 @@
 A completed file is a private candidate until a Project revision accepts its
 reference. Names are labels, never host paths. Reads are bounded byte ranges;
 readers and their permissions are admitted separately by the execution service.
+
+A publication may hold back a file's original bytes and carry a cleaned copy
+instead: the same pixels without personal metadata (ADR 0028, format v2 section 8).
+Its manifest is kept byte for byte, so every document naming it is unchanged; a
+second manifest, `project-source-file-clean-v1`, names the original and holds the
+cleaned bytes' size, hash and chunks. Reads, checks and copies use the cleaned
+copy only where the original's bytes are absent.
 """
 from __future__ import annotations
 import copy
@@ -20,6 +27,8 @@ from .scientific_projects import DIGEST, InvalidProject, _json
 from .semantic_resources import parse_reference
 
 FORMAT='project-source-file-v1'
+CLEAN_FORMAT='project-source-file-clean-v1'
+CLEAN_KEYS={'format','of','originalSha256','removed','tool','name','size','sha256','chunkBytes','chunks'}
 CHUNK_BYTES=1 << 20
 MAX_CHUNKS=65536
 MAX_MANIFEST=8 << 20
@@ -75,6 +84,78 @@ def _encode(meta):
 
 
 def _manifest(store,project,session,reference,*,verify=True,check=lambda:None):
+    return _resolved(store,project,session,reference,verify=verify,check=check)[0]
+
+
+def _chunks_valid(meta):
+    return (type(meta['size']) is int and meta['size']>=0
+            and type(meta['chunkBytes']) is int and 1<=meta['chunkBytes']<=CHUNK_BYTES
+            and type(meta['sha256']) is str and DIGEST.fullmatch(meta['sha256']) is not None
+            and type(meta['chunks']) is list and len(meta['chunks'])<=MAX_CHUNKS
+            and len(meta['chunks'])==(meta['size']+meta['chunkBytes']-1)//meta['chunkBytes']
+            and all(type(x) is str and DIGEST.fullmatch(x) for x in meta['chunks']))
+
+
+_CLEAN_INDEX={}  # (device, inode, mtime) of a files folder -> {original manifest: [cleaned manifest names]}
+
+
+def _clean_index(folder):
+    """The cleaned copies a files folder holds, by the manifest each stands in for. Objects are never rewritten, so
+    the folder's change time keys a remembered answer; a Project without publications reads only its manifests."""
+    info=os.fstat(folder);key=(info.st_dev,info.st_ino,info.st_mtime_ns)
+    if key in _CLEAN_INDEX:return _CLEAN_INDEX[key]
+    index={}
+    for name in os.listdir(folder):
+        if not name.endswith('.json') or not DIGEST.fullmatch(name[:-5]):continue
+        body=_read(folder,name,MAX_MANIFEST)
+        if b'"format":"%s"'%CLEAN_FORMAT.encode() not in body:continue
+        try:of=json.loads(body).get('of')
+        except (ValueError,RecursionError,AttributeError):of=None
+        if type(of) is str:index.setdefault(of,[]).append(name)
+    if len(_CLEAN_INDEX)>=256:_CLEAN_INDEX.clear()
+    _CLEAN_INDEX[key]=index
+    return index
+
+
+def _cleaned(folder,revision,meta):
+    """(digest, manifest, bytes) of the cleaned copy held for manifest `revision` when any of its original bytes are
+    absent; the original wins wherever all of it is present."""
+    if not meta['chunks']:return None
+    names=_clean_index(folder).get(revision)
+    if not names:return None
+    def present(key):
+        try:os.stat(key+'.bin',dir_fd=folder,follow_symlinks=False);return True
+        except FileNotFoundError:return False
+    if all(present(key) for key in dict.fromkeys(meta['chunks'])):return None
+    if len(names)>1:raise InvalidProject('A file has more than one cleaned copy')
+    digest=names[0][:-5]
+    body=_read(folder,names[0],MAX_MANIFEST)
+    if hashlib.sha256(body).hexdigest()!=digest:raise InvalidProject('A cleaned copy\u2019s manifest changed')
+    try:clean=json.loads(body)
+    except (ValueError,RecursionError) as error:raise InvalidProject('A cleaned copy\u2019s manifest is unreadable') from error
+    if (type(clean) is not dict or set(clean)!=CLEAN_KEYS or clean['format']!=CLEAN_FORMAT
+            or clean['of']!=revision or clean['originalSha256']!=meta['sha256'] or clean['name']!=meta['name']
+            or not _chunks_valid(clean) or type(clean['tool']) is not str or not 0<len(clean['tool'])<=64
+            or type(clean['removed']) is not list or len(clean['removed'])>16
+            or any(type(x) is not str or not 0<len(x)<=40 for x in clean['removed'])):
+        raise InvalidProject('A cleaned copy\u2019s manifest is invalid')
+    return digest,clean,body
+
+
+def _content(folder,revision,meta):
+    """What a file's bytes are read from: its original, or the cleaned copy a publication holds instead."""
+    held=_cleaned(folder,revision,meta)
+    if held is None:
+        return {'size':meta['size'],'sha256':meta['sha256'],'chunkBytes':meta['chunkBytes'],'chunks':meta['chunks'],
+                'cleaned':None,'body':None}
+    _,clean,body=held
+    return {'size':clean['size'],'sha256':clean['sha256'],'chunkBytes':clean['chunkBytes'],'chunks':clean['chunks'],
+            'cleaned':{'originalSha256':meta['sha256'],'originalSize':meta['size'],'removed':list(clean['removed']),
+                       'tool':clean['tool']},'body':body}
+
+
+def _resolved(store,project,session,reference,*,verify=True,check=lambda:None):
+    """(the accepted manifest, what its bytes are read from)."""
     check()
     ref=_reference(project,session,reference)
     with _directory(store,project) as folder:
@@ -84,25 +165,21 @@ def _manifest(store,project,session,reference,*,verify=True,check=lambda:None):
             meta=json.loads(body)
         except (ValueError,RecursionError) as error:raise InvalidProject('Source file manifest is unreadable') from error
         if (type(meta) is not dict or set(meta)!={'format','name','size','sha256','chunkBytes','chunks'}
-                or meta['format']!=FORMAT or type(meta['size']) is not int or meta['size']<0
-                or type(meta['chunkBytes']) is not int or not 1<=meta['chunkBytes']<=CHUNK_BYTES
-                or type(meta['sha256']) is not str or not DIGEST.fullmatch(meta['sha256'])
-                or type(meta['chunks']) is not list or len(meta['chunks'])>MAX_CHUNKS
-                or len(meta['chunks'])!=(meta['size']+meta['chunkBytes']-1)//meta['chunkBytes']
-                or any(type(x) is not str or not DIGEST.fullmatch(x) for x in meta['chunks'])):
+                or meta['format']!=FORMAT or not _chunks_valid(meta)):
             raise InvalidProject('Source file manifest has invalid sizes or content identities')
         _name(meta['name'])
+        content=_content(folder,ref['revision'],meta)
         if verify:
             digest=hashlib.sha256()
-            for index,key in enumerate(meta['chunks']):
+            for index,key in enumerate(content['chunks']):
                 check()
-                size=min(meta['chunkBytes'],meta['size']-index*meta['chunkBytes'])
+                size=min(content['chunkBytes'],content['size']-index*content['chunkBytes'])
                 part=_read(folder,key+'.bin',size)
                 if len(part)!=size or hashlib.sha256(part).hexdigest()!=key:
                     raise InvalidProject('Source file chunk hash changed')
                 digest.update(part)
-            if digest.hexdigest()!=meta['sha256']:raise InvalidProject('Source file hash changed')
-    return meta
+            if digest.hexdigest()!=content['sha256']:raise InvalidProject('Source file hash changed')
+    return meta,content
 
 
 class FileDraft:
@@ -171,9 +248,20 @@ class FileSource:
     _reference:dict
     accepted_revision:int
     directory:dict | None = None
+    # A publication's cleaned copy stands in for the original: its hash and size, and what was removed.
+    cleaned:dict | None = None
 
     @property
     def reference(self):return copy.deepcopy(self._reference)
+
+    @property
+    def original_size(self):
+        """The size the accepted documents name: the original's, also for a cleaned copy read in its place."""
+        return self.cleaned['originalSize'] if self.cleaned else self.size
+
+    @property
+    def original_sha256(self):
+        return self.cleaned['originalSha256'] if self.cleaned else self.sha256
 
     def read(self,offset,length):
         if (type(offset) is not int or type(length) is not int or offset<0 or length<0
@@ -201,8 +289,9 @@ def source(store,project,session,revision,reference,*,check=lambda:None,verify_c
     if type(verify_content) is not bool:raise InvalidProject('Choose full or per-read content verification')
     saved=store.read(project,session,revision=revision)
     if reference not in saved.document['resources']:raise InvalidProject('Source file reference is not accepted in this revision')
-    meta=_manifest(store,project,session,reference,check=check,verify=verify_content)
-    return FileSource(store,project,session,meta['name'],meta['size'],meta['sha256'],meta['chunkBytes'],tuple(meta['chunks']),copy.deepcopy(reference),saved.revision)
+    meta,content=_resolved(store,project,session,reference,check=check,verify=verify_content)
+    return FileSource(store,project,session,meta['name'],content['size'],content['sha256'],content['chunkBytes'],
+                      tuple(content['chunks']),copy.deepcopy(reference),saved.revision,cleaned=content['cleaned'])
 
 
 @contextmanager
@@ -311,13 +400,15 @@ def copy_into(store,project,target,target_project,records,check):
     with _directory(store,project) as source, _directory(target,target_project,create=True) as dest:
         for ref,meta in records:
             check()
-            for index,key in enumerate(meta['chunks']):
+            content=_content(source,ref['revision'],meta)
+            for index,key in enumerate(content['chunks']):
                 check()
-                size=min(meta['chunkBytes'],meta['size']-index*meta['chunkBytes'])
+                size=min(content['chunkBytes'],content['size']-index*content['chunkBytes'])
                 body=_read(source,key+'.bin',size)
                 if len(body)!=size or hashlib.sha256(body).hexdigest()!=key:
                     raise InvalidProject('A source file changed; no copy was published')
                 _put(dest,body,'.bin')
+            if content['body'] is not None:_put(dest,content['body'],'.json')
             digest=_put(dest,_encode(meta),'.json')
             mapping[_json(ref)]={**ref,'id':target_project,'revision':digest}
     return mapping

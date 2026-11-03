@@ -162,12 +162,14 @@ def _put_array(store, project, ref, put, check):
 
 
 def _put_file(store, project, session, ref, put, check):
-    meta = files._manifest(store, project, session, ref, check=check)
+    meta, content = files._resolved(store, project, session, ref, check=check)
     with files._directory(store, project) as folder:
         put(f'projects/{project}/files/{ref["revision"]}.json', files._encode(meta))
-        for index, key in enumerate(meta['chunks']):
+        if content['body'] is not None:  # a publication's cleaned copy travels in place of the original's bytes
+            put(f'projects/{project}/files/{hashlib.sha256(content["body"]).hexdigest()}.json', content['body'])
+        for index, key in enumerate(content['chunks']):
             check()
-            size = min(meta['chunkBytes'], meta['size'] - index * meta['chunkBytes'])
+            size = min(content['chunkBytes'], content['size'] - index * content['chunkBytes'])
             put(f'projects/{project}/files/{key}.bin', files._read(folder, key + '.bin', size))
 
 

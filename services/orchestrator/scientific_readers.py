@@ -231,7 +231,8 @@ def bind(store, project, session, revision, key, generation, *, environ=os.envir
             if why:=compatibility(prepared.m.reader,source):raise InvalidProject(why)
             if prepared.m.bridge!='scientific-host-v1':raise InvalidProject('This reader has no scientific host bridge')
             actual=store.file_source(project,session,revision,source['reference'],check=current,verify_content=False)
-            if any(source[field]!=getattr(actual,field) for field in ('name','size','sha256')):
+            # A publication's cleaned copy (scientific_files) is read in place of the original the documents name.
+            if (source['name'],source['size'],source['sha256'])!=(actual.name,actual.original_size,actual.original_sha256):
                 raise InvalidProject('The source identity changed; reopen its saved original')
             candidate=_ReaderIntake(store,saved,actual,key,generation,prepared.m.reader['input'],prepared.m.reader.get('keeps'),name=prepared.m.name)
             try:

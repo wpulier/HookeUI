@@ -88,6 +88,8 @@ export class MadeToday implements Panel {
   private showEarlier = false;
   private refreshId = 0;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private refreshPending: {controller:AbortController; promise:Promise<void>} | null = null;
+  private refreshAgain = false;
   onCount: (count: number) => void = () => {};
   /** Opens a measured item's table (the Measurements page): cell outlines and motion have one. */
   onTable: (id: string) => void = () => {};
@@ -99,6 +101,7 @@ export class MadeToday implements Panel {
   private renderStamp = '';
   private dataStamp = '';
   changed(): void {
+    if (this.refreshPending) { this.refreshAgain = true; return; }
     if (this.refreshTimer !== null) return;
     this.refreshTimer = setTimeout(() => { this.refreshTimer = null; void this.refresh(); }, 350);
   }
@@ -159,8 +162,13 @@ export class MadeToday implements Panel {
    * again at once. */
   sessionChanged(): void {
     if (this.refreshTimer !== null) { clearTimeout(this.refreshTimer); this.refreshTimer = null; }
+    ++this.refreshId;
+    this.refreshPending?.controller.abort();
+    this.refreshPending = null;
+    this.refreshAgain = false;
     this.showEarlier = false;
     this.entries = [];
+    this.summary = {kinds:[],couldMake:[],running:[]};
     this.renderStamp = '';
     this.render(this.entries, this.summary);
     void this.refresh();
@@ -204,14 +212,30 @@ export class MadeToday implements Panel {
     for (const listener of [...this.dataListeners]) listener(listed, this.summary, this.sessionStart);
   }
 
-  async refresh(): Promise<void> {
+  refresh(): Promise<void> {
+    if (this.refreshPending) return this.refreshPending.promise;
+    const read = {controller:new AbortController(),promise:Promise.resolve()};
+    this.refreshPending = read;
+    const deadline = setTimeout(() => read.controller.abort(), 30_000);
+    read.promise = this.load(read.controller.signal).finally(() => {
+      clearTimeout(deadline);
+      // A failed half of the pair must not leave its sibling occupying a connection.
+      read.controller.abort();
+      if (this.refreshPending !== read) return;
+      this.refreshPending = null;
+      if (this.refreshAgain) { this.refreshAgain = false; this.changed(); }
+    });
+    return read.promise;
+  }
+
+  private async load(signal:AbortSignal): Promise<void> {
     const id = ++this.refreshId;
     try {
       const [listing, summary] = await Promise.all([
-        fetch('/api/resources', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Resource index unavailable'); return r.json() as Promise<{ entries: ResourceEntry[] }>; }),
-        fetch('/api/resources/summary', { cache: 'no-store' }).then((r) => { if (!r.ok) throw new Error('Resource summary unavailable'); return r.json() as Promise<Summary>; }),
+        fetch('/api/resources', { cache: 'no-store', signal }).then((r) => { if (!r.ok) throw new Error('Resource index unavailable'); return r.json() as Promise<{ entries: ResourceEntry[] }>; }),
+        fetch('/api/resources/summary', { cache: 'no-store', signal }).then((r) => { if (!r.ok) throw new Error('Resource summary unavailable'); return r.json() as Promise<Summary>; }),
       ]);
-      if (id !== this.refreshId) return;
+      if (id !== this.refreshId || signal.aborted) return;
       this.entries = listing.entries; this.summary = summary;
       this.render(listing.entries, summary);
     } catch {

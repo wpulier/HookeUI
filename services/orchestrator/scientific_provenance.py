@@ -421,7 +421,7 @@ def _population(store, record, provenance, problems):
             raise InvalidProject('The population association must distinguish original image and labels')
         original = store.file_source(record.id, record.session, record.revision, provenance['original'],
                                      verify_content=False)
-        if source['files']['source.image'] != original.sha256:
+        if source['files']['source.image'] != original.original_sha256:
             raise InvalidProject('The population association does not retain its original source file')
         image, labels = [store.array_source(record.id, record.session, record.revision, inputs[key])
                          for key in ('image', 'labels')]

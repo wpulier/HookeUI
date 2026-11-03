@@ -5,6 +5,9 @@ origin lines and the lines that list their results (project_inherited), so conve
 notes on results are published text, shown in the review and read by the secret scan. Research transcripts,
 connector operations and restoration receipts are left out unless chosen. The owner reviews the exact members, a secret scan must pass, and the owner signs off on
 rights, licence and the absence of identifiable human data. The review digest binds what is sent.
+
+Imported images are cleaned of personal metadata for the publication by default (project_publish_clean): the
+publication holds a copy with the same pixels and leaves the original's bytes out, and the Project keeps its original.
 """
 from __future__ import annotations
 
@@ -25,6 +28,7 @@ from .project_repository import verify_owner
 from .project_roots import PARTS, ProjectRoot
 from .project_inherited import notes, published
 from .project_metadata_scan import scan as metadata_scan
+from .project_publish_clean import clean as clean_images
 from .project_secret_scan import blocking, scan
 
 REVIEW_FORMAT = 'hooke-publication-review-v1'
@@ -87,11 +91,13 @@ def _filtered(full: ProjectRoot, target: Path, *, include_transcripts: bool):
     return journals, left_out
 
 
-def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_LICENCE, check=lambda: None):
+def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_LICENCE, clean_metadata=True,
+            check=lambda: None):
     """Build and seal the publication in `staging` (a new folder) and return its review for the owner.
 
     `seal(destination)` makes a sealed snapshot of the Project being published: `copy_snapshot` for an inactive
-    folder, or `copy_owned_snapshot` under this host's lease. Nothing leaves the Mac here.
+    folder, or `copy_owned_snapshot` under this host's lease. Nothing leaves the Mac here. With `clean_metadata` (the
+    default) imported images go cleaned of personal metadata.
     """
     if licence not in LICENCES:
         raise RemoteRefused('Choose a licence Hooke can record: ' + ', '.join(LICENCES))
@@ -101,10 +107,13 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
     full = full if isinstance(full, ProjectRoot) else ProjectRoot.open(full)
     owner = verify_owner(full)
     journals, left_out = _filtered(full, staging / 'filtered', include_transcripts=include_transcripts)
+    cleaned, clean_findings = clean_images(staging / 'filtered', staging / 'cleaning', apply=bool(clean_metadata),
+                                           check=check)
+    shutil.rmtree(staging / 'cleaning', ignore_errors=True)
     publication = copy_snapshot(ProjectRoot.open(staging / 'filtered'), staging / 'publication', check=check)
     root, raw, manifest = sealed_manifest(publication.path)
     record, bulk = classify(manifest)
-    findings = scan(root.path, record, check=check) + metadata_scan(root.path)
+    findings = scan(root.path, record, check=check) + metadata_scan(root.path) + clean_findings
     full_raw = (full.path / 'snapshot.json').read_bytes()
     full_manifest = json.loads(full_raw)
     kept = {e['path'] for e in manifest['entries']}
@@ -121,6 +130,8 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
         # The person's own words that are published: their notes on results, read by the secret scan with the rest.
         'publishedText': left_out['notes'][:200], 'resultLines': left_out['results'],
         'includeTranscripts': bool(include_transcripts),
+        # Imported images whose publication copy has the same pixels and none of the personal metadata named.
+        'cleanMetadata': bool(clean_metadata), 'cleaned': cleaned[:200], 'cleanedFiles': len(cleaned),
         'findings': findings, 'blocked': bool(blocking(findings)),
         'originDigest': owner['originDigest'],
     }

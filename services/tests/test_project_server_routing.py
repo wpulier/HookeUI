@@ -13,8 +13,15 @@ from tests.waiting import HANG_S
 @pytest.mark.parametrize('restoring', [False, True], ids=['move', 'restore-snapshot'])
 def test_studio_create_connector_contribute_shutdown_move_and_restart(tmp_path, material, restoring):
     def probe(mode):
-        result = subprocess.run([sys.executable, '-m', 'tests.project_server_host_probe', mode, str(tmp_path), material],
-            cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=HANG_S)
+        try:
+            result = subprocess.run([sys.executable, '-m', 'tests.project_server_host_probe', mode, str(tmp_path), material],
+                cwd=Path(__file__).resolve().parents[1], capture_output=True, text=True, timeout=HANG_S)
+        except subprocess.TimeoutExpired as exc:
+            # TimeoutExpired holds bytes even with text=True. Include the child's
+            # checkpoints and pre-timeout thread dump in the actual CI failure.
+            captured = ''.join(value.decode('utf-8', errors='replace') if isinstance(value, bytes) else value or ''
+                               for value in (exc.stdout, exc.stderr))
+            pytest.fail(f'Project host probe {mode}/{material} timed out after {HANG_S:g}s\n{captured}', pytrace=False)
         assert result.returncode == 0, result.stdout + result.stderr
 
     probe('create')

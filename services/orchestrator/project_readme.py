@@ -52,6 +52,10 @@ def readme(name, licence, licence_name, documents, review, today) -> str:
               '## Integrity', '',
               f'Snapshot manifest SHA-256: `{review["snapshotSha256"]}`. Conversations were not published; '
               'only each journal’s identity line was kept.', '']
+    if review.get('cleanedFiles'):
+        lines += [f'Personal metadata (locations, names, dates, device details) was removed from '
+                  f'{review["cleanedFiles"]} imported image file(s) before publishing. Their pixels are unchanged; '
+                  'each file’s manifest names the original’s SHA-256, which differs from the published copy’s.', '']
     return '\n'.join(lines)
 
 

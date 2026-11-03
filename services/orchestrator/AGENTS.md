@@ -1125,6 +1125,22 @@ source owners still refuse. Export/reopen never refresh or recompute accepted va
 
 Scientific workflows use `workflow_service.py` for Studio, local researchers and connected agents. Definitions are personal immutable versions; runs and separate attempts belong to their captured Project. Named file inputs are exact revisions, not paths. `matrix_capability_runs` executes catalog operations without owning another task ledger. Reads do not dispatch; explicit recovery never replays uncertain attempts. See `docs/architecture/scientific-workflows.md`.
 
+`matrix_execution.py` admits optional operator-installed file execution profiles.
+Original workflow attempts own provider identities, conservative cost reservations
+and recovery; managed provider code stays outside the core. No saved workflow may
+select code, credentials or raise limits. Unknown termination remains uncertain.
+Local-only Projects need an explicit installed operator allowance with a verified
+retained evidence reference. The original intent keeps it; other local-only
+policies and the Project journal are unchanged, and recovery needs no new allowance.
+The trusted startup extension may retain up to eight exact-generation recovery
+transports through `create_recovery_backends`. Only observation/cancellation uses
+that registry; fresh admission always checks the current profile and permissions.
+Missing original transport keeps the attempt uncertain. Updating the active
+profile must not replace the original attempt's identity or execution intent.
+Changing the Project allowlist does not change accounting: admission inspects retained attempts
+across known Project owners, including removed Projects, and refuses unreadable
+ownership or receipts. Those reads grant no connector access and create no ledger.
+
 Built-in workflow algorithms publish through `BuiltinOutputSave`, sharing native chunk grants,
 coordinate checks and atomic publication with worker outputs but retaining their own versioned
 producer instead of borrowing an input viewer runtime. External worker `OutputSave` still

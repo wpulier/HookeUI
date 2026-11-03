@@ -2583,7 +2583,11 @@
           "project-publish",
           "project-start-from",
           "project-update-from",
-          "project-remote-status"
+          "project-remote-status",
+          "project-backup",
+          "project-restore",
+          "project-backup-delete",
+          "project-backup-keep"
         ]
       },
       "pair": "new-session",

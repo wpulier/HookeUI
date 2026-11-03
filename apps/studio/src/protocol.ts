@@ -1710,11 +1710,15 @@ export type ClientCommand =
   | { type: 'project-storage'; session: string }
   | { type: 'project-reveal'; session: string }
   | { type: 'project-export-prepare'; session: string }
-  | { type: 'project-publish-prepare'; session: string; includeTranscripts?: boolean; licence?: string }
+  | { type: 'project-publish-prepare'; session: string; includeTranscripts?: boolean; licence?: string; cleanMetadata?: boolean }
   | { type: 'project-publish'; session: string; staging: string; reviewDigest: string; signoff: import('./project-publish').Signoff; destination: import('./project-publish').Destination }
   | { type: 'project-start-from'; source: string | {kind: 'folder'; path: string}; name?: string }
   | { type: 'project-update-from'; session: string }
   | { type: 'project-remote-status'; session: string }
+  | { type: 'project-backup'; session: string; destination: import('./project-backup').BackupDestination }
+  | { type: 'project-backup-delete'; session: string; destination: import('./project-backup').BackupDestination }
+  | { type: 'project-backup-keep'; session: string; destination: import('./project-backup').BackupDestination }
+  | { type: 'project-restore'; source: {kind: 'folder'; path: string} | {kind: 'github'; repo: string}; replaceMissing?: boolean }
   | { type: 'project-export'; session: string; requestKey: string; acknowledgeIncomplete: true }
   | { type: 'project-export-status'; session: string; operation: string }
   | { type: 'project-export-stop'; session: string; operation: string }
@@ -1805,7 +1809,11 @@ interface Replies {
   'project-publish': {published: import('./project-publish').Published; location: string};
   'project-start-from': {project: import('./project-open').OpenedProject; startedFrom: unknown};
   'project-update-from': {update: import('./project-publish').UpdateResult};
-  'project-remote-status': import('./project-publish').RemoteStatus;
+  'project-remote-status': import('./project-publish').RemoteStatus & {backups?: import('./project-backup').BackupEntry[]};
+  'project-backup': {backup: import('./project-backup').BackedUp; location: string};
+  'project-backup-delete': {purgeAfter: number};
+  'project-backup-keep': Record<string, never>;
+  'project-restore': {project?: import('./project-open').OpenedProject; restored?: unknown; missing?: boolean};
   'project-export': {operation: import('./project-export').ExportOperation};
   'project-export-status': {operation: import('./project-export').ExportOperation};
   'project-export-stop': {operation: import('./project-export').ExportOperation};

@@ -627,6 +627,10 @@ classifies with one model alone; the vision models keep their ids, and MedSigLIP
 
 `find_workflows` reads personal definitions, catalog file capabilities and Project run receipts. `workflow` invokes the shared WorkflowService under the request’s captured Project and actor. Manual capability invocation creates an ordinary frozen one-step run. Review and uncertainty resolution still require the user’s actual decision/evidence.
 
+Capability discovery also lists installed file execution profiles without their
+operator Project allowlists. A saved automatic matrix step may pin one profile;
+omission preserves local execution. Shared admission owns authority and limits.
+
 Bookmark capture gives Record the retained picture from the bookmark’s captured Project and date, never the currently selected Project after background work completes.
 
 The snapshot tool captures its Project and storage destination before drawing. In staged portable storage, its annotated/clean pictures publish together with hashes and pending-state recovery; a closed writer or changed destination refuses publication. Legacy capture semantics remain unchanged.

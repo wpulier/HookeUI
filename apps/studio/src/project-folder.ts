@@ -1,6 +1,7 @@
 import {projectExport, type ExportActions} from './project-export';
 import {recordInclusion, type RecordActions} from './project-record-inclusion';
 import {projectPublish, type PublishActions} from './project-publish';
+import {projectBackup, type BackupActions} from './project-backup';
 import './project-folder.css';
 
 /** Same projection as contract/agent/project-storage; this inspector never moves evidence. */
@@ -16,6 +17,7 @@ interface Options {
   restorationActions?: (operation: string) => ExportActions;
   recordActions?: RecordActions;
   publishActions?: PublishActions;
+  backupActions?: BackupActions;
   read: () => Promise<{storage: ProjectStorage}>;
   reveal: () => Promise<{ok: boolean; path: string; error?: string}>;
 }
@@ -38,6 +40,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
   let exportView: ReturnType<typeof projectExport> | undefined;
   let recordView: ReturnType<typeof recordInclusion> | undefined;
   let publishView: ReturnType<typeof projectPublish> | undefined;
+  let backupView: ReturnType<typeof projectBackup> | undefined;
   const current = () => !closed && opts.current();
   const changed = () => { reveal.disabled = true; status.textContent = 'The Project changed. Close this panel and reopen its folder details.'; };
   reveal.addEventListener('click', async () => {
@@ -54,6 +57,7 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
     exportView?.dispose(); exportView = undefined;
     recordView?.dispose(); recordView = undefined;
     publishView?.dispose(); publishView = undefined;
+    backupView?.dispose(); backupView = undefined;
     status.textContent = 'Reading saved location…'; body.replaceChildren(); reveal.disabled = true;
     try {
       const {storage} = await opts.read();
@@ -77,6 +81,10 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
         publishView = projectPublish(opts.publishActions, current, opts.title);
         body.append(publishView.element);
       }
+      if (available && portable && storage.origin && opts.backupActions) {
+        backupView = projectBackup(opts.backupActions, current, opts.title);
+        body.append(backupView.element);
+      }
       if (available && portable && storage.origin && opts.recordActions) {
         recordView = recordInclusion(opts.recordActions, opts.session, storage.origin, current);
         body.append(recordView.element);
@@ -94,6 +102,6 @@ export function openProjectFolder(opts: Options): HTMLDialogElement {
     const retry = node('button', 'Retry', 'study-quiet'); retry.type = 'button';
     retry.addEventListener('click', () => { if (current()) void load(); else changed(); }); body.append(retry);
   };
-  dialog.addEventListener('close', () => { closed = true; exportView?.dispose(); recordView?.dispose(); publishView?.dispose(); dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
+  dialog.addEventListener('close', () => { closed = true; exportView?.dispose(); recordView?.dispose(); publishView?.dispose(); backupView?.dispose(); dialog.remove(); if (opener?.isConnected) opener.focus({preventScroll: true}); });
   document.body.append(dialog); dialog.showModal(); void load(); return dialog;
 }

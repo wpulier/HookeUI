@@ -1,8 +1,11 @@
-"""The owner's Publish, Start from and Update commands (ADR 0028). Never exposed through the agent door.
+"""The owner's Publish, Start from, Update, Back up and Restore commands (ADR 0028). Never exposed through the
+agent door.
 
 Publishing is two steps: prepare builds and seals the publication on this Mac and returns its review; publish sends
 exactly that, only with the owner's sign-off on the review digest. Start from needs no sign-in for a public
 repository or a folder. Update brings newer published revisions into the open Project through the prefix rule.
+Back up sends the whole Project, conversations included, to a folder or a private GitHub repository; Restore brings
+that same Project back on this Mac (project_backup).
 """
 from __future__ import annotations
 
@@ -73,7 +76,8 @@ async def project_publish_prepare(app, client, msg) -> dict:
     try:
         review = await asyncio.to_thread(prepare, seal, staging,
                                          include_transcripts=msg.get('includeTranscripts') is True,
-                                         licence=msg.get('licence') or DEFAULT_LICENCE)
+                                         licence=msg.get('licence') or DEFAULT_LICENCE,
+                                         clean_metadata=msg.get('cleanMetadata') is not False)
     except (OSError, ProjectLocationError) as error:
         raise _refused(error) from error
     members = review.pop('members')
@@ -183,13 +187,194 @@ async def project_update_from(app, client, msg) -> dict:
     return {'ok': True, 'update': result}
 
 
+def _private_repository(client_, repo, *, restoring=False):
+    """A backup holds the Project's conversations: refuse a GitHub repository anyone can read."""
+    _, data = client_.ok('GET', f'/repos/{repo}', what='reading the repository')
+    if data.get('private') is not True:
+        if restoring:
+            raise tools.ToolError('This GitHub repository is public, so it holds a publication, not a backup.',
+                                  next='use Start from a project for a published project')
+        raise tools.ToolError('This GitHub repository is public, and a backup holds your conversations.',
+                              next='choose a private repository, or let Hooke make one')
+
+
+def _backup_remote(source, *, restoring=False):
+    """A backup's remote: a folder, or a private GitHub repository read and written signed in."""
+    from .project_remote_github import github_remote, repository
+    if type(source) is dict and source.get('kind') == 'github':
+        client_, repo = _github(), repository(source.get('repo', ''))
+        _private_repository(client_, repo, restoring=restoring)
+        return github_remote(client_, repo, private=True)
+    return _remote_for(source)
+
+
+@command('project-backup')
+async def project_backup(app, client, msg) -> dict:
+    """Back up the whole open Project, journals included, to a folder or a private GitHub repository."""
+    from .project_backup import back_up, last_backup
+    from .project_folder_copy import copy_owned_snapshot
+    from .project_remote_github import create_repository, github_remote
+    from .project_repository import ProjectRepository
+    from .project_roots import ProjectLocationError
+    day, locations, root = _project(app, msg.get('session'))
+    destination = msg.get('destination')
+    if type(destination) is not dict:
+        raise tools.ToolError('Choose where to back up.', next='pick a folder or GitHub')
+    def send():
+        expected = parent = None
+        if destination.get('kind') == 'github' and destination.get('create'):
+            client_ = _github()
+            repo, expected = create_repository(client_, str(destination.get('name') or ''), private=True,
+                                               description=f'{root.name}: a private Hooke backup')
+            remote = github_remote(client_, repo, placeholder=expected, private=True)
+        else:
+            remote = _backup_remote(destination)
+            parent = last_backup(ProjectRepository(root).events(), remote.describe())
+        return back_up(lambda target: copy_owned_snapshot(locations, day.sid, target), remote,
+                       staging=_staging(app, root.origin, 'backup'), parent=parent, expected_head=expected,
+                       scan_secrets=destination.get('kind') != 'folder')
+    try:
+        receipt = await asyncio.to_thread(send)
+    except (OSError, ProjectLocationError) as error:
+        raise _refused(error) from error
+    day._record(receipt['event'], strict=True)
+    return {'ok': True, 'backup': {k: receipt[k] for k in ('commit', 'snapshotSha256', 'recordFiles', 'bulkFiles',
+                                                             'bulkObjects', 'uploadedBytes', 'bytes')},
+            'location': receipt['remote']['records'].get('location') or receipt['remote']['records'].get('base')}
+
+
+@command('project-restore')
+async def project_restore(app, client, msg) -> dict:
+    """Restore a backed-up Project on this Mac: the same Project, its history and conversations, registered here with
+    no agent permissions. A Project this Mac still holds is opened where it is, never restored over."""
+    from .day.journal import Journal
+    from .project_backup import restore
+    from .project_launch import register_owner_folder
+    from .project_repository import session_root
+    from .project_remote_layers import trailers
+    from .project_roots import ProjectLocationError
+    from .scientific_exchange import BundleRefused
+    locations = getattr(app.day, 'locations', None)
+    if locations is None:
+        raise tools.ToolError('Project folders are not enabled here.', next='turn on Project folders, then retry')
+    source = msg.get('source')
+
+    class Missing(Exception):
+        """This Mac knew the Project at a folder that is not there now: lost, or on a drive that is unplugged."""
+
+    def check_place(origin):
+        prior = locations.registry.locations().get(origin)
+        if prior is None:
+            return False
+        if Path(prior['path']).exists() or Path(prior['path']).is_symlink():
+            raise ProjectLocationError(f'This Mac already has this Project, at {prior["path"]}. Open it there: a '
+                                       'backup is restored only where its Project is gone.')
+        if msg.get('replaceMissing') is not True:
+            raise Missing(prior['path'])  # the owner says which: an unplugged drive looks the same as a lost folder
+        return True
+
+    def register(root):
+        return register_owner_folder(app.paths, locations, str(root.path), use_location=check_place(root.origin))
+
+    def work():
+        remote = _backup_remote(source, restoring=True)
+        head = remote.records.head()
+        if head is not None:  # refuse before fetching anything when this Mac still has the Project, or may
+            check_place(trailers(remote.records.read_commit(head)['message'])[1])
+        root, event = restore(remote, locations.parent, register, staging=_staging(app, 'restore', 'fetch'))
+        locations.writable(root.session)
+        Journal(root.session, session_root(root)).append(event, durable=True)
+        return root, event
+    try:
+        root, event = await asyncio.to_thread(work)
+    except Missing as missing:
+        return {'ok': False, 'missing': True,
+                'error': f'This Mac knew this Project at {missing}, which is not there now. If it is on a drive that '
+                         'is unplugged, plug the drive in and open it there.'}
+    except (OSError, ProjectLocationError, BundleRefused) as error:
+        raise _refused(error) from error
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': root.name,
+                                    'location': str(root.path)}, 'restored': event}
+
+
+def _backup_change(app, msg, change):
+    """Apply `change(remote)` to one of the open Project's backups and record its journal event."""
+    from .project_backup import place_of, backups
+    from .project_repository import ProjectRepository
+    from .project_roots import ProjectLocationError
+    day, locations, root = _project(app, msg.get('session'))
+    destination = msg.get('destination')
+    def work():
+        remote = _backup_remote(destination)
+        if place_of(remote.describe()) not in {place_of(b['destination']) for b in backups(ProjectRepository(root).events())}:
+            raise tools.ToolError('This Project was never backed up there.', next='choose one of its backups')
+        return change(remote)
+    return day, root, work, ProjectLocationError
+
+
+@command('project-backup-delete')
+async def project_backup_delete(app, client, msg) -> dict:
+    """Mark one of the open Project's backups for deletion: it stays restorable, and can be kept, for 30 days."""
+    import time
+    from .project_backup import mark_deleted
+    day, root, work, refusal = _backup_change(app, msg, lambda remote: mark_deleted(remote, now=time.time()))
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True, 'purgeAfter': event['purgeAfter']}
+
+
+@command('project-backup-keep')
+async def project_backup_keep(app, client, msg) -> dict:
+    """Keep a backup that was marked for deletion."""
+    from .project_backup import keep
+    day, root, work, refusal = _backup_change(app, msg, keep)
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True}
+
+
+def _purge_due(app, day, root, events):
+    """Remove the backups whose 30 days have passed since they were marked; each removal is recorded. A backup that
+    cannot be reached now waits for the next look."""
+    import time
+    from .project_backup import backups, purge
+    from .project_roots import ProjectLocationError
+    done = []
+    for entry in backups(events):
+        if entry.get('state') != 'deleting' or (entry.get('purgeAfter') or 0) > time.time():
+            continue
+        records = entry['destination']['records']
+        source = ({'kind': 'folder', 'path': records.get('base')} if records.get('kind') == 'folder' else
+                  {'kind': 'github', 'repo': str(records.get('location', '')).replace('https://github.com/', '')})
+        try:
+            done.append(purge(_backup_remote(source)))
+        except (OSError, ProjectLocationError, tools.ToolError):
+            continue
+    return done
+
+
 @command('project-remote-status')
 async def project_remote_status(app, client, msg) -> dict:
-    """Where the open Project was published, and what it was started from, from its own journal."""
+    """Where the open Project was published and backed up, and what it was started from, from its own journal."""
+    from .project_backup import backups
     from .project_repository import ProjectRepository
     day, locations, root = _project(app, msg.get('session'))
     events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
+    purged = await asyncio.to_thread(_purge_due, app, day, root, events)
+    for event in purged:
+        day._record(event, strict=True)
+    if purged:
+        events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
     return {'ok': True,
             'published': [{k: e.get(k) for k in ('destination', 'commit', 'snapshotSha256', 'licence', 'at')}
                           for e in events if e.get('type') == 'project-published'],
-            'startedFrom': next((e for e in reversed(events) if e.get('type') == 'project-started-from'), None)}
+            'startedFrom': next((e for e in reversed(events) if e.get('type') == 'project-started-from'), None),
+            'backups': [{k: e.get(k) for k in ('type', 'destination', 'commit', 'snapshotSha256', 'bytes', 'at',
+                                               'state', 'purgeAfter')}
+                        for e in backups(events)]}
