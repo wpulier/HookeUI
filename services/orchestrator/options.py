@@ -967,10 +967,10 @@ WATCH = {
 GUIDE = {
     o.id: o
     for o in [
-        Option("model", "The fast model decides", "the fast model reads the measurements and says each line; "
-                                                  "guide bench: see docs/bench/guide.md"),
+        Option("model", "The fast model decides", "the fast model reads the measurements and says each line; guide "
+                                                  "bench: Gemini 3.8 Flash 16/16 centred and sharp, median 23 s, 9.5 lines"),
         Option("rule", "The app decides", "code moves toward the centre, then climbs the sharpness; no model call; "
-                                          "guide bench: see docs/bench/guide.md"),
+                                          "guide bench 24/24, median 9.3 s, 8.5 lines (no model latency)"),
     ]
 }
 
