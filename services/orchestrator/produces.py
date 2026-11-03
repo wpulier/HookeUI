@@ -261,6 +261,9 @@ COMMANDS = {
     # An experiment's card (experiments.py): Run it makes what the experiment tool's run makes; Stop and Open results
     # make nothing new.
     "experiment": "project, population, result",
+    # A Project card's button (brain/toolbox/projects.py): Do it renames and groups as apply_organization does; Not now
+    # and Undo make nothing new.
+    "project-card": "none: applies, drops or undoes a tidy the user agreed to, in the Project's own journal",
     "dataset": "dataset",
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",

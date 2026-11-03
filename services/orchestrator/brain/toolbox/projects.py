@@ -606,7 +606,7 @@ def add_project_tools(registry: Registry, services) -> None:
         if op == "rename":
             return f'Name the Project “{inline(step["name"], 60)}”'
         if op == "thread-rename":
-            return f'Call the conversation “{inline(step["was"] or "untitled", 50)}” “{inline(step["title"], 50)}”'
+            return f'Rename the conversation “{inline(step["was"] or "untitled", 50)}” to “{inline(step["title"], 50)}”'
         if op == "group":
             return (f'Put “{inline(step["title"], 50)}” in ' + (f'the group “{inline(step["group"], 40)}”'
                                                               if step["group"] else "no group"))

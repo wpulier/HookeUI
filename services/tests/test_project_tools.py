@@ -291,7 +291,7 @@ def test_the_tidy_is_shown_as_a_card_and_its_do_it_is_the_yes(seeded):
     [card] = cards(built, "tidy").values()
     assert card["status"] == "proposed" and card["title"].startswith("Tidy “")
     assert card["lines"] == ["Name the Project “Stomata in light and dark”",
-                             "Call the conversation “Outline the guard cells” “Guard cell count”"]
+                             "Rename the conversation “Outline the guard cells” to “Guard cell count”"]
     assert [a["label"] for a in card["actions"]] == ["Do it", "Not now"] and card["session"] == built.day.sid
     assert built.project_cards_wire()[0]["cards"][0]["id"] == card["id"]  # a studio that connects is sent it
     reply = press(built, card["id"], "apply")

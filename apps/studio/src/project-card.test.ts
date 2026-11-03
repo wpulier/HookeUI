@@ -7,7 +7,7 @@ import { syntheticDOM, fire, type TestElement } from './workspace-windows.test-s
 function wire(fields: Partial<ProjectCardWire> = {}): ProjectCardWire {
   return { id: 'tidy-o1', kind: 'tidy', session: '2026-10-28', thread: 't1', requestId: 'RUN/r3',
     title: 'Tidy “Leaf epidermis”', status: 'proposed', said: 'Nothing changes until you say yes',
-    lines: ['Call the conversation “Outline the stomata” “Stomata count”', 'Close the Tab “Tab 2” (empty; All Tabs reopens it)'],
+    lines: ['Rename the conversation “Outline the stomata” to “Stomata count”', 'Close the Tab “Tab 2” (empty; All Tabs reopens it)'],
     choices: [], actions: [{ id: 'apply', label: 'Do it', primary: true }, { id: 'dismiss', label: 'Not now' }], ...fields };
 }
 
