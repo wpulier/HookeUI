@@ -381,6 +381,7 @@
   "lesson_check": "check",
   "level": "technical",
   "library_looks": "off",
+  "look_after": "unverified",
   "look_hard": "gemini-4-argon",
   "menu": "flat",
   "naming": "one",

@@ -2363,6 +2363,7 @@
         "partner_acts",
         "partner_speaks",
         "handoff_acts",
+        "look_after",
         "think",
         "look_hard",
         "fixed:voice-words",
@@ -4787,6 +4788,13 @@
       "title": "Work handed over",
       "purpose": "Whether work the voice hands to Hooke shows each step with Hooke's cursor and is checked against Hooke's own state",
       "hint": "shows and checks each step (the default), or acts without showing as before"
+    },
+    {
+      "id": "look_after",
+      "kind": "policy",
+      "title": "Seeing what it did",
+      "purpose": "When the voice is given a picture of Hooke's window after work it handed over changed the screen",
+      "hint": "only when a change was not confirmed (the default; otherwise the screen as text), or after every change"
     },
     {
       "id": "naming_model",

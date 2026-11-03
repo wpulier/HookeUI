@@ -2665,6 +2665,7 @@
     "partner_acts",
     "partner_speaks",
     "handoff_acts",
+    "look_after",
     "think",
     "look_hard",
     "fixed:voice-words",
@@ -13101,6 +13102,63 @@
   },
   {
    "agentCanChange": [],
+   "current": "unverified",
+   "default": "unverified",
+   "defaultReason": null,
+   "fallbackFor": [],
+   "hint": "only when a change was not confirmed (the default; otherwise the screen as text), or after every change",
+   "id": "look_after",
+   "kind": "policy",
+   "options": [
+    {
+     "available": true,
+     "id": "unverified",
+     "label": "Only when not confirmed",
+     "licence": "",
+     "models": [],
+     "note": "a picture of Hooke's window after work handed over only when a change was not confirmed by the studio; otherwise the screen as text",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Only when not confirmed",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    },
+    {
+     "available": true,
+     "id": "always",
+     "label": "After every change",
+     "licence": "",
+     "models": [],
+     "note": "a picture of Hooke's window after every change work handed over made (before 2026-11-03)",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "After every change",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    }
+   ],
+   "powers": [
+    "talk"
+   ],
+   "purpose": "When the voice is given a picture of Hooke's window after work it handed over changed the screen",
+   "title": "Seeing what it did"
+  },
+  {
+   "agentCanChange": [],
    "current": "close-look",
    "default": "close-look",
    "defaultReason": null,
@@ -15050,6 +15108,7 @@
    "image": "gpt-image-2.5-flare",
    "lesson_check": "check",
    "library_looks": "off",
+   "look_after": "unverified",
    "look_hard": "gemini-4-argon",
    "menu": "flat",
    "naming": "one",

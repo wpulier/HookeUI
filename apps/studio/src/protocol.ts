@@ -1424,7 +1424,7 @@ export interface ScaleState {
 }
 
 // Every option group the server has (orchestrator/options.py GROUPS; services/tests/test_readiness.py keeps them in step).
-export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'naming_model' | 'library_looks' | 'talk' | 'talk_key' | 'heard_cue' | 'partner_acts' | 'partner_speaks' | 'handoff_acts' | 'think' | 'look_hard' | 'watch';
+export type OptionGroup = 'vision' | 'pointing' | 'outline' | 'voice' | 'brain' | 'dissect' | 'research' | 'presentation' | 'image' | 'sight' | 'fast' | 'cells' | 'quality' | 'speculate' | 'reflex' | 'early_look_typed' | 'answer_check' | 'completion' | 'sampling' | 'style' | 'menu' | 'outline_check' | 'track' | 'voicelink' | 'admit' | 'taught' | 'lesson_check' | 'research_pacing' | 'claim_check' | 'reference_search' | 'outline_repair' | 'seen' | 'coach' | 'closeup' | 'dust' | 'embed' | 'zeroshot' | 'outcome_lines' | 'session_context' | 'row_provenance' | 'orb_every' | 'naming' | 'naming_model' | 'library_looks' | 'talk' | 'talk_key' | 'heard_cue' | 'partner_acts' | 'partner_speaks' | 'handoff_acts' | 'look_after' | 'think' | 'look_hard' | 'watch';
 
 export interface ModelOption {
   id: string;
@@ -1464,6 +1464,7 @@ export interface Settings {
   partner_acts?: string; // how the live partner gets things done in Hooke: "brain" | "direct" (options.py PARTNER_ACTS)
   partner_speaks?: string; // when the live partner speaks in a turn: "after-deciding" | "as-it-decides" (options.py PARTNER_SPEAKS)
   handoff_acts?: string; // how work the voice hands over acts: "hands" | "brain" (options.py HANDOFF_ACTS)
+  look_after?: string; // the picture after work handed over changed the screen: "unverified" | "always" (options.py LOOK_AFTER)
   think?: string; // the frontier mind behind the one-brain voice: "claude-opus-5-5" | "gpt-6.1-sol" (options.py THINK)
   look_hard?: string; // the live partner's close look: "gemini-4-argon" | "claude-opus-5-5" (options.py LOOK_HARD)
   naming_model?: string; // which model names an outline: "close-look" | "quick-look" (options.py NAMING_MODEL)

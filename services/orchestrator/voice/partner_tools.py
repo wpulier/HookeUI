@@ -1517,8 +1517,17 @@ class PartnerTools:
             out["then"] = self._keep_then(flight, result, out, words or text)
         changed = [a["tool"] for a in actions if a["ok"] and a["tool"] in SCREEN_CHANGING]
         if changed and look:  # act, then look: whether it shows is read from the screen, not from the brain's own answer
-            look, facts = await self.look_after(changed[-1], before)
-            out["_look"], out["_log"] = look, facts
+            confirmed = bridge is not None and all(
+                any(r["name"] == tool and r.get("result") == "verified" for r in bridge.receipts) for tool in changed)
+            if confirmed and str(getattr(getattr(hub, "settings", None), "look_after", "unverified")) == "unverified":
+                # Every change it made was confirmed by the studio's report: the screen as text, no picture to wait for.
+                out["_look"] = {"images": [], "detail": "auto",
+                                "text": f"After {changed[-1]}, Hooke's screen now: "
+                                        + (self.partner.screen_now() or "(no report from the studio)")}
+                out["_log"] = {"screenChange": True, "confirmed": True, "picture": "skipped: every change verified"}
+            else:
+                look, facts = await self.look_after(changed[-1], before)
+                out["_look"], out["_log"] = look, facts
         # What it made or opened, pointed at as its outcome is heard (and its line said later, when it ran long), when
         # the screen shows it now: never a mark the studio could not draw.
         points = self._pointable(pointing_at(standing))
