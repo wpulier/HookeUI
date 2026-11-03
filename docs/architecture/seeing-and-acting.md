@@ -72,10 +72,18 @@ other files.
     came into the centre or left the view while moving, its place was lost, the sharpness changed and held, the
     sharpness held 2 s after a focus line, or nothing happened for 7 s after a line. One guidance at a time; a new one
     ends the last. It gives up after 5 minutes, 40 lines, or 25 s without knowing where the target is, and says so.
+  - **The first line at once**: the target is ringed and the arrow drawn as soon as the guidance starts, and its first
+    line is the app's own reading (the rule's, logged `how: "first"`), not a judgment: a model's answer would delay it
+    by up to 4 s while the hand waits. The judge decides every line after it, from the next moment on. The tool starts
+    at once from an outline already on the board (`object`); only `what` alone runs a find first.
   - **Said once, by whoever is listening**: the tool's own answer carries the first line (`hold_first`); later lines go
     to the one-brain voice as events of kind "guide" (said as soon as no key is held, the newest replacing one not yet
     said, never owed, dropped after 6 s: a line the view moved past is no help; `voice/events.py`), to GPT-Live through
     the narrator ("interrupt"), and are filed in the chat as app notices (producer "guide"), the conversation's record.
+  - **"Stop." and the end are never dropped**: they go as kind "guide-stop" (owed, never replaced by a newer line,
+    each its own event; a waiting "guide" line is withdrawn for them) and cut in over the voice's own words, even an
+    answer to the user (`Kind.cuts`, the one exception to "never cut by its own next one"): the hand on the slide
+    cannot wait for a sentence to end. Never while the user holds the key or a tool call is under way.
     Every judgment is logged (`guide-judge`, with its facts and answer), and every guidance's end (`guide`).
 - A first guess, then the measurement (M2): "which is the biggest cell?" with nothing measured is
   answered by eye at once, the guess outlined and called a first guess, and every cell is segmented and

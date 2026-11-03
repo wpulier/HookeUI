@@ -87,10 +87,11 @@ def add_guide_tools(registry: Registry, services) -> None:
 
     registry.add(Tool("guide", "Guide the user's hands to a thing on the slide until it is centred (and sharp, by "
                       "default): \"find me a stoma and centre it\", \"help me get that cell in the middle\", \"bring it "
-                      "into focus\". Finds one when nothing like it is outlined yet. The app measures where it is and "
-                      "what each move did, and says one short line at a time (\"move the slide left a little\", \"stop, "
-                      "it's centred\", \"focus up\") until it gets there. The microscope has no motors: the user moves "
-                      "the slide and the focus.",
+                      "into focus\". When the thing is among what the look sees (an s-id) or on the board, pass it "
+                      "as object: that starts at once; with only what, the app looks for one first. The app measures "
+                      "where it is and what each move did, and says one short line at a time (\"move the slide left a "
+                      "little\", \"stop, it's centred\", \"focus up\") until it gets there. The microscope has no "
+                      "motors: the user moves the slide and the focus.",
                       schema({"what": {"type": "string", "description": "the thing in the user's words (\"stoma\"); "
                                        "empty with object"},
                               "object": OBJECT,

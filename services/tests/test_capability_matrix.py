@@ -186,7 +186,9 @@ PLANS: dict[str, Plan] = {
     "watching": Plan("what are you watching for?", [("watching", {})], before=[("watch", {"what": "movement", "by": "motion"})]),
     "map-show": Plan("show me the map", [("show_map", {})]),
     "where-is": Plan("where was the stoma?", [("where_is", {"object": O1})], ("outline",)),
-    "guide": Plan("find me a stoma and centre it", [("guide", {"object": O1})], ("outline",)),
+    "guide": Plan("find me a stoma and centre it", [("guide", {"object": O1})], ("outline",),
+                  not_on_path={"guide": "its first line is the app's own reading, said at once; the model judges the lines "
+                               "after it as the slide moves, on later frames, never inside the request (test_guide.py)"}),
     "stop-guiding": Plan("stop guiding", [("stop_guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "guiding": Plan("what are you guiding me to?", [("guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "bookmark": Plan("bookmark this, the nice stomata", [("bookmark", {"note": "the nice stomata"})]),

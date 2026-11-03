@@ -53,6 +53,7 @@ class Kind:
     kept_s: float | None = STALE_S  # a waiting one not said by then is dropped; None: kept until heard (owed)
     window_s: float = 0.0  # context: notes this close to the first are one item
     urgent_ok: bool = False  # `urgent=True` makes it interrupting
+    cuts: bool = False  # said over the voice's own line playing now (only a guidance's "Stop." and its end: guide.py)
 
 
 RESULT = Kind("idle", owed=True, kept_s=None)
@@ -86,6 +87,9 @@ KINDS: dict[str, Kind] = {
     # guiding the user's hands (guide.py): said at once, the newest line replacing one not yet said, never owed (a line
     # the view has moved past is no help) and dropped when not said soon
     "guide": Kind("interrupt", one_per="kind", newest=True, once=False, kept_s=6.0),
+    # ...but "Stop." and the end ("centred and sharp") cut in over the voice's own words, are owed until heard and are
+    # never replaced by a newer line: the hand on the slide may overshoot while the voice finishes a sentence
+    "guide-stop": Kind("interrupt", owed=True, once=False, kept_s=None, cuts=True),
     # its first line as Talk connects (it talks first): in a pause, never owed, let go if the user speaks first or it
     # is not said soon (`withdraw`, RealtimeSession.talk_down)
     "opener": Kind("idle", kept_s=20.0),

@@ -518,8 +518,17 @@ class Guide:
             if reason == "centre-reached":
                 # A hand crosses the centre in a fraction of a second, faster than any model answers (a guide bench
                 # judgment takes 0.6-4 s): "stop" is the app's reflex, as the focus meter's "past the sharpest" is. The
-                # judge decides what comes next once the slide is still.
-                reply, how = {"say": "Stop.", "slide": None, "focus": None, "state": "guiding"}, "reflex"
+                # judge decides what comes next once the slide is still. Said over the voice's own words, never dropped.
+                reply = {"say": "Stop.", "slide": None, "focus": None, "state": "guiding", "critical": True}
+                how = "reflex"
+            elif reason == "start":
+                # The first line is the app's own reading of where the target is (the measured way to move the slide),
+                # said at once: the hands start moving while the judge is asked for the lines after (Will's bar, 3 Nov:
+                # the first direction within seconds of the request). The judge decides every line from the first
+                # settle on, and every "done".
+                reply, how = rule(g, facts), "first"
+                if reply.get("state") == "done":
+                    reply = {**reply, "state": "guiding"}  # only the judge (and the checks) end a guidance
             else:
                 reply, how = await self._judge(g, facts)
                 g.judgments += 1
@@ -639,7 +648,11 @@ class Guide:
 
     def _line(self, g: Guidance, reply: dict, event: str) -> dict:
         reading = g.latest()
+        # Time-critical: "Stop." and the end said done are said over the voice's own words and never replaced
+        # (voice/events.py kind "guide-stop"); the other lines give way to newer ones.
+        critical = bool(reply.get("critical")) or event == "done"
         return {"guidance": g.id, "event": event, "n": len(g.lines), "say": str(reply.get("say") or ""),
+                "critical": critical,
                 "slide": reply.get("slide") if isinstance(reply.get("slide"), dict) else None,
                 "focus": reply.get("focus") if reply.get("focus") in FOCUS else None,
                 "state": reply.get("state") or "guiding", "target": g.target, "name": g.name,

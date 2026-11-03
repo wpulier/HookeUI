@@ -546,7 +546,14 @@ class App:
                                 "ended": line.get("event") if final else None}, ensure_ascii=False)
             if callable(happened):  # the one brain: its own words for the line, at once
                 marks = [{"target": f"outline:{g.target}", "style": "box"}] if line.get("n") == 1 or final else None
-                task = asyncio.get_running_loop().create_task(happened("guide", facts, ref=g.id, marks=marks))
+                kind, ref = "guide", g.id
+                if line.get("critical"):  # "Stop." or the end: cuts in, never replaced; a waiting line is moot now
+                    from .voice.events import bus_of
+
+                    with contextlib.suppress(Exception):
+                        bus_of(brain).withdraw("guide")
+                    kind, ref = "guide-stop", f"{g.id}:{line.get('event')}:{line.get('n')}"
+                task = asyncio.get_running_loop().create_task(happened(kind, facts, ref=ref, marks=marks))
                 task.add_done_callback(lambda t: t.cancelled() or t.exception())
                 return
             owner = origin.get("voice_owner")

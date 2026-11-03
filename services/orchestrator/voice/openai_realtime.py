@@ -61,6 +61,7 @@ TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 RELEASE_TAIL_S = 0.15  # the user's last word kept whole (the spec, 29 Oct: no design choice made for a millisecond number)
 MIN_HOLD_S = 0.25  # a press shorter than this is a tap: nothing to commit, so no answer
 IDLE_S = 1.5  # nobody has spoken for this long: a line nobody asked for may be said
+CUT_IN_WAIT_S = 1.5  # a cutting line waits at most this long for the line it stopped to end
 # The bus's consumer (`_consume`): results due within COALESCE_S of each other are said together, in one response (but
 # a stream of them is not held past COALESCE_MAX_S), at most BATCH_MAX in a response; it looks every WATCH_EVERY_S.
 COALESCE_S = 0.12
@@ -1154,6 +1155,14 @@ class RealtimeSession(VoiceSession):
             return
         due = self.bus.due()
         urgent = [e for e in due if e.route == "interrupt"]
+        cuts = [e for e in urgent if self.bus.kind(e.kind).cuts]
+        if (cuts and self._held is None and self._sb is not None and not (self._calls or self._round)
+                and (self.audible() or (self.speaking() and not self._turn_pending()))):
+            # The one exception to the rule below (events.Kind.cuts: a guidance's "Stop." and its end): the hand on the
+            # slide cannot wait for a sentence to end, so the words playing now are stopped for it, even an answer to
+            # the user; never while the user holds the key or a tool call is under way (Lane E, 3 Nov).
+            self._saying = self._spawn(self._cut_in((cuts + [e for e in urgent if e not in cuts])[:BATCH_MAX]))
+            return
         if urgent and self._held is None and self._sb is not None and not self._turn_pending():
             if self.speaking() or self.audible():
                 return  # the line playing now is finished first, never cut by our own next one (Will, 29 Oct)
@@ -1198,6 +1207,16 @@ class RealtimeSession(VoiceSession):
                     self.noted({"kind": "voice-note", "source": event.data.get("source") or event.kind,
                                 "sessionId": self.call_id, **(event.data.get("facts") or {}), "chars": len(event.text),
                                 "text": event.text})
+
+    async def _cut_in(self, batch: list[Event]) -> None:
+        """Stop the voice's own line, then say what cuts in (events.Kind.cuts) as soon as the cancelled response has
+        ended (the API takes one response at a time). What it was saying stays owed."""
+        self._log({"kind": "partner-cut-in", "n": self.n, "events": [e.kind for e in batch]})
+        await self.stop_speaking()
+        end = self.clock() + CUT_IN_WAIT_S
+        while (self.speaking() or self.audible()) and self._held is None and self.clock() < end:
+            await asyncio.sleep(0.02)
+        await self._say(batch, urgent=True)
 
     async def _say(self, batch: list[Event], *, urgent: bool = False) -> None:
         """One response for what is due. A job's result is worded first, out of band and once (`prepare`); then all of

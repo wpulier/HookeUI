@@ -131,7 +131,8 @@ def test_a_model_answer_that_says_done_too_early_is_not_said_and_the_model_is_to
 
     r = asyncio.run(B.run(next(c for c in B.CASES if c.name == "centred-only"), judge="model", ask_model=model,
                           seed=1, seconds=60, realtime=False))
-    assert r["said"][0] == "Move it."  # the first answer, a refused "done", was never said
+    assert r["said"][0].startswith("Move the slide")  # the first line is the app's own reading, said at once
+    assert "Done." not in r["said"][:-1]  # the model's first answer, a refused "done", was never said
     assert asked[1]["doneRefused"].startswith("it is 0.") and asked[1]["why_now"] == G.REASONS["refused"]
     assert r["event"] == "done" and r["centred"]
     assert r["overrides"] >= 1
@@ -145,7 +146,8 @@ def test_a_model_that_cannot_answer_leaves_the_rule_speaking_logged_as_an_overri
                           seed=1, seconds=60, realtime=False))
     assert r["event"] == "done" and r["centred"]
     reflexes = sum(1 for said in r["said"] if said == "Stop.")  # the app's own stop is no model's line
-    assert r["overrides"] == r["lines"] - reflexes  # every other line was the rule's, each logged
+    assert r["overrides"] == r["lines"] - reflexes - 1  # and the first line is the app's own reading; every other was
+    # the rule's, each logged
 
 
 # --- the tool's first line, said once -----------------------------------------------------------------------------------
@@ -288,4 +290,34 @@ def test_a_stalled_model_never_holds_the_guidance(monkeypatch):
     r = asyncio.run(B.run(next(c for c in B.CASES if c.name == "centred-only"), judge="model", ask_model=stalled,
                           seed=1, seconds=60, realtime=False))
     assert r["event"] == "done" and r["centred"] and r["overrides"] >= 1
+
+
+def test_the_first_line_is_the_apps_own_reading_said_at_once_and_the_model_judges_after():
+    asked: list = []
+
+    async def model(prompt: str):
+        asked.append(prompt)
+        return {"say": "Move it.", "slide": {"x": "left", "amount": "nudge"}, "state": "guiding"}
+
+    async def go():
+        obj = SimpleNamespace(id="o1", center=(800.0, 300.0), anchor_offset=(0.0, 0.0), anchor_epoch=1, label="stoma")
+        hub = SimpleNamespace(scene=SimpleNamespace(objects={"o1": obj}), latest_info=SimpleNamespace(
+            id=1, width=1280, height=720, dx=0.0, dy=0.0, epoch=1, tracked=True, steady=True,
+            fov=SimpleNamespace(cx=640.0, cy=360.0, radius=300.0), wall_at=0.0, stats=(50.0, 100.0, 10.0, 0.0)))
+        guide = G.Guide(hub, ask_model=model)
+        g = guide.start("o1", name="stoma", asked="centre it", hold_first=True)
+        first = await guide.first_line(g, 0.5)
+        guide.stop()
+        return first
+
+    first = asyncio.run(go())
+    assert first is not None and first["say"].startswith("Move the slide right") and asked == []
+
+
+def test_stop_and_the_end_are_marked_time_critical():
+    guide = G.Guide(SimpleNamespace(latest_info=None, scene=None))
+    g = guidance()
+    assert guide._line(g, {"say": "Stop.", "critical": True}, "line")["critical"] is True
+    assert guide._line(g, {"say": "That's it."}, "done")["critical"] is True
+    assert guide._line(g, {"say": "Move the slide left, a little."}, "line")["critical"] is False
 
