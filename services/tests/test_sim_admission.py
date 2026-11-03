@@ -148,6 +148,8 @@ def test_follow_clicks_retains_slow_samples_and_diagnostics_after_measurement(mo
     async def wait(*args, **kwargs): return True, 0.0
     class Viewer:
         candidates = [{'x': n, 'y': n} for n in range(4)]
+        candidates_frame = 0
+        frames = [(100.0, {'id': 0, 'fov': None}, b'')]
         results = []
         trails = {'trails': [{'id': 'synthetic', 'segments': [{'points': [[0, 0]]}]}]}
         def latest(self): return clock[0], {'id': len(requests), 'fov': None}, b''
@@ -162,6 +164,35 @@ def test_follow_clicks_retains_slow_samples_and_diagnostics_after_measurement(mo
     observed = next(o for o in out.observations if o.get('kind') == 'follow-clicks')
     assert [c['roundTripMs'] for c in observed['clicks']] == [400.0] + [100.0] * 9
     assert observed['receipts'] == [{'id': 'synthetic'}]
+
+
+def test_follow_clicks_keeps_coordinates_with_their_observed_frame(monkeypatch):
+    requests = []
+    async def ready(*args, **kwargs): return True
+    async def wait(*args, **kwargs): return True, 0.0
+    async def sleep(*args): pass
+    monkeypatch.setattr(harness, 'prepare_timing', ready)
+    monkeypatch.setattr(harness.asyncio, 'sleep', sleep)
+    monkeypatch.setattr(harness, '_interactions', lambda *args, **kwargs: [])
+    monkeypatch.delenv('MICROMIND_CLICK_DIAGNOSTICS', raising=False)
+    class Viewer:
+        results = []
+        trails = {'trails': []}
+        candidates_frame = 10
+        candidates = [{'x': n, 'y': n} for n in range(4)]
+        frames = [(0, {'id': 10, 'fov': None}, b'')]
+        def latest(self): return 0, {'id': 999, 'fov': None}, b''
+        async def send(self, request):
+            requests.append(request)
+            assert request['frameId'] == self.candidates_frame
+            assert {'x': request['x'], 'y': request['y']} in self.candidates
+        async def result_for(self, *args):
+            self.candidates_frame += 1
+            self.candidates = [{'x': n + self.candidates_frame, 'y': n} for n in range(4)]
+            self.frames.append((0, {'id': self.candidates_frame, 'fov': None}, b''))
+            return {'ok': True}
+    asyncio.run(harness.scenario_follow_clicks(SimpleNamespace(wait=wait), Viewer()))
+    assert len(requests) == 14
 
 
 @pytest.mark.parametrize('failed_phase', ['defaults', 'fresh-follow'])

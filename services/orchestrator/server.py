@@ -115,6 +115,8 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     built = App.build(bridge_url, paths, use_gpu=use_gpu, project_locations=project_locations)
     built._workspace_capture_authority = _installed_studio_tab_capture
     hub = built.hub
+    from .matrix_execution import install as install_matrix_execution
+    install_matrix_execution(hub)
     hub.execution.context_provider = lambda: {
         'build': dict(build),
         'settings': {key: getattr(hub.settings, key, None)

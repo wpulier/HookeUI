@@ -48,7 +48,8 @@ def register(app,built,studio_origin,header):
     async def capabilities():
         try:
             from .matrix_capability_runs import descriptors
-            return reply(capabilities=await asyncio.to_thread(descriptors))
+            from .matrix_execution import discovery
+            return reply(capabilities=await asyncio.to_thread(descriptors), executionProfiles=await asyncio.to_thread(discovery, built.hub))
         except (ValueError,OSError) as error:return _error(error)
 
     @app.get('/api/workflows/{workflow}')

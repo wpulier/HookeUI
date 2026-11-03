@@ -1,5 +1,9 @@
 # Outside agents: the one door
 
+Workflow capability discovery includes optional installed execution profiles, with
+operator Project allowlists omitted. Exact profile generations remain checked by
+the shared workflow admission; discovery grants no external execution authority.
+
 With opt-in Project routing, new Project-scoped operations keep their authoritative
 receipt in `history/operations`, under the captured origin and host writer lease.
 Legacy receipts remain in host storage until explicit collection. Loading retained

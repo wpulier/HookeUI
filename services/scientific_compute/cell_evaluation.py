@@ -16,9 +16,13 @@ import numpy as np
 if __package__:
     from .engine import Refused, _json, _strings, _finite, MAX_ROWS, MAX_GENES
     from . import bounded_h5
+    from . import resource_profile
+    from .aggregate_profiles import _digest
 else:
     from engine import Refused, _json, _strings, _finite, MAX_ROWS, MAX_GENES
     import bounded_h5
+    import resource_profile
+    from aggregate_profiles import _digest
 
 VERSION = '0.20.0'
 MATERIALIZATION_BUDGET = 8 << 30
@@ -176,8 +180,9 @@ def evaluate(inputs, params, output, check):
             if p_targets != set(panel) or r_targets != {*panel, config['control_label']}:
                 raise Refused('Evaluate the complete declared panel with reference controls; missing and extra targets refuse')
             estimated = _allocation_bytes(prediction, p_rows) + _allocation_bytes(reference, r_rows)
-            if estimated > MATERIALIZATION_BUDGET:
-                raise Refused('Whole-context evaluation exceeds the conservative 8 GiB materialization allowance; qualify a larger or streaming evaluator without splitting the target panel')
+            budget = resource_profile.current()['materialization_bytes']
+            if estimated > budget:
+                raise Refused(f'Whole-context evaluation exceeds the conservative {budget / (1 << 30):g} GiB materialization allowance; qualify a larger or streaming evaluator without splitting the target panel')
             # One entire context per upstream call: arbitrary target chunks alter discrimination.
             p = _context(prediction, p_rows, config); r = _context(reference, r_rows, config)
             # Upstream structural validation requires identical group sets even
@@ -206,7 +211,7 @@ def evaluate(inputs, params, output, check):
                              'evaluationViews': transformation, 'metrics': measured.to_dicts(),
                              'aggregate': aggregated.to_dicts()})
             del p, r
-    result = {'format': 'cell-evaluation-v1', 'evaluator': 'cell-eval2', 'version': VERSION,
+    result = {'format': 'cell-evaluation-v1', 'inputs': {name: _digest(path, check) for name, path in inputs.items()}, 'evaluator': 'cell-eval2', 'version': VERSION,
               'config': cfg.to_dict(), 'protocol': config, 'contexts': _plain(contexts),
               'backend': {'device': 'cpu', 'differentialExpression': 'scanpy', 'threads': 1},
               'resolvedMetrics': selected,
@@ -215,5 +220,5 @@ def evaluate(inputs, params, output, check):
               'referenceScaled': False, 'officialAcceptance': False,
               'evaluationInputConstruction': 'Reference controls appended transiently for upstream group compatibility; prediction artifact unchanged',
               'nonfiniteValues': 'Upstream nonfinite measurements remain unavailable as JSON null',
-              'qualification': 'local-compute-only'}
+              'qualification': 'development-compute-only', 'resourceProfile': resource_profile.current()}
     return _json(output / 'cell-evaluation.json', result), result

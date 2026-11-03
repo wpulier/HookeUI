@@ -16,7 +16,8 @@ def add_workflow_tools(registry,services):
             runner=service(services.hub,services.day);w=runner.workflows
             if args.get('capabilities'):
                 from ...matrix_capability_runs import descriptors
-                value={'capabilities':await asyncio.to_thread(descriptors)}
+                from ...matrix_execution import discovery
+                value={'capabilities':await asyncio.to_thread(descriptors), 'executionProfiles':await asyncio.to_thread(discovery, services.hub)}
             elif args.get('starter'):
                 from ...workflow_execution import starter
                 value={'name':'Measure bright regions','graph':starter()}

@@ -77,10 +77,44 @@ def _rows(path: Path, table: str) -> list[dict]:
     return [dict(r) for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
 
 
+def _display_key(m, environ):
+    return ('maintenance-notices', str(catalog.catalog_root(environ)), repr(_entry(m)))
+
+
+def display_records(entries, environ: Mapping[str, str] = os.environ) -> dict:
+    """Capture notice files and their precedence off-loop, including absent notices."""
+    from .. import env_observations
+    out = {}
+    with env_observations.live():
+        for m in entries:
+            try:
+                paths = _files(_entry(m), environ)
+                out[_display_key(m, environ)] = {
+                    table: [r for path in paths for r in _rows(path, table)]
+                    for table in ('revoked', 'unmaintained', 'fixes')}
+            except OSError:
+                # One removed/inaccessible channel must not freeze every catalog card.
+                out[_display_key(m, environ)] = {
+                    'error': 'Catalog notices could not be read. Refresh Models to try again.'}
+    return out
+
+
+def display_error(m, environ: Mapping[str, str] = os.environ) -> str:
+    observed = store.display_fact(_display_key(m, environ), {})
+    return str((observed or {}).get('error') or '')
+
+
+def _notice_rows(m, table, environ):
+    observed = store.display_fact(_display_key(m, environ), {})
+    if observed is not None:
+        return [dict(r) for r in observed.get(table, [])]
+    return [r for path in _files(m, environ) for r in _rows(path, table)]
+
+
 def revoked(m: catalog.Manifest, version: str, environ: Mapping[str, str] = os.environ) -> dict | None:
     """The notice revoking `version` of the entry, the most severe when there are several; None when none does."""
     m = _entry(m)
-    found = [r for path in _files(m, environ) for r in _rows(path, "revoked")
+    found = [r for r in _notice_rows(m, "revoked", environ)
              if r.get("entry") == m.id and str(r.get("version")) == str(version)]
     if not found:
         return None
@@ -94,10 +128,9 @@ def revoked(m: catalog.Manifest, version: str, environ: Mapping[str, str] = os.e
 def unmaintained(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> dict | None:
     """The catalog's notice that nobody maintains the entry any more, or None."""
     m = _entry(m)
-    for path in _files(m, environ):
-        for r in _rows(path, "unmaintained"):
-            if r.get("entry") == m.id:
-                return {"since": str(r.get("since") or ""), "why": str(r.get("why") or "its catalog says so")}
+    for r in _notice_rows(m, "unmaintained", environ):
+        if r.get("entry") == m.id:
+            return {"since": str(r.get("since") or ""), "why": str(r.get("why") or "its catalog says so")}
     return None
 
 
@@ -105,13 +138,12 @@ def fix(m: catalog.Manifest, version: str, environ: Mapping[str, str] = os.envir
     """A known defect of `version` and its fix, as the catalog declares it (`[[fixes]]`: entry, versions, issue, why,
     fixed_in), or None. `fixed_in` empty: the fix is identified, no distributable build exists yet."""
     m = _entry(m)
-    for path in _files(m, environ):
-        for r in _rows(path, "fixes"):
-            versions = [str(v) for v in r.get("versions") or []]
-            if r.get("entry") == m.id and str(version) in versions:
-                return {"version": str(version), "issue": str(r.get("issue") or ""),
-                        "why": str(r.get("why") or "a known defect in its results"),
-                        "fixedIn": str(r.get("fixed_in") or ""), "severity": "warn"}
+    for r in _notice_rows(m, "fixes", environ):
+        versions = [str(v) for v in r.get("versions") or []]
+        if r.get("entry") == m.id and str(version) in versions:
+            return {"version": str(version), "issue": str(r.get("issue") or ""),
+                    "why": str(r.get("why") or "a known defect in its results"),
+                    "fixedIn": str(r.get("fixed_in") or ""), "severity": "warn"}
     return None
 
 
@@ -119,21 +151,22 @@ def fixes(m: catalog.Manifest, environ: Mapping[str, str] = os.environ) -> list[
     """Every `[[fixes]]` row of the entry, as fix() reads one, once each (the same notice may be in several files)."""
     m = _entry(m)
     out, seen = [], set()
-    for path in _files(m, environ):
-        for r in _rows(path, "fixes"):
-            if r.get("entry") == m.id:
-                row = {"versions": [str(v) for v in r.get("versions") or []], "issue": str(r.get("issue") or ""),
-                       "why": str(r.get("why") or ""), "fixedIn": str(r.get("fixed_in") or "")}
-                identity = (tuple(sorted(row['versions'])), row['issue'])
-                if identity not in seen:
-                    seen.add(identity)
-                    out.append(row)
+    for r in _notice_rows(m, "fixes", environ):
+        if r.get("entry") == m.id:
+            row = {"versions": [str(v) for v in r.get("versions") or []], "issue": str(r.get("issue") or ""),
+                   "why": str(r.get("why") or ""), "fixedIn": str(r.get("fixed_in") or "")}
+            identity = (tuple(sorted(row['versions'])), row['issue'])
+            if identity not in seen:
+                seen.add(identity)
+                out.append(row)
     return out
 
 
 def blocked(installed, environ: Mapping[str, str] = os.environ) -> str:
     """"" unless the generation's own version is revoked with severity block: then why, and what to do."""
-    notice = revoked(installed.m, installed.m.version, environ)
+    from .. import env_observations
+    with env_observations.live():
+        notice = revoked(installed.m, installed.m.version, environ)
     if not notice or notice["severity"] != "block":
         return ""
     return (f"{installed.m.name} {installed.m.version} was revoked by its maintainers: {notice['why']}"

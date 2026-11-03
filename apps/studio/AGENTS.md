@@ -2176,3 +2176,9 @@ never an empty successful list. This also applies when the bridge publishes the
 new Project before its switch promise resolves.
 
 Project research navigation and exact-reference page behavior are described in `docs/architecture/research-navigation.md`. Overview is separate from the preserved live stage; background efforts do not create tabs.
+
+The retained-work tray coalesces its resource-list/summary reads, including refresh
+bursts while it is hidden. One pending pair may queue one follow-up; later events
+cannot starve the useful reply or flood browser connections. Project changes abort
+the old pair and exclude late replies; a 30-second deadline preserves readable
+failure and retry. This is read-only refresh, never scientific execution.

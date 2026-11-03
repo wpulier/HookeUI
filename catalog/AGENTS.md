@@ -76,8 +76,9 @@ said, measured and kept within memory" in `services/gpu_worker/AGENTS.md`.
   readiness, current settings, keys, checks and queues are still resolved for each response. Explicit catalog changes
   request a coalesced revisioned refresh; unconditional polling also sees missing interpreters, off markers and lockfiles.
   Shutdown owns the outstanding read. Display scopes expire before inherited tasks can reuse them; exact-generation
-  execution and selection bypass them. This is bounded to environment facts: unrelated catalog, channels, own-trial,
-  Fiji and model-file reads, and synchronous registration, are not claimed to be off-loop.
+  execution and selection bypass them. Model-card comparison status is also observed off-loop for the exact manifest and catalog;
+  unread observations say Checking. This display snapshot never replaces live own-trial approval checks.
+  Unrelated catalog, channels, Fiji and model-file reads, and synchronous registration, are not claimed to be off-loop.
 - **Environments the app makes** (`orchestrator/envs.py`; `catalog/README.md` "Environments the app makes"): a model
   whose code needs a Python of its own names it (`env`: version, a hashed lockfile, its proof's imports); its card's
   **Install** (command `model-install`, the agent on the user's yes) builds it in place at

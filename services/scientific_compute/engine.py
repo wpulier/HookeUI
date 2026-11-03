@@ -56,6 +56,15 @@ def _dense_budget(rows, columns, *, copies=1):
         raise Refused('This compact operation exceeds its 512 MiB dense working allowance')
 
 
+def _count_output_bytes(rows, columns):
+    """Worst-case CSR float32 payload, including promotion to 64-bit indices."""
+    rows, columns = int(rows), int(columns)
+    entries = rows * columns
+    index_bytes = 8 if max(rows, columns, entries) > 2 ** 31 - 1 else 4
+    # Keep the existing conservative 64-bit indptr allowance for small outputs too.
+    return entries * (4 + index_bytes) + (rows + 1) * 8
+
+
 def _npz(path, required):
     with zipfile.ZipFile(path) as archive:
         names = [i.filename for i in archive.infolist()]
@@ -415,8 +424,8 @@ def predict(inputs, params, output, check):
             raise Refused('Prediction exceeds the declared observation allowance')
         _dense_budget(BLOCK_ROWS, data.n_vars, copies=5)
         gene_indices = np.array([model_genes.get(g, -1) for g in data.var_names]); covered = gene_indices >= 0
-        # CSR float32 value/index pairs plus indptr; allow chunks + merged output + safety margin.
-        worst_case_bytes = nout * data.n_vars * 8 + (nout + 1) * 8
+        # CSR float32 values and 32/64-bit indices; chunks + merged output + margin.
+        worst_case_bytes = _count_output_bytes(nout, data.n_vars)
         if shutil.disk_usage(output).free < worst_case_bytes * 2 + (512 << 20):
             raise Refused('Free space for sparse prediction chunks and the merged output before inference')
         for context in sorted(set(contexts)):
@@ -583,7 +592,40 @@ def project_counts(inputs, params, output, check):
     return project(inputs, params, output, check)
 
 
-OPERATIONS = {'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
+
+def check_development_fold(inputs, params, output, check):
+    if __package__:
+        from .development_protocol import check_fold
+    else:
+        from development_protocol import check_fold
+    return check_fold(inputs, params, output, check)
+
+
+def select_development_candidate(inputs, params, output, check):
+    if __package__:
+        from .development_protocol import select
+    else:
+        from development_protocol import select
+    return select(inputs, params, output, check)
+
+
+def rank_development_candidates(inputs, params, output, check):
+    if __package__:
+        from .development_bundle import rank_bundle
+    else:
+        from development_bundle import rank_bundle
+    return rank_bundle(inputs, params, output, check)
+
+
+def package_vcc(inputs, params, output, check):
+    if __package__:
+        from .vcc_packaging import package
+    else:
+        from vcc_packaging import package
+    return package(inputs, params, output, check)
+
+
+OPERATIONS = {'matrix-package-vcc': package_vcc, 'cell-evaluation-rank': rank_development_candidates, 'response-development-check': check_development_fold, 'cell-evaluation-select': select_development_candidate, 'matrix-project-counts': project_counts, 'matrix-inspect': inspect, 'matrix-prepare': prepare, 'response-fit': fit,
               'response-predict': predict, 'matrix-evaluate': evaluate, 'response-combine': combine,
               'matrix-export': export, 'matrix-evaluate-cell': evaluate_cell,
               'aggregate-profile-prepare': prepare_aggregates, 'response-effects-merge': merge_effects,

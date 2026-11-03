@@ -45,7 +45,7 @@ def concatenate(inputs, params, output, check):
         engine._dense_budget(engine.BLOCK_ROWS, len(genes), copies=4)
         if set(names[0]) & set(names[1]):
             raise engine.Refused('Duplicate cell identities cannot be silently renamed')
-        worst = count * len(genes) * 8 + (count + 1) * 8
+        worst = engine._count_output_bytes(count, len(genes))
         if shutil.disk_usage(output).free < worst * 2 + (512 << 20):
             raise engine.Refused('Free space for count assembly chunks and merged output')
         parts = []; nnz = 0; largest = 0
