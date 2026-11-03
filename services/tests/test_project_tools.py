@@ -241,7 +241,7 @@ def test_a_tab_close_that_no_studio_did_is_said_not_done(seeded):
     done = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes go ahead"}, "yes go ahead")
     assert done.ok, done.summary
     assert 'renamed the conversation “Outline the guard cells” to “Count”' in done.summary and " t1" not in done.summary
-    assert 'Not done: Close the Tab “Tab 2” (empty; All Tabs reopens it): not done (' in done.summary
+    assert 'Not done: Close the Tab “Tab 2” (empty): not done (' in done.summary
     assert "closed the Tab" not in done.summary and "INVALID" not in done.summary
 
 
@@ -421,7 +421,7 @@ def test_do_it_on_the_card_closes_tabs_through_the_studio_that_pressed_it(seeded
     built, _ = seeded
 
     async def go():
-        studio = LandingStudio(built)
+        studio = ReopeningStudio.of(built)
         studio.tabs = [{"id": "main", "title": "Main"}, {"id": "v2", "title": "Tab 2"}]
         built.accept_workspace(studio, ClientRef(CLIENT["workspaceId"], CLIENT["clientId"], CLIENT["pageEpoch"],
                                                  CLIENT["connectionEpoch"]))
@@ -440,8 +440,72 @@ def test_do_it_on_the_card_closes_tabs_through_the_studio_that_pressed_it(seeded
         done = cards(built, "tidy")[card["id"]]
         assert done["status"] == "done" and not any("Not done" in line for line in done["lines"]), done
         assert 'Closed the Tab "Tab 2"' in done["lines"] and built.day.threads["t1"].title == "Count"
-        assert "All Tabs reopens closed Tabs" in done["said"]
+        assert done["said"] == "Done · Undo puts it back"
         assert any(m.get("type") == "project-card" and m["card"]["status"] == "applying" for m in built.sent)
+        # Undo on the card reopens the Tab quietly (Lane A's tabs reopen, show false) and says Undone once it is back.
+        reply = await COMMANDS["project-card"](built, studio, {"type": "project-card", "id": card["id"], "action": "undo"})
+        assert reply["ok"] is True, reply
+        assert [t["id"] for t in studio.tabs] == ["main", "v2"] and studio.active == "main"  # back, not in front
+        reopened = [m for m in studio.messages if m.get("type") == "workspace-tabs"][-1]["action"]
+        assert reopened == {"action": "reopen", "tab": "v2", "show": False}
+        undone = cards(built, "tidy")[card["id"]]
+        assert undone["status"] == "undone" and undone["said"] == "Undone · put back as it was"
+        assert "The Tab “Tab 2” is open again (not brought to the front)" in undone["lines"]
+        assert built.day.threads["t1"].title == "Outline the guard cells"
+
+    asyncio.run(go())
+
+
+class ReopeningStudio:
+    """The studio of test_voice_follows_project, which also reopens a closed Tab (workspace-views.ts agentCommand)."""
+
+    @staticmethod
+    def of(app, reopens=True):
+        from tests.test_voice_follows_project import LandingStudio
+
+        class Studio(LandingStudio):
+            async def tabs_reply(self, message):
+                action = message["action"]
+                if action["action"] == "reopen":
+                    if reopens and not any(t["id"] == action["tab"] for t in self.tabs):
+                        self.tabs.append({"id": action["tab"], "title": "Tab 2"})
+                    message = {**message, "action": {"action": "list"}}
+                await super().tabs_reply(message)
+        return Studio(app)
+
+
+def connected(built, studio):
+    from orchestrator.workspace_observation import ClientRef
+    from tests.test_table_window import CLIENT
+
+    built.accept_workspace(studio, ClientRef(CLIENT["workspaceId"], CLIENT["clientId"], CLIENT["pageEpoch"],
+                                             CLIENT["connectionEpoch"]))
+    built.hub.clients.add(studio)
+
+
+def test_a_tab_that_does_not_come_back_is_named_and_the_undo_is_partly(seeded):
+    from orchestrator.commands import COMMANDS
+
+    built, _ = seeded
+
+    async def go():
+        studio = ReopeningStudio.of(built, reopens=False)
+        studio.tabs = [{"id": "main", "title": "Main"}, {"id": "v2", "title": "Tab 2"}]
+        connected(built, studio)
+        await studio.send_report()
+        tidy_project(built)
+        run = built.brain.registry.start("organize_project", {"plan": {
+            "closeTabs": ["v2"], "conversations": [{"id": "t1", "title": "Count"}]}}, ToolContext("chat", 1, None, "tidy"))
+        await run.task
+        [card] = cards(built, "tidy").values()
+        assert (await COMMANDS["project-card"](built, studio, {"type": "project-card", "id": card["id"],
+                                                               "action": "apply"}))["ok"] is True
+        reply = await COMMANDS["project-card"](built, studio, {"type": "project-card", "id": card["id"], "action": "undo"})
+        assert reply["ok"] is True and "Not put back: the Tab “Tab 2” (the Tab was not reopened)" in reply["said"]
+        assert "Not back: the Tab “Tab 2” (the Tab was not reopened)" in cards(built, "tidy")[card["id"]]["lines"]
+        undone = cards(built, "tidy")[card["id"]]
+        assert undone["status"] == "partly" and undone["said"] == "Partly undone"
+        assert built.day.threads["t1"].title == "Outline the guard cells"  # the rest is back
 
     asyncio.run(go())
 

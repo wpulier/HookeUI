@@ -31,6 +31,7 @@ describe('a Project card', () => {
       card.update(wire({ status: 'declined', said: 'Not done · nothing changed', actions: [] }), false);
       expect(card.root.querySelector('[data-action]')).toBeNull();
       expect(projectCardCell(wire({ status: 'declined' }))).toBe('stopped');
+      expect(projectCardCell(wire({ status: 'partly' }))).toBe('attention');
     } finally { vi.unstubAllGlobals(); }
   });
 

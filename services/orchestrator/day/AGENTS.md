@@ -264,8 +264,9 @@ establish ownership across a Project switch.
     and one undo, from any Project (`Info.changes`); `project-change-undone` marks it done. Every result names its
     change and its time; undo takes that change id, or a kind (rename, archive, tidy) or a Project, else the newest; a
     change made in another conversation (the record keeps where it was asked) is asked about first, never undone
-    unasked. A step changed again since is left and said. A closed Tab is not reopened by undo: the studio keeps it with its arrangement and All Tabs
-    reopens it, and undo says so. A change whose record could not be written says it cannot be undone by asking.
+    unasked. A step changed again since is left and said. A Tab the tidy closed is reopened quietly (the tabs tool's `reopen`,
+    show false: back among the open Tabs, the user's screen unmoved, checked by the studio's saved layout); "Undone" is
+    said only once every part is back, and one that is not is named ("Partly undone"). A change whose record could not be written says it cannot be undone by asking.
 - **One store, one source of truth** (`orchestrator/day/`): every turn, note, subject, summary and researcher
   started is an event in the session's journal (`services/sessions/<sid>/journal.jsonl`, git-ignored, kept), and
   `SessionStore` (`DayStore` is its old name) is rebuilt from it, so a restart comes back to the same session,

@@ -18,7 +18,8 @@ the brain, the voice and outside agents change Projects through the same functio
 
 Every change leaves an undo record in each Project it changed (`project-change`: what each step was before;
 `SessionStore.record_change`), folded by the catalogue (`Info.changes`), so one undo, from any Project, puts it back.
-A Tab closed is kept by the studio with Reopen (All Tabs); undo says so rather than claiming it reopened it.
+A Tab a tidy closed is reopened by undo, quietly (the tabs tool's `reopen` with show false: back among the open Tabs,
+the user's screen unmoved), and checked by the studio's saved layout; one that does not come back is named.
 
 What is asked is shown where the user sees it (`ProjectCards`, a card in the chat under the request: apps/studio
 project-card.ts): the tidy proposal with Do it and Not now (a press is the user's yes, as an experiment card's Run it
@@ -39,6 +40,7 @@ from .threads import _span_words, _when
 
 LIST_MAX = 12  # Projects said in one list; the rest are counted
 SAY_BY_NAME = " Say Projects to the user by name, when and what was seen, briefly; never an id."
+NOT_BACK = "not back: "  # an undo's step that was not put back starts so
 PLAN_SHAPE = ('{"closeTabs": ["<Tab id>"], "conversations": [{"id": "t1", "title": "<new title>"}], '
               '"groups": [{"item": "<material id>", "group": "<group>"}], "name": "<Project name>"}, any of these parts')
 PROPOSAL_S = 600.0  # a tidy proposal waits this long for the user's yes
@@ -631,7 +633,7 @@ def add_project_tools(registry: Registry, services) -> None:
             return (f'Put “{inline(step["title"], 50)}” in ' + (f'the group “{inline(step["group"], 40)}”'
                                                               if step["group"] else "no group"))
         held = "empty" if not step["windows"] else f'{step["windows"]} window{"s" if step["windows"] != 1 else ""}'
-        return f'Close the Tab “{inline(step["title"], 40)}” ({held}; All Tabs reopens it)'
+        return f'Close the Tab “{inline(step["title"], 40)}” ({held})'
 
     def step_words(step: dict) -> str:
         op = step["op"]
@@ -692,24 +694,18 @@ def add_project_tools(registry: Registry, services) -> None:
         text = "Done: " + "; ".join(done) + change_words(change, kept)
         if failed:
             text += ". Not done: " + "; ".join(failed)
-        undoable = [r for r in records if r["op"] != "tab-close"]
         if kept is not True:
             text += f". {kept}"
-        elif undoable:
-            text += ". undo_project_change puts the names and groups back: say what changed, once, and that it can be undone"
-        if any(r["op"] == "tab-close" for r in records):
-            text += ". A closed Tab is kept: All Tabs reopens it, with its arrangement"
+        else:
+            text += ". undo_project_change puts it back, closed Tabs reopened: say what changed, once, and that it can be undone"
         if card is not None:
-            can_undo = kept is True and bool(undoable)
+            can_undo = kept is True
             change_cards[change] = card
-            closed = any(r["op"] == "tab-close" for r in records)
-            cards.change(card, status="done", said="Done" + (
-                         " · Undo puts the names back; All Tabs reopens closed Tabs" if can_undo and closed
-                         else " · Undo puts it back" if can_undo else ""),
+            cards.change(card, status="done", said="Done" + (" · Undo puts it back" if can_undo else ""),
                          lines=[d[:1].upper() + d[1:] for d in done] + [f"Not done: {f}" for f in failed],
                          actions=[{"id": "undo", "label": "Undo"}] if can_undo else [])
             if can_undo:
-                cards.handlers.setdefault(card, {})["undo"] = lambda c, change=change: undo(change)
+                cards.handlers.setdefault(card, {})["undo"] = lambda c, change=change: undo(change, ctx=c)
         return text
 
     # --- undo ------------------------------------------------------------------------------------------------------
@@ -768,25 +764,33 @@ def add_project_tools(registry: Registry, services) -> None:
             return (f"nothing was undone yet: the newest such change was made in another conversation, {when}: "
                     f"{inline(record['says'], 200)}. Ask the user whether to undo that; on their yes call "
                     f"undo_project_change with change {cid}")
-        said, kept_open = [], []
+        said, short = [], []  # what each step did; the steps not put back, each with why
         for sid, record in parts[cid]:
             store = await store_of(sid)
             for step in reversed(record["steps"]):
-                said.append(await undo_step(store, step, kept_open))
+                words, back = await undo_step(store, step, ctx)
+                said.append(words)
+                if not back:
+                    short.append(words.removeprefix(NOT_BACK))
             store.change_undone(cid)
         changed_list()
-        cards.change(change_cards.pop(cid, None), status="undone",
-                     said="Undone" + (" · closed Tabs stay kept: All Tabs reopens them" if kept_open else
-                                      " · put back as it was"),
-                     lines=[s[:1].upper() + s[1:] for s in said if s], actions=[])
+        # "Undone" only once every part is back; a part that is not is named, with why (a Tab that did not reopen).
+        cards.change(change_cards.pop(cid, None), status="undone" if not short else "partly",
+                     said="Undone · put back as it was" if not short else "Partly undone",
+                     lines=[w[:1].upper() + w[1:] for w in said if w], actions=[])
         what = parts[cid][0][1]["says"]
-        text = f"Undid: {inline(what, 200)}. " + "; ".join(s for s in said if s)
-        if kept_open:
-            text += (". Closed Tabs are not reopened by undo: " + ", ".join(f'"{inline(t, 40)}"' for t in kept_open)
-                     + " are kept, and All Tabs reopens them")
+        text = (f"Undid: {inline(what, 200)}. " if not short else f"Partly undid: {inline(what, 200)}. ") + "; ".join(
+            w for w in said if w)
+        if short:
+            text += ". Not put back: " + "; ".join(short) + ". Say which, plainly"
         return text
 
-    async def undo_step(store, step: dict, kept_open: list) -> str:
+    async def undo_step(store, step: dict, ctx=None) -> tuple[str, bool]:
+        """Put one step back: what it did, and whether it is back as it was."""
+        words = await _undo_step(store, step, ctx)
+        return words, not words.startswith(NOT_BACK) and not words.endswith(", so it was left")
+
+    async def _undo_step(store, step: dict, ctx=None) -> str:
         from ...project_material_edit import membership_id, organize
         from ...scientific_project_api import _owned
 
@@ -821,8 +825,16 @@ def add_project_tools(registry: Registry, services) -> None:
             return (f'"{inline(step.get("title") or "", 60)}" is in '
                     + (f'group "{inline(was.get("group"), 40)}"' if was.get("group") else "no group") + " again")
         if op == "tab-close":
-            kept_open.append(str(step.get("title") or step.get("tab") or ""))
-            return ""
+            title = inline(str(step.get("title") or step.get("tab") or ""), 50)
+            if store is not day:
+                return f'{NOT_BACK}the Tab “{title}” (it is in another Project: open it to reopen its Tabs)'
+            if services.workspace_tabs is None or ctx is None:
+                return f'{NOT_BACK}the Tab “{title}” (Tabs cannot be reopened here)'
+            try:  # quietly: back among the open Tabs as it was kept; the user's screen does not move
+                await services.workspace_tabs(ctx, {"action": "reopen", "tab": str(step.get("tab")), "show": False})
+            except Exception as exc:
+                return f'{NOT_BACK}the Tab “{title}” ({plain_error(exc)})'
+            return f'the Tab “{title}” is open again (not brought to the front)'
         return ""
 
     registry.add(Tool("undo_project_change", "Undo a change Hooke made to Projects (\"undo that\", \"put the name back\"): by its change id "

@@ -21,7 +21,7 @@ export type ProjectCardPress = { action: string } | { open: string };
 export function projectCardCell(x: ProjectCardWire): LitCellState {
   if (x.status === 'proposed' || x.status === 'asked') return 'needs';
   if (x.status === 'done') return 'ready';
-  if (x.status === 'failed') return 'attention';
+  if (x.status === 'failed' || x.status === 'partly') return 'attention'; // a part did not come back: said on it
   return 'stopped';
 }
 
