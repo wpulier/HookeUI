@@ -181,3 +181,21 @@ again.
 Receipts record device, model version and seed. A re-run is reported at three levels: inputs byte-identical (a
 cleaned image, section 8, has the original's pixels and says the original's SHA-256 instead); deterministic CPU steps
 reproduce their hashes; GPU model results match within a stated tolerance.
+
+## 11. Backups
+
+A backup is a push (6) of the **whole** sealed snapshot, journals and conversations included, to a destination only
+its owner reads: a folder, or a private Git-host repository (`project_backup`). A Git-host backup's large files are
+assets of its private `hooke-data` release, which are read signed in, never from the public download address. A
+backup to a public repository is refused before anything is sent. A destination outside the owner's own storage is
+scanned for secrets (6.2), and a folder is not.
+
+Each backup records a `project-backed-up` journal event (destination, commit, parent, snapshot SHA-256). The next
+backup to the same destination has the latest such commit as its parent, so when another Mac backed up since, the
+compare-and-swap (6.5) refuses and nothing is sent: the owner restores the newer backup first.
+
+**Restoring** fetches (7) and restores the snapshot as a working folder with the **same** origin, handle and history.
+It is then registered through the owner's folder registration: on a Mac that has never held the Project it becomes
+that Mac's Project, with no agent permissions; on a Mac whose registered location is gone, it takes that location's
+place. A Mac whose location still exists refuses, so one Project never has two working folders on one Mac. The
+restored journal records `project-restored-from-backup` (destination, commit), which is the next backup's parent there.

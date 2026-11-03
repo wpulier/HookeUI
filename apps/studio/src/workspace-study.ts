@@ -6,6 +6,7 @@ import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
 import { openProjectFolder } from './project-folder';
 import { openStartFrom, type GitHubCode, type PublishActions } from './project-publish';
+import { openRestore, type BackupActions } from './project-backup';
 import {inputChangeBlockReason} from './workspace-input';
 import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-identity';
 import {sameMediaReference} from './project-media-reference';
@@ -1344,11 +1345,20 @@ function openCurrentProjectFolder():void {
         stop: async operation => { const r = await bridge.request('project-record-stop', {session: owner.session, operation}); if (!r.operation) throw new Error('Stop was not acknowledged. Check its status.'); return r.operation; },
       },
       publishActions: projectPublishActions(owner.session),
+      backupActions: projectBackupActions(owner.session),
       read: async () => { const reply = await bridge.request('project-storage', {session: owner.session});
         if (!reply.storage) throw new Error('Project storage details are unavailable.'); return {storage: reply.storage}; },
       reveal: async () => { const reply = await bridge.request('project-reveal', {session: owner.session});
         if (!reply.path) throw new Error('Project location is unavailable.'); return {ok: reply.ok === true, path: reply.path, error: reply.error}; },
     });
+}
+/** Back up one Project (ticket 08); the server seals, sends and checks. */
+function projectBackupActions(session: string): BackupActions {
+  return {
+    status: async () => { const r = await bridge.request('project-remote-status', {session}); return {backups: r.backups ?? []}; },
+    backUp: async destination => { const r = await bridge.request('project-backup', {session, destination}); if (!r.backup) throw new Error(r.error ?? 'The backup was not sent.'); return {backup: r.backup, location: r.location ?? ''}; },
+    github: projectPublishActions(session).github,
+  };
 }
 /** Publish, Update and GitHub sign-in for one Project (ADR 0028); the server reviews, seals and checks. */
 function projectPublishActions(session: string): PublishActions {
@@ -1380,6 +1390,7 @@ const appMenu = new WorkspaceAppMenu({
   },
   projectFolder: openCurrentProjectFolder,
   startFrom: () => { if (switching) return; openStartFrom({start: async (source, name) => { const r = await bridge.request('project-start-from', {source, name}); if (!r.project) throw new Error(r.error ?? 'The project could not be started.'); return {project: r.project}; }}, session => void changeSession(session)); },
+  restore: () => { if (switching) return; openRestore({restore: async (source, replaceMissing) => { const r = await bridge.request('project-restore', {source, replaceMissing}); if (r.missing) return {missing: r.error ?? 'This Mac knew this project at a folder that is not there now.'}; if (!r.project) throw new Error(r.error ?? 'The backup could not be restored.'); return {project: r.project}; }}, session => void changeSession(session)); },
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
   newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
 });

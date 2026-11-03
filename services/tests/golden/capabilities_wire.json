@@ -2887,7 +2887,9 @@
      "project-publish",
      "project-start-from",
      "project-update-from",
-     "project-remote-status"
+     "project-remote-status",
+     "project-backup",
+     "project-restore"
     ],
     "command": "session",
     "control": "session"
