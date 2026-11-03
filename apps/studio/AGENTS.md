@@ -1813,6 +1813,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   the server. `experiments` (the open Project's, on connect and on a Project switch) and `experiment` messages keep it.
   The Data reader draws its results document with its `byline`, each section's `figure` (one of the entry's pictures)
   and `table` (data-reader.ts `readerDocument`).
+  A design's Study plan run (`kind` "steps", orchestrator/plan_runs.py) keeps its steps on the card while it runs, each
+  marked done (ticked, quiet), now (the card's own text) or next (`stepStates`), says "step N of M", and while it waits
+  on the user's own step shows it ("Your step: ...") with Done (the `experiment` command's `continue`, a press of the
+  user's own, as their spoken "done") beside Stop.
   **Work in flight while you keep talking** (`handoffs.ts`, `handoffs.css`; Will, 29 Oct: two things ran and nothing
   said so). Each request the voice hands to Hooke's brain (`do_in_hooke`; a server `handoff` line, filed with its
   conversation under one `lineId`, so a later state replaces it and a replay shows its last) is one row under the voice

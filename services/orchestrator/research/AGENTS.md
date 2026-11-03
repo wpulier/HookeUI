@@ -586,6 +586,9 @@ THINK_TOOLS, `tests/test_partner_reach.py`); `tests/test_experiment_design.py` i
   plan's own Study researcher, and a workflow step holds the view now as a retained frame and admits the saved workflow
   through `Studies.start_workflow` under an assignment the run proposes, claims (renewed while it runs) and completes.
   A step that fails stops the run with its reason; Stop cancels its researchers and so their missions.
+- **Its card while it runs** (apps/studio/src/experiment-card.ts, the wire's `stepStates`, `waiting`, `canContinue`):
+  each step marked done, now or next, the user's own step it waits on ("Your step: ..."), Done (the card's
+  `continue`, as their spoken "done") and Stop, so how it is going can be read by looking.
 
 `coordination.py` stores reviewed plans and collaborative assignments in the existing Study revision/task store. Plans pin exact material and instruction content. Claims are atomic, five-minute renewable leases; expiry requires reconciliation by the original actor and never starts replacement work. Completion retains an attributed report and waits for linked WorkflowService executions to settle. Assignment reports are not human findings. Study workflow admission enforces a reviewed plan's experiment count and reuses identical scientific specifications across contributors. Token/time limits are declared here, but need separately qualified external harness enforcement. Reads and reconnection never dispatch. `coordination_api.py` is shared by Studio and the authorized door.
 
