@@ -79,12 +79,42 @@ export function entryWords(entry: AgentEntry): { who: string; text: string } {
     const files = /^(Changed|Changing) files: /.test(text);
     const bare = text.replace(/^(Ran|Running) a command: /, '').replace(/^(Changed|Changing) files: /, '')
       .replace(/^Using (Bash|Read|Write|Edit): /, '$1 ');
+    // A call to Hooke's own door, said as what it did ("Kept report.md in the Project"); the command is on hover.
+    const plain = hookeWords(bare.replace(/^Bash /, ''));
+    if (plain) return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? 'Running' : '', text: plain };
     const done = files ? 'Changed' : 'Ran';
     return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? (files ? 'Changing' : 'Running') : done, text: bare };
   }
   if (entry.role === 'ask') return { who: 'Asked', text };
   if (entry.role === 'note') return { who: '', text };
   return { who: entry.final ? 'Answer' : 'Said', text };
+}
+
+/** What a `hooke` command did, in a person's words, when it is one of the door's own calls; null otherwise (a chain,
+ * a pipe, or anything else is shown as itself). */
+export function hookeWords(command: string): string | null {
+  const c = command.trim().replace(/\s+>\s*[\w.-]+$/, '');
+  if (!/^hooke /.test(c) || /[;&|`]|\$\(/.test(c.replace(/'[^']*'/g, "''"))) return null;
+  const field = (name: string) => c.match(new RegExp(`\\\\?"${name}\\\\?"\\s*:\\s*\\\\?"([^"\\\\]+)`))?.[1];
+  if (/^hooke status\b/.test(c)) return 'Checked that Hooke is there';
+  if (/^hooke tools\b/.test(c)) return 'Read what Hooke can do here';
+  if (/^hooke run project\.import\b/.test(c)) { const file = field('file'); return `Kept ${file ? file.split('/').pop() : 'a file'} in the Project`; }
+  if (/^hooke run project\.state\b/.test(c)) return 'Read the Project';
+  if (/^hooke run study\.coordination\b/.test(c)) return 'Read its Study';
+  if (/^hooke run study\.coordinate\b/.test(c)) {
+    const action = field('action');
+    return { claim: 'Claimed its assignment', complete: 'Returned its assignment with its report', plan: 'Saved a plan in its Study',
+      propose: 'Proposed an assignment' }[action ?? ''] ?? 'Updated its Study';
+  }
+  if (/^hooke api POST '?studies\/[^/\s']+\/claims/.test(c)) return 'Published a claim for your review';
+  if (/^hooke api GET '?studies/.test(c)) return 'Read its Study';
+  if (/^hooke api GET '?workflows/.test(c)) return 'Read Hooke’s workflows';
+  if (/^hooke operations?\b/.test(c)) return 'Followed its work in Hooke';
+  if (/^hooke open\b/.test(c)) return 'Opened a picture in Hooke';
+  if (/^hooke download\b/.test(c)) return 'Downloaded a file from the Project';
+  const ran = c.match(/^hooke run ([\w.:-]+)/);
+  if (ran) return `Ran ${ran[1].replace(/^catalog:/, '')} in Hooke`;
+  return null;
 }
 
 /** An agent's words with its **bold** and `code` drawn as such, never as markup characters. */
@@ -399,7 +429,7 @@ export class AgentsPanel {
       const li = el('li', `agents-line is-${entry.role}`);
       const body = el('span', 'agents-text');
       if (entry.role === 'agent') body.append(...inline(words.text)); else body.textContent = words.text;
-      if (entry.role === 'tool') body.title = words.text;  // a long command on one line; all of it on hover
+      if (entry.role === 'tool') body.title = entry.text;  // the command itself, all of it, on hover
       li.append(el('span', 'agents-who', words.who), body);
       lines.append(li);
     }
@@ -410,9 +440,9 @@ export class AgentsPanel {
     if (row.status === 'working' || row.status === 'needs-you' || row.status === 'done') {
       const form = el('form', 'agents-reply');
       const input = el('input', 'agents-reply-text'); input.type = 'text';
-      input.setAttribute('aria-label', `Tell ${row.label}`); input.placeholder = `Tell ${row.label}… (sent as Hooke's note)`;
+      input.setAttribute('aria-label', `Tell ${row.label}`); input.placeholder = `Tell ${row.label}…`;
       const send = el('button', 'mm-control', 'Send'); send.type = 'submit';
-      form.append(input, send);
+      form.append(input, send, el('span', 'agents-reply-note', 'Sent as Hooke’s note, never as your approval'));
       form.addEventListener('submit', (event) => { event.preventDefault(); const text = input.value; send.disabled = true;
         void this.reply(row, text).then((ok) => { send.disabled = false; if (ok) input.value = ''; }); });
       peek.append(form);

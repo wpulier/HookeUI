@@ -64,7 +64,9 @@ class HookeSide:
         info = day.catalogue.get(sid) if sid else None
         if info is None:
             raise Refused("Open a Project first: the agent works in one Project.", next="open or make a Project", status=409)
-        return sid, info.name or "this Project"
+        # Its name as the studio's header says it (sessions.ts sessionName): an unnamed one is "Untitled project".
+        label = info.name or info.label
+        return sid, "Untitled project" if not label or label == "Untitled session" else label
 
     def connect(self, label: str, kind: str, launch: str, project: str) -> tuple[str, str]:
         from ..door.projects import access

@@ -38,7 +38,9 @@ def first_message(*, task: str, cli: str, kind: str, project: str, project_name:
         "> " + task.strip().replace("\n", "\n> "),
         "",
         "Your place in Hooke:",
-        f"- Project: {project_name} ({project}). Study: {study}. Your assignment: {assignment}.",
+        f"- Project: \"{project_name}\" (its id for commands: {project}). Study: {study}. Your assignment: {assignment}.",
+        f"- When you write or speak about the Project, call it \"{project_name}\", as the researcher sees it; never by its "
+        "id or a date.",
         f"- Your folder: {folder}. Keep your files there.",
         f"- The `hooke` command: {hooke} (your connection is already set up; never run `hooke connect`).",
         "- It talks to Hooke on this Mac (127.0.0.1). If your sandbox keeps it from reaching Hooke (it says \"Hooke "

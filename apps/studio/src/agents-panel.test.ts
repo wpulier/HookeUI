@@ -1,7 +1,7 @@
 // The Agents panel (ADR 0029): every worker grouped Needs you, Working, Done; an outside agent's ask is answered only by
 // the person's own button, sent with the panel's header; replies go as Hooke's notes; refusals say what to do.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentsPanel, agentGroup, agentSub, entryWords, inline, parseAgents, refusalWords, type AgentRow } from './agents-panel';
+import { AgentsPanel, agentGroup, agentSub, entryWords, hookeWords, inline, parseAgents, refusalWords, type AgentRow } from './agents-panel';
 import { TestElement, fire, settleMicrotasks, syntheticDOM } from './workspace-windows.test-support';
 
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -45,10 +45,14 @@ describe('the Agents panel', () => {
       .toEqual({ who: 'Hooke, while it worked', text: 'use micro-sam' });
     expect(entryWords({ n: 2, role: 'agent', text: 'Done.', at: 2, final: true }).who).toBe('Answer');
     expect(agentSub(row({ costUsd: 0.314 }))).toBe('Codex · Ran a command: ls · about $0.31 by its own count');
+    expect(entryWords({ n: 3, role: 'tool', text: 'Ran a command: ls -la', at: 3, state: 'done' }))
+      .toEqual({ who: 'Ran', text: 'ls -la' });
     expect(entryWords({ n: 3, role: 'tool', text: 'Ran a command: hooke status --json', at: 3, state: 'done' }))
-      .toEqual({ who: 'Ran', text: 'hooke status --json' });
+      .toEqual({ who: '', text: 'Checked that Hooke is there' });
     expect(entryWords({ n: 5, role: 'tool', text: 'Changed files: its folder/report.md', at: 5, state: 'done' }))
       .toEqual({ who: 'Changed', text: 'its folder/report.md' });
+    expect(entryWords({ n: 6, role: 'tool', text: "Ran a command: hooke run project.import '{\\\"file\\\":\\\"its folder/report.md\\\"}' --project p --key k", at: 6, state: 'done' }))
+      .toEqual({ who: '', text: 'Kept report.md in the Project' });
     expect(entryWords({ n: 4, role: 'note', text: 'You allowed it', at: 4 })).toEqual({ who: '', text: 'You allowed it' });
     vi.stubGlobal('document', syntheticDOM().document);
     expect(inline('Saved **report.md** as `artifact`').map((n) => (n as unknown as TestElement).tagName?.toLowerCase() ?? 'text'))
@@ -146,6 +150,17 @@ describe('the Agents panel', () => {
     fire(button(root, 'Review its report and claim ›')!, 'click');
     expect(opened).toEqual(['p' + 'a'.repeat(32)]);
     expect(root.textContent).toMatch(/Working 1:1\d/);
+  });
+
+  it('says what a call to Hooke did, and leaves anything else as itself', () => {
+    expect(hookeWords('hooke status --json')).toBe('Checked that Hooke is there');
+    expect(hookeWords('hooke tools --json > tools.json')).toBe('Read what Hooke can do here');
+    expect(hookeWords(`hooke run study.coordinate '{"study":"p1","action":"claim","fields":{}}' --project p --key k`)).toBe('Claimed its assignment');
+    expect(hookeWords(`hooke run study.coordinate '{"study":"p1","action":"complete","fields":{}}' --project p --key k`)).toBe('Returned its assignment with its report');
+    expect(hookeWords(`hooke api POST studies/p1/claims '{"session":"s"}'`)).toBe('Published a claim for your review');
+    expect(hookeWords("hooke run catalog:basic-bright-objects '{}' --project p --key k")).toBe('Ran basic-bright-objects in Hooke');
+    expect(hookeWords('hooke status && rm -rf ~')).toBeNull();
+    expect(hookeWords('ls -la')).toBeNull();
   });
 });
 
