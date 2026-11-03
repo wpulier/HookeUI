@@ -50,6 +50,7 @@ STALE_R = 0.12  # the target moved this far (radii) while a line was judged: the
 STALE_DROPS = 2  # at most this many outrun lines in a row are dropped; then the newest is said
 FOCUS_CHANGE = 0.1  # sharpness changed by this share and held: the focus moved, judge it
 FOCUS_WAIT_S = 2.0  # after a focus line, judge once the sharpness has held this long, whatever it did
+FOCUS_WINDOW_S = 0.6  # sharpness is the median of this long of frames, and held means held this long
 FOCUS_HELD = 0.12  # held: the last SETTLE_S of frames within this share of each other
 HERE_R = 0.35  # within this of the centre the target is "here": its sharpness counts for this place
 AWAY_R = 0.6  # farther than this, the place's sharpness is forgotten (another part of the slide)
@@ -420,9 +421,9 @@ class Guide:
             g.lost_told = True  # once per loss: said again only after it was found and lost again
             self._raise(g, "lost")
         elif still and reading.known and reading.sharp is not None and g.judged_sharp:
-            recent = [x.sharp for x in g.readings if x.sharp is not None and t - x.t <= SETTLE_S]
+            recent = [x.sharp for x in g.readings if x.sharp is not None and t - x.t <= FOCUS_WINDOW_S]
             now_sharp = _median(recent)
-            # Changed, and held: every frame of the last SETTLE_S agrees (a turn half seen is not judged).
+            # Changed, and held: every frame of the last FOCUS_WINDOW_S agrees (a turn half seen is not judged).
             held = len(recent) >= 3 and now_sharp and (max(recent) - min(recent)) / now_sharp <= FOCUS_HELD
             since_line = t - (g.lines[-1].t if g.lines else g.started)
             if held and abs(now_sharp / g.judged_sharp - 1) >= FOCUS_CHANGE and since_line >= 0.6:
@@ -568,10 +569,11 @@ class Guide:
             g.moved_since_judged = False
 
     def _sharp_now(self, g: Guidance) -> float | None:
+        """The sharpness now: a median over FOCUS_WINDOW_S of frames (a few frames are noise, more so on a slow feed)."""
         reading = g.latest()
         if reading is None:
             return None
-        return _median([x.sharp for x in g.readings if x.sharp is not None and reading.t - x.t <= SETTLE_S])
+        return _median([x.sharp for x in g.readings if x.sharp is not None and reading.t - x.t <= FOCUS_WINDOW_S])
 
     def _note_followed(self, g: Guidance, reading: Reading, reason: str) -> None:
         """What the hands did after the last line, measured again at each judgment until the next line: the picture's

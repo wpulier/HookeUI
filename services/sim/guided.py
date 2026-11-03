@@ -162,6 +162,7 @@ async def scenario_guide(stack, viewer):
         health = await stack.orch_health()
         out.check("the live view kept going throughout", health.get("state") == "live", str(health.get("state")))
     finally:
+        await asyncio.sleep(2.0)  # the view as the guidance left it (its "centred" on screen), before the footage is back
         await viewer.send({"type": "tool", "name": "stop_guiding", "args": {}})
         if settings_before.get("guide"):
             await viewer.send({"type": "settings", "settings": {"guide": settings_before["guide"]}})

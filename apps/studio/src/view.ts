@@ -794,8 +794,10 @@ export class View {
     ctx.save();
     ctx.globalAlpha = done ? Math.max(0, 1 - (now - g.at) / GUIDE_DONE_MS) : 0.95;
     stroke(() => { ctx.beginPath(); ctx.arc(centre[0], centre[1], zone, 0, Math.PI * 2); }, done ? [] : [4, 4], done ? 2 : 1.25);
+    // The target where the slide's measured movement puts it (as the guidance itself places it, and where_is): its
+    // outline's own pixel check (isVisible) can lag a moving slide, and the arrow is guidance, not the outline.
     const obj = this.objects.find((o) => o.id === g.target);
-    if (!done && obj && isVisible(obj, h)) {
+    if (!done && obj && obj.anchorEpoch === h.epoch && h.tracked !== false) {
       const pts = obj.polygons.flat();
       const sx = h.dx - obj.anchorOffset[0], sy = h.dy - obj.anchorOffset[1];
       const xs = pts.map((q) => q[0] + sx), ys = pts.map((q) => q[1] + sy);
