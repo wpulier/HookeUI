@@ -198,7 +198,8 @@ async def prepare(services, ctx, *, target: str, revision: int, rows: int, what:
         reply = await services.workspace_tabs(ctx, {"action": "create", "title": asked, "show": False})
         made = reply.get("made") if isinstance(reply.get("made"), dict) else {}
         if not made.get("id"):
-            raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made", next=None)
+            raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made; the table is saved in Data as {target}",
+                             next="show the table on the Tab in front instead (show_measurements without show false)")
         found = {"id": made["id"], "title": made.get("title") or asked}
     await services.workspace_tabs(ctx, {"action": "add", "tab": found["id"], "show": False,
                                         "resource": {"id": target, "version": revision}, "presentation": "table"})
