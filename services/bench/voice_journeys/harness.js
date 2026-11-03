@@ -93,6 +93,12 @@
 
   function chat(data) {
     if (data.length < 200000 && data.includes('"settings"')) settings(data);
+    if (data.length < 20000 && data.includes('"type":"guide"')) { // a guidance line on the live view (guide.py)
+      try {
+        const g = JSON.parse(data);
+        if (g.type === 'guide') ev({ e: 'guide', m: { id: g.id, event: g.event, active: g.active, say: g.say, slide: g.slide, focus: g.focus } });
+      } catch { /* not one */ }
+    }
     if (data.length > 20000 || !data.includes('"lineId"')) return;
     let line; try { line = JSON.parse(data); } catch { return; }
     if (line.type !== 'chat' || line.role !== 'assistant' || !line.voice || !line.lineId) return;
@@ -432,6 +438,11 @@
     const rows = researchers();
     if (waitFor.researcher === 'done') return rows.some((r) => r.group === 'done' && !before.has(r.rid));
     if (waitFor.researcher === 'latest-done') { const last = newest(); return !!last && last.group === 'done'; }
+    // A guidance ended (done, stopped or given up) since the last spoken step (guide.py's last line on the live view).
+    if (waitFor.guide === 'ended') {
+      const since = state.steps.filter((s) => s.say).slice(-1)[0]?.start ?? 0;
+      return state.events.some((e) => e.e === 'guide' && e.t >= since && e.m && e.m.active === false);
+    }
     if (waitFor.frames) { const last = [...state.events].reverse().find((e) => e.e === 'frames'); return !!last && last.n > 0 && last.stage !== 'empty'; }
     return false;
   }
@@ -520,6 +531,11 @@
             await sleep(2500);
             if (step.seek != null) await bridge(base, `/feed/seek?seconds=${step.seek}`);
             await bridge(base, `/feed/pause?paused=${step.pause ? 1 : 0}`);
+            await sleep((step.settle ?? 6) * 1000);
+          }
+          if (step.stage) { // a virtual microscope's view as the camera (sim/virtual_scope.py; only a simulating bridge)
+            const r = await bridge(base, `/sim/stage?url=${encodeURIComponent(step.stage)}`);
+            ev({ e: 'stage', step: step.id, ok: !!r.ok, url: step.stage });
             await sleep((step.settle ?? 6) * 1000);
           }
           if (step.fault) { // only a second stack started with faults on answers it

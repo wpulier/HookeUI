@@ -967,10 +967,12 @@ WATCH = {
 GUIDE = {
     o.id: o
     for o in [
-        Option("model", "The fast model decides", "the fast model reads the measurements and says each line; guide "
-                                                  "bench: Gemini 3.8 Flash 16/16 centred and sharp, median 23 s, 9.5 lines"),
+        Option("gemini-3.5-flash", "Gemini 3.5 Flash decides", "guide bench: 16/16 centred and sharp, median 13.5 s, "
+                                                               "8.5 lines, 0.45 s a line", model="gemini-3.5-flash"),
+        Option("gemini-3.8-flash", "Gemini 3.8 Flash decides", "guide bench: 16/16, median 23 s, 9.5 lines, 1.6 s a line",
+               model="gemini-3.8-flash"),
         Option("rule", "The app decides", "code moves toward the centre, then climbs the sharpness; no model call; "
-                                          "guide bench 24/24, median 9.3 s, 8.5 lines (no model latency)"),
+                                          "guide bench 24/24, median 9.3 s (no model latency)"),
     ]
 }
 
@@ -1164,7 +1166,7 @@ class Settings:
     orb_every: str = "1"  # how often feature matches vote on the slide's move (MOTION_ORB_EVERY; measured)
     library_looks: str = "off"  # whether new assets' pictures are sent to be filed by look (LIBRARY_LOOKS; off by default)
     watch: str = "quiet"  # what the watcher says unasked (WATCH; view_watch.DELIVERY)
-    guide: str = "model"  # who decides each line when guiding the user's hands (GUIDE; guide.py)
+    guide: str = "gemini-3.5-flash"  # who decides each line when guiding the user's hands (GUIDE; guide.py)
     # USD a day for all researchers, or None: unlimited (the default; ADR 0004). Set in the
     # studio, by voice or chat (set_research_cap), or MICROMIND_RESEARCH_CAP; kept until changed.
     research_cap: float | None = field(default_factory=lambda: _cap_from_env())

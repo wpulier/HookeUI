@@ -815,6 +815,7 @@ export type ServerMessage =
   | CapabilitiesWire
   | ScaleState
   | CoachState
+  | GuideState
   // answering: its steps have run, its answer is being written. A voice hand-off's working signal (channel "voice",
   // claude/p25-w1) carries its hand-off's id, job, label and, when off, its state; its row and the voice's state show it,
   // never the typed slot.
@@ -1410,6 +1411,20 @@ export interface CoachState {
   focus: number | null;
   cue: 'sharper' | 'passed' | 'phone' | null;
   advice: string | null;
+}
+
+/** Guiding the user's hands (orchestrator/guide.py): the line said now and what it is about, drawn on the live view
+ * (view.ts drawGuide: the target ringed, an arrow to the centre, the line) until the guidance ends. */
+export interface GuideState {
+  type: 'guide';
+  id: string;
+  active: boolean;
+  event: string; // line, done, stopped, gave-up, replaced, failed
+  target: string; // the outline guided to
+  say: string;
+  slide: { x?: 'right' | 'left'; y?: 'away' | 'toward'; amount?: string } | null;
+  focus: 'up' | 'down' | null;
+  state: string;
 }
 
 /** How big things are (orchestrator/scale.py): the objective in use and microns per camera pixel. */

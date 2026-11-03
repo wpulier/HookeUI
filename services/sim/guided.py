@@ -212,3 +212,72 @@ async def scenario_guide_words(stack, viewer):
         await _put_back(stack, before)
         scope.close()
     return out
+
+
+# --- beside a voice journey (bench/voice_journeys, plan will-guide) -----------------------------------------------------
+async def follow(orch: str, video, port: int, out, seconds: float) -> dict:
+    """Serve the virtual leaf microscope on `port` (the plan's stage step plays it), watch the orchestrator's
+    conversation as the studio does, and follow every guidance line until `seconds` pass. Writes what was said, what
+    the hands did and the truth at each guidance's end to `out` (JSON)."""
+    import json
+    from pathlib import Path
+
+    from .harness import Viewer
+    from .virtual_scope import LEAF_STOMATA, leaf_scope
+
+    scope, stoma = leaf_scope(Path(video), target="right", off=(0.45, -0.3), z=0.9)
+    scope.serve(port)
+    viewer = Viewer(orch.replace("http://", "ws://", 1).rstrip("/") + "/ws")
+    runner = asyncio.create_task(viewer.run())
+    await viewer.ready()
+    stomata = [(x + stoma[0] - LEAF_STOMATA["right"][0], y + stoma[1] - LEAF_STOMATA["right"][1])
+               for x, y in LEAF_STOMATA.values()]
+    record: dict = {"stage": f"{scope.url}/stream.mjpeg", "guidances": []}
+    end = time.monotonic() + seconds
+    try:
+        while time.monotonic() < end:
+            person = Person(viewer, scope)
+            follow_task = asyncio.create_task(person.run(end - time.monotonic()))
+            found = None
+            while not follow_task.done():
+                if found is None and person.target and person.target in viewer.scene:
+                    pts = [p for poly in viewer.scene[person.target]["polygons"] for p in poly]
+                    xs, ys = [p[0] for p in pts], [p[1] for p in pts]
+                    found = scope.slide_point((min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2)
+                await asyncio.sleep(0.05)
+            line = follow_task.result()
+            if line is None:
+                break
+            entry = {"lines": [x.get("say") for x in person.lines], "ended": line.get("event"),
+                     "truth": {"blur": round(scope.truth()["blur"], 2)}}
+            if found is not None:
+                px, py = scope.where(*found)
+                entry["truth"]["fromCentre"] = round(math.hypot(px - scope.cx, py - scope.cy) / scope.r, 3)
+                entry["truth"]["nearestLabelledStomaPx"] = round(min(math.hypot(found[0] - x, found[1] - y)
+                                                                     for x, y in stomata), 1)
+            record["guidances"].append(entry)
+            Path(out).write_text(json.dumps(record, indent=1))
+    finally:
+        Path(out).write_text(json.dumps(record, indent=1))
+        runner.cancel()
+        scope.close()
+    return record
+
+
+def main() -> None:
+    import argparse
+
+    from .harness import default_video
+
+    parser = argparse.ArgumentParser(description="The simulated person beside a guidance voice journey")
+    parser.add_argument("--orch", default="http://127.0.0.1:28870", help="the journey stack's orchestrator")
+    parser.add_argument("--port", type=int, default=18990, help="the virtual microscope's port (the plan's stage URL)")
+    parser.add_argument("--out", required=True, help="where what happened is written (JSON)")
+    parser.add_argument("--seconds", type=float, default=600)
+    parser.add_argument("--video", default="", help="the qualified leaf recording (default: the manifest's)")
+    args = parser.parse_args()
+    asyncio.run(follow(args.orch, args.video or default_video(), args.port, args.out, args.seconds))
+
+
+if __name__ == "__main__":
+    main()

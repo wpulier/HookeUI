@@ -514,7 +514,9 @@ class App:
         from .guide import Guide
 
         async def ask_guide(prompt: str) -> dict | None:
-            option = hub.settings.fast if hub.settings.fast != "off" else hub.settings.vision
+            from .options import VISION
+
+            option = hub.settings.guide if hub.settings.guide in VISION else hub.settings.fast  # GUIDE's own model
             result = await agent.vision(option).ask([], prompt, max_output_tokens=300)
             return result.data if isinstance(result.data, dict) else None
 
@@ -531,6 +533,10 @@ class App:
                                         "requestId": origin.get("request_id"), "actionId": origin.get("action_id")},
                                 tone="error" if line.get("event") == "failed" else "info",
                                 refs={"objectIds": [g.target]})
+            with contextlib.suppress(Exception):  # the line on the live view: the target ringed, an arrow, the words
+                hub.broadcast({"type": "guide", "id": g.id, "active": line.get("event") == "line",
+                               "event": line.get("event") or "line", "target": g.target, "say": line.get("say") or "",
+                               "slide": line.get("slide"), "focus": line.get("focus"), "state": line.get("state") or ""})
             if line.get("told"):
                 return  # the tool's answer says it: filed, not said twice
             voice = getattr(brain, "voice", None) if brain is not None else None

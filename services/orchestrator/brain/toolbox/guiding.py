@@ -48,8 +48,9 @@ def add_guide_tools(registry: Registry, services) -> None:
                 if find is None:
                     raise ToolFailed(f"nothing called {what!r} is outlined, and finding things needs the vision model",
                                      next="outline it with a click, then ask me to centre it")
+                earlier = set(ctx.objects)
                 found = await find.handler(ctx, {"what": what, "all": False, "keep": True})
-                made = [hub.scene.objects.get(i) for i in reversed(ctx.objects)]
+                made = [hub.scene.objects.get(i) for i in reversed(ctx.objects) if i not in earlier]  # this find's own
                 made = [o for o in made if o is not None and o.trial is None]
                 if not made:
                     raise ToolFailed(f"I don't see a {what} in this view ({found})",
@@ -70,7 +71,7 @@ def add_guide_tools(registry: Registry, services) -> None:
             g = guide.start(obj.id, name=name, asked=ctx.question or f"centre the {name}", until=until, origin=origin,
                             hold_first=True)
         except ValueError as exc:
-            raise ToolFailed(str(exc), next=None, argument=True) from exc
+            raise ToolFailed(str(exc), next=None, argument=True) from exc  # no next: the model's own argument, it corrects it
         if ctx.objects is not None and obj.id not in ctx.objects:
             ctx.objects.append(obj.id)
         first = await guide.first_line(g, FIRST_LINE_S)

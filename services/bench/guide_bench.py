@@ -270,7 +270,8 @@ def model_asker(option: str):
     from orchestrator.vision import make_vision
 
     load_keys()
-    vision = make_vision(VISION[option].spec, temperature=0.2)
+    # An option's own spec, or a spec itself ("gemini:gemini-3.8-flash@minimal": another thinking level)
+    vision = make_vision(VISION[option].spec if option in VISION else option, temperature=0.2)
 
     async def ask(prompt: str):
         result = await vision.ask([], prompt, max_output_tokens=300)
@@ -282,7 +283,7 @@ def model_asker(option: str):
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--judge", choices=("rule", "model"), default="rule")
-    parser.add_argument("--model", default="gemini-3.8-flash", help="the fast model option for --judge model")
+    parser.add_argument("--model", default="gemini-3.5-flash", help="the fast model option for --judge model")
     parser.add_argument("--seeds", type=int, default=2)
     parser.add_argument("--only", default="", help="comma-separated case names")
     parser.add_argument("--trace", type=Path, help="append every judgment (facts, answer, check) to this JSONL file")

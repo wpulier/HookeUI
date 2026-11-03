@@ -1,0 +1,42 @@
+{
+ "id": "will-guide",
+ "about": "Will's words at the microscope (Lane E of the 3 Nov plan): \"Find me a stoma and centre it.\" The camera is a virtual microscope made of the real June 14 leaf recording's labelled frame (services/sim/virtual_scope.py: a stoma off to one side, slightly out of focus), played by the bridge as the camera; a simulated person moves its slide and focus as each line asks. Start the person beside the run, on the stack's orchestrator: cd services && .venv/bin/python -m sim.guided --orch http://127.0.0.1:28870 --out <file>. Hooke finds a stoma, rings it on the live view with an arrow to the centre, says one short line at a time, says Stop as it reaches the centre, gets it sharp, and says once that it is centred and sharp.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "find",
+   "kind": "act",
+   "say": "Find me a stoma and centre it.",
+   "expect": {
+    "tools": [
+     "guide",
+     "do_in_hooke"
+    ],
+    "toolRequired": false,
+    "visible": "a stoma ringed on the live view, a dashed arrow from it to a small circle at the centre, the first line under the eyepiece",
+    "outcome": true,
+    "judge": "acknowledges at once in a few words, finds a stoma and says the first direction plainly in the hands' terms (which way to move the slide, roughly how far), without ids or numbers"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-3m43s.mp4",
+   "stage": "http://127.0.0.1:18990/stream.mjpeg",
+   "settle": 6
+  },
+  {
+   "id": "centred",
+   "kind": "idle",
+   "waitFor": {
+    "guide": "ended"
+   },
+   "wait": 180,
+   "expect": {
+    "visible": "the stoma in the centre circle, sharp; the ring and arrow gone",
+    "outcome": true,
+    "judge": "says each guidance line as it comes, short and timely (a stop when the stoma reaches the centre, then the focus), never a line the view has moved past, never the same line twice in a row without cause, and says once at the end that the stoma is centred and sharp"
+   }
+  }
+ ]
+}

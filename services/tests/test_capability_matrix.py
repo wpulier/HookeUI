@@ -35,7 +35,7 @@ RUN_ARGS = {"research-classify": {"models": ["gemini-3.8-flash", "gpt-6.1-sol"],
 # Roles a request names a model for with `use` (names.roles), by the operation or setting `use` takes.
 USE_AS = {"outline": "outline", "cells": "cells", "embed": "looks"}
 # Methods whose choice runs a model of its own: set as the Behaviour menu sets them, from now on.
-BEHAVIOUR = ("dissect", "track", "claim_check", "lesson_check", "reference_search")
+BEHAVIOUR = ("dissect", "track", "claim_check", "lesson_check", "reference_search", "guide")
 BUDGET_S = 90.0
 _spent: dict[str, float] = {}
 pytestmark = pytest.mark.wall_clock  # make test-timing runs the whole matrix: its time bound sums every row's
@@ -186,6 +186,9 @@ PLANS: dict[str, Plan] = {
     "watching": Plan("what are you watching for?", [("watching", {})], before=[("watch", {"what": "movement", "by": "motion"})]),
     "map-show": Plan("show me the map", [("show_map", {})]),
     "where-is": Plan("where was the stoma?", [("where_is", {"object": O1})], ("outline",)),
+    "guide": Plan("find me a stoma and centre it", [("guide", {"object": O1})], ("outline",)),
+    "stop-guiding": Plan("stop guiding", [("stop_guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
+    "guiding": Plan("what are you guiding me to?", [("guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "bookmark": Plan("bookmark this, the nice stomata", [("bookmark", {"note": "the nice stomata"})]),
     "way-to-bookmark": Plan("which way is the stomata I marked?", [("way_to_bookmark", {})],
                             before=[("bookmark", {"note": "the nice stomata"})]),

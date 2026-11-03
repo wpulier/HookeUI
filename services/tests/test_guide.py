@@ -223,3 +223,69 @@ def test_the_place_is_said_unknown_across_a_lost_epoch():
     info.epoch = 1
     reading = guide._read(g, info)
     assert reading.known and math.isclose(reading.r, math.hypot(60, 60) / 300)
+
+
+def test_a_replaced_guidance_says_nothing_more():
+    obj = SimpleNamespace(id="o1", center=(800.0, 300.0), anchor_offset=(0.0, 0.0), anchor_epoch=1, label="stoma")
+    obj2 = SimpleNamespace(id="o2", center=(500.0, 400.0), anchor_offset=(0.0, 0.0), anchor_epoch=1, label="cell")
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={"o1": obj, "o2": obj2}), latest_info=None)
+
+    async def go():
+        said = []
+        guide = G.Guide(hub, judge=lambda: "rule", say=lambda g, line: said.append((g.id, line["event"])))
+        guide.start("o1", name="stoma", asked="centre it")
+        await asyncio.sleep(0.05)
+        g2 = guide.start("o2", name="cell", asked="centre that cell")
+        for i in range(400):  # frames with nothing changing: quiet moments come for the live one only
+            info = SimpleNamespace(id=i, width=1280, height=720, dx=0.0, dy=0.0, epoch=1, tracked=True, steady=True,
+                                   fov=SimpleNamespace(cx=640.0, cy=360.0, radius=300.0), wall_at=0.0,
+                                   stats=(50.0, 100.0, 10.0, 0.0))
+            guide.clock = lambda i=i: 1000.0 + i * 0.05
+            guide.wall = guide.clock
+            guide.frame(info)
+            await asyncio.sleep(0)
+        guide.stop()
+        await asyncio.sleep(0.05)
+        return said, g2
+
+    said, g2 = asyncio.run(go())
+    after = said.index(("g1", "replaced"))
+    assert all(gid == "g2" for gid, _ in said[after + 1:]), said
+
+
+def test_a_lost_target_is_said_once_per_loss():
+    obj = SimpleNamespace(id="o1", center=(800.0, 300.0), anchor_offset=(0.0, 0.0), anchor_epoch=1, label="stoma")
+    hub = SimpleNamespace(scene=SimpleNamespace(objects={"o1": obj}), latest_info=None)
+
+    async def go():
+        said = []
+        guide = G.Guide(hub, judge=lambda: "rule", say=lambda g, line: said.append(line["say"]))
+        t = [1000.0]
+        guide.clock = guide.wall = lambda: t[0]
+        g = guide.start("o1", name="stoma", asked="centre it")
+        for i in range(200):
+            t[0] += 0.05
+            epoch = 1 if i < 20 else 2  # the view lost track of the slide after a second
+            info = SimpleNamespace(id=i, width=1280, height=720, dx=0.0, dy=0.0, epoch=epoch, tracked=True, steady=True,
+                                   fov=SimpleNamespace(cx=640.0, cy=360.0, radius=300.0), wall_at=t[0],
+                                   stats=(50.0, 100.0, 10.0, 0.0))
+            guide.frame(info)
+            for _ in range(5):
+                await asyncio.sleep(0)
+        guide.stop()
+        return said
+
+    said = asyncio.run(go())
+    assert sum(1 for s in said if "lost" in s.lower()) == 1, said
+
+
+def test_a_stalled_model_never_holds_the_guidance(monkeypatch):
+    monkeypatch.setattr(G, "JUDGE_S", 0.05)
+
+    async def stalled(prompt: str):
+        await asyncio.sleep(30)
+
+    r = asyncio.run(B.run(next(c for c in B.CASES if c.name == "centred-only"), judge="model", ask_model=stalled,
+                          seed=1, seconds=60, realtime=False))
+    assert r["event"] == "done" and r["centred"] and r["overrides"] >= 1
+

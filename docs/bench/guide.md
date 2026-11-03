@@ -18,15 +18,15 @@ centred only (no focus).
 
 ## 2026-11-03
 
-Gemini 3.8 Flash is the fast pass's default model (option BRAIN_FAST), which GUIDE "model" asks.
-
 | Judge | Runs | Right | Median time to done | Median lines | Judgment p50 | Overrides |
 |---|---|---|---|---|---|---|
+| model, Gemini 3.5 Flash (GUIDE's default) | 16 | 16 | 13.5 s | 8.5 | 0.45 s | 1 |
 | model, Gemini 3.8 Flash | 16 (8 cases x 2) | 16 | 23.3 s | 9.5 | 1.6 s | 2 (a "done" refused) |
 | model, Gemini 3.5 Flash-Lite | 16 | 15 | 40.3 s | 15 | 0.8 s | 19 |
 | rule | 24 (8 cases x 3) | 24 | 9.3 s | 8.5 | 0 | 0 |
 
-- **Gemini 3.8 Flash** got every case right, including the turned phone. Its answers take 1.6 s at the median (spikes
+- **Gemini 3.5 Flash** got every case right at 0.45 s a line, the fastest model that did: GUIDE's default.
+- **Gemini 3.8 Flash** (the fast pass's model) got every case right too, including the turned phone. Its answers take 1.6 s at the median (spikes
   of 4-5 s). Two of its "done" claims were refused by the code's check (sharpest not yet bracketed) and it was asked
   again.
 - **Gemini 3.5 Flash-Lite** answers twice as fast but needed half as many lines again. It missed one far case (it
@@ -42,8 +42,9 @@ Gemini 3.8 Flash is the fast pass's default model (option BRAIN_FAST), which GUI
   the hands could follow the line said; pending moments are cleared once a line is said. A fourth change made "stop"
   the app's own reflex: a hand crosses the centre faster than any model answers.
 
-Runs: `MICROMIND_KEYS_FILE=... .venv/bin/python -m bench.guide_bench --judge model --model gemini-3.8-flash --seeds 2
---trace FILE` (each judgment's facts, answer and check in FILE); the rule with `--seeds 3`.
+Runs: `MICROMIND_KEYS_FILE=... .venv/bin/python -m bench.guide_bench --judge model --model gemini-3.5-flash --seeds 2
+--trace FILE` (each judgment's facts, answer and check in FILE); the rule with `--seeds 3`. Gemini 3.8 Flash at
+`@minimal` thinking was tried and refused by the provider (low is its least), so every line fell to the rule.
 
 End to end on the simulated camera (`make sim-test SIM_ONLY=guide`, `services/sim/guided.py`): the camera bridge
 plays a virtual microscope made of the qualified leaf recording's labelled frame, a stoma off to one side and out of

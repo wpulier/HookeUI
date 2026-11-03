@@ -374,7 +374,7 @@
   "early_look_typed": "sequential",
   "embed": "dinov2-small",
   "fast": "off",
-  "guide": "model",
+  "guide": "gemini-3.5-flash",
   "handoff_acts": "hands",
   "heard_cue": "tone",
   "hintsFirst": true,

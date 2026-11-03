@@ -1,8 +1,8 @@
-import { CLICK_RADIUS, fitWindow, hitObject, isFresh, isVisible, overlayOpacity, TINY_PX, scaleBar, sizeWords, SPEED_WINDOW, statusWords, taughtWords, fitWords } from './overlay';
+import { CLICK_RADIUS, fitWindow, guideArrow, hitObject, isFresh, isVisible, overlayOpacity, TINY_PX, scaleBar, sizeWords, SPEED_WINDOW, statusWords, taughtWords, fitWords } from './overlay';
 import { FrameTiming } from './frametiming';
 import { categoryColour, categoryWords, drawable, heat, keepPopulation, memberAt, memberLook, type LayerWire, type LegendCategory, type PopulationMember, type PopulationWire } from './population';
 import { notesBeside, type Reserved } from './panels';
-import type { Candidate, CoachState, Frame, FrameHeader, Point, ScaleState, SceneObject, ServerMessage } from './protocol';
+import type { Candidate, CoachState, Frame, FrameHeader, GuideState, Point, ScaleState, SceneObject, ServerMessage } from './protocol';
 import { labelled, trailDrawing, type TrailsMessage, type TrailWire } from './trail';
 import { keepTracks, tracksDrawing, tracksLabel, type MotionTracksWire, type TracksLayerWire } from './motiontracks';
 /** How long a new result's outlines take to ramp in (once, the first time they are drawn). */
@@ -37,6 +37,8 @@ const INK = '#09090a';
 const WELL = '#000';
 
 const DRAW_IN_MS = 650;
+const GUIDE_ZONE = 0.1; // the centre zone the target is guided into, a share of the eyepiece radius (guide.py CENTRED_SAID)
+const GUIDE_DONE_MS = 2500; // how long "centred" stays on the view after the guidance ends done
 // How outlines fade while the slide moves and where they are drawn: overlay.ts (the contract
 // the server and services/sim/harness.py read too).
 const LABEL_DELAY_MS = 260;
@@ -123,6 +125,7 @@ export class View {
   readonly timing = new FrameTiming(); // camera-to-screen time per stage (frametiming.ts)
   scale: ScaleState | null = null; // how big things are (orchestrator/scale.py)
   coach: CoachState | null = null; // the focus meter while the knob turns (orchestrator/coach.py)
+  guide: (GuideState & { at: number }) | null = null; // the guidance line now and its target (orchestrator/guide.py)
   // How outlines are drawn (option STYLE): "classic" (a light fill, the stroke on the edge) or
   // "edge" (no fill, the stroke just outside, so the edge itself stays visible; LYNA, 2018).
   outlineStyle = 'classic';
@@ -762,7 +765,65 @@ export class View {
     if (!this.hideOverlays) this.drawTracksLegend(h);
     this.drawScaleBar(h, p);
     this.drawFocusMeter(h, p);
+    this.drawGuide(h, p);
     this.drawDragBox();
+  }
+
+  /** Guiding the user's hands (orchestrator/guide.py): the zone at the eyepiece's centre where the target goes, the
+   * target ringed where the slide has moved it (as its outline is placed), a dashed arrow from it to the zone (the way the
+   * picture has to move), and the line said now under the eyepiece. Drawn only while a guidance runs, and for a moment
+   * after it ends done; the ring and arrow fade with the outlines while the slide moves fast. */
+  private drawGuide(h: FrameHeader, p: { ox: number; oy: number; scale: number }): void {
+    const g = this.guide;
+    if (!g || !h.fov || this.wholeFrame || this.hideOverlays) return;
+    const now = performance.now();
+    const done = g.event === 'done';
+    if (!g.active && (!done || now - g.at > GUIDE_DONE_MS)) {
+      this.guide = null;
+      return;
+    }
+    const ctx = this.ctx;
+    const [fx, fy, fr] = h.fov;
+    const centre: Point = [p.ox + fx * p.scale, p.oy + fy * p.scale];
+    const zone = Math.max(10, fr * GUIDE_ZONE * p.scale);
+    const stroke = (path: () => void, dash: number[], width: number) => {
+      ctx.setLineDash(dash);
+      ctx.lineWidth = width + 2; ctx.strokeStyle = CASING; path(); ctx.stroke(); // dark casing: seen on a pale slide
+      ctx.lineWidth = width; ctx.strokeStyle = PAPER; path(); ctx.stroke();
+    };
+    ctx.save();
+    ctx.globalAlpha = done ? Math.max(0, 1 - (now - g.at) / GUIDE_DONE_MS) : 0.95;
+    stroke(() => { ctx.beginPath(); ctx.arc(centre[0], centre[1], zone, 0, Math.PI * 2); }, done ? [] : [4, 4], done ? 2 : 1.25);
+    const obj = this.objects.find((o) => o.id === g.target);
+    if (!done && obj && isVisible(obj, h)) {
+      const pts = obj.polygons.flat();
+      const sx = h.dx - obj.anchorOffset[0], sy = h.dy - obj.anchorOffset[1];
+      const xs = pts.map((q) => q[0] + sx), ys = pts.map((q) => q[1] + sy);
+      const at: Point = [p.ox + (Math.min(...xs) + Math.max(...xs)) / 2 * p.scale,
+        p.oy + (Math.min(...ys) + Math.max(...ys)) / 2 * p.scale];
+      const ring = Math.max(12, Math.hypot(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) / 2 * p.scale) + 6;
+      ctx.globalAlpha = 0.95 * overlayOpacity(Math.max(0, ...this.recentSpeeds));
+      stroke(() => { ctx.beginPath(); ctx.arc(at[0], at[1], ring, 0, Math.PI * 2); }, [6, 5], 1.5);
+      const arrow = guideArrow(at, centre, ring, zone);
+      if (arrow) {
+        stroke(() => { ctx.beginPath(); ctx.moveTo(...arrow.from); ctx.lineTo(...arrow.to); }, [8, 6], 2);
+        stroke(() => { ctx.beginPath(); ctx.moveTo(...arrow.wings[0]); ctx.lineTo(...arrow.to); ctx.lineTo(...arrow.wings[1]); }, [], 2);
+      }
+    }
+    ctx.globalAlpha = done ? Math.max(0, 1 - (now - g.at) / GUIDE_DONE_MS) : 1;
+    const words = (g.say || '').slice(0, 80);
+    if (words) {
+      ctx.setLineDash([]);
+      ctx.font = '600 13px system-ui, sans-serif';
+      const w = ctx.measureText(words).width;
+      const x = centre[0] - w / 2, y = p.oy + (fy + fr * 0.78) * p.scale;
+      ctx.fillStyle = 'rgba(19, 26, 43, 0.78)';
+      ctx.beginPath(); ctx.roundRect(x - 10, y - 18, w + 20, 26, 13); ctx.fill();
+      ctx.fillStyle = PAPER;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(words, x, y - 5);
+    }
+    ctx.restore();
   }
 
   /** The box being dragged to outline what is inside it: dashed, until it is let go. */

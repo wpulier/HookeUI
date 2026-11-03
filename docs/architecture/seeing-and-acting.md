@@ -46,8 +46,9 @@ other files.
     moves agree on what it is (each counted only when the slide was still as its line was said and still again after),
     then measured: a quarter-turned phone is learned in two moves, a mirror once two directions were moved. Directions
     are said in the hands' terms (right, left, away, toward you), never worked out from where the target is seen.
-  - **The judge** (option GUIDE): "model", the default, the fast model reads the facts and answers the line, what it
-    asks of the hands and whether it is done; "rule" is code (move by the relation, then climb the sharpness: a probe,
+  - **The judge** (option GUIDE): a model, Gemini 3.5 Flash by default (16/16 on the guide bench at 0.45 s a line;
+    Gemini 3.8 Flash is the other model choice), reads the facts and answers the line, what it asks of the hands and
+    whether it is done; "rule" is code (move by the relation, then climb the sharpness: a probe,
     keep going while it rises, reverse when the first turn made it worse, back a little once past the sharpest), a
     non-default option measured beside it (`bench/guide_bench.py`, `docs/bench/guide.md`). A model that cannot answer
     or answers out of shape leaves the rule's line said, logged as an `override`.
@@ -57,8 +58,16 @@ other files.
     said; the judge is asked again with why (`doneRefused`). A line the view outran while it was decided (the target
     moved 0.12 of the radius, or reached the centre) is not said.
   - **One reflex is the app's own**: when the target comes into the centre while the slide is moving, "Stop." is said
-    at once, as the focus meter's "past the sharpest" is. A hand crosses the centre in a fraction of a second and a
-    judgment takes 0.6 to 4 s; the judge decides what follows once the slide is still.
+    at once, as the focus meter's "past the sharpest" is. A hand crosses the centre in a fraction of a second, faster
+    than a judgment (0.45 s median, up to 4 s); the judge decides what follows once the slide is still. A judgment not
+    back within 4 s is the rule's line instead (an override), so a stalled model never holds the guidance.
+  - **On the live view** (`apps/studio/src/view.ts` `drawGuide`, a `guide` message per line): a small circle at the
+    eyepiece's centre where the target goes, the target ringed where the slide has moved it (placed as its outline is),
+    a dashed arrow from it to the circle (the way the picture has to move), and the line said now under the eyepiece;
+    ring and arrow fade with the outlines while the slide moves fast; on done the circle closes and "centred" stays a
+    moment, then all of it goes.
+  - **A loss is said once**: the target's place unknown (the slide's movement lost, the outline gone) is one line, then
+    quiet until it is found again or the guidance gives up; a guidance replaced by a new one says nothing more.
   - **When a line is due** (moments, raised on the frame path): the slide stopped after a move (`SETTLE_S`), the target
     came into the centre or left the view while moving, its place was lost, the sharpness changed and held, the
     sharpness held 2 s after a focus line, or nothing happened for 7 s after a line. One guidance at a time; a new one

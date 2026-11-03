@@ -12,8 +12,9 @@ the model judges (docs/design/2026-10-06-facts-not-verdicts.md):
 - **The slide and the picture** (`Relation`): which way the slide must go for the picture to move the way needed depends
   on the microscope (a compound one turns the picture round, so it moves opposite to the slide) and on how the phone
   sits on the eyepiece. It is assumed opposite until the user's own moves after the lines measure it.
-- **The judge** (option GUIDE): "model", the default: the fast model reads the facts and answers the line, what it asks
-  of the hands and whether it is done; "rule": code decides (a non-default option, benched against the model). When the
+- **The judge** (option GUIDE): a model, Gemini 3.5 Flash by default (the guide bench's fastest right one), reads the
+  facts and answers the line, what it asks of the hands and whether it is done; "rule": code decides (a non-default
+  option, benched against the models). When the
   model can't be reached or answers out of shape, the rule's line is said instead and logged as an override.
 - **Checks**: "done" is held to the facts (centred within CENTRED_R and, when sharp was asked, at least SHARP_SHARE of
   the best a focus probe found here); refused, the model is told why at its next turn. A line the view has outrun
@@ -44,6 +45,7 @@ LOST_S = 1.5  # the target's place unknown this long: tell the judge
 GIVE_UP_LOST_S = 25.0  # ...and this long: the guidance ends, said
 LONGEST_S = 300.0
 MAX_LINES = 40
+JUDGE_S = 4.0  # the model's answer is waited for this long at most; then the rule's line is said (an override)
 STALE_R = 0.12  # the target moved this far (radii) while a line was judged: the line is outrun
 STALE_DROPS = 2  # at most this many outrun lines in a row are dropped; then the newest is said
 FOCUS_CHANGE = 0.1  # sharpness changed by this share and held: the focus moved, judge it
@@ -253,6 +255,7 @@ class Guidance:
     judged_sharp: float | None = None
     judged_r: float | None = None
     unknown_since: float | None = None
+    lost_told: bool = False  # this loss was judged once already
     # this place's focus
     best_here: float | None = None
     probes_here: int = 0  # focus lines said while the target was here
@@ -277,7 +280,7 @@ class Guidance:
 class Guide:
     """Guidance runs, fed by every frame (`frame`), judged and said off the frame path."""
 
-    def __init__(self, hub, *, judge: Callable[[], str] = lambda: "model",
+    def __init__(self, hub, *, judge: Callable[[], str] = lambda: "gemini-3.5-flash",
                  ask_model: Callable[[str], Awaitable[dict | None]] | None = None,
                  say: Callable[[Guidance, dict], None] = lambda g, line: None,
                  sweep: Callable[[], str | None] = lambda: None, um_per_px: Callable[[], float | None] = lambda: None,
@@ -287,7 +290,7 @@ class Guide:
         # A frame's own time (FrameInfo.wall_at) is on `wall`; the loop's on `clock` (both read when made, never a
         # default kept from import time).
         self.wall = wall if wall is not None else time.time
-        self.judge_option = judge  # the GUIDE option now: "model" or "rule"
+        self.judge_option = judge  # the GUIDE option now: a model's id, or "rule"
         self.ask_model = ask_model  # prompt -> the model's JSON (None: it could not answer)
         self.say = say  # (guidance, line) -> said to the user (the voice, the narrator or the chat)
         self.sweep = sweep  # the coach's: "knob", "phone" or None
@@ -305,7 +308,10 @@ class Guide:
         if until not in ("centred", "sharp"):
             raise ValueError("until is centred or sharp")
         if self.active is not None:
-            self._finish(self.active, "replaced", "Stopped guiding: a new guidance replaced it.")
+            old = self.active
+            self._finish(old, "replaced", "Stopped guiding: a new guidance replaced it.")
+            if old.task is not None and not old.task.done():
+                old.task.cancel()  # it ended: it says nothing more
         now = self.clock()
         g = Guidance(f"g{next(self._ids)}", target, name or "it", asked, until, origin=dict(origin or {}),
                      started=now, deadline=now + max(20.0, min(LONGEST_S, seconds)))
@@ -398,7 +404,7 @@ class Guide:
         if not reading.known:
             g.unknown_since = g.unknown_since if g.unknown_since is not None else t
         else:
-            g.unknown_since = None
+            g.unknown_since, g.lost_told = None, False
         if g.moment is None or g.moment.is_set():
             return
         still = t - g.last_motion_t >= SETTLE_S and bool(getattr(info, "steady", True))
@@ -409,7 +415,9 @@ class Guide:
             self._raise(g, "centre-reached")  # came into the centre while moving: a stop is due now
         elif moving and reading.known and prev is not None and prev.known and prev.in_view and not reading.in_view:
             self._raise(g, "left-view")
-        elif g.unknown_since is not None and t - g.unknown_since >= LOST_S and g.judged_r is not None:
+        elif (g.unknown_since is not None and t - g.unknown_since >= LOST_S and g.judged_r is not None
+              and not g.lost_told):
+            g.lost_told = True  # once per loss: said again only after it was found and lost again
             self._raise(g, "lost")
         elif still and reading.known and reading.sharp is not None and g.judged_sharp:
             recent = [x.sharp for x in g.readings if x.sharp is not None and t - x.t <= SETTLE_S]
@@ -423,8 +431,11 @@ class Guide:
             if held and g.lines and g.lines[-1].focus and since_line >= FOCUS_WAIT_S:
                 self._raise(g, "focus-held")  # a small turn near the sharpest changes little: judge it anyway
                 return
-        if g.lines and t - max(g.lines[-1].t, g.last_motion_t) >= QUIET_S:
-            self._raise(g, "quiet")  # nothing happened after the line: it may not have been heard or done
+        if g.lines and t - max(g.lines[-1].t, g.last_motion_t) >= QUIET_S and not (g.unknown_since is not None
+                                                                                  and g.lost_told):
+            # Nothing happened after the line: it may not have been heard or done. (A loss already said waits for the
+            # target to be found again, or for the give-up.)
+            self._raise(g, "quiet")
 
     def _read(self, g: Guidance, info) -> Reading:
         from .slidemap import place
@@ -489,7 +500,11 @@ class Guide:
             try:  # the frame path raises every moment, quiet included; this wait only covers frames that stopped coming
                 await asyncio.wait_for(g.moment.wait(), timeout=max(0.05, min(2 * QUIET_S, g.deadline - now)))
             except asyncio.TimeoutError:
+                if g.unknown_since is not None and g.lost_told:
+                    continue  # lost and said so: wait to find it again, or give up
                 g.reason = "quiet"
+            if g.event:
+                return  # ended meanwhile (stopped, replaced): nothing more is said
             reason, g.reason = g.reason or "quiet", ""
             g.moment.clear()
             reading = g.latest()
@@ -507,6 +522,8 @@ class Guide:
             else:
                 reply, how = await self._judge(g, facts)
                 g.judgments += 1
+            if g.event:
+                return
             ms = round(1000 * (self.clock() - started))
             check = self._check(g, reply, facts)
             newest = g.latest()
@@ -539,6 +556,8 @@ class Guide:
                 return
             self._said(g, reply, reading)
             self._deliver(g, self._line(g, reply, "line"))
+            if not reading.known:
+                g.lost_told = True  # a line about a lost target was said, whichever moment asked for it
             # What happened while it was decided is in the facts the next line is judged on; a moment raised meanwhile
             # would judge again before the hands could follow this line.
             g.moment.clear()
@@ -695,7 +714,9 @@ class Guide:
         if option == "rule" or self.ask_model is None:
             return rule(g, facts), "rule"
         try:
-            got = await self.ask_model(prompt(facts))
+            got = await asyncio.wait_for(self.ask_model(prompt(facts)), JUDGE_S)
+        except asyncio.TimeoutError:  # a stalled answer never holds the guidance: the rule's line, said as an override
+            got, why = None, f"no answer within {JUDGE_S:g} s"
         except Exception as exc:  # the model could not answer: the rule's line, said as an override
             got, why = None, f"{type(exc).__name__}: {exc}"[:160]
         else:
