@@ -67,9 +67,12 @@ def test_each_step_waits_for_the_previous_steps_receipt():
     asyncio.run(scenario())
 
 
-def test_a_step_after_one_whose_receipt_failed_or_is_uncertain_is_skipped():
+def test_a_step_after_a_failed_step_is_skipped_but_one_after_an_unconfirmed_step_runs():
+    """A dependent step needs its prerequisite's work, not its picture: a step that failed skips it; a step whose work
+    happened but the screen did not confirm (uncertain) does not (will-drive, 3 Nov: the zoom after a find hidden by
+    the Tab in front was skipped, where it would have brought its Tab forward)."""
     async def scenario():
-        for kind in ("failing", "uncertain"):
+        for kind, expected in (("failing", ["flaky", "plain"]), ("uncertain", ["flaky", "after_flaky", "plain"])):
             entered = []
             runner, ctx, ticket, _ = rig(_handlers(entered))
             bridge = Bridge(**{kind: ["flaky"]})
@@ -81,8 +84,9 @@ def test_a_step_after_one_whose_receipt_failed_or_is_uncertain_is_skipped():
                         {"tool": "plain", "args": {}}]), ctx)
                     await settled(runs)
                     await asyncio.wait([r.acting for r in runs if r.acting is not None])
-                assert entered == ["flaky", "plain"], kind  # the tool said it worked; Hooke's state decides
-                assert runs[1].ok is False and "dependency 1" in runs[1].summary
+                assert entered == expected, kind
+                if kind == "failing":
+                    assert runs[1].ok is False and "dependency 1" in runs[1].summary
             finally:
                 ticket.close()
     asyncio.run(scenario())

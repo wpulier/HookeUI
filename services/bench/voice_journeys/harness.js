@@ -579,11 +579,14 @@
           if (mode === 'hold') { await sleep(200); record.up = await hold(false); }
           state.steps.push(record);
           if (step.kind === 'restart') continue;
-          if (step.takeover) { // the person takes over while the partner acts: at its first cue (a drive) after release
+          if (step.takeover) { // the person takes over while the partner acts: at its first cue (a drive) after release,
+            // or the partner taking control (a hand-off holds it from its first step; an action on the whole picture,
+            // outlining every cell, has no cue: will-drive, 3 Nov)
             const from = Date.now();
             let cue = null;
             while (Date.now() - from < (step.takeover.waitMs ?? 20000) && !cue) {
-              cue = state.events.find((e) => e.e === 'ws-in' && (e.m || {}).type === 'drive' && e.t >= (record.up ?? record.end));
+              cue = state.events.find((e) => e.e === 'ws-in' && e.t >= (record.up ?? record.end)
+                && ((e.m || {}).type === 'drive' || ((e.m || {}).type === 'control' && (e.m || {}).owner === 'partner')));
               if (!cue) await sleep(20);
             }
             if (!cue) ev({ e: 'takeover', step: step.id, how: step.takeover.how, skipped: 'no cue to take over from' });

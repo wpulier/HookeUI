@@ -108,3 +108,13 @@ def test_another_name_is_still_not_this_one(tmp_path):
     ctx = ToolContext("chat", 1, None, words, asked=rig.app.day.here())
     with pytest.raises(ToolFailed):
         asyncio.run(rig.brain.registry.tools["turn_on"].handler(ctx, {"job": "Talk with you", "asked_with": words}))
+
+
+def test_an_unknown_job_is_refused_with_the_jobs_by_name(tmp_path):
+    """will-drive, 3 Nov: a kind of work ('find-like') passed as a job; the refusal lists the jobs to call it again with."""
+    rig = Rig(tmp_path)
+    words = "turn on find-like"
+    ctx = ToolContext("chat", 1, None, words, asked=rig.app.day.here())
+    with pytest.raises(ToolFailed) as refused:
+        asyncio.run(rig.brain.registry.tools["turn_on"].handler(ctx, {"job": "find-like", "asked_with": words}))
+    assert "Talk with you" in str(refused.value) and refused.value.argument

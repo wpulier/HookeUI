@@ -378,7 +378,12 @@ def add_catalog_tools(registry: Registry, services) -> None:
             raise ToolFailed("a capability is turned on on the user's own yes", next="quote their reply in asked_with")
         card = job_card(wire(), str(args.get("job") or ""))
         if card is None:
-            raise ToolFailed(f"no job is called {args.get('job')!r}", next="ask models with nothing named for the jobs")
+            # The jobs by their names, so the call can be made again with one (will-drive, 3 Nov: 'find-like', a kind of
+            # work from the models tool, was passed as a job twice, and the user heard only that it failed).
+            shelf = (wire().get("setup") or {}).get("shelf") or {}
+            names = [c.get("title") for c in [*shelf.get("cards", []), *shelf.get("behind", [])] if c.get("title")]
+            raise ToolFailed(f"no job is called {args.get('job')!r}" + (f"; the jobs are: {'; '.join(names[:24])}" if names else ""),
+                             next="call turn_on again with the job's name exactly as listed", argument=True)
         # A real quotation is necessary but not sufficient: it must authorize these named terms, in this owner.
         words = ctx.question if ctx.channel != "voice" else said_by_user
         normalized = f" {norm_job(words or '')} "

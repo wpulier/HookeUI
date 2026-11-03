@@ -305,9 +305,13 @@ class HandOffActing:
                 reason = str(kept.get("error") or kept.get("note") or "not done")
             skip(reason[:300])
             await asyncio.wait([run.task])
-        elif kept.get("result") == "failed" and run.ok is not False:
-            # The tool said it worked, Hooke's state says not: the receipt is what happened.
-            run.ok, run.summary = False, str(kept.get("said") or kept.get("error") or run.summary)[:600]
+        elif kept.get("result") in ("failed", "uncertain") and run.ok is True:
+            # The tool's own work happened (its outputs exist, so the steps after it that use them still run), but the
+            # screen does not confirm it: its summary says so, so the answer never claims it shows, and the voice says
+            # the receipt (will-drive, 3 Nov: a find whose outlines the Tab in front hid failed its receipt, and the
+            # measurement and zoom after it were skipped where the zoom would have brought its Tab forward).
+            why = str(kept.get("said") or kept.get("error") or "not confirmed on screen")
+            run.summary = f"{run.summary} (not confirmed on screen: {why})"[:800]
         run.receipt = kept
         self.receipts.append({"name": run.tool, **kept})
         return kept
