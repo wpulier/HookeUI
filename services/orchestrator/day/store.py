@@ -398,11 +398,12 @@ class SessionStore:
         self._record({"type": "session-archived", "archived": bool(archived), "by": by})
         return True
 
-    def record_change(self, change: str, what: str, says: str, steps: list[dict], by: str = "hooke") -> dict:
+    def record_change(self, change: str, what: str, says: str, steps: list[dict], by: str = "hooke", *,
+                      asked: dict | None = None) -> dict:
         """The undo record of a change made to this Project (brain/toolbox/projects.py): what was before each step, so one undo
         puts it back. Strict: a change whose record cannot be written is said not undoable, never claimed so."""
         return self._record({"type": "project-change", "change": change, "what": what, "says": says[:300],
-                             "steps": steps, "by": by}, strict=True)
+                             "steps": steps, "by": by, **({"asked": asked} if asked else {})}, strict=True)
 
     def change_undone(self, change: str, by: str = "user") -> dict:
         return self._record({"type": "project-change-undone", "change": change, "by": by}, strict=True)

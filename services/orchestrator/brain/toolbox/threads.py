@@ -12,6 +12,7 @@ import time
 
 from ...day.catalogue import days_before
 from ...untrusted import inline
+from ..intent import log_override
 from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
 
 
@@ -94,41 +95,54 @@ def add_thread_tools(registry: Registry, services) -> None:
         ref = str(args.get("session") or "").strip()
         catalogue = day.catalogue
         now = day.clock()
-        found = await asyncio.to_thread(catalogue.find, ref, current=day.sid, now=now)
-        others = [info for info in found if info.id != day.sid]
-        # The model's choice checked against the user's own words (code gives facts and checks): a name it chose or
-        # carried from an earlier answer opens nothing when what they said this turn means another Project beyond doubt
-        # (live, 3 Nov: "open the leaf one from last week" was called with "Stomata in light"), or several (live, 3 Nov:
-        # "open the leaf one" was called with "Leaf epidermis" while two leaf Projects matched): those are asked about.
-        if others and len(others) == 1:
-            meant, several, said = await _heard(catalogue, str(ctx.question or ""), ref, day.sid, now)
-            if meant is not None and meant.info.id != others[0].id:
-                # Live, 3 Nov (voice): already in Leaf epidermis, "open the leaf one from last week" opened Stomata.
-                here = "; it is the Project open now" if meant.info.id == day.sid else ""
-                raise ToolFailed(f'nothing was opened: the user said {inline(said, 120)!r}, which means '
-                                 f'"{inline(meant.info.label, 60)}" (id for tools {meant.info.id}){here}, not '
-                                 f'"{inline(others[0].label, 60)}"',
-                                 next="say so, or call switch_session again with the user's own words", argument=True)
-            if meant is None and len(several) > 1:
-                others = several
-        if found and not others:
+        ranked = await asyncio.to_thread(catalogue.rank, ref, current=day.sid, now=now)
+        sure = ranked.sure.info if ranked.sure is not None else None
+        if sure is None:
+            # Only a sure match opens (day/catalogue.py rank: one full match, in the time named). Several full matches,
+            # one of them open now, mean the other. Anything else is asked about, with a card: a full match outside the
+            # time said, or a word found only in what was said in a Project (review of #189).
+            full = [m.info for m in ranked.matches if m.full and m.in_span is not False]
+            if len(full) == 2 and day.sid in (full[0].id, full[1].id):
+                sure = full[0] if full[1].id == day.sid else full[1]
+        if sure is not None and sure.id == day.sid:
             return f'already in the session "{inline(day.label, 80)}"'
+        pool = [m.info for m in ranked.matches if m.full] or [m.info for m in ranked.matches]  # full ones, when any
+        others = [sure] if sure is not None else [info for info in pool if info.id != day.sid]
         if not others:
+            if any(m.info.id == day.sid for m in ranked.matches):
+                return f'already in the session "{inline(day.label, 80)}"'
             recent = [info for info in await asyncio.to_thread(catalogue.list)][:6]
             raise ToolFailed(f"no session matches {inline(ref, 80)!r}; the most recent: "
                              + "; ".join(_session_row(info, now, day.sid) for info in recent),
                              next="ask the user which session they mean")
-        if len(others) > 1:
+        disagree = ""
+        if sure is not None:
+            # The model's choice checked against the user's own words (code gives facts and checks): when what they said
+            # this turn reads as another Project, or as several, nothing is opened and both readings are on the card for
+            # the user to pick (live, 3 Nov: "open the leaf one from last week" was called with "Stomata in light", and
+            # "open the leaf one" with "Leaf epidermis" while two leaf Projects matched). Logged as an override.
+            meant, several, said = await _heard(catalogue, str(ctx.question or ""), ref, day.sid, now)
+            read = [meant.info] if meant is not None else several
+            if read and sure.id not in [i.id for i in read] or len(read) > 1:
+                others = read + [sure] if sure.id not in [i.id for i in read] else read  # the user's words first
+                disagree = (f"; you picked \"{inline(sure.label, 60)}\", and the user's words "
+                            f"{inline(said, 120)!r} read as " + " or ".join(f'\"{inline(i.label, 60)}\"' for i in read))
+                log_override(getattr(services.agent, "log", None), "switch-session-words", picked=sure.id,
+                             read=[i.id for i in read], words=said[:200], session=ref[:200])
+        if len(others) > 1 or sure is None:
             # On screen too (projects.choices_card): two or three of them, each with Open, so the voice asks one short
             # question and never reads a list out.
             from .projects import CHOICES_MAX, choices_card
 
             card = choices_card(services, ctx, others, now)
-            return ("nothing was opened: these sessions may be meant, best first: "
+            outside = ranked.span is not None and all(m.in_span is False for m in ranked.matches if m.full)
+            return ("nothing was opened: " + ("this may be meant" if len(others) == 1 else "these sessions may be meant")
+                    + (f" (none is from {ranked.span.said})" if outside else "") + disagree + ", best first: "
                     + "; ".join(_session_row(info, now, day.sid) for info in others[:6])
                     + (f"; and {len(others) - 6} more" if len(others) > 6 else "")
-                    + (f". A card on screen shows the first {min(len(others), CHOICES_MAX)}, each with Open: ask in one "
-                       "short question which, naming two at most" if card is not None else ". Ask the user which"))
+                    + (f". A card on screen shows {'it' if len(others) == 1 else f'the first {min(len(others), CHOICES_MAX)}'}"
+                       f", with Open: ask in one short question which, naming two at most" if card is not None
+                       else ". Ask the user which"))
         info = others[0]
         try:
             day.switch_session(info.id)
@@ -136,6 +150,9 @@ def add_thread_tools(registry: Registry, services) -> None:
             raise ToolFailed(f'the session "{inline(info.label, 80)}" can no longer be read',
                              next=None) from None  # no next: its journal is gone, nothing the user can do opens it
         moved(ctx)
+        from .projects import opened_from_cards
+
+        opened_from_cards(services, info.id, day.label)  # a "Which Project?" card that offered it says it was opened
         facts = list(memory.facts) if memory is not None else [f for f in day.digest.split("\n") if f.strip()]
         threads = sorted(day.threads.values(), key=lambda t: t.n)
         conversations = "; ".join(

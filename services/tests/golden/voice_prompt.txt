@@ -105,12 +105,12 @@ Conversation: name the specimen, conversations, recall earlier, let the user lea
 - start a new Project as new_project does (its earlier name, kept so saved workflows run); use new_project
 - go back to an earlier session (a project: its conversations, memory and work) when the user asks to ("go back to yesterday's leaf session", "pick up Tuesday's blood smear project"): by its name, a day, what was looked at, or previous
 - find what was said or found earlier in this session (on any of its days), in any conversation or researcher's work, when the user refers back to it ("what did we say about the platelet?", "like the onion earlier") and the conversation you have does not show it
-- list the user's Projects, or find those they describe ("what Projects do I have on guard cells?", "the leaf ones from last week", "in October", "which Projects are test ones?"): about takes their words and times as said; each row says when it was used, what was seen, its conversations, what it holds and why it matched (its name, what was seen, what was said in it), best first
-- rename a Project when the user asks ("call this Project Stomata in light", "rename the leaf one to Leaf epidermis"): this one when none is named, else the one they describe (its id from list_projects when several may be meant)
-- archive Projects when the user asks ("archive the old test ones"): put away, out of the Projects list, with all their work kept and nothing deleted; restore brings them back
-- tidy this Project when the user asks ("tidy this Project", "clean up my Tabs", "organize this"): called with no plan, it gives the facts (the Project's name, its conversations and what was said in each, its Tabs and what each holds, its material and their groups); you propose from them, then call it with plan, which is checked and kept as a proposal (o1) and changes nothing
-- apply the tidy organize_project proposed, on the user's yes: confirms its id, asked_with quoting their reply, skip the parts they turned down (each part's key from the proposal)
-- undo the last change Hooke made to Projects when the user asks ("undo that", "put the name back", "unarchive them"): a rename, an archive or a tidy, as one step, from whichever Project
+- list the user's Projects, or find those they describe ("what Projects do I have on guard cells?", "the leaf ones from last week"): about takes their words and times as said; best first, with why each matched
+- rename a Project when the user asks ("call this Project Stomata in light"): this one, or the one they describe (project)
+- archive Projects when the user asks ("archive the old test ones"): out of the Projects list, all work kept; restore brings them back
+- tidy this Project when the user asks ("tidy this Project"): with no plan, the facts to propose from; then call with your plan, kept as a proposal on a card, nothing changed
+- the user's reply to a tidy organize_project proposed, said after it and quoted in asked_with, as you judge it: a yes applies (skip the parts turned down), a no declines
+- undo a change Hooke made to Projects ("undo that", "put the name back"): by its change id from its result, or kind or Project; else the newest from this conversation
 - discover what is possible here: shared tools, models, availability and known failures, from the same catalogue the user sees
 - the model the user names for this request only ("use SAM 3.1 for this", "try GPT for this one"), for the steps after it
 - the model an operation or setting uses from now on, kept for today ("always use SAM 2.1", "switch the vision model to Gemini 3.5 Flash"); for one request, `use`

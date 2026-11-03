@@ -194,7 +194,7 @@
   }
  },
  {
-  "description": "List the user's Projects, or find those they describe (\"what Projects do I have on guard cells?\", \"the leaf ones from last week\", \"in October\", \"which Projects are test ones?\"): about takes their words and times as said; each row says when it was used, what was seen, its conversations, what it holds and why it matched (its name, what was seen, what was said in it), best first. Opening one is switch_session; this opens nothing. Archived Projects are left out unless archived is true or the words find one.",
+  "description": "List the user's Projects, or find those they describe (\"what Projects do I have on guard cells?\", \"the leaf ones from last week\"): about takes their words and times as said; best first, with why each matched. Opens nothing. Archived ones when archived is true or the words find one.",
   "inline_ms": 500,
   "kind": "query",
   "name": "list_projects",
@@ -214,7 +214,7 @@
   }
  },
  {
-  "description": "Rename a Project when the user asks (\"call this Project Stomata in light\", \"rename the leaf one to Leaf epidermis\"): this one when none is named, else the one they describe (its id from list_projects when several may be meant). Undoable (undo_project_change). A Tab's name is the tabs tool's rename; a conversation's is tidied by organize_project.",
+  "description": "Rename a Project when the user asks (\"call this Project Stomata in light\"): this one, or the one they describe (project). Undoable.",
   "inline_ms": 500,
   "kind": "effect",
   "name": "rename_project",
@@ -236,7 +236,7 @@
   }
  },
  {
-  "description": "Archive Projects when the user asks (\"archive the old test ones\"): put away, out of the Projects list, with all their work kept and nothing deleted; restore brings them back. Name each by its id from list_projects; when the user described them (\"the test ones\"), list them first and say which, unless their words name them beyond doubt. Quote the user's request or yes in asked_with. Undoable (undo_project_change).",
+  "description": "Archive Projects when the user asks (\"archive the old test ones\"): out of the Projects list, all work kept; restore brings them back. Name each by its id from list_projects, saying them first when only described. Quote the user in asked_with.",
   "inline_ms": 800,
   "kind": "effect",
   "name": "archive_project",
@@ -267,7 +267,7 @@
   }
  },
  {
-  "description": "Tidy this Project when the user asks (\"tidy this Project\", \"clean up my Tabs\", \"organize this\"): called with no plan, it gives the facts (the Project's name, its conversations and what was said in each, its Tabs and what each holds, its material and their groups); you propose from them, then call it with plan, which is checked and kept as a proposal (o1) and changes nothing. Ask the user; their yes applies it (apply_organization).",
+  "description": "Tidy this Project when the user asks (\"tidy this Project\"): with no plan, the facts to propose from; then call with your plan, kept as a proposal on a card, nothing changed. Ask; their reply is apply_organization.",
   "inline_ms": 800,
   "kind": "query",
   "name": "organize_project",
@@ -342,7 +342,7 @@
   }
  },
  {
-  "description": "Apply the tidy organize_project proposed, on the user's yes: confirms its id, asked_with quoting their reply, skip the parts they turned down (each part's key from the proposal). Names and groups are undoable (undo_project_change); a closed Tab is kept, reopened from All Tabs.",
+  "description": "The user's reply to a tidy organize_project proposed, said after it and quoted in asked_with, as you judge it: a yes applies (skip the parts turned down), a no declines.",
   "inline_ms": 1500,
   "kind": "effect",
   "name": "apply_organization",
@@ -356,8 +356,12 @@
      "description": "the proposal's id (o1)",
      "type": "string"
     },
+    "decline": {
+     "description": "they said no: drop the proposal",
+     "type": "boolean"
+    },
     "skip": {
-     "description": "keys of the parts they turned down",
+     "description": "numbers of the parts they turned down",
      "items": {
       "type": "string"
      },
@@ -372,14 +376,27 @@
   }
  },
  {
-  "description": "Undo the last change Hooke made to Projects when the user asks (\"undo that\", \"put the name back\", \"unarchive them\"): a rename, an archive or a tidy, as one step, from whichever Project. change names an older one (pc\u2026) from its result. A part changed again since is left as it is, and said.",
+  "description": "Undo a change Hooke made to Projects (\"undo that\", \"put the name back\"): by its change id from its result, or kind or Project; else the newest from this conversation. Unarchiving is archive_project with restore.",
   "inline_ms": 800,
   "kind": "effect",
   "name": "undo_project_change",
   "params": {
    "properties": {
     "change": {
-     "description": "the change's id (optional: the newest)",
+     "description": "the change's id from its result (pc\u2026)",
+     "type": "string"
+    },
+    "kind": {
+     "description": "the newest change of this kind",
+     "enum": [
+      "rename",
+      "archive",
+      "tidy"
+     ],
+     "type": "string"
+    },
+    "project": {
+     "description": "the newest change to this Project: its id or the user's words for it",
      "type": "string"
     }
    },

@@ -334,7 +334,8 @@ class Catalogue:
             info.archived = e.get("archived") is not False
         elif kind == "project-change" and isinstance(e.get("change"), str) and isinstance(e.get("steps"), list):
             info.changes[e["change"]] = {"at": at, "what": str(e.get("what") or ""), "says": str(e.get("says") or ""),
-                                         "steps": list(e["steps"]), "by": str(e.get("by") or ""), "undone": False}
+                                         "steps": list(e["steps"]), "by": str(e.get("by") or ""), "undone": False,
+                                         "asked": e.get("asked") if isinstance(e.get("asked"), dict) else None}
         elif kind == "project-change-undone" and e.get("change") in info.changes:
             info.changes[e["change"]]["undone"] = True
         if kind == "made" and e.get("id") and e.get("kind"):
@@ -418,6 +419,8 @@ class Catalogue:
             return Ranked([Match(i, sure=True) for i in others[:1]], None, [])
         span = span_in(text, now if now is not None else time.time())
         words = sorted({w for w in re.findall(r"[a-z0-9]+", text) if len(w) > 2} - _NOT_NAMES - _span_words(span))
+        if current and re.search(r"\b(?:other|another|different)\b", text):
+            infos = [i for i in infos if i.id != current]  # "the other leaf one": not the one open now
         if not words:
             pool = [Match(i, in_span=True) for i in infos if span is not None and span.holds(i)]
             return Ranked(pool, span, [])
@@ -425,10 +428,17 @@ class Catalogue:
         # asked (live, 3 Nov: "what Projects do I have on guard cells" matched the open one by its own question's title).
         scored = [m for m in (_match(i, words, own=i.id == current) for i in infos) if m.score > 0]
         if span is not None:
-            inside = [m for m in scored if span.holds(m.info)]
             for m in scored:
                 m.in_span = span.holds(m.info)
-            scored = inside or scored
+            inside = [m for m in scored if m.in_span]
+            # Only a full match in the time decides it; else what matches only in part inside it is given with the full
+            # matches outside it (review of #189: "the onion one from last week" opened a Project whose summary named
+            # onions, from last week, over Onion skin, from the week before).
+            scored = inside if any(m.full for m in inside) else inside + [m for m in scored if m.full and not m.in_span]
+            if not scored:
+                scored = [m for m in (_match(i, words, own=i.id == current) for i in infos) if m.score > 0]
+                for m in scored:
+                    m.in_span = False
         scored.sort(key=lambda m: (m.full, m.score, m.info.last_active), reverse=True)
         full = [m for m in scored if m.full]
         if len(full) == 1 and full[0].in_span is not False:
@@ -536,7 +546,8 @@ _NOT_NAMES = {"the", "one", "session", "sessions", "back", "about", "with", "tha
               "projects", "week", "weeks", "month", "months", "year", "days", "day", "ago", "past", "recent",
               "recently", "open", "have", "any", "which", "all", "ones", "show", "list", "some", "few", "couple", "two",
               "three", "four", "five", "six", "seven", "for", "please", "can", "you", "are", "there", "those", "these",
-              "them", "its", "into", "out", "made", "had", "since", "during", "before", "after", "other"}
+              "them", "its", "into", "out", "made", "had", "since", "during", "before", "after", "other", "another",
+              "different", "tonight", "weekend", "weekends"}
 _MONTHS = {m: n for n, names in enumerate((("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"),
                                            ("may",), ("jun", "june"), ("jul", "july"), ("aug", "august"),
                                            ("sep", "sept", "september"), ("oct", "october"), ("nov", "november"),
@@ -604,6 +615,16 @@ def span_in(text: str, now: float) -> Span | None:
     if re.search(r"\bthis week\b|\bearlier this week\b", joined):
         monday = today - datetime.timedelta(days=today.weekday())
         return Span(monday.isoformat(), today.isoformat(), "this week")
+    if re.search(r"\bweek before last\b", joined):
+        monday = today - datetime.timedelta(days=today.weekday() + 14)
+        return Span(monday.isoformat(), (monday + datetime.timedelta(days=6)).isoformat(), "week before last")
+    weekend = re.search(r"\b(?:last|this past|past|this) weekend\b|\bthe weekend\b", joined)
+    if weekend:  # the latest Saturday and Sunday not after today
+        saturday = today - datetime.timedelta(days=(today.weekday() - 5) % 7)
+        if weekend.group(0).startswith("last") and today.weekday() >= 5:
+            saturday -= datetime.timedelta(days=7)  # said on a weekend: the one before
+        last = min(saturday + datetime.timedelta(days=1), today)
+        return Span(saturday.isoformat(), last.isoformat(), weekend.group(0))
     if re.search(r"\blast week\b|\bprevious week\b|\bweek before\b", joined):
         monday = today - datetime.timedelta(days=today.weekday() + 7)
         return Span(monday.isoformat(), (monday + datetime.timedelta(days=6)).isoformat(), "last week")
@@ -624,6 +645,12 @@ def span_in(text: str, now: float) -> Span | None:
         if w in _MONTHS and (w in _FULL_MONTHS or (i and words[i - 1] in _MONTH_AFTER)):
             month = _MONTHS[w]
             year = today.year if month <= today.month else today.year - 1  # "in December" said in November: last year's
+            if i + 1 < len(words) and re.fullmatch(r"(?:19|20)\d\d", words[i + 1]):
+                year = int(words[i + 1])  # "in October 2025"
+                if (year, month) > (today.year, today.month):
+                    return None
+                first, last = _month_span(year, month)
+                return Span(first, min(last, today.isoformat()), f"{w} {year}")
             first, last = _month_span(year, month)
             return Span(first, min(last, today.isoformat()), (f"{words[i - 1]} {w}" if i and words[i - 1] in _MONTH_AFTER else w))
     for w in words:

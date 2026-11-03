@@ -350,3 +350,54 @@ def test_a_span_alone_lists_what_touched_it_and_archived_projects_are_found_and_
     assert archived.archived and archived.wire()["archived"] is True and "archived" not in cat.get("2026-10-28").wire()
     assert [i.id for i in cat.find("the test one", now=NOV3)] == ["2026-10-16"]
     assert cat.find("the latest one", now=NOV3) == []  # "test" is a word, never part of one
+
+
+def test_a_time_with_only_partial_matches_in_it_keeps_the_full_match_outside_and_is_unsure(tmp_path):
+    """Review of #189: "the onion one from last week" opened Leaf epidermis (last week, its summary named onion cells)
+    over Onion skin (the week before). Only a full match in the time decides; else both are given."""
+    write(tmp_path, "2026-10-20", [
+        {"type": "session-started", "session": "2026-10-20", "name": "Onion skin", "by": "user", "at": at(10, 20)}])
+    write(tmp_path, "2026-10-28", [
+        {"type": "session-started", "session": "2026-10-28", "name": "Leaf epidermis", "by": "user", "at": at(10, 28)},
+        {"type": "thread-opened", "thread": "t1", "title": "", "at": at(10, 28)},
+        {"type": "summary", "thread": "t1", "text": "Compared the leaf with onion cells.", "upto": 2, "at": at(10, 28)}])
+    cat = Catalogue(tmp_path)
+    ranked = cat.rank("open the onion one from last week", now=NOV3)
+    assert ranked.sure is None
+    assert [(m.info.name, m.full, m.in_span) for m in ranked.matches] == [("Onion skin", True, False),
+                                                                          ("Leaf epidermis", False, True)]
+    assert [i.name for i in cat.find("open the onion one from last week", now=NOV3)] == ["Onion skin"]  # never the partial
+    # Without a time, a word found only in a summary is no Project to open: it is unsure.
+    assert cat.rank("the onion one", now=NOV3).sure.info.name == "Onion skin"
+    alone = Catalogue(tmp_path)
+    assert alone.rank("compared cells", now=NOV3).sure is None
+
+
+def test_the_other_one_leaves_the_open_project_out(tmp_path):
+    cat = seeded(tmp_path)
+    ranked = cat.rank("open the other leaf one", current="2026-10-28", now=NOV3)
+    assert ranked.sure.info.id == "2026-10-20" and all(m.info.id != "2026-10-28" for m in ranked.matches)
+
+
+def test_more_times_in_words_and_week_edges():
+    from orchestrator.day.catalogue import span_in
+
+    def days(words, now=NOV3):
+        span = span_in(words, now)
+        return (span.first, span.last) if span else None
+
+    assert days("the week before last") == ("2026-10-19", "2026-10-25")
+    assert days("last weekend") == days("this past weekend") == ("2026-10-31", "2026-11-01")
+    assert days("in October 2025") == ("2025-10-01", "2025-10-31")
+    assert days("the leaf one from tonight") == ("2026-11-03", "2026-11-03")
+    monday, sunday = at(11, 2, 9), at(11, 8, 20)  # Monday Nov 2, Sunday Nov 8
+    assert days("last week", monday) == days("last week", sunday) == ("2026-10-26", "2026-11-01")
+    assert days("this week", monday) == ("2026-11-02", "2026-11-02") and days("this week", sunday) == ("2026-11-02", "2026-11-08")
+    assert days("last weekend", sunday) == ("2026-10-31", "2026-11-01") and days("this weekend", sunday) == ("2026-11-07", "2026-11-08")
+
+
+def test_tonight_and_weekend_are_times_never_name_words(tmp_path):
+    cat = seeded(tmp_path)
+    write(tmp_path, "2026-11-03", [{"type": "session-started", "session": "2026-11-03", "name": "Leaf, evening",
+                                    "by": "user", "at": at(11, 3, 9)}])
+    assert Catalogue(tmp_path).rank("the leaf one from tonight", now=NOV3).sure.info.id == "2026-11-03"

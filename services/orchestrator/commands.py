@@ -2800,14 +2800,28 @@ async def project_card(app, client, msg) -> dict:
     from .brain.toolbox.projects import cards_of
     from .ticket import current, issue, using
 
+    screen = getattr(app.hub, "screen", None)
+    accepted = client in getattr(screen, "_accepted", {})
     request = current()
     owns_request = request is None
     if owns_request:
-        request = issue(app.hub, "command", asked=app.conversation.here(), channel="system")
+        request = issue(app.hub, "command", asked=app.conversation.here(), channel="studio" if accepted else "system")
     try:
+        # The studio that pressed it, pinned as the present command pins it: a Tab the tidy closes is closed there,
+        # acknowledged after its save (review of #189: without the pin every close failed).
+        from .workspace_observation import ObservationError
+
+        try:
+            pin = (screen.pin(client, request_id=request.admission.request_id, inline=msg.get("screen"),
+                              timing="server-receive-legacy") if accepted else None)
+        except ObservationError:
+            pin = None  # its names and groups still apply; a Tab close is then said not done, plainly
         with using(request):
-            ctx = ToolContext("system", 0, None, asked=app.conversation.here(), admission=request.admission,
-                              client=client, actor="you")
+            info = app.hub.latest_info
+            ctx = ToolContext("studio" if accepted else "system", 0, info.id if info else None, "Project card",
+                              asked=request.asked or app.conversation.here(), admission=request.admission,
+                              actor="you", request_id=request.admission.request_id, client=client,
+                              request_snapshot=pin, board=app.brain.board)
             said = await cards_of(app.hub).press(str(msg.get("id") or ""), str(msg.get("action") or ""), ctx)
     finally:
         if owns_request:

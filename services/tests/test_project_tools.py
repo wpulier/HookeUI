@@ -198,11 +198,8 @@ def test_tidy_this_project_proposes_then_applies_on_yes_and_undoes(seeded):
     titles = [built.day.threads[t].title for t in ("t1", "t2")]
     assert built.day.name == "" and titles == ["Outline the guard cells", "Compare the aperture in light and dark"]
 
-    no = call(built, "apply_organization", {"confirms": "o1", "asked_with": "no thanks"}, "no thanks")
-    assert not no.ok and built.day.threads["t1"].title == titles[0]  # a proposal changes nothing; a no neither
-    partly = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes but don't close the Tab"},
-                  "yes but don't close the Tab")
-    assert not partly.ok and "pass skip" in partly.summary
+    unsaid = call(built, "apply_organization", {"confirms": "o1", "asked_with": "sure go ahead"}, "what is in Tab 2?")
+    assert not unsaid.ok and built.day.threads["t1"].title == titles[0]  # a yes the user never said applies nothing
     assert '[5] close the Tab "Tab 2"' in proposed.summary  # parts by number: name, two titles, a group, the Tab
     done = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes, but don't close the Tab",
                                               "skip": ["5"]}, "yes, but don't close the Tab")
@@ -244,7 +241,8 @@ def test_a_tab_close_that_no_studio_did_is_said_not_done(seeded):
     done = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes go ahead"}, "yes go ahead")
     assert done.ok, done.summary
     assert 'renamed the conversation “Outline the guard cells” to “Count”' in done.summary and " t1" not in done.summary
-    assert 'Not done: [2] close the Tab "Tab 2"' in done.summary and "closed the Tab" not in done.summary
+    assert 'Not done: Close the Tab “Tab 2” (empty; All Tabs reopens it): not done (' in done.summary
+    assert "closed the Tab" not in done.summary and "INVALID" not in done.summary
 
 
 def test_the_journey_plans_seeded_home_answers_its_steps(tmp_path):
@@ -343,8 +341,10 @@ def test_a_project_name_the_model_carried_over_is_refused_when_the_words_mean_an
     built, ids = seeded
     here = built.day.sid
     wrong = call(built, "switch_session", {"session": "Stomata in light"}, "Open the leaf one from last week.")
-    assert not wrong.ok and built.day.sid == here
-    assert '"Leaf epidermis"' in wrong.summary and ids["leaf"] in wrong.summary
+    assert wrong.ok and built.day.sid == here and wrong.summary.startswith("nothing was opened")
+    assert 'you picked "Stomata in light"' in wrong.summary and 'read as "Leaf epidermis"' in wrong.summary
+    [card] = cards(built, "choose").values()  # both readings, for the user to pick
+    assert [c["session"] for c in card["choices"]] == [ids["leaf"], ids["guard"]]  # the user's words first
     right = call(built, "switch_session", {"session": "the leaf one from last week"}, "Open the leaf one from last week.")
     assert right.ok and built.day.sid == ids["leaf"]
     # The user's own choice of a name is theirs: "open Stomata in light" opens it.
@@ -382,7 +382,8 @@ def test_words_meaning_the_open_project_never_open_another(seeded):
     built, ids = seeded
     built.day.switch_session(ids["leaf"])
     wrong = call(built, "switch_session", {"session": "Stomata in light"}, "Open the leaf one from last week.")
-    assert not wrong.ok and built.day.sid == ids["leaf"] and "the Project open now" in wrong.summary
+    assert wrong.ok and built.day.sid == ids["leaf"] and wrong.summary.startswith("nothing was opened")
+    assert 'read as "Leaf epidermis"' in wrong.summary
 
 
 def test_a_proposed_tidy_is_noted_for_the_next_turn(seeded):
@@ -404,6 +405,160 @@ def test_a_voice_hand_off_is_read_as_the_words_heard_and_the_voices_reading(seed
     handed = ("Open the leave one from last week.\n(The voice partner, who sees the same view, took this to mean: "
               "Open the leaf one from last week.)")
     wrong = call(built, "switch_session", {"session": "Stomata in light"}, handed, channel="voice")
-    assert not wrong.ok and built.day.sid == here and '"Leaf epidermis"' in wrong.summary
+    assert wrong.ok and built.day.sid == here and 'read as "Leaf epidermis"' in wrong.summary
     right = call(built, "switch_session", {"session": "the leaf one from last week"}, handed, channel="voice")
     assert right.ok and built.day.sid == ids["leaf"]
+
+
+def test_do_it_on_the_card_closes_tabs_through_the_studio_that_pressed_it(seeded):
+    """Review of #189 (the blocker): the card's Do it ran without the studio's screen pin, so every Tab close failed
+    and the card showed "INVALID_REPORT: ...". Through a connected studio (test_voice_follows_project's), it closes."""
+    from orchestrator.commands import COMMANDS
+    from orchestrator.workspace_observation import ClientRef
+    from tests.test_table_window import CLIENT
+    from tests.test_voice_follows_project import LandingStudio
+
+    built, _ = seeded
+
+    async def go():
+        studio = LandingStudio(built)
+        studio.tabs = [{"id": "main", "title": "Main"}, {"id": "v2", "title": "Tab 2"}]
+        built.accept_workspace(studio, ClientRef(CLIENT["workspaceId"], CLIENT["clientId"], CLIENT["pageEpoch"],
+                                                 CLIENT["connectionEpoch"]))
+        built.hub.clients.add(studio)
+        await studio.send_report()
+        tidy_project(built)
+        run = built.brain.registry.start("organize_project", {"plan": {
+            "closeTabs": ["v2"], "conversations": [{"id": "t1", "title": "Count"}]}}, ToolContext("chat", 1, None, "tidy"))
+        await run.task
+        assert run.ok, run.summary
+        [card] = cards(built, "tidy").values()
+        reply = await COMMANDS["project-card"](built, studio, {"type": "project-card", "id": card["id"],
+                                                              "action": "apply"})
+        assert reply["ok"] is True, reply
+        assert [t["id"] for t in studio.tabs] == ["main"]  # the studio closed it
+        done = cards(built, "tidy")[card["id"]]
+        assert done["status"] == "done" and not any("Not done" in line for line in done["lines"]), done
+        assert 'Closed the Tab "Tab 2"' in done["lines"] and built.day.threads["t1"].title == "Count"
+        assert "All Tabs reopens closed Tabs" in done["said"]
+        assert any(m.get("type") == "project-card" and m["card"]["status"] == "applying" for m in built.sent)
+
+    asyncio.run(go())
+
+
+@pytest.mark.parametrize("reply", ["Absolutely", "Go for it", "Yup", "Yes, no problem", "Sure, I don't mind"])
+def test_any_yes_the_model_judges_applies_the_tidy(seeded, reply):
+    """Review of #189: a keyword list refused "Absolutely" and read "Yes, no problem" as a partial no. The model judges;
+    code only checks the words are the user's, said after the proposal."""
+    built, _ = seeded
+    tidy_project(built)
+    assert call(built, "organize_project", {"plan": {"conversations": [{"id": "t1", "title": "Count"}]}}).ok
+    done = call(built, "apply_organization", {"confirms": "o1", "asked_with": reply}, reply)
+    assert done.ok, done.summary
+    assert built.day.threads["t1"].title == "Count"
+
+
+def test_a_yes_in_the_request_that_asked_for_the_tidy_applies_nothing(seeded):
+    """Review of #189: "Yeah, can you tidy this Project?" proposed and applied in one turn."""
+    built, _ = seeded
+    tidy_project(built)
+
+    async def go():
+        ctx = ToolContext("chat", 1, None, "Yeah, can you tidy this Project?")  # one request: one context
+        proposed = built.brain.registry.start("organize_project", {"plan": {
+            "conversations": [{"id": "t1", "title": "Count"}]}}, ctx)
+        await proposed.task
+        applied = built.brain.registry.start("apply_organization", {"confirms": "o1", "asked_with": "Yeah"}, ctx)
+        await applied.task
+        return proposed, applied
+
+    proposed, applied = asyncio.run(go())
+    assert proposed.ok and not applied.ok and "said after it was proposed" in applied.summary
+    assert built.day.threads["t1"].title == "Outline the guard cells"
+    later = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes"}, "yes")  # the next turn's yes
+    assert later.ok and built.day.threads["t1"].title == "Count"
+
+
+def test_a_no_declines_the_tidy_and_its_card_says_so(seeded):
+    built, _ = seeded
+    tidy_project(built)
+    assert call(built, "organize_project", {"plan": {"conversations": [{"id": "t1", "title": "Count"}]}}).ok
+    no = call(built, "apply_organization", {"confirms": "o1", "asked_with": "no thanks", "decline": True}, "no thanks")
+    assert no.ok and "nothing changed" in no.summary
+    [card] = cards(built, "tidy").values()
+    assert card["status"] == "declined" and card["actions"] == []
+    assert built.day.threads["t1"].title == "Outline the guard cells"
+
+
+def test_undo_by_kind_reverts_that_change_and_results_name_their_change(seeded):
+    """Review of #189: "archive the test ones", "rename this", "unarchive the test ones" undid the rename."""
+    built, ids = seeded
+    archived = call(built, "archive_project", {"projects": [ids["test1"], ids["test2"]], "asked_with": "archive the test ones"},
+                    "archive the test ones")
+    renamed = call(built, "rename_project", {"name": "Leaf series"}, "rename this Project to Leaf series")
+    assert "(change pc" in archived.summary and "(change pc" in renamed.summary
+    undo = call(built, "undo_project_change", {"kind": "archive"}, "actually, unarchive the test ones")
+    assert undo.ok, undo.summary
+    cat = built.day.catalogue
+    assert not cat.get(ids["test1"]).archived and not cat.get(ids["test2"]).archived
+    assert built.day.name == "Leaf series"  # the rename stays
+    by_id = call(built, "undo_project_change", {"change": renamed.summary.split("(change ")[1].split()[0]}, "undo the rename")
+    assert by_id.ok and built.day.name == ""
+
+
+def test_undo_of_a_change_from_another_conversation_asks_first(seeded):
+    built, ids = seeded
+    call(built, "rename_project", {"project": ids["guard"], "name": "Guard cells"}, "rename the guard cell one")
+    built.day.open_thread("Another topic")  # a later conversation
+
+    async def ask(args):
+        ctx = ToolContext("chat", 1, None, "undo that", asked=built.day.here())
+        run = built.brain.registry.start("undo_project_change", args, ctx)
+        await run.task
+        return run
+
+    asked = asyncio.run(ask({}))
+    assert asked.ok and asked.summary.startswith("nothing was undone yet")
+    assert built.day.catalogue.get(ids["guard"]).name == "Guard cells"
+    change = asked.summary.split("undo_project_change with change ")[1].strip()
+    assert asyncio.run(ask({"change": change})).ok and built.day.catalogue.get(ids["guard"]).name == "Stomata in light"
+
+
+def test_the_word_check_asks_and_logs_its_override(seeded):
+    built, ids = seeded
+    logged = []
+    built.brain.agent.log = lambda row: logged.append(row)
+    run = call(built, "switch_session", {"session": "Stomata in light"}, "Open the leaf one from last week.")
+    assert run.ok and run.summary.startswith("nothing was opened")
+    [override] = [row for row in logged if row.get("kind") == "override"]
+    assert override["rule"] == "switch-session-words" and override["picked"] == ids["guard"]
+    assert override["read"] == [ids["leaf"]]
+
+
+def test_the_other_leaf_one_is_not_the_one_open(seeded):
+    """Review of #189: "Open the other leaf one." from Leaf epidermis was refused as meaning Leaf epidermis."""
+    built, ids = seeded
+    built.day.switch_session(ids["leaf"])
+    run = call(built, "switch_session", {"session": "the other leaf one"}, "Open the other leaf one.")
+    assert run.ok and built.day.sid == ids["old-leaf"], run.summary
+
+
+def test_a_which_project_card_says_which_was_opened(seeded):
+    built, ids = seeded
+    assert call(built, "switch_session", {"session": "the leaf one"}, "open the leaf one").summary.startswith("nothing")
+    assert call(built, "switch_session", {"session": ids["old-leaf"]}, "").ok  # the card's Open: the studio's switch
+    [card] = cards(built, "choose").values()
+    assert card["status"] == "chosen" and card["said"].startswith("Opened “")
+
+
+def test_a_card_press_records_the_user_as_who_grouped_it(seeded):
+    from orchestrator.project_material_edit import membership_id
+    from orchestrator.scientific_comparisons import identity
+
+    built, _ = seeded
+    original = tidy_project(built)
+    assert call(built, "organize_project", {"plan": {"groups": [{"item": original.id, "group": "Light"}]}}).ok
+    [card] = cards(built, "tidy").values()
+    assert press(built, card["id"], "apply")["ok"] is True
+    group = built.hub.resources.projects.read(membership_id(identity(original)), built.day.sid)
+    assert group.document["state"]["materialMembership"]["by"] == "user"
