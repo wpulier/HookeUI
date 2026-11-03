@@ -207,3 +207,18 @@ def test_a_started_project_reads_an_inherited_files_bytes_under_its_own_handle(t
     ref = held.document['state']['sourceFile']['reference']
     file = store.file_source(source.id, working.session, 1, ref)
     assert file.read(0, 1 << 20) == PIXELS[:1 << 20] and file.session == root.session
+
+
+def test_a_started_project_holding_inherited_files_can_be_sealed_backed_up_and_published(tmp_path):
+    """Live test, ticket 13: sealing checked an inherited document's files under the copy's own handle and refused,
+    so a started Project could not be exported, backed up or published."""
+    from orchestrator.project_backup import back_up
+    from orchestrator.project_folder_copy import copy_snapshot
+    root, repo, prefs, registry, note, source, remote, review = published(tmp_path)
+    publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote)
+    working, _, _ = start_from(remote, elsewhere(tmp_path)[3], staging=tmp_path / 'Fetch')
+    sealed = copy_snapshot(working, tmp_path / 'Sealed copy')
+    assert sealed.origin == working.origin
+    back_up(seal(working), folder_remote(tmp_path / 'Drive', create=True), staging=tmp_path / 'B', scan_secrets=False)
+    again = prepare(seal(working), tmp_path / 'Review again')
+    assert not again['blocked'] and again['origin'] == working.origin
