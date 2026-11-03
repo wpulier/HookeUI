@@ -183,3 +183,18 @@ def test_a_step_hands_ends_before_it_runs_is_settled_with_its_reason():
         finally:
             ticket.close()
     asyncio.run(scenario())
+
+
+def test_a_handoffs_steps_are_logged_with_their_job():
+    """The journeys count hand-off steps (bench/voice_journeys/standard.py drive) from this field."""
+    async def go():
+        screen = {"now": report(front="main")}
+        hands, _, logged = make(screen)
+
+        async def effect():
+            screen["now"] = report(front="Measurements", seq=8)
+            return {"ok": True}
+        await hands.act("tabs", {"action": "switch", "tab": "Measurements"}, effect, plan=hands.plan(None, job="handoff:h9"))
+        record = next(r for r in logged if r["kind"] == "partner-hands")
+        assert record["job"] == "handoff:h9" and record["result"] == "verified"
+    asyncio.run(go())

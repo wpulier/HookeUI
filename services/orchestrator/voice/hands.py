@@ -101,6 +101,7 @@ class Intent:
     project: str | None = None  # the precondition: the Project it was planned in
     before: dict | None = None  # the screen it was planned against (its facts), for what the receipt says
     record: dict | None = None  # Hooke's record before the effect (records.Records.before)
+    job: str | None = None  # the hand-off it is a step of (Plan.job), for the log
 
 
 @dataclass
@@ -745,6 +746,7 @@ class Hands:
                 return {**kept, "note": "already done for this call; not done again"}
             intent.id = f"dr-{action_id[-12:]}"
         plan = plan or self.plan()
+        intent.job = plan.job
         if project is not None and plan.project is None:
             plan.project = project
         if intent.ui and not self.looked and not self._own_job(plan):
@@ -1057,6 +1059,7 @@ class Hands:
         hands.update(intent=intent.kind, tool=intent.tool, target=intent.target, driveId=intent.id,
                      **({"model": intent.model} if intent.model else {}),
                      version=intent.version, revision=intent.revision, project=getattr(intent, "project", None),
-                     result=outcome["result"], **({"reconciled": True} if reconciled else {}))
+                     result=outcome["result"], **({"reconciled": True} if reconciled else {}),
+                     **({"job": intent.job} if intent.job else {}))
         self.log({"kind": "partner-hands", **hands, "error": outcome.get("error")})
         return outcome
