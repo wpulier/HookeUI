@@ -4,6 +4,8 @@
 // as the answer to a click the user meant, and the connection follows at once (voice.ts). While that prompt is up the
 // card says so; it is never shown as "Connecting". Blocked, the card says how to turn the microphone back on.
 
+import { MicPicker } from './mic-picker';
+
 /** The microphone permission as the browser says it; "unknown" where it cannot say (no Permissions API for it). */
 export type MicPermission = 'granted' | 'prompt' | 'denied' | 'unknown';
 
@@ -63,6 +65,8 @@ export class MicCard {
   private readonly button: HTMLButtonElement;
   private readonly close: HTMLButtonElement;
   private readonly words: () => { keyWords: string; macApp: boolean };
+  /** Which microphone Talk listens with (mic-picker.ts), shown once the microphones can be listed by name. */
+  readonly picker: MicPicker;
 
   constructor(options: { act: () => void; words: () => { keyWords: string; macApp: boolean }; doc?: Document }) {
     const doc = options.doc ?? document;
@@ -86,7 +90,9 @@ export class MicCard {
     this.close = Object.assign(doc.createElement('button'), { type: 'button', className: 'mic-card-close', textContent: '×' });
     this.close.setAttribute('aria-label', 'Not now');
     this.close.addEventListener('click', () => this.hide());
-    body.append(this.title, this.line, this.button, this.foot);
+    this.picker = new MicPicker({ doc, caption: 'Microphone' });
+    this.picker.root.hidden = true;
+    body.append(this.title, this.line, this.button, this.foot, this.picker.root);
     this.root.append(icon, body, this.close);
   }
 
@@ -102,6 +108,7 @@ export class MicCard {
     this.foot.hidden = !words.foot;
     this.foot.textContent = words.foot ?? '';
     this.root.hidden = false;
+    void this.picker.refresh().then(() => { this.picker.root.hidden = !this.picker.listed; });
   }
 
   hide(): void {

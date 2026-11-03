@@ -1015,9 +1015,28 @@ does not run work. The composer gives context (its chip line), typing (the field
 Talk, Send) separate rows, so a long Project/input label cannot collapse the input.
 
 Talk resumes both audio contexts within the user gesture and connects the capture
-worklet through a silent output. It listens with the system's default input, except that a nearby iPhone or iPad
-macOS made the default (Continuity, often while the phone is the camera) gives way to the Mac's own microphone, or
-else another real one; a headset or USB microphone the user chose is kept (`mic-choice.ts`). Listening requires a captured microphone chunk
+worklet through a silent output. Its microphone (`mic-choice.ts`; Will, 3 Nov: the Mac's own, never the iPhone unless
+picked, with a remembered picker):
+- **The choice:** `chooseMicrophone` takes the saved pick if it is here (by id, else by label), else the system default
+  when it is a real microphone (a headset, AirPods or a USB microphone the Mac switched to), else the Mac's own (also
+  in other languages), else any input that is not a phone, a capture card or a loopback. Never a phone unless it is
+  the pick. A phone is any label with iPhone or iPad (no word break: "iPhoneWild Microphone"), or the bridge's own
+  phone under any name: the camera menu reads the continuity source's device from the bridge's `/api/health`
+  ("iPhoneWild Camera") and its microphone is the same name with Microphone.
+- **Chosen before it is opened:** `openMicrophone` lists the devices first and opens the choice by its id
+  (`deviceId: {exact}`), so the iPhone's microphone is never opened while the phone is the camera. With no labels yet
+  (a first run, before permission), it opens the saved pick's id if there is one, else the default, reads its label,
+  and stops a phone at once before opening the choice. Only a phone left: nothing is opened, and Talk says why
+  (`ONLY_PHONE`). Record's microphone (`recorder.ts`) uses the same `openMicrophone`.
+- **Mid-Talk:** a `devicechange`, a new pick or the track ending chooses again; a different choice is opened and
+  swapped in on the WebRTC sender (`replaceTrack`) and in the capture graph, so the conversation goes on. Nothing usable
+  after the open one ended: "The microphone disconnected".
+- **The picker** (`mic-picker.ts`), as Microphone in the camera menu (`phonepanel.ts`, under Source) and in the
+  microphone card (shown there once the inputs have names): Automatic (named by what Talk would choose), then each
+  input, the bridge's phone as "iPhone (camera)"; a pick that is unplugged stays shown as not connected. The pick is
+  kept in localStorage as `talk-mic` (`{id, label}`, every access tried), and a Talk in progress switches to it.
+
+Listening requires a captured microphone chunk
 and provider acknowledgement; the model-name announcement is not readiness.
 Pending permission, connection timeout, capture stalls and blocked playback have
 actionable states. End releases the session without cancelling delegated work.

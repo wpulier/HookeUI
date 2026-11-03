@@ -36,3 +36,16 @@
 @keyframes mic-card-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @keyframes mic-card-breathe { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mm-accent, #79adff) 14%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .mic-card, .mic-card[data-state='asking'] .mic-card-icon { animation: none; } }
+/* The Microphone picker (mic-picker.ts), in this card and in the camera menu: the column's select control. */
+.mic-pick { display: grid; gap: 4px; min-width: 0; width: 100%; }
+.mic-pick[hidden], .mic-pick-select[hidden] { display: none; }
+.mic-card .mic-pick { margin-top: 8px; }
+.mic-pick-caption { font: 600 var(--mm-11, 11px)/1.2 var(--mm-sans); color: var(--mm-text-2); }
+.mic-pick-select {
+  width: 100%; min-width: 0; height: 30px; box-sizing: border-box; padding: 0 26px 0 10px; border: 0; border-radius: 8px;
+  appearance: none; background: var(--mm-ctl-fill, rgb(255 255 255 / 8%)) var(--mm-chevron, none) right 7px center / 12px no-repeat;
+  box-shadow: var(--mm-ctl-edge, inset 0 0 0 0.5px var(--mm-line-strong)); color: var(--mm-ctl-text, var(--mm-text));
+  font: 500 var(--mm-13, 13px)/1 var(--mm-sans); text-overflow: ellipsis; cursor: pointer;
+}
+.mic-pick-select:hover { background-color: var(--mm-ctl-fill-hover, var(--mm-ctl-fill)); }
+.mic-pick-note { margin: 0; font: 400 var(--mm-12, 12px)/1.4 var(--mm-sans); color: var(--mm-text-3); }
