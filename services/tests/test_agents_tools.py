@@ -16,7 +16,7 @@ class Conductor:
 
     async def start(self, program, task, *, by):
         if program == "grok":
-            raise Refused("Grok Build isn't installed on this Mac.", "install Grok Build from x.ai")
+            raise Refused("Grok Build isn't installed on this Mac.", next="install Grok Build from x.ai")
         launch = SimpleNamespace(id=f"ag_{len(self.started)}", label="Codex", status="working", project_name="Leaf",
                                  budget_usd=None)
         self.started.append((program, task, by))
@@ -29,7 +29,7 @@ class Conductor:
 
     def find_one(self, words):
         if words and words.lower() not in ("codex",):
-            raise Refused(f"No agent called {words}.", "ask what's running")
+            raise Refused(f"No agent called {words}.", next="ask what's running")
         return next(iter(self.launches.values()))
 
     async def note(self, lid, text, *, by):

@@ -40,9 +40,9 @@ LIVE_STATES = ("starting", "working", "idle", "done")  # its program is running 
 class Refused(Exception):
     """A launch or a verb Hooke won't do now: `says` what happened, `next` what the user can do."""
 
-    def __init__(self, says: str, next: str = "", status: int = 409):
+    def __init__(self, says: str, *, next: str | None, status: int = 409):
         super().__init__(says)
-        self.says, self.next, self.status = says, next, status
+        self.says, self.next, self.status = says, next or "", status
 
 
 @dataclass
@@ -118,7 +118,7 @@ def adapter_for(program: str, path: str) -> Adapter:
     made = {"codex": lambda: Codex(factory, path), "claude-code": lambda: Claude(factory, path),
             "grok": lambda: grok(factory, path), "gemini": lambda: gemini(factory, path)}.get(program)
     if made is None:
-        raise Refused(f"Hooke doesn't know how to start {program}.", "choose Codex, Claude Code or Grok Build", 400)
+        raise Refused(f"Hooke doesn't know how to start {program}.", next="choose Codex, Claude Code or Grok Build", status=400)
     return made()
 
 
@@ -210,7 +210,7 @@ class Conductor:
     def get(self, lid: str) -> Launch:
         launch = self.launches.get(lid)
         if launch is None:
-            raise Refused("There is no such agent.", "reload the Agents list", 404)
+            raise Refused("There is no such agent.", next="reload the Agents list", status=404)
         return launch
 
     def find_one(self, words: str | None) -> Launch:
@@ -221,13 +221,13 @@ class Conductor:
             if len(live) == 1:
                 return live[0]
             if not live:
-                raise Refused("No outside agent is running.", "start one first")
-            raise Refused("Several agents are running.", "say which: " + ", ".join(r.label for r in live))
+                raise Refused("No outside agent is running.", next="start one first")
+            raise Refused("Several agents are running.", next="say which: " + ", ".join(r.label for r in live))
         text = words.strip().lower()
         for r in rows:
             if text in (r.id.lower(), r.program, r.label.lower()) or text in r.label.lower():
                 return r
-        raise Refused(f"No agent called {words}.", "ask what's running")
+        raise Refused(f"No agent called {words}.", next="ask what's running")
 
     async def programs(self, *, fresh: bool = False) -> list[dict]:
         if self._programs is None or fresh:
@@ -239,24 +239,24 @@ class Conductor:
                     budget_usd: float | None = None) -> Launch:
         known = installed.BY_ID.get(program)
         if known is None:
-            raise Refused(f"Hooke can't start {program}.", "choose Codex, Claude Code, Grok Build or Gemini CLI", 400)
+            raise Refused(f"Hooke can't start {program}.", next="choose Codex, Claude Code, Grok Build or Gemini CLI", status=400)
         task = (task or "").strip()[:4000]
         if not task:
-            raise Refused("Say what the agent should do.", "give it a task", 400)
+            raise Refused("Say what the agent should do.", next="give it a task", status=400)
         busy = [r for r in self.launches.values() if r.state in ("starting", "working", "idle")]
         if len(busy) >= MOST_LIVE:
-            raise Refused(f"{len(busy)} agents are already working.", "stop one first, then start this one")
+            raise Refused(f"{len(busy)} agents are already working.", next="stop one first, then start this one")
         finished = sorted((r for r in self.launches.values() if r.state == "done" and r.id in self.adapters),
                           key=lambda r: r.at)
         while len(busy) + len(finished) >= MOST_ALIVE:  # a finished agent still running its program makes room
             await self.stop(finished.pop(0).id, "Hooke ended it after it finished, to make room for another")
         path = await asyncio.to_thread(self.find, program)
         if not path:
-            raise Refused(f"{known.label} isn't installed on this Mac.", known.how, 409)
+            raise Refused(f"{known.label} isn't installed on this Mac.", next=known.how, status=409)
         cli = await asyncio.to_thread(self.side.cli)
         if cli is None:
             raise Refused("Hooke's own `hooke` command isn't available in this copy of Hooke.",
-                          "build it (docs/testing/agent-connection.md) or set HOOKE_CLI", 409)
+                          next="build it (docs/testing/agent-connection.md) or set HOOKE_CLI", status=409)
         sid, name = await asyncio.to_thread(self.side.project, project)
         budget = self._budget(program, budget_usd)
         lid = "ag_" + secrets.token_hex(8)
@@ -281,7 +281,7 @@ class Conductor:
         except Exception as error:  # a Hooke-side refusal (Study, access) said as itself
             self._abandon(launch, folder)
             raise Refused(f"Hooke couldn't set up {known.label}'s assignment: {short(str(error), 200)}",
-                          "try again, or start it in another Project") from error
+                          next="try again, or start it in another Project") from error
         self.launches[lid] = launch
         self.side.hold(lid, budget or 0.0)
         self._note(launch, "hooke", marked(task))
@@ -306,7 +306,7 @@ class Conductor:
         if left is not None:
             if left < 0.25:
                 raise Refused(f"Today's research allowance has ${max(0.0, left):.2f} left.",
-                              "raise it in Settings, or start the agent tomorrow")
+                              next="raise it in Settings, or start the agent tomorrow")
             budget = min(budget, left)
         return round(budget, 2)
 
@@ -466,20 +466,20 @@ class Conductor:
     def _adapter(self, launch: Launch) -> Adapter:
         adapter = self.adapters.get(launch.id)
         if adapter is None or adapter.ended or launch.state in ("failed", "stopped"):
-            raise Refused(f"{launch.label} has ended.", "start a new agent to continue")
+            raise Refused(f"{launch.label} has ended.", next="start a new agent to continue")
         return adapter
 
     async def note(self, lid: str, text: str, *, by: str = "studio") -> str:
         launch = self.get(lid)
         text = (text or "").strip()
         if not text:
-            raise Refused("Say what to tell it.", "type a message", 400)
+            raise Refused("Say what to tell it.", next="type a message", status=400)
         adapter = self._adapter(launch)
         relayed = marked(text)
         try:
             how = await adapter.send(relayed)
         except Gone as error:
-            raise Refused(f"{launch.label} has ended.", "start a new agent to continue") from error
+            raise Refused(f"{launch.label} has ended.", next="start a new agent to continue") from error
         self._note(launch, "hooke", relayed, how=how, by=by)
         if launch.state == "done" or launch.state == "idle":
             launch.state = "working"
@@ -496,11 +496,11 @@ class Conductor:
         """The user's own answer, from the Agents panel: the only way an ask is ever answered."""
         launch = self.get(lid)
         if not any(a["id"] == permission for a in launch.asks):
-            raise Refused("That ask is no longer waiting.", "reload the Agents list")
+            raise Refused("That ask is no longer waiting.", next="reload the Agents list")
         try:
             await self._adapter(launch).answer(permission, allow, always=always)
         except KeyError as error:
-            raise Refused("That ask is no longer waiting.", "reload the Agents list") from error
+            raise Refused("That ask is no longer waiting.", next="reload the Agents list") from error
 
     async def stop(self, lid: str, why: str = "You stopped it") -> Launch:
         launch = self.get(lid)

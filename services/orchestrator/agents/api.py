@@ -30,23 +30,23 @@ def _refused(error: Refused) -> JSONResponse:
 def register(app, built, studio_origin, header: str) -> None:
     def window(request: Request, writes: bool) -> None:
         if _host(request) not in LOOPBACK_HOSTS or request.headers.get("authorization"):
-            raise Refused("Only this Mac's Hooke window may do that.", "use Hooke on this Mac", 403)
+            raise Refused("Only this Mac's Hooke window may do that.", next="use Hooke on this Mac", status=403)
         expected = os.environ.get("HOOKE_STUDIO_TOKEN")
         if expected:  # the Mac app: only its own window holds this
             if not secrets.compare_digest(request.headers.get("x-hooke-studio") or "", expected):
-                raise Refused("Only the Hooke window may do that.", "use Hooke on this Mac", 403)
+                raise Refused("Only the Hooke window may do that.", next="use Hooke on this Mac", status=403)
         if writes:
             if not studio_origin(request.headers.get("origin"), request.url.port) or \
                     request.headers.get(header) != HEADER_VALUE:
-                raise Refused("Only the Hooke window may do that.", "use Hooke on this Mac", 403)
+                raise Refused("Only the Hooke window may do that.", next="use Hooke on this Mac", status=403)
         elif not expected:
             source = request.headers.get("origin") or request.headers.get("referer") or ""
             parsed = urlsplit(source)
             if source and not studio_origin(f"{parsed.scheme}://{parsed.netloc}", request.url.port):
-                raise Refused("Only the Hooke window may do that.", "use Hooke on this Mac", 403)
+                raise Refused("Only the Hooke window may do that.", next="use Hooke on this Mac", status=403)
         conductor = getattr(built, "conductor", None)
         if conductor is None:
-            raise Refused("Hooke can't start outside agents in this copy.", "", 503)
+            raise Refused("Hooke can't start outside agents in this copy.", next=None, status=503)  # no next: a build without the conductor
         if request.url.port:
             conductor.side.door = f"http://127.0.0.1:{request.url.port}"  # what a development `hooke` is pointed at
 
@@ -56,7 +56,7 @@ def register(app, built, studio_origin, header: str) -> None:
         except ValueError:
             value = None
         if not isinstance(value, dict):
-            raise Refused("Send a JSON object.", "", 400)
+            raise Refused("Send a JSON object.", next="send the request's fields as JSON", status=400)
         return value
 
     @app.get("/api/agents")
@@ -116,7 +116,7 @@ def register(app, built, studio_origin, header: str) -> None:
             value = await body(request)
             answer = value.get("answer")
             if answer not in ("allow", "deny") or not isinstance(value.get("permission"), str):
-                raise Refused("Answer allow or deny, for one ask.", "", 400)
+                raise Refused("Answer allow or deny, for one ask.", next="send the ask's id with allow or deny", status=400)
             await built.conductor.answer(lid, value["permission"], answer == "allow",
                                          always=value.get("always") is True)
             return _json({"answered": answer})

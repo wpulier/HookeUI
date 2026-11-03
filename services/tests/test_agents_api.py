@@ -34,7 +34,7 @@ class Conductor:
 
     async def note(self, lid, text, by):
         if lid == "gone":
-            raise Refused("Codex has ended.", "start a new agent to continue")
+            raise Refused("Codex has ended.", next="start a new agent to continue")
         self.calls.append(("note", lid, text))
         return "steered"
 

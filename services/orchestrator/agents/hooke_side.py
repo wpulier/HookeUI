@@ -12,7 +12,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]  # the source checkout, or Contents/Resources/app in the Mac app
+from ..paths import REPO  # the source checkout, or Contents/Resources/app in the Mac app
+
 CLI_SOURCES = ("packaging/macos/hooke/main.swift", "packaging/macos/HookeUI/AgentShared.swift")
 BUILD_S = 180
 
@@ -62,7 +63,7 @@ class HookeSide:
         sid = sid or day.sid
         info = day.catalogue.get(sid) if sid else None
         if info is None:
-            raise Refused("Open a Project first: the agent works in one Project.", "open or make a Project", 409)
+            raise Refused("Open a Project first: the agent works in one Project.", next="open or make a Project", status=409)
         return sid, info.name or "this Project"
 
     def connect(self, label: str, kind: str, launch: str, project: str) -> tuple[str, str]:
