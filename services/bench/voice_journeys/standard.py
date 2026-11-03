@@ -615,6 +615,10 @@ def backed(receipt: dict, calls: list[Call], bench: dict) -> bool:
     tool = receipt.get("tool")
     mine = [c for c in calls if c.name == tool and c.start <= receipt["t"] + NEAR_S]
     if receipt.get("intent") in VISIBLE_INTENTS or any(c.screen_change for c in mine):
+        if receipt.get("job"):
+            # A hand-off's step: its call is the hand-off row's step, settled when the row was (after the receipt), and
+            # confirmed only when the studio showed it (not STUDIO_UNREPORTED: `_unseen`); a failed step is never that.
+            return any(c.confirmed_at is not None and c.ok is True for c in mine)
         return any(c.confirmed_at is not None and c.confirmed_at <= receipt["t"] + 1.0 for c in mine)
     for c in mine:
         if c.ok is True and state_backed(c, bench) is not None:

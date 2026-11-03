@@ -110,7 +110,8 @@
      "start_researcher"
     ],
     "judge": "starts one researcher at once, says its number and that it is working, and never that it has finished",
-    "outcome": true
+    "outcome": true,
+    "researchers": 1
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },
