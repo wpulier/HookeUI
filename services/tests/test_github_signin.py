@@ -91,3 +91,19 @@ def test_what_github_refuses_is_said_in_plain_words(store, monkeypatch):
     monkeypatch.setenv("MICROMIND_GITHUB_CLIENT_ID", "Iv-test-client")
     with pytest.raises(gh.SignInFailed, match="Device Flow turned on"):
         gh.start(post=lambda url, form: {"error": "device_flow_disabled"})
+
+
+def test_the_projects_github_app_is_set_up_by_default(store, monkeypatch):
+    monkeypatch.delenv("MICROMIND_GITHUB_CLIENT_ID", raising=False)
+    assert gh.client_id() == "Iv23liA0QQ20uoneqAY0" and gh.status()["setUp"] is True
+    github = GitHub([])
+    gh.start(post=github)
+    assert github.asked == [(gh.DEVICE_URL, {"client_id": "Iv23liA0QQ20uoneqAY0", "scope": gh.SCOPES})]
+
+
+def test_a_refusal_where_the_app_is_not_installed_says_where_to_install_it():
+    from orchestrator import github_rest
+    said = github_rest.refused("making the repository", 403, {"message": "Resource not accessible by integration"})
+    assert gh.INSTALL_URL in said and "Install the HookeUI app" in said
+    plain = github_rest.refused("making the repository", 403, {"message": "Repository creation failed."})
+    assert gh.INSTALL_URL not in plain and plain == "GitHub refused making the repository (403: Repository creation failed.)"

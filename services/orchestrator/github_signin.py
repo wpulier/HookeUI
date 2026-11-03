@@ -5,27 +5,26 @@ studio shows it with GitHub's page ("Open github.com/login/device and type WDJB-
 own browser, signed in as they already are, and the app's polling receives a token. No password ever passes through the
 app, and nothing is typed into it.
 
-**What it needs, and doesn't have yet:** the project's own OAuth app registered on GitHub with Device Flow enabled. Its
-client ID is public by GitHub's design (the device flow uses no client secret), so it is this module's `CLIENT_ID`, the
-same in every copy of the app; `MICROMIND_GITHUB_CLIENT_ID` overrides it (a fork, a test). Until it is registered,
-`CLIENT_ID` is empty and every call says so (`NotSetUp`), with what works today: publishing with Git and `gh` signed in.
-No client identity is invented here. To register it (the project's owner, once): GitHub → Settings → Developer settings
-→ OAuth Apps → New OAuth App; name "HookeUI", homepage the project's page, callback URL the same page (unused by the
-device flow), tick **Enable Device Flow**; copy its Client ID into `CLIENT_ID`.
+**The project's GitHub App** is HookeUI (github.com/apps/hookeui, registered by the project's owner on 2 November 2026,
+Device Flow enabled, no webhook, installable on any account). Its client ID is public by GitHub's design (the device flow
+uses no client secret), so it is this module's `CLIENT_ID`, the same in every copy of the app;
+`MICROMIND_GITHUB_CLIENT_ID` overrides it (a fork, a test). With it set empty, every call says it isn't set up
+(`NotSetUp`) and what works then: publishing with Git and `gh` signed in. Its permissions: repository Contents,
+Administration and Repository creation (write), Metadata (read), account Email addresses (read). A GitHub App's token
+reaches only the accounts and repositories the app is installed on, so a refusal for that names `INSTALL_URL`
+(github_rest.refused).
 
 **The token** is kept in the macOS Keychain (keychain.py, account `GITHUB_SIGNIN`), never on a wire, in a log or told to a
 model. It asks for `public_repo` (to fork the catalog and open a pull request) and `read:user user:email` (whose name and
 verified email the DCO sign-off certifies). Sign out deletes it; the user can also revoke it on GitHub.
 
 **Projects (ADR 0028)** use the same sign-in to publish a Project to a new repository of the user's
-(project_remote_github.py). The registered app may be a GitHub App with Device Flow enabled instead of an OAuth app: the
-endpoints are the same, its token is limited to the repositories the user chooses, and the `scope` sent here is
-ignored. A GitHub App token that expires is not refreshed (that needs a client secret no Mac should hold): the next
+(project_remote_github.py). The app is a GitHub App, so the endpoints are an OAuth app's, its token is limited to the
+repositories the user chooses, and the `scope` sent here is ignored. A GitHub App token that expires is not refreshed (that needs a client secret no Mac should hold): the next
 call says to sign in again (github_rest.SignInAgain).
 
 Signed in, Share with everyone goes through GitHub's API with this token (publish_api.py: the exact reviewed package, a
 fork, one signed-off commit, the pull request), with no checkout and no Git; without it, publish.py's Git and `gh` route.
-The sign-in itself still waits for the project's registered OAuth app (`CLIENT_ID`).
 """
 from __future__ import annotations
 
@@ -40,14 +39,15 @@ from typing import Callable, Mapping
 
 from . import keychain, untrusted
 
-CLIENT_ID = ""  # the project's OAuth app (Device Flow enabled): empty until it is registered (see the docstring)
+CLIENT_ID = "Iv23liA0QQ20uoneqAY0"  # the HookeUI GitHub App (Device Flow enabled; public, see the docstring)
+INSTALL_URL = "https://github.com/apps/hookeui/installations/new"
 SCOPES = "public_repo read:user user:email"
 DEVICE_URL = "https://github.com/login/device/code"
 TOKEN_URL = "https://github.com/login/oauth/access_token"
 GRANT = "urn:ietf:params:oauth:grant-type:device_code"
 ACCOUNT = "GITHUB_SIGNIN"  # its Keychain account
 TODAY = ("Share with everyone works today with Git and the GitHub command line signed in (gh auth login); one-click "
-         "sign-in waits for the project's own GitHub app")
+         "sign-in needs the project's GitHub app, which this copy of the app has turned off")
 
 Post = Callable[[str, dict], dict]
 
