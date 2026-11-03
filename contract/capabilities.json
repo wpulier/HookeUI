@@ -2615,6 +2615,103 @@
       ]
     },
     {
+      "id": "list-projects",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Find your Projects",
+      "what": "Lists your Projects, or finds those you describe, best first",
+      "how": {
+        "tool": "list_projects",
+        "say": "what Projects do I have on guard cells?"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "rename-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Rename a Project",
+      "what": "Renames this Project or another you name, undoably",
+      "how": {
+        "tool": "rename_project",
+        "say": "call this Project Stomata in light"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "organize-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Tidy a Project",
+      "what": "Proposes names, groups and Tabs to close, as a card",
+      "how": {
+        "tool": "organize_project",
+        "say": "tidy this Project"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "apply-organization",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Do the tidy",
+      "what": "Applies the tidy it proposed, on your yes, undoably",
+      "how": {
+        "tool": "apply_organization",
+        "say": "yes, do it"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "archive-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Archive Projects",
+      "what": "Puts Projects away with all their work kept, or brings them back",
+      "how": {
+        "tool": "archive_project",
+        "say": "archive the old test ones"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "undo-project-change",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Undo a Project change",
+      "what": "Puts back the last rename, archive or tidy Hooke made",
+      "how": {
+        "tool": "undo_project_change",
+        "say": "undo that"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "project-card",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Tidy or choose a Project",
+      "what": "Do it, Not now or Undo on a Project card",
+      "how": {
+        "command": "project-card"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
       "id": "you-lead",
       "family": "conversation",
       "actor": "agent",

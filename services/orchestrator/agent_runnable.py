@@ -99,6 +99,13 @@ NOT_RUNNABLE: dict[str, str] = {
     "new_project": "starts a Project (agents get theirs from open)",
     "new_session": "starts a Project (agents get theirs from open)",
     "switch_session": "opens another of the researcher's Projects",
+    "list_projects": "reads every one of the researcher's Projects; agents list theirs with project.list",
+    "rename_project": "renames the researcher's Projects",
+    "organize_project": "reads the researcher's open Project's conversations and Tabs; agents read project.state",
+    "apply_organization": "renames conversations and closes Tabs in the researcher's workspace; agents group "
+                          "material with material.organize",
+    "archive_project": "archives the researcher's Projects",
+    "undo_project_change": "undoes changes to the researcher's Projects",
     "new_thread": "starts a conversation",
     "switch_thread": "goes to another conversation",
     "recall": "reads the researcher's conversations",

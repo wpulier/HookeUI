@@ -233,3 +233,120 @@ def test_a_session_called_exactly_that_is_the_one_even_when_another_looked_at_th
     cat = Catalogue(tmp_path)
     assert [i.id for i in cat.find("Nuclei")] == ["2026-10-29.2"]
     assert len(cat.find("stained")) == 2
+
+
+# --- finding a Project by voice (Lane B: "open the leaf one from last week", "what Projects do I have on guard cells") ---
+NOV3 = time.mktime((2026, 11, 3, 15, 0, 0, 0, 0, -1))  # Tuesday Nov 3, 15:00 local
+
+
+def at(month, day, hour=10):
+    return time.mktime((2026, month, day, hour, 0, 0, 0, 0, -1))
+
+
+def test_spans_of_days_in_words():
+    from orchestrator.day.catalogue import span_in
+
+    def days(words):
+        span = span_in(words, NOV3)
+        return (span.first, span.last) if span else None
+
+    assert days("the leaf one from last week") == ("2026-10-26", "2026-11-01")  # the calendar week before, Mon to Sun
+    assert days("earlier this week") == ("2026-11-02", "2026-11-03")
+    assert days("what did we do in October") == ("2026-10-01", "2026-10-31")
+    assert days("the October ones") == ("2026-10-01", "2026-10-31")
+    assert days("last month") == ("2026-10-01", "2026-10-31")
+    assert days("this month") == ("2026-11-01", "2026-11-03")
+    assert days("3 days ago") == days("three days ago") == ("2026-10-31", "2026-10-31")
+    assert days("the last 10 days") == ("2026-10-25", "2026-11-03")
+    assert days("the past week") == ("2026-10-28", "2026-11-03")
+    assert days("two weeks ago") == ("2026-10-19", "2026-10-25")
+    assert days("in may") == ("2026-05-01", "2026-05-31")
+    assert days("in December") == ("2025-12-01", "2025-12-31")  # said in November: last year's
+    assert days("the one that may be stained") is None  # "may" alone is no month
+    assert days("the leaf one") is None
+    assert days("the day before yesterday") == ("2026-11-01", "2026-11-01")
+    assert span_in("last week", NOV3).words == "Oct 26 to Nov 1"
+
+
+def test_plural_and_singular_are_one_word():
+    from orchestrator.day.catalogue import stem
+
+    assert stem("leaves") == stem("leaf") == "leaf"
+    assert stem("cells") == stem("cell") and stem("stomata") == stem("stoma")
+    assert stem("nuclei") == stem("nucleus") and stem("studies") == stem("study")
+    assert stem("epidermis") == "epidermis" and stem("glass") == "glass"
+
+
+def seeded(root):
+    """Five Projects as Will's might be on Nov 3: two leaf ones (last week and the week before), a guard-cell one this
+    week, an onion one whose conversation was about guard cells, and an archived test one."""
+    write(root, "2026-10-28", [
+        {"type": "session-started", "session": "2026-10-28", "name": "Leaf epidermis", "by": "user", "at": at(10, 28)},
+        {"type": "thread-opened", "thread": "t1", "title": "", "at": at(10, 28)},
+        {"type": "subject", "thread": "t1", "name": "leaf epidermis", "at": at(10, 28)},
+    ])
+    write(root, "2026-10-20", [
+        {"type": "thread-opened", "thread": "t1", "title": "", "at": at(10, 20)},
+        {"type": "subject", "thread": "t1", "name": "leaves", "at": at(10, 20)},
+    ])
+    write(root, "2026-11-02", [
+        {"type": "session-started", "session": "2026-11-02", "name": "Stomata in light", "by": "user", "at": at(11, 2)},
+        {"type": "thread-opened", "thread": "t1", "title": "Aperture", "at": at(11, 2)},
+        {"type": "subject", "thread": "t1", "name": "guard cells", "at": at(11, 2)},
+    ])
+    write(root, "2026-10-15", [
+        {"type": "session-started", "session": "2026-10-15", "name": "Onion skin", "by": "user", "at": at(10, 15)},
+        {"type": "thread-opened", "thread": "t1", "title": "", "at": at(10, 15)},
+        {"type": "summary", "thread": "t1", "text": "Compared onion cells with the guard cells of a leaf.", "upto": 4,
+         "at": at(10, 15, 11)},
+    ])
+    write(root, "2026-10-16", [
+        {"type": "session-started", "session": "2026-10-16", "name": "Test run", "by": "user", "at": at(10, 16)},
+        {"type": "session-archived", "archived": True, "by": "user", "at": at(10, 17)},
+    ])
+    return Catalogue(root)
+
+
+def test_the_leaf_one_from_last_week_is_one_sure_match(tmp_path):
+    cat = seeded(tmp_path)
+    ranked = cat.rank("the leaf one from last week", now=NOV3)
+    assert ranked.sure is not None and ranked.sure.info.id == "2026-10-28"
+    assert ranked.span.words == "Oct 26 to Nov 1" and ranked.words == ["leaf"]
+    assert [i.id for i in cat.find("open the leaf one from last week", now=NOV3)] == ["2026-10-28"]
+
+
+def test_the_leaf_one_alone_is_unsure_and_ranked(tmp_path):
+    cat = seeded(tmp_path)
+    ranked = cat.rank("the leaf one", now=NOV3)
+    assert ranked.sure is None
+    assert [m.info.id for m in ranked.matches] == ["2026-10-28", "2026-10-20", "2026-10-15"]  # named first; a summary last
+    assert [m.full for m in ranked.matches] == [True, True, False]
+    assert ranked.matches[1].matched == {"leaf": "specimen"}  # "leaves" seen is the leaf asked for
+    # find, which switch_session reads, gives the full matches only: a word only in a summary is no Project to ask about
+    assert [i.id for i in cat.find("the leaf one", now=NOV3)] == ["2026-10-28", "2026-10-20"]
+
+
+def test_a_time_with_nothing_matching_in_it_gives_the_matches_outside_it_said_so(tmp_path):
+    cat = seeded(tmp_path)
+    ranked = cat.rank("the leaf one from yesterday", now=NOV3)
+    assert ranked.sure is None and {m.info.id for m in ranked.matches if m.full} == {"2026-10-28", "2026-10-20"}
+    assert all(m.in_span is False for m in ranked.matches)
+
+
+def test_projects_on_guard_cells_include_those_where_they_were_talked_about(tmp_path):
+    cat = seeded(tmp_path)
+    ranked = cat.rank("what Projects do I have on guard cells", now=NOV3)
+    assert ranked.words == ["cells", "guard"]
+    assert [(m.info.id, m.full) for m in ranked.matches] == [("2026-11-02", True), ("2026-10-15", False)]
+    assert ranked.sure.info.id == "2026-11-02"
+    assert ranked.matches[1].matched == {"cells": "summary", "guard": "summary"}
+
+
+def test_a_span_alone_lists_what_touched_it_and_archived_projects_are_found_and_said(tmp_path):
+    cat = seeded(tmp_path)
+    assert {i.id for i in cat.find("last week", now=NOV3)} == {"2026-10-28"}
+    assert {i.id for i in cat.find("in October", now=NOV3)} == {"2026-10-28", "2026-10-20", "2026-10-15", "2026-10-16"}
+    archived = cat.get("2026-10-16")
+    assert archived.archived and archived.wire()["archived"] is True and "archived" not in cat.get("2026-10-28").wire()
+    assert [i.id for i in cat.find("the test one", now=NOV3)] == ["2026-10-16"]
+    assert cat.find("the latest one", now=NOV3) == []  # "test" is a word, never part of one

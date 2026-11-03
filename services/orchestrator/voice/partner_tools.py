@@ -55,7 +55,10 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                # Driving Hooke (Will, 2026-11-03): turning capabilities on, fetching and showing models,
                                # experiments and writing up, each with its receipt (records.py).
                                "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
-                               "write_document")
+                               "write_document",
+                               # Projects by voice (brain/toolbox/projects.py)
+                               "list_projects", "rename_project", "organize_project", "apply_organization",
+                               "archive_project", "undo_project_change")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
 # approval back.
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",

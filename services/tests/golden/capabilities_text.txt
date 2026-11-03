@@ -215,6 +215,13 @@ Talking with it (Asking by text or voice, and how it answers):
 - I: New session: New Project's earlier name, kept so saved workflows run (say "start a new session")
 - You: Sessions: Start, name or go back to a session
 - I: Back to a session: Goes back to an earlier session, its conversations and work (say "go back to yesterday's leaf session")
+- I: Find your Projects: Lists your Projects, or finds those you describe, best first (say "what Projects do I have on guard cells?")
+- I: Rename a Project: Renames this Project or another you name, undoably (say "call this Project Stomata in light")
+- I: Tidy a Project: Proposes names, groups and Tabs to close, as a card (say "tidy this Project")
+- I: Do the tidy: Applies the tidy it proposed, on your yes, undoably (say "yes, do it")
+- I: Archive Projects: Puts Projects away with all their work kept, or brings them back (say "archive the old test ones")
+- I: Undo a Project change: Puts back the last rename, archive or tidy Hooke made (say "undo that")
+- You: Tidy or choose a Project: Do it, Not now or Undo on a Project card
 - I: Let you find things: Stops pointing things out until you ask (say "let me find it myself")
 - I: Explain simpler or deeper: Changes how things are explained (say "explain it more simply")
 - I: Suggest what next: Offers something worth looking at next (say "what should I look at next?")

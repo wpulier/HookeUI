@@ -536,6 +536,7 @@ class App:
                             # The Models page's download queue and its card, for the agent (brain/toolbox/catalog.py)
                             downloads=_LazyDownloads(lambda: app), installs=_LazyDownloads(lambda: app, "installs"), open_page=lambda client, page: app.open_page(client, page),
                             put_on_stage=lambda aid: app.put_on_stage(aid),
+                            sessions_changed=lambda: app.sessions_changed(at_once=True),
                             workspace_tabs=lambda ctx, args: app.hub.workspace_tabs.run(ctx, args),
                             observe=lambda model: app.observe(model, timeout=5.0),  # asked again before the agent answers
                             turn_on=lambda job, asked=None, expected=None: app.turn_on.start(job, asked=asked, expected=expected),  # Turn on, on the user's yes (turn_on tool)
@@ -1837,7 +1838,7 @@ class App:
         if kind == "session-renamed":
             self.hub.broadcast(self.subjects.wire())
             self.sessions_changed(at_once=True)
-        elif kind == "session-opened":
+        elif kind in ("session-opened", "session-archived"):
             self.sessions_changed(at_once=True)
         elif kind in ("research-linked", "thread-opened") or (kind in ("made", "evidence-saved", "tracks-saved", "result")
                                                               and product_of(event) is not None) or (
@@ -2440,8 +2441,15 @@ class App:
                 *([self.slidemap.wire()] if self.slidemap is not None else []), self.subjects.wire(),
                 *([self.datasets.wire()] if self.datasets is not None else []),
                 *([self.rig.wire()] if self.rig is not None else []),
-                self.research_list(), *self.experiments_wire(), self.day.wire(), self.dialogue.history(),
+                self.research_list(), *self.experiments_wire(), *self.project_cards_wire(), self.day.wire(),
+                self.dialogue.history(),
                 self.execution_wire()]
+
+    def project_cards_wire(self) -> list[dict]:
+        """The open Project's Project cards (brain/toolbox/projects.py): a tidy proposed, a "which one?"; none when none."""
+        cards = getattr(self.hub, "project_cards", None)
+        wire = cards.wire_list(self.day.sid) if cards is not None else None
+        return [wire] if wire and wire["cards"] else []
 
     def experiments_wire(self) -> list[dict]:
         """The open Project's experiments, as cards (experiments.py); none when there are none."""

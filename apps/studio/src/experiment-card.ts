@@ -73,7 +73,8 @@ export interface ExperimentGroup { key: string; after: number | null; ids: strin
 
 /** The cards of this conversation, each under the request that drafted it (its answer, or the slot while it is written);
  * one whose request is not in the log stays under the line it arrived after (`anchors`, kept by the caller). */
-export function experimentGroups(lines: readonly LogLine[], experiments: Iterable<ExperimentWire>,
+export function experimentGroups(lines: readonly LogLine[],
+  experiments: Iterable<Pick<ExperimentWire, 'id' | 'session' | 'thread' | 'requestId'>>,
   scope: { day: string | null; thread: string | null }, shown: (line: LogLine) => boolean,
   anchors: Map<string, number>): ExperimentGroup[] {
   const byRequest = new Map<string, { last: number | null; first: number }>();

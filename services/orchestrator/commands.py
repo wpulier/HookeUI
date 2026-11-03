@@ -2792,6 +2792,29 @@ async def session(app, client, msg) -> dict:
     return {**done, "session": app.day.sid}
 
 
+@command("project-card")
+async def project_card(app, client, msg) -> dict:
+    """A Project card's button (brain/toolbox/projects.py ProjectCards; project-card.ts): Do it applies the tidy it
+    shows (the user's press is their yes), Not now drops it, Undo puts it back. What it did is said in its reply and on
+    the card itself."""
+    from .brain.toolbox.projects import cards_of
+    from .ticket import current, issue, using
+
+    request = current()
+    owns_request = request is None
+    if owns_request:
+        request = issue(app.hub, "command", asked=app.conversation.here(), channel="system")
+    try:
+        with using(request):
+            ctx = ToolContext("system", 0, None, asked=app.conversation.here(), admission=request.admission,
+                              client=client, actor="you")
+            said = await cards_of(app.hub).press(str(msg.get("id") or ""), str(msg.get("action") or ""), ctx)
+    finally:
+        if owns_request:
+            request.seal()
+    return {"ok": True, "said": said}
+
+
 @command("view")
 async def view(app, client, msg) -> dict:
     """The studio covers the live view with a new session's home (`held` true: session-home.ts), or shows it again

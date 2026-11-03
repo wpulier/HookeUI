@@ -29,6 +29,7 @@ from .scene import add_dissect_tool, add_lead_tool, add_scene_tools
 from .seeing import add_seeing_tools
 from .population import add_correction_tool, add_group_tools, add_population_tools
 from .threads import add_capability_tool, add_thread_tools
+from .projects import add_project_tools
 from .choosing import add_choosing_tools
 from .time import add_time_tools
 from .view import add_view_tools
@@ -108,6 +109,7 @@ class Services:
     observe: Callable | None = None  # async (model id) -> asks the outside world again about it (observed.py)
     turn_on: Callable | None = None  # (job id) -> one press of Turn on, carried through (capability_shelf.TurnOn.start)
     kinds: Callable | None = None  # () -> the new kinds of job on here (kinds.available): run_capability's choices
+    sessions_changed: Callable | None = None  # () -> every studio is sent the Projects list again (a rename, an archive)
 
 
 def build(services: Services) -> Registry:
@@ -119,6 +121,7 @@ def build(services: Services) -> Registry:
     registry.models = lambda run: activity.models_of(services.hub, run)  # what worked on each step, for Activity
     add_scene_tools(registry, services)
     add_thread_tools(registry, services)
+    add_project_tools(registry, services)
     add_capability_tool(registry, services)
     add_catalog_tools(registry, services)
     add_kind_tools(registry, services)

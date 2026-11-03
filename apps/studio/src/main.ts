@@ -82,6 +82,7 @@ import { FlightStrip, flightPills, voiceEntries, VOICE_SOURCE, type FlightEntry 
 import { VoicePresence } from './voice-presence';
 import './handoffs.css';
 import './experiment-card.css';
+import './project-card.css';
 import { elementPlace, fovCrop, Marks, SvgMarksPainter, type MarkDocument, type MarkElement, type MarkHooks, type Place } from './marks';
 import './marks.css';
 import './mic-card.css';
@@ -1120,6 +1121,16 @@ async function experimentAct(action: 'run' | 'change' | 'continue' | 'stop' | 'o
     if (!reply.ok) showHint(String(reply.error || 'That did not work.'), true);
   } catch { showHint('The connection was lost; the experiment’s card shows what happened once it is back.', true); }
 }
+/** The Project cards the server has told this studio of, by id (project-card.ts; brain/toolbox/projects.py). */
+const projectCards = new Map<string, import('./project-card').ProjectCardWire>();
+async function projectCardPress(press: import('./project-card').ProjectCardPress, x: import('./project-card').ProjectCardWire): Promise<void> {
+  try {
+    const reply = 'open' in press
+      ? await connection.request('session', { action: 'switch', id: press.open }) // Open: the studio's own switch
+      : await connection.request('project-card', { action: press.action, id: x.id });
+    if (!reply.ok) showHint(String(reply.error || 'That did not work.'), true);
+  } catch { showHint('The connection was lost; the card shows what happened once it is back.', true); }
+}
 const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   activity: element<HTMLOListElement>('activity-log'),
   openActivity: () => showActivity(true),
@@ -1148,6 +1159,8 @@ const chat = new ChatLog(element<HTMLOListElement>('log'), starters, {
   researchCards: { list: () => research.sessions.values(), view: researcherCardView, open: (rid) => openStudyResearch(rid) },
   // Experiment cards under the request that planned each: the plan, Run it and Change, how it goes, its results.
   experimentCards: { list: () => experiments.values(), act: experimentAct },
+  // Project cards under the request that made each: a tidy with Do it and Not now, then Undo; "which Project?" rows.
+  projectCards: { list: () => projectCards.values(), press: projectCardPress, current: () => sessionsModel.current },
   cells: { make: (state, label) => litCell(state, { size: 12, label }), set: (cell, state, label) => setLitCell(cell as SVGSVGElement, state, { size: 12, label }) },
   ResizeObserver: typeof ResizeObserver === 'function' ? ResizeObserver : null,
   describe: (ids) => notes.describeObjects(ids),
@@ -1317,6 +1330,11 @@ function handleMessage(message: ServerMessage): void {
       break;
     case 'notes':
       notes.apply(message);
+      break;
+    case 'project-card':
+    case 'project-cards':
+      for (const x of message.type === 'project-card' ? [message.card] : message.cards) projectCards.set(x.id, x);
+      chat.projectCardsChanged();
       break;
     case 'experiment':
     case 'experiments':

@@ -95,6 +95,22 @@ def add_thread_tools(registry: Registry, services) -> None:
         now = day.clock()
         found = await asyncio.to_thread(catalogue.find, ref, current=day.sid, now=now)
         others = [info for info in found if info.id != day.sid]
+        # The model's choice checked against the user's own words (code gives facts and checks): a name it chose or
+        # carried from an earlier answer opens nothing when what they said this turn means another Project beyond doubt
+        # (live, 3 Nov: "open the leaf one from last week" was called with "Stomata in light"), or several (live, 3 Nov:
+        # "open the leaf one" was called with "Leaf epidermis" while two leaf Projects matched): those are asked about.
+        said = " ".join(str(ctx.question or "").split())
+        if said and others and said.lower() != ref.lower():
+            heard = await asyncio.to_thread(catalogue.rank, said, current=day.sid, now=now)
+            meant = heard.sure
+            if meant is not None and meant.info.id not in (others[0].id, day.sid) and len(others) == 1:
+                raise ToolFailed(f'nothing was opened: the user said {inline(said, 120)!r}, which means '
+                                 f'"{inline(meant.info.label, 60)}" (id for tools {meant.info.id}), not '
+                                 f'"{inline(others[0].label, 60)}"',
+                                 next="call switch_session again with the user's own words", argument=True)
+            several = [m.info for m in heard.matches if m.full and m.info.id != day.sid]
+            if meant is None and len(several) > 1 and len(others) == 1:
+                others = several
         if found and not others:
             return f'already in the session "{inline(day.label, 80)}"'
         if not others:
@@ -103,9 +119,16 @@ def add_thread_tools(registry: Registry, services) -> None:
                              + "; ".join(_session_row(info, now, day.sid) for info in recent),
                              next="ask the user which session they mean")
         if len(others) > 1:
-            return ("nothing was opened: these sessions may be meant, ask the user which (newest first): "
+            # On screen too (projects.choices_card): two or three of them, each with Open, so the voice asks one short
+            # question and never reads a list out.
+            from .projects import CHOICES_MAX, choices_card
+
+            card = choices_card(services, ctx, others, now)
+            return ("nothing was opened: these sessions may be meant, best first: "
                     + "; ".join(_session_row(info, now, day.sid) for info in others[:6])
-                    + (f"; and {len(others) - 6} more" if len(others) > 6 else ""))
+                    + (f"; and {len(others) - 6} more" if len(others) > 6 else "")
+                    + (f". A card on screen shows the first {min(len(others), CHOICES_MAX)}, each with Open: ask in one "
+                       "short question which, naming two at most" if card is not None else ". Ask the user which"))
         info = others[0]
         try:
             day.switch_session(info.id)
@@ -133,8 +156,10 @@ def add_thread_tools(registry: Registry, services) -> None:
                       "project\"): by its name, a day, what was looked at, or previous. A question about another session "
                       "that does not ask to go there is not this. Opening one clears the live view; its conversations "
                       "and work come back. When several may be meant, nothing is opened and they are listed: ask which.",
-                      schema({"session": {"type": "string", "description": "its name, a day (yesterday, Oct 11, "
-                                                                           "Tuesday), a specimen, or previous"}},
+                      schema({"session": {"type": "string", "description": "the user's own words for it, as they "
+                                                                           "said them (\"the leaf one from last week\", "
+                                                                           "\"yesterday's\", \"previous\"); an exact "
+                                                                           "name or id only when they said or chose it"}},
                              ["session"]),
                       switch_session, kind="query", inline_ms=300, family="conversation"))
 
@@ -213,7 +238,7 @@ def _session_row(info, now: float, current: str) -> str:
     """One session as the model is told it, to ask the user which: its name, when, what was seen, its id."""
     seen = ", ".join(inline(s, 40) for s in info.specimens[:3])
     return (f'"{inline(info.label, 60)}" ({_span_words(info, now)}; last used {_when(info.last_active, now)}'
-            + (f"; specimens: {seen}" if seen else "") + f"; id {info.id}"
+            + (f"; specimens: {seen}" if seen else "") + f"; id for tools {info.id}"
             + ("; open now" if info.id == current else "") + ")")
 
 

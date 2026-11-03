@@ -152,6 +152,7 @@ class SessionStore:
         self.guide = None
         self.local_only = False  # provider admission belongs to the session, never global preferences
         self.named = False  # the user named it (the app's own name, from its first specimen or request, is not)
+        self.archived = False  # put away (`session-archived`): the lists leave it out unless asked; nothing is deleted
         self.created = 0.0
         self.started_from: str | None = None  # the session it was started from
         self._days: set[str] = set()
@@ -380,6 +381,32 @@ class SessionStore:
         self._record({"type": "session-renamed", "name": name, "by": by, "auto": auto})
         return True
 
+    def restore_name(self, name: str, named: bool, by: str = "user") -> bool:
+        """Put back a name the session had (an undo): "" is no name again (its date or "Untitled session" says it),
+        and the app's own name stays the app's (`auto`). False when it has that name already."""
+        name = " ".join(str(name or "").split())[:80]
+        if name == self.name and bool(named and name) == self.named:
+            return False
+        self._record({"type": "session-renamed", "name": name, "by": by, "auto": not named})
+        return True
+
+    def archive(self, archived: bool = True, by: str = "user") -> bool:
+        """Put the session away, or bring it back (`archived` False): one journal line; its journal, work and files stay
+        where they are, and it opens as before. False when it is so already."""
+        if bool(archived) == self.archived:
+            return False
+        self._record({"type": "session-archived", "archived": bool(archived), "by": by})
+        return True
+
+    def record_change(self, change: str, what: str, says: str, steps: list[dict], by: str = "hooke") -> dict:
+        """The undo record of a change made to this Project (brain/toolbox/projects.py): what was before each step, so one undo
+        puts it back. Strict: a change whose record cannot be written is said not undoable, never claimed so."""
+        return self._record({"type": "project-change", "change": change, "what": what, "says": says[:300],
+                             "steps": steps, "by": by}, strict=True)
+
+    def change_undone(self, change: str, by: str = "user") -> dict:
+        return self._record({"type": "project-change-undone", "change": change, "by": by}, strict=True)
+
     def keep_session(self, by: str = "user", specimen: str = "") -> None:
         """The user keeps working here when the app suggests a new session (the studio's "Keep here"): journaled, so
         the suggestion is not made again for that subject."""
@@ -454,6 +481,8 @@ class SessionStore:
                 self.name_before_removal[str(removed)] = str(e["because"].get("was") or "")
             else:
                 self.name_before_removal.clear()  # renamed since: Undo no longer puts an earlier name back
+        elif kind == "session-archived":
+            self.archived = e.get("archived") is not False
         elif kind == "session-suggested":
             self.suggestion = {"specimen": str(e.get("specimen") or "")[:80], "hours": e.get("hours")}
         elif kind == "session-kept":

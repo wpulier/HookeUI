@@ -70,3 +70,16 @@ def test_designing_planning_and_running_experiments_is_reachable_and_each_ends_i
     for name in ("propose_experiments", "revise_design", "study_plan", "experiment"):
         assert contract(registry, name) == "record", name
     assert contract(registry, "experiment_status") == "look"
+
+
+def test_the_partner_reaches_every_project_verb_and_each_change_ends_in_a_record(tmp_path):
+    """Projects by voice: think calls the brain's Project verbs (list, rename, tidy, archive, undo) as outside agents
+    call project.list and material.organize through the door; each change's receipt is its record."""
+    built, _ = app(tmp_path)
+    registry = built.brain.registry
+    verbs = ("list_projects", "rename_project", "organize_project", "apply_organization", "archive_project",
+             "undo_project_change")
+    assert set(verbs) <= set(THINK_TOOLS) and set(verbs) <= set(registry.tools)
+    for name in verbs:
+        expected = "look" if registry.tools[name].kind == "query" else "record"
+        assert contract(registry, name) == expected, name
