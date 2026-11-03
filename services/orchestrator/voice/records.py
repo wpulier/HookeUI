@@ -159,6 +159,8 @@ class Records:
             return self._downloading(result, before)
         if tool == "open_models":
             return {"result": "verified", "said": str(result.get("summary") or "The Models page is open.")[:300]}
+        if tool == "guide":
+            return self._guiding()
         if intent.kind == "setting":
             return self._setting(intent, before)
         if tool == "use":
@@ -242,6 +244,16 @@ class Records:
             return {"result": "verified", "said": f'The Tab "{target.get("title")}" is open again, as it was kept; not in '
                                                   'front until it is switched to.'} if target.get("open") else unsure
         return unsure
+
+    def _guiding(self) -> dict:
+        """A guidance (guide.py) runs after its call returns, until the thing is centred: running while it is the one
+        guiding, its lines said as they come (will-guide, 3 Nov: checked as a saved thing, it was "not done")."""
+        guide = getattr(self.services, "guide", None)
+        g = getattr(guide, "active", None)
+        if g is None:
+            return {"result": "uncertain", "error": "no guidance is running",
+                    "said": "Not sure the guidance started: none is running."}
+        return {"result": "running", "said": f"Guiding you to the {g.name}: each step is said as it comes."}
 
     def _started(self, result: dict, run) -> dict:
         rid = result.get("researcher") or _researcher_of(run)

@@ -355,3 +355,20 @@ def test_asked_by_voice_the_first_line_is_said_at_once_and_the_answer_says_not_t
     assert "was just said to the user" in answer and "don't repeat" in answer
     answer, said = asyncio.run(go("chat"))
     assert said[0].get("told") is True and 'First: "Move the slide' in answer
+
+
+def test_a_hand_off_that_started_a_guidance_is_running_not_unrecorded():
+    """will-guide, 3 Nov: Hands checked `guide` as a thing saved and said "Hooke has no record of what it made, so it's
+    not done" while it was guiding. Its receipt is the guidance running."""
+    from orchestrator.voice.hands import intent_of
+    from orchestrator.voice.records import Records
+
+    def receipt(active):
+        records = Records(None, services=SimpleNamespace(guide=SimpleNamespace(active=active)))
+        intent = intent_of("guide", {"what": "stoma"}, produces="named-outline", family="map")
+        intent.record = records.before(intent)
+        return asyncio.run(records.check(intent, {"ok": True, "summary": "guiding you to the stoma"}, None, {}))
+
+    running = receipt(SimpleNamespace(name="stoma"))
+    assert running["result"] == "running" and "record" not in running["said"] and "stoma" in running["said"]
+    assert receipt(None)["result"] == "uncertain"
