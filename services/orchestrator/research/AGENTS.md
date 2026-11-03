@@ -561,10 +561,15 @@ THINK_TOOLS, `tests/test_partner_reach.py`); `tests/test_experiment_design.py` i
   exist, a researcher's effort) and marks a measure whose capability cannot run here, never dropping it. Problems go
   back to the model once; fewer than two runnable designs is a refusal with the reasons. Each proposal is a
   Project-store document (`hooke-experiment-designs`), its designs numbered across the Project (d1, d2...), its plan cards
-  one document in Data (Write-ups) opened in a Tab of its own, until the live-partner canvas `draw` replaces it.
+  one document in Data (Write-ups) opened in a Tab of its own, until the live-partner canvas `draw` replaces it. The
+  model also says which design it would start with and why; the cards lead with that pick, then one card per design (a
+  key and value table read at a glance: question, what changed, material, conditions, controls, replicates, measures,
+  duration, what Hooke captures and analyses, what the user does, cost, why, limits). The brain talks them through in
+  two sentences, as a colleague: what each does and how they differ, its pick and why, then one question.
 - **A spoken edit** (`revise_design`, "three replicates, add a dark control"): the user's words and the design go to the
   model; its revision is checked again and becomes the design's next version, the old one kept in its history. No
-  keyword decides what the edit means.
+  keyword decides what the edit means. Its cards update in the Tab that shows them (the reader command's `replaces`),
+  never a second Tab.
 - **A Study plan** (`study_plan` do=save): a Study of its own for the design (allowance: its researchers' caps), its plan
   saved as a draft through `Coordination.save_plan`, attributed to the brain's channel (`agent:chat`, `agent:voice`).
   Saving again after a revision saves the plan's next version. do=assign proposes an assignment

@@ -2122,6 +2122,12 @@ A reader Tab retains one exact item. Opening a different Data/Input item or an
 internal source link from it goes to that item's retained Tab (reusing it when
 already open), rather than replacing the visible file under the previous title.
 
+The one exception is a new version of the same thing: the agent's `reader` command with `replaces` (the saved item
+it supersedes; `WorkspaceViews.replaceReaderTab`) shows the new item in the Tab that held the old one, in place and in
+front (a revised experiment design's plan cards update where they are; orchestrator/experiment_design.py). With no
+such Tab open it opens as Open in new Tab does. A document section's two-column table whose first column is unnamed
+is a key and value card (`rd-doc-card`): labels down the left, its words wrapped, no header row.
+
 Main waits for the current Project inventory and Studies before showing empty-project onboarding. A failed initial read offers Retry and Data rather than claiming there is no research. Refreshing a populated Project preserves its saved overview. Data’s rail badge remains the count of unread grouped rows, not all retained records.
 
 Main presents each Study’s purpose, observed execution and latest report before its supporting material and contributor details. Browse inputs stays the primary action for material-only Projects. DOM and keyboard order follow the same reading order; all counts and status still come from retained evidence.
