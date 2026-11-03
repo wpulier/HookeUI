@@ -160,6 +160,11 @@ describe('the Agents panel', () => {
     expect(hookeWords(`hooke api POST studies/p1/claims '{"session":"s"}'`)).toBe('Published a claim for your review');
     expect(hookeWords("hooke run catalog:basic-bright-objects '{}' --project p --key k")).toBe('Ran basic-bright-objects in Hooke');
     expect(hookeWords('hooke status && rm -rf ~')).toBeNull();
+    const prose = `hooke run study.coordinate '{"action":"complete","fields":{"limitations":"checked only; it'\\''s untested"}}' --project p --key k`;
+    expect(hookeWords(prose)).toBe('Returned its assignment with its report');  // a ; and an apostrophe inside its quotes
+    expect(hookeWords(`hooke run x '{"a":1}' ; rm -rf ~ ; echo 'b'`, 'does')).toBeNull();
+    expect(hookeWords(`hooke run study.coordinate '{"action":"claim","fields":{"x":"long…`, 'does')).toBeNull();
+    expect(hookeWords(`hooke run study.coordinate '{"action":"claim","fields":{"x":"long…`)).toBe('Claimed its assignment');
     expect(hookeWords('ls -la')).toBeNull();
     expect(hookeWords(`hooke api POST studies/p1/claims '{"session":"s"}'`, 'does')).toBe('Publish a claim for your review');
     expect(entryWords({ n: 9, role: 'ask', text: `to run a command: hooke api POST studies/p1/claims '{"session":"s"}'`, at: 9 }))

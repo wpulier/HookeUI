@@ -95,9 +95,27 @@ export function entryWords(entry: AgentEntry): { who: string; text: string; plai
 
 /** What a `hooke` command did, in a person's words, when it is one of the door's own calls; null otherwise (a chain,
  * a pipe, or anything else is shown as itself). */
+/** Whether a shell command is one command, as a shell reads it: no `;`, `&`, `|`, backquote, `$(`, `<`, `>` or line
+ * break outside quotes (single quotes are literal; a backslash escapes the next character outside them; Codex writes
+ * an apostrophe as '\\''). A command cut short ("…") inside its quotes counts only when `cut` allows it. */
+export function oneCommand(command: string, cut = false): boolean {
+  let quote: '' | "'" | '"' = '';
+  for (let i = 0; i < command.length; i++) {
+    const ch = command[i];
+    if (quote === "'") { if (ch === "'") quote = ''; continue; }
+    if (ch === '\\') { i++; continue; }
+    if (quote === '"') { if (ch === '"') quote = ''; else if (ch === '`' || (ch === '$' && command[i + 1] === '(')) return false; continue; }
+    if (ch === "'" || ch === '"') { quote = ch; continue; }
+    if (';&|`<>\n'.includes(ch) || (ch === '$' && command[i + 1] === '(')) return false;
+  }
+  return quote === '' || (cut && command.endsWith('…'));
+}
+
 export function hookeWords(command: string, tense: 'did' | 'does' = 'did'): string | null {
   const c = command.trim().replace(/\s+>\s*[\w.-]+$/, '');
-  if (!/^hooke /.test(c) || /[;&|`]|\$\(/.test(c.replace(/'[^']*'/g, "''"))) return null;
+  // What it would do (`does`, on the card where the person decides) only for a whole command; what it did, also for a
+  // line the transcript cut short.
+  if (!/^hooke /.test(c) || !oneCommand(c, tense === 'did')) return null;
   const say = (did: string, does: string) => (tense === 'did' ? did : does);
   const field = (name: string) => c.match(new RegExp(`\\\\?"${name}\\\\?"\\s*:\\s*\\\\?"([^"\\\\]+)`))?.[1];
   if (/^hooke status\b/.test(c)) return say('Checked that Hooke is there', 'Check that Hooke is there');
