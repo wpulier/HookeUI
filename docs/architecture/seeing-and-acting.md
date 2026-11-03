@@ -76,10 +76,15 @@ other files.
     line is the app's own reading (the rule's, logged `how: "first"`), not a judgment: a model's answer would delay it
     by up to 4 s while the hand waits. The judge decides every line after it, from the next moment on. The tool starts
     at once from an outline already on the board (`object`); only `what` alone runs a find first.
-  - **Said once, by whoever is listening**: the tool's own answer carries the first line (`hold_first`); later lines go
-    to the one-brain voice as events of kind "guide" (said as soon as no key is held, the newest replacing one not yet
-    said, never owed, dropped after 6 s: a line the view moved past is no help; `voice/events.py`), to GPT-Live through
-    the narrator ("interrupt"), and are filed in the chat as app notices (producer "guide"), the conversation's record.
+  - **Said once, by whoever is listening**: in chat the tool's own answer carries the first line (`hold_first`); asked
+    by voice, every line goes to the one-brain voice as events of kind "guide", the first included (a hand-off's
+    answer is reworded seconds later: will-guide, 3 Nov, lost the direction that way, and the answer now tells the brain
+    it was said). They are said **word for word** as the voice's own words (`Kind.says`: never "the guidance said"),
+    as soon as no key is held, even while the user's turn waits only on its tools with nothing playing; the newest
+    replaces one not yet said, never owed, dropped after 6 s (a line the view moved past is no help;
+    `voice/events.py`). Lines go to GPT-Live through the narrator ("interrupt") and are filed in the chat as app
+    notices (producer "guide"), the conversation's record. The done line names the thing ("That's it, the stoma is
+    centred and sharp."), never a bare "Done.".
   - **"Stop." and the end are never dropped**: they go as kind "guide-stop" (owed, never replaced by a newer line,
     each its own event; a waiting "guide" line is withdrawn for them) and cut in over the voice's own words, even an
     answer to the user (`Kind.cuts`, the one exception to "never cut by its own next one"): the hand on the slide

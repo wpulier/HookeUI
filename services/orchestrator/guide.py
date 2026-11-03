@@ -798,8 +798,9 @@ How to decide:
 - Each line's "then" says what followed it. If the slide is still moving, wait for it with a short word.
 - Centred means within about {centred} of the radius.
 - {focus_rule}
-- Say "done" only when the facts show it is centred{and_sharp}; if "doneRefused" is there, it says why the last one
-  was not accepted.
+- Set state "done" only when the facts show it is centred{and_sharp}; if "doneRefused" is there, it says why the last
+  one was not accepted. The done line tells them they are there, naming the thing ("That's it, the stoma is centred
+  and sharp."), never a bare "Done.": it is said word for word.
 - One line, at most 8 words, plain and calm, no ids, no numbers.
 
 Facts:

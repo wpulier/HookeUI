@@ -424,7 +424,46 @@ def test_a_guidance_stop_cuts_in_over_the_voices_own_line(monkeypatch):
         sb.emit({"type": "response.done", "response": {"id": "resp_1", "status": "cancelled"}})  # as the API answers
         await audio(sb, "resp_1", "cleared")
         await until_async(lambda: sb.responses == 2, 3)
-        assert '"Stop."' in given(creates(sb)[1])
+        assert given(creates(sb)[1]).endswith("\nStop.") and openai_realtime.SAYS_RULE in creates(sb)[1]["instructions"]
         assert session.bus.result_for("a1").state != "heard", "what it was saying was cut, and stays owed"
+    asyncio.run(go())
+
+
+def test_a_guidance_line_is_said_word_for_word_while_the_turn_waits_on_its_tools(monkeypatch):
+    """will-guide, 3 Nov: the voice reported the lines ("The guidance changed: it said 'Stop'...") and said nothing of
+    them while the hand-off that started the guidance was still running. A guidance line is the direction itself, said
+    word for word, at once when the turn waits only on its tools; the turn's answer follows it."""
+    from tests.test_voice_partner import partner_session, press, release
+
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 30.0)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "guiding you to the stoma"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(0.3)
+        n = t.sb.responses
+        line = "Move the slide right and away, a fair way."
+        await t.session.proactive(json.dumps({"guiding": "stoma", "line": line, "state": "guiding"}), event="guide",
+                                  ref="g1")
+        await until_async(lambda: t.sb.responses == n + 1, 3)
+        said = creates(t.sb)[-1]
+        assert said["metadata"]["cause"] == "proactive" and given(said).endswith("\n" + line)
+        assert openai_realtime.SAYS_RULE in said["instructions"]
+        await done(t.sb, f"resp_{n + 1}")
+        gate.set()
+        await until_async(lambda: t.sb.responses == n + 2, 3)  # then the turn's own answer
+        assert any(i["type"] == "function_call_output" for i in t.sb.items())
     asyncio.run(go())
 

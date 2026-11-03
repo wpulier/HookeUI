@@ -321,3 +321,37 @@ def test_stop_and_the_end_are_marked_time_critical():
     assert guide._line(g, {"say": "That's it."}, "done")["critical"] is True
     assert guide._line(g, {"say": "Move the slide left, a little."}, "line")["critical"] is False
 
+
+
+def test_asked_by_voice_the_first_line_is_said_at_once_and_the_answer_says_not_to_repeat_it():
+    """will-guide, 3 Nov: the first direction went only into the hand-off's answer, which the brain reworded seconds
+    later without it. By voice it is said at once, word for word (kind "guide"); in chat the answer carries it."""
+    from orchestrator.brain.registry import Registry
+    from orchestrator.brain.toolbox.guiding import add_guide_tools
+
+    def world(channel: str):
+        said = []
+        obj = SimpleNamespace(id="o1", center=(800.0, 300.0), anchor_offset=(0.0, 0.0), anchor_epoch=1, label="stoma",
+                              kind="highlight", trial=None, track="tracking")
+        info = SimpleNamespace(id=1, width=1280, height=720, dx=0.0, dy=0.0, epoch=1, tracked=True, steady=True,
+                               fov=SimpleNamespace(cx=640.0, cy=360.0, radius=300.0), wall_at=0.0,
+                               stats=(50.0, 100.0, 10.0, 0.0))
+        hub = SimpleNamespace(scene=SimpleNamespace(objects={"o1": obj}), latest_info=info)
+        guide = G.Guide(hub, judge=lambda: "rule", say=lambda g, line: said.append(line))
+        registry = Registry()
+        add_guide_tools(registry, SimpleNamespace(hub=hub, guide=guide))
+        ctx = SimpleNamespace(channel=channel, objects=[], asked=None, delegation_id=None, voice_owner=None, turn_id=None,
+                              request_id=None, question="find me a stoma and centre it")
+        return registry, ctx, guide, said
+
+    async def go(channel: str):
+        registry, ctx, guide, said = world(channel)
+        answer = await registry.tools["guide"].handler(ctx, {"what": "stoma"})
+        guide.stop()
+        return answer, said
+
+    answer, said = asyncio.run(go("voice"))
+    assert said[0]["event"] == "line" and not said[0].get("told") and said[0]["say"].startswith("Move the slide")
+    assert "was just said to the user" in answer and "don't repeat" in answer
+    answer, said = asyncio.run(go("chat"))
+    assert said[0].get("told") is True and 'First: "Move the slide' in answer

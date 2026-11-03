@@ -67,9 +67,13 @@ def add_guide_tools(registry: Registry, services) -> None:
                   "voice_owner": ctx.voice_owner if ctx.channel == "voice" else None, "turn_id": ctx.turn_id or None,
                   "request_id": occurrence.request_id if occurrence is not None else ctx.request_id,
                   "action_id": occurrence.action_id if occurrence is not None else None}
+        # Asked by voice, the first line goes to the voice at once, word for word (voice/events.py kind "guide"), not
+        # through this answer: a hand-off's answer is reworded and comes seconds later (will-guide, 3 Nov: "I found a
+        # likely stoma... and started guiding", the direction lost). In chat the answer carries it.
+        spoken = ctx.channel == "voice"
         try:
             g = guide.start(obj.id, name=name, asked=ctx.question or f"centre the {name}", until=until, origin=origin,
-                            hold_first=True)
+                            hold_first=not spoken)
         except ValueError as exc:
             raise ToolFailed(str(exc), next=None, argument=True) from exc  # no next: the model's own argument, it corrects it
         if ctx.objects is not None and obj.id not in ctx.objects:
@@ -77,6 +81,10 @@ def add_guide_tools(registry: Registry, services) -> None:
         first = await guide.first_line(g, FIRST_LINE_S)
         lead = f"{how}: " if how else ""
         goal = "centred and sharp" if until == "sharp" else "centred"
+        if spoken and first is None and g.lines:
+            return (f"{lead}guiding you to the {name} ({obj.id}); its first direction was just said to the user, word for "
+                    f"word (\"{g.lines[0].text}\"), and each next one will be: don't repeat or describe them. It goes "
+                    f"on until it is {goal}")
         if first is None:
             return (f"{lead}guiding you to the {name} ({obj.id}); I'll say which way to move the slide, one short "
                     f"line at a time, until it is {goal}")

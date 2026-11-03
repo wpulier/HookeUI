@@ -62,6 +62,8 @@ RELEASE_TAIL_S = 0.15  # the user's last word kept whole (the spec, 29 Oct: no d
 MIN_HOLD_S = 0.25  # a press shorter than this is a tap: nothing to commit, so no answer
 IDLE_S = 1.5  # nobody has spoken for this long: a line nobody asked for may be said
 CUT_IN_WAIT_S = 1.5  # a cutting line waits at most this long for the line it stopped to end
+SAYS_RULE = ("Say exactly the words you are given to the user, word for word, as your own words to them, and nothing "
+             "else: never report them (no \"it said\", \"the guidance\", \"you were told\"), never add to them.")
 # The bus's consumer (`_consume`): results due within COALESCE_S of each other are said together, in one response (but
 # a stream of them is not held past COALESCE_MAX_S), at most BATCH_MAX in a response; it looks every WATCH_EVERY_S.
 COALESCE_S = 0.12
@@ -1161,13 +1163,19 @@ class RealtimeSession(VoiceSession):
             # The one exception to the rule below (events.Kind.cuts: a guidance's "Stop." and its end): the hand on the
             # slide cannot wait for a sentence to end, so the words playing now are stopped for it, even an answer to
             # the user; never while the user holds the key or a tool call is under way (Lane E, 3 Nov).
-            self._saying = self._spawn(self._cut_in((cuts + [e for e in urgent if e not in cuts])[:BATCH_MAX]))
+            self._saying = self._spawn(self._cut_in(self._one_voice(cuts + [e for e in urgent if e not in cuts])))
+            return
+        says = [e for e in urgent if self.bus.kind(e.kind).says]
+        if says and self._held is None and self._sb is not None and self._waiting_on_tools():
+            # A guidance's line while the user's turn waits only on its tools, nothing playing or asked: said now, not
+            # after the turn's answer (will-guide, 3 Nov: "Stop." waited 5 s behind a hand-off that had nothing to say).
+            self._saying = self._spawn(self._say(self._one_voice(says), urgent=True))
             return
         if urgent and self._held is None and self._sb is not None and not self._turn_pending():
             if self.speaking() or self.audible():
                 return  # the line playing now is finished first, never cut by our own next one (Will, 29 Oct)
-            batch = (urgent + [e for e in due if e not in urgent])[:BATCH_MAX]
-            self._saying = self._spawn(self._say(batch, urgent=True))
+            self._saying = self._spawn(self._say(self._one_voice(urgent + [e for e in due if e not in urgent]),
+                                                 urgent=True))
             return
         if not self._quiet():
             return
@@ -1207,6 +1215,27 @@ class RealtimeSession(VoiceSession):
                     self.noted({"kind": "voice-note", "source": event.data.get("source") or event.kind,
                                 "sessionId": self.call_id, **(event.data.get("facts") or {}), "chars": len(event.text),
                                 "text": event.text})
+
+    def _waiting_on_tools(self) -> bool:
+        """The user's turn waits only on its tools: a call running, nothing said, playing or asked for that turn."""
+        return (bool(self._calls) and not self.speaking() and not self.audible()
+                and not any(a.cause not in UNPROMPTED for a in self._asks))
+
+    def _one_voice(self, events: list[Event]) -> list[Event]:
+        """What one response says: lines said word for word (events.Kind.says) on their own, else the rest together."""
+        says = [e for e in events if self.bus.kind(e.kind).says]
+        if says and self.bus.kind(events[0].kind).says:
+            return says[:BATCH_MAX]
+        return [e for e in events if e not in says][:BATCH_MAX] or events[:BATCH_MAX]
+
+    @staticmethod
+    def _line_of(event: Event) -> str:
+        """The exact line an event of a `says` kind carries (its facts' "line"), else its text."""
+        with contextlib.suppress(Exception):
+            line = json.loads(event.text).get("line")
+            if isinstance(line, str) and line.strip():
+                return line.strip()
+        return event.text
 
     async def _cut_in(self, batch: list[Event]) -> None:
         """Stop the voice's own line, then say what cuts in (events.Kind.cuts) as soon as the cancelled response has
@@ -1248,7 +1277,10 @@ class RealtimeSession(VoiceSession):
         was answered as the latest turn instead, think-check-2), its words still added to the conversation."""
         tasks = [e for e in batch if e.data.get("task")]
         again = any(e.cut is not None for e in batch)
-        if len(batch) == 1 and tasks and not again:
+        verbatim = all(self.bus.kind(e.kind).says for e in batch)
+        if verbatim:  # the line itself, never a report of it (a guidance's directions)
+            rule, again = SAYS_RULE, False
+        elif len(batch) == 1 and tasks and not again:
             rule = "Say exactly the words you are given, once, as yourself, and nothing else."
         elif len(batch) == 1 and not again:
             rule = ("Now say exactly one short spoken sentence telling the user what just happened, from the facts you "
@@ -1294,7 +1326,9 @@ class RealtimeSession(VoiceSession):
         metadata = {"events": ",".join(e.id for e in batch), **({"task": tasks[0].data["task"]} if tasks else {})}
         self.respond("think" if tasks else "proactive", first=urgent, still=still, prepare=prepare, sent=sent,
                      dropped=dropped, tool_choice="none", metadata=metadata,
-                     input=[text_item("system", "\n\n".join(self._part(e) for e in batch))],
+                     input=[text_item("system", "Say this to the user now, word for word:\n"
+                                      + " ".join(self._line_of(e) for e in batch) if verbatim
+                                      else "\n\n".join(self._part(e) for e in batch))],
                      instructions=self.config.system_prompt + "\n\n" + rule)
 
     def _ask_opener(self, event: Event) -> None:
