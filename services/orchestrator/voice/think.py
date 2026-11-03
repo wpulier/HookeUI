@@ -272,8 +272,9 @@ class ClaudeThinker:
 class SolThinker:
     """GPT-6.1 Sol with Hooke's tools, through the OpenAI SDK's Responses API (as the brain calls it)."""
 
-    def __init__(self, model: str = "gpt-6.1-sol", effort: str | None = "low", client=None) -> None:
-        self.model, self.effort, self._client = model, effort, client
+    def __init__(self, model: str = "gpt-6.1-sol", effort: str | None = "low", client=None,
+                 tier: str | None = None) -> None:
+        self.model, self.effort, self._client, self.tier = model, effort, client, tier
 
     def _sdk(self):
         if self._client is None:
@@ -300,9 +301,11 @@ class SolThinker:
             kwargs: dict[str, Any] = {"model": self.model, "instructions": system, "input": items, "tools": declared}
             if self.effort:
                 kwargs["reasoning"] = {"effort": self.effort}
+            if self.tier:
+                kwargs["service_tier"] = self.tier
             async with api_usage.attempt(self.model, provider="OpenAI", area="Live"):
                 reply = await self._sdk().responses.create(**kwargs)
-                api_usage.response(self.model, reply, provider="OpenAI", area="Live")
+                api_usage.response(self.model, reply, provider="OpenAI", area="Live", tier=self.tier)
             output = list(getattr(reply, "output", None) or [])
             items.extend(output)
             calls = [o for o in output if getattr(o, "type", None) == "function_call"]
@@ -355,10 +358,19 @@ def finish(result: ThinkResult, report: dict) -> ThinkResult:
 
 
 def thinker(option: str):
-    """The backend of option THINK."""
+    """The backend of option THINK, from its spec ('openai:<model>@<effort>[+<tier>]'): an OpenAI model by its model id,
+    effort and service tier, never by the option's own id (gpt-6.1-sol-ultrafast is gpt-6.1-sol on another tier)."""
+    from ..options import THINK
+
+    chosen = THINK.get(option)
+    spec = chosen.spec if chosen is not None else ""
+    if spec.startswith("openai:"):
+        model, _, level = spec.partition(":")[2].partition("@")
+        effort, _, tier = level.partition("+")
+        return SolThinker(model, effort or "low", tier=tier or None)
     if option.startswith("gpt-"):
         return SolThinker(option)
-    return ClaudeThinker(option)
+    return ClaudeThinker(chosen.model if chosen is not None and chosen.model else option)
 
 
 async def think(task: ThinkTask, backend, tools: list[dict], call_tool: CallTool, progress: Progress,

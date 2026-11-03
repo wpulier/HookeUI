@@ -460,6 +460,20 @@ registry's queries: `count`, `measure`, `resources`, `show_me`...) runs directly
 "done". `tests/test_partner_reach.py` checks that every tool the Actions panel runs, and the catalog's rows, are
 reachable by the voice or think, and that each acting one has a receipt contract.
 
+**Work handed to Hooke's brain goes through Hands too** (option `HANDOFF_ACTS`, default `hands`; 2026-11-03). With
+`PARTNER_ACTS="brain"` the voice hands a request to `brain.turn` whole (`do_in_hooke`); the hand-off sets its Hands
+around that turn (`brain/acting.py`), and the brain's step runner (`brain/actions.py`) carries out each acting step
+through it (`voice/partner_tools.py HandOffActing`): the cue and the lease for UI steps, the check at dispatch, the
+receipt from Hooke's state. The next step waits for that receipt, and a step that depends on one whose receipt failed
+or is uncertain is skipped. A hand-off's steps are planned against the hand-off (`Plan.job`), each against a fresh look
+at its own dispatch, never the voice turn: **the talk key never drops them** (a new request is work beside it; Will's
+review, 3 Nov), while the mouse or Escape still does (`Hands.hard_epoch`). A step Hands ends before it runs is settled
+with its reason: a question back names the candidates; a permission is returned to the voice with its approval id, and
+`do_in_hooke` takes it back as `approved` on the user's yes. What the voice says happened is the receipts
+(`receipts`, `failed`, `uncertain` in the hand-off's result), never the brain's own words alone. Typed chat sets no
+Hands and runs as before. `turn_on` is read back from its capability card, `get_model` from the downloads queue,
+`open_models` from the studio's word (`voice/records.py`).
+
 - **Typed intents.** Each call is one intent: `open` (window, Tab, table, asset), `close`, `focus` (a Tab),
   `highlight`, `select`, `zoom`, `outline` (with its model), `find`, `present`, `project`, `research`, `cancel`,
   `steer`, `run`, `setting`, `choice`, `make`, typed from the tool, its arguments and the registry's own words for it

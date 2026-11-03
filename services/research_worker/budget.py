@@ -133,6 +133,7 @@ CELL_FINDERS = {"cellpose-sam": "Cellpose-SAM", "cellpose-sam-tuned": "Cellpose-
 CLASSIFIERS = {"gemini-3.8-flash": "Gemini 3.8 Flash", "gemini-3.8-flash-hires": "Gemini 3.8 Flash (high resolution)",
                "gemini-3.5-flash-lite": "Gemini 3.5 Flash-Lite", "gemini-3.5-flash": "Gemini 3.5 Flash",
                "gpt-5.6-luna-priority": "GPT-5.6 Luna (priority)", "gpt-6-luna": "GPT-6 Luna", "gpt-6.1-sol": "GPT-6.1 Sol",
+               "gpt-6.1-sol-ultrafast": "GPT-6.1 Sol (Ultrafast)",
                "claude-opus-5-5": "Claude Opus 5.5", "claude-opus-5-5-fast": "Claude Opus 5.5 (fast mode)",
                "claude-sonnet-5-5": "Claude Sonnet 5.5", "gemini-4-argon": "Gemini 4 Argon", "medsiglip-448": "MedSigLIP 448"}
 MAX_CLASSIFIERS = 6  # orchestrator/model_comparison.MAX_MODELS

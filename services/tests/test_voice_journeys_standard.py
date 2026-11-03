@@ -123,7 +123,7 @@ def good():
              {"kind": "partner-drive", "id": "d1", "intent": "open", "tool": "show_measurements", "target": "tab:Measurements",
               "sentT": T0 + 12.40, "shownT": T0 + 12.70, "ok": True},
              {"kind": "partner-hands", "t": T0 + 13.5, "intent": "open", "tool": "show_measurements", "driveId": "d1",
-              "version": 3, "revision": 10, "result": "verified", "expected": "verified"},
+              "version": 3, "revision": 10, "result": "verified", "expected": "verified", "job": "handoff:h1"},
              {"kind": "partner-takeover", "t": T0 + 75.1, "why": "mouse", "version": 4, "atStudio": T0 + 75.0,
               "atServer": T0 + 75.06}]
     # A sign it heard you, 0.15 s after each release (decision 1).
@@ -1282,3 +1282,21 @@ def test_a_researchers_own_result_is_not_its_start_said_twice():
     row = {r["id"]: r for r in run["steps"]}["researcher"]
     assert any("Researcher 2 is done" in l for l in row["lines"]), "its result is this step's"
     assert row["outcomesSaid"] == 1 and "outcome said 2 times" not in row["failures"]
+
+
+def test_a_handoff_step_dropped_by_talking_or_on_a_changed_screen_fails_its_line():
+    """Hand-off steps (Hands records with a job) are never dropped because the user spoke again, and a later step never
+    fails on a screen an earlier one changed (brain/acting.py waits for its receipt)."""
+    from bench.voice_journeys.standard import drive
+
+    def run(error):
+        inter = [{"kind": "partner-hands", "t": 1.0, "tool": "tabs", "result": "verified", "expected": "verified",
+                  "job": "handoff:h1"},
+                 {"kind": "partner-hands", "t": 2.0, "tool": "tabs", "result": "failed", "expected": "verified",
+                  "job": "handoff:h1", "error": error},
+                 {"kind": "partner-hands", "t": 3.0, "tool": "tabs", "result": "failed", "error": error}]  # the voice's own
+        return drive(inter, {"events": []})
+    talked = run("not done: the user started speaking before it ran, so nothing was done; plan again")
+    assert (talked["handoffSteps"], talked["droppedByTalk"], talked["screenChanged"]) == (2, 1, 0)
+    changed = run("the screen changed before it ran; look again")
+    assert (changed["droppedByTalk"], changed["screenChanged"]) == (0, 1)

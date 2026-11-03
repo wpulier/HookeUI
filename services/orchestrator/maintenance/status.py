@@ -260,6 +260,8 @@ def _notices(m: catalog.Manifest, active, environ: Mapping[str, str]) -> tuple[d
     notices (revocations.py) and the checks: a recent check never means someone maintains it (MT3)."""
     from . import revocations
 
+    if error := revocations.display_error(m, environ):
+        return None, {'state': 'attention', 'why': error}
     defect = revocations.revoked(m, active.m.version, environ) if active is not None else None
     known = revocations.fix(m, active.m.version, environ) if active is not None and defect is None else None
     if known:  # a known defect with its fix declared (MT7): attention, linked to its issue

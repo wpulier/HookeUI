@@ -168,9 +168,10 @@ def collect(environ: Mapping[str, str] = os.environ) -> dict:
     """Metadata only; no adapter imports, workers, model loads or provider calls."""
     with live():
         entries = {**catalog.manifests(), **catalog.mine(environ)}
-        from . import fiji_display
+        from . import fiji_display, own_trials
         out = {fiji_display.key(environ): fiji_display.collect(environ)}
-        from .maintenance import store
+        comparison_entries = {repr(m): m for m in entries.values()}
+        from .maintenance import revocations, store
         out.update(store.display_records(entries, environ))
         for m in entries.values():
             if not m.env:
@@ -187,10 +188,20 @@ def collect(environ: Mapping[str, str] = os.environ) -> dict:
             # retained entry, not the edited source entry's new candidate.
             for g in observed.generations:
                 if g.manifest is not None:
+                    comparison_entries[repr(g.manifest)] = g.manifest
                     out[key(g.manifest, environ)] = replace(
                         observed, candidate=g.folder, candidate_proof=g.proof,
                         candidate_python=g.folder / 'bin' / 'python' if g.python else None,
                         candidate_proven=g.proven)
+        for installed in out[fiji_display.key(environ)].installed.values():
+            if installed is not None:
+                comparison_entries[repr(installed.m)] = installed.m
+        out.update(revocations.display_records(comparison_entries.values(), environ))
+        for m in comparison_entries.values():
+            try:
+                out[own_trials.display_key(m, environ)] = own_trials.observe_comparison(m, environ)
+            except (OSError, ValueError, TypeError, AttributeError):
+                out[own_trials.display_key(m, environ)] = (None, False)
         return out
 
 

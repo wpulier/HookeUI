@@ -66,23 +66,53 @@ def _refused(error):
 @command('project-publish-prepare')
 async def project_publish_prepare(app, client, msg) -> dict:
     """Seal and review a publication of the open Project; nothing leaves the Mac."""
-    from .project_folder_copy import copy_owned_snapshot
-    from .project_publish import DEFAULT_LICENCE, prepare
+    from .project_publish import DEFAULT_LICENCE
     from .project_roots import ProjectLocationError
     day, locations, root = _project(app, msg.get('session'))
-    staging = _staging(app, root.origin, 'publication')
-    def seal(destination):
-        return copy_owned_snapshot(locations, day.sid, destination)
     try:
-        review = await asyncio.to_thread(prepare, seal, staging,
+        review = await asyncio.to_thread(prepare_publication, app, locations, root,
                                          include_transcripts=msg.get('includeTranscripts') is True,
                                          licence=msg.get('licence') or DEFAULT_LICENCE,
                                          clean_metadata=msg.get('cleanMetadata') is not False)
     except (OSError, ProjectLocationError) as error:
         raise _refused(error) from error
+    return {'ok': True, 'review': review}
+
+
+def prepare_publication(app, locations, root, **options):
+    """Seal and review a publication of Project `root` on this Mac (the studio's and the agent door's one way).
+    Nothing leaves the Mac; only the owner's Publish sends it."""
+    from .project_folder_copy import copy_owned_snapshot
+    from .project_publish import prepare
+    review = prepare(lambda destination: copy_owned_snapshot(locations, root.session, destination),
+                     _staging(app, root.origin, 'publication'), **options)
+    return _listed(review)
+
+
+def _listed(review):
     members = review.pop('members')
-    return {'ok': True, 'review': {**review, 'members': members[:MAX_LISTED], 'memberCount': len(members),
-                                   'staging': Path(review['staging']).name}}
+    return {**review, 'members': members[:MAX_LISTED], 'memberCount': len(members),
+            'staging': Path(review['staging']).name}
+
+
+@command('project-publish-review')
+async def project_publish_review(app, client, msg) -> dict:
+    """The prepared review an agent asked the owner to publish (project.publish), exactly as it was sealed."""
+    import json
+    from .project_remote_layers import sha256
+    day, locations, root = _project(app, msg.get('session'))
+    name = msg.get('staging')
+    if not isinstance(name, str) or not re.fullmatch(r'publication-[0-9a-f]{12}', name):
+        raise tools.ToolError('Choose a prepared publication.', next='review the request again')
+    path = Path(app.paths.home) / 'project-remotes' / root.origin / name / 'review.json'
+    def read():
+        body = path.read_bytes()
+        return {**json.loads(body), 'reviewDigest': sha256(body), 'staging': str(path.parent)}
+    try:
+        review = await asyncio.to_thread(read)
+    except (OSError, ValueError) as error:
+        raise tools.ToolError('That prepared publication is no longer here.', next='prepare it again') from error
+    return {'ok': True, 'review': _listed(review)}
 
 
 @command('project-publish')
@@ -114,6 +144,10 @@ async def project_publish(app, client, msg) -> dict:
         receipt = await asyncio.to_thread(send)
     except (OSError, ProjectLocationError) as error:
         raise _refused(error) from error
+    asked = next((e for e in ProjectRepository(root).events() if e.get('type') == 'project-publish-requested'
+                  and e.get('reviewDigest') == receipt['event']['reviewDigest']), None)
+    if asked is not None:  # an agent asked; the owner reviewed and signed off on exactly what it prepared
+        receipt['event']['requestedBy'] = asked.get('by')
     day._record(receipt['event'], strict=True)
     return {'ok': True, 'published': {k: receipt[k] for k in ('commit', 'snapshotSha256', 'recordFiles',
                                                                 'bulkFiles', 'bulkObjects', 'uploadedBytes', 'bytes')},
@@ -211,36 +245,51 @@ def _backup_remote(source, *, restoring=False):
 @command('project-backup')
 async def project_backup(app, client, msg) -> dict:
     """Back up the whole open Project, journals included, to a folder or a private GitHub repository."""
-    from .project_backup import back_up, last_backup
-    from .project_folder_copy import copy_owned_snapshot
-    from .project_remote_github import create_repository, github_remote
-    from .project_repository import ProjectRepository
     from .project_roots import ProjectLocationError
     day, locations, root = _project(app, msg.get('session'))
     destination = msg.get('destination')
     if type(destination) is not dict:
         raise tools.ToolError('Choose where to back up.', next='pick a folder or GitHub')
-    def send():
-        expected = parent = None
-        if destination.get('kind') == 'github' and destination.get('create'):
-            client_ = _github()
-            repo, expected = create_repository(client_, str(destination.get('name') or ''), private=True,
-                                               description=f'{root.name}: a private Hooke backup')
-            remote = github_remote(client_, repo, placeholder=expected, private=True)
-        else:
-            remote = _backup_remote(destination)
-            parent = last_backup(ProjectRepository(root).events(), remote.describe())
-        return back_up(lambda target: copy_owned_snapshot(locations, day.sid, target), remote,
-                       staging=_staging(app, root.origin, 'backup'), parent=parent, expected_head=expected,
-                       scan_secrets=destination.get('kind') != 'folder')
     try:
-        receipt = await asyncio.to_thread(send)
+        receipt = await asyncio.to_thread(back_up_now, app, locations, root, destination)
     except (OSError, ProjectLocationError) as error:
         raise _refused(error) from error
     day._record(receipt['event'], strict=True)
-    return {'ok': True, 'backup': {k: receipt[k] for k in ('commit', 'snapshotSha256', 'recordFiles', 'bulkFiles',
-                                                             'bulkObjects', 'uploadedBytes', 'bytes')},
+    return {'ok': True, **backup_summary(receipt)}
+
+
+def back_up_now(app, locations, root, destination):
+    """Seal Project `root` under this host's lease and back it up to `destination` (the studio's and the agent
+    door's one way). Returns the receipt with the journal event to record in that Project."""
+    from .project_backup import back_up, last_backup
+    from .project_folder_copy import copy_owned_snapshot
+    from .project_remote_github import create_repository, github_remote
+    from .project_repository import ProjectRepository
+    expected = parent = None
+    if destination.get('kind') == 'github' and destination.get('create'):
+        client_ = _github()
+        repo, expected = create_repository(client_, str(destination.get('name') or ''), private=True,
+                                           description=f'{root.name}: a private Hooke backup')
+        remote = github_remote(client_, repo, placeholder=expected, private=True)
+    else:
+        remote = _backup_remote(destination)
+        parent = last_backup(ProjectRepository(root).events(), remote.describe())
+    return back_up(lambda target: copy_owned_snapshot(locations, root.session, target), remote,
+                   staging=_staging(app, root.origin, 'backup'), parent=parent, expected_head=expected,
+                   scan_secrets=destination.get('kind') != 'folder')
+
+
+def backup_summary(receipt):
+    return {'backup': {k: receipt[k] for k in ('commit', 'snapshotSha256', 'recordFiles', 'bulkFiles', 'bulkObjects',
+                                               'uploadedBytes', 'bytes')},
             'location': receipt['remote']['records'].get('location') or receipt['remote']['records'].get('base')}
+
+
+def source_of(records):
+    """The destination that reaches a recorded backup again: its folder, or its GitHub repository."""
+    if records.get('kind') == 'folder':
+        return {'kind': 'folder', 'path': records.get('base')}
+    return {'kind': 'github', 'repo': str(records.get('location', '')).replace('https://github.com/', '')}
 
 
 @command('project-restore')
@@ -293,20 +342,98 @@ async def project_restore(app, client, msg) -> dict:
                          'is unplugged, plug the drive in and open it there.'}
     except (OSError, ProjectLocationError, BundleRefused) as error:
         raise _refused(error) from error
-    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': root.name,
+    from .project_repository import current_name
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': current_name(root),
                                     'location': str(root.path)}, 'restored': event}
+
+
+def _backup_change(app, msg, change):
+    """Apply `change(remote)` to one of the open Project's backups and record its journal event."""
+    from .project_backup import place_of, backups
+    from .project_repository import ProjectRepository
+    from .project_roots import ProjectLocationError
+    day, locations, root = _project(app, msg.get('session'))
+    destination = msg.get('destination')
+    def work():
+        remote = _backup_remote(destination)
+        if place_of(remote.describe()) not in {place_of(b['destination']) for b in backups(ProjectRepository(root).events())}:
+            raise tools.ToolError('This Project was never backed up there.', next='choose one of its backups')
+        return change(remote)
+    return day, root, work, ProjectLocationError
+
+
+@command('project-backup-delete')
+async def project_backup_delete(app, client, msg) -> dict:
+    """Mark one of the open Project's backups for deletion: it stays restorable, and can be kept, for 30 days."""
+    import time
+    from .project_backup import mark_deleted
+    day, root, work, refusal = _backup_change(app, msg, lambda remote: mark_deleted(remote, now=time.time()))
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True, 'purgeAfter': event['purgeAfter']}
+
+
+@command('project-backup-keep')
+async def project_backup_keep(app, client, msg) -> dict:
+    """Keep a backup that was marked for deletion."""
+    from .project_backup import keep
+    day, root, work, refusal = _backup_change(app, msg, keep)
+    try:
+        event = await asyncio.to_thread(work)
+    except (OSError, refusal) as error:
+        raise _refused(error) from error
+    day._record(event, strict=True)
+    return {'ok': True}
+
+
+def _purge_due(app, day, root, events):
+    """Remove the backups whose 30 days have passed since they were marked; each removal is recorded. A backup that
+    cannot be reached now waits for the next look."""
+    import time
+    from .project_backup import backups, purge
+    from .project_roots import ProjectLocationError
+    done = []
+    for entry in backups(events):
+        if entry.get('state') != 'deleting' or (entry.get('purgeAfter') or 0) > time.time():
+            continue
+        try:
+            done.append(purge(_backup_remote(source_of(entry['destination']['records']))))
+        except (OSError, ProjectLocationError, tools.ToolError):
+            continue
+    return done
 
 
 @command('project-remote-status')
 async def project_remote_status(app, client, msg) -> dict:
     """Where the open Project was published and backed up, and what it was started from, from its own journal."""
-    from .project_backup import backups
     from .project_repository import ProjectRepository
     day, locations, root = _project(app, msg.get('session'))
     events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
-    return {'ok': True,
-            'published': [{k: e.get(k) for k in ('destination', 'commit', 'snapshotSha256', 'licence', 'at')}
+    purged = await asyncio.to_thread(_purge_due, app, day, root, events)
+    for event in purged:
+        day._record(event, strict=True)
+    if purged:
+        events = await asyncio.to_thread(lambda: ProjectRepository(root).events())
+    return {'ok': True, **remote_status(events, staging=Path(app.paths.home) / 'project-remotes' / root.origin)}
+
+
+def remote_status(events, *, staging: Path):
+    """Where a Project was published and backed up, what it was started from, and the publications agents asked for
+    that its owner has not yet sent, all from its own journal. `staging` holds prepared publications."""
+    from .project_backup import backups
+    sent = {e.get('reviewDigest') for e in events if e.get('type') == 'project-published'}
+    asked = {}
+    for e in events:
+        if (e.get('type') == 'project-publish-requested' and e.get('reviewDigest') not in sent
+                and isinstance(e.get('staging'), str) and (staging / e['staging'] / 'review.json').is_file()):
+            asked[e['reviewDigest']] = {k: e.get(k) for k in ('staging', 'reviewDigest', 'by', 'byLabel', 'blocked', 'at')}
+    return {'published': [{k: e.get(k) for k in ('destination', 'commit', 'snapshotSha256', 'licence', 'at')}
                           for e in events if e.get('type') == 'project-published'],
             'startedFrom': next((e for e in reversed(events) if e.get('type') == 'project-started-from'), None),
-            'backups': [{k: e.get(k) for k in ('type', 'destination', 'commit', 'snapshotSha256', 'bytes', 'at')}
-                        for e in backups(events)]}
+            'backups': [{k: e.get(k) for k in ('type', 'destination', 'commit', 'snapshotSha256', 'bytes', 'at',
+                                               'state', 'purgeAfter')}
+                        for e in backups(events)],
+            'publishRequests': list(asked.values())}

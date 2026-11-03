@@ -1468,6 +1468,25 @@ async def scenario_outline_across_outage(stack: Stack, viewer: Viewer) -> Outcom
     return out
 
 
+def follow_click_candidates(viewer: Viewer) -> tuple[int, list[dict]]:
+    """A candidate's coordinates belong to its delivered frame, not the latest image."""
+    frame_id, candidates = viewer.candidates_frame, list(viewer.candidates)
+    frame = next((header for _, header, _ in reversed(viewer.frames) if header['id'] == frame_id), None)
+    if frame is None:
+        raise ValueError('candidate frame is unavailable; no click was sent')
+    fov = frame['fov']
+    inner = [c for c in candidates if fov is None or np.hypot(c['x'] - fov[0], c['y'] - fov[1]) < 0.6 * fov[2]]
+    return frame_id, inner
+
+
+def follow_click_target(viewer: Viewer, index: int) -> dict:
+    frame_id, inner = follow_click_candidates(viewer)
+    if len(inner) < 4:
+        raise ValueError('fewer than four candidates in the observed view; no click was sent')
+    candidate = inner[index % len(inner)]
+    return {'type': 'click', 'frameId': frame_id, 'x': candidate['x'], 'y': candidate['y']}
+
+
 async def scenario_follow_clicks(stack: Stack, viewer: Viewer) -> Outcome:
     """Option TRACK "objects" (the default): with four outlines being followed by EdgeTAM's video
     model on the heavy GPU worker, clicks stay fast (the main worker serves them), and the
@@ -1477,31 +1496,29 @@ async def scenario_follow_clicks(stack: Stack, viewer: Viewer) -> Outcome:
         return out
     ok, _ = await stack.wait(lambda h: h["state"] == "live" and h["motion"] and h["motion"]["tracked"], 15, "live")
     await asyncio.sleep(1.0)
-    _, header, _ = viewer.latest()
-    fov = header["fov"]
-    inner = [c for c in viewer.candidates if fov is None or np.hypot(c["x"] - fov[0], c["y"] - fov[1]) < 0.6 * fov[2]]
+    _, inner = follow_click_candidates(viewer)
     if not out.check("candidate spots inside the view", len(inner) >= 4, f"{len(inner)}"):
         return out
-    for c in inner[:4]:  # four outlines to follow
+    for index in range(4):  # four outlines to follow
         since = len(viewer.results)
-        _, header, _ = viewer.latest()
-        await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"]})
+        await viewer.send(follow_click_target(viewer, index))
         await viewer.result_for("click", since)
     if not await prepare_timing(stack, out, following_since=time.time()):
         return out
     measured_from = time.time()
     times, observations = [], []
-    for c in (inner * 4)[4:14]:
-        _, header, _ = viewer.latest()
+    for index in range(4, 14):
+        target = follow_click_target(viewer, index)
         since = len(viewer.results)
         sent_at = time.time()
         t0 = time.perf_counter()
-        await viewer.send({"type": "click", "frameId": header["id"], "x": c["x"], "y": c["y"]})
+        await viewer.send(target)
         reply = await viewer.result_for("click", since)
         elapsed = (time.perf_counter() - t0) * 1000
         if reply and reply.get("ok"):
             times.append(elapsed)
-        observations.append({"sentAt": sent_at, "receivedAt": time.time(), "frameId": header["id"],
+        observations.append({"sentAt": sent_at, "receivedAt": time.time(), **target,
+                             'error': reply.get('error') if reply else 'no reply',
                              "ok": bool(reply and reply.get("ok")), "roundTripMs": round(elapsed, 3)})
         await asyncio.sleep(0.4)
     finished = time.time()

@@ -11,6 +11,7 @@ fixtures, not to third-party material merely stored or referenced here.
 | InstanSeg integration material | Accompanying catalog/models/instanseg-brightfield/LICENSE and manifest |
 | Native dependencies | catalog/notices and packaging/macos/NOTICES.md |
 | Other installed packages, models and adapters | Exact npm/uv/environment locks, catalog manifests, docs/licences.md and services/noncommercial/NOTICE |
+| Official VCC packaging runtime | Optional vcc-cli 0.3.0, MIT, Arc Research Institute; catalog/models/vcc-packaging-runtime contains pinned dependency hashes and provenance |
 
 Model weights are not bundled. Download/install permissions and use restrictions
 must be assessed for the exact component and intended use. Code, model weights,

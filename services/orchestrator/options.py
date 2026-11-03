@@ -89,6 +89,13 @@ VISION = {
                "openai:gpt-5.6-luna@none+priority", "OPENAI_API_KEY", model="gpt-5.6-luna"),
         Option("gpt-6-luna", "GPT-6 Luna", "12/15, ~1.8 s", "openai:gpt-6-luna@none", "OPENAI_API_KEY", model="gpt-6-luna"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "28/30 right with tools (spike S1); rejects reasoning effort none, so low", "openai:gpt-6.1-sol@low", "OPENAI_API_KEY", model="gpt-6.1-sol"),
+        # The same model on OpenAI's fastest tier (service_tier "ultrafast": six times the list price, $12 in and $60 out a
+        # million; OpenAI's pricing page, 2026-11-03). HeyClicky's real-time graphics run on it. Smoke 2026-11-03: served
+        # "ultrafast", a one-word reply in 0.94 s warm (2.7 s on a cold connection) against 1.5 s standard. A candidate for
+        # the acting model behind the voice (BRAIN_FAST), decided on the will-drive journey, not yet a default.
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)",
+               "OpenAI's fastest tier at 6x the price; smoke: 0.94 s warm vs 1.5 s standard; not yet benched for acting",
+               "openai:gpt-6.1-sol@low+ultrafast", "OPENAI_API_KEY", model="gpt-6.1-sol"),
         # Claude and Gemini 4, measured 2026-10-29 beside the Gemini defaults in the same hour (docs/bench/vision-2026-10-29.md):
         # grounding 15 questions x 3 (box), BCCD find, naming 180 uBench pictures x 4 conditions.
         Option("claude-opus-5-5", "Claude Opus 5.5",
@@ -208,6 +215,38 @@ PARTNER_SPEAKS = {
     ]
 }
 
+# How a request the voice hands to Hooke's brain acts in Hooke (voice/partner_tools.py HandOffActing; brain/acting.py).
+# "hands": each acting step goes through the voice's Hands, as the voice's own calls do (the live partner spec 4.2): the
+# partner cursor shows it under the lease, it is checked at dispatch against a fresh look tied to the hand-off (talking
+# again never drops it), and its receipt from Hooke's own state is what the voice says happened. "brain": the brain's
+# tools act directly, as before 2026-11-03: no cursor and no receipt (the journeys' false "done" line read "not measured").
+HANDOFF_ACTS = {
+    o.id: o
+    for o in [
+        Option("hands", "Shows and checks each step",
+               "each step of work handed over is shown with Hooke's cursor and checked against Hooke's own state; what "
+               "it says happened is that check"),
+        Option("brain", "Acts without showing",
+               "Hooke's brain runs the steps directly, as before 2026-11-03: no cursor, and done is the brain's own word"),
+    ]
+}
+
+# After work handed over changed the screen, what the voice is given to see (voice/partner_tools.py `_do_in_hooke`).
+# "unverified": when every step that changed the screen has a verified receipt (the studio's report showed exactly what
+# was asked), the screen goes back as text alone, with no window picture: the voice says the receipts, sooner, with one
+# picture fewer in its conversation; a step not verified still gets the picture. "always": the picture after every
+# change, as before 2026-11-03 (a snapshot after a report wait of up to 2 s).
+LOOK_AFTER = {
+    o.id: o
+    for o in [
+        Option("unverified", "Only when not confirmed",
+               "a picture of Hooke's window after work handed over only when a change was not confirmed by the studio; "
+               "otherwise the screen as text"),
+        Option("always", "After every change", "a picture of Hooke's window after every change work handed over made "
+               "(before 2026-11-03)"),
+    ]
+}
+
 # The live partner's close look (voice/partner_tools.py look_hard): naming a thing exactly, when a few seconds is fine,
 # with the wait said. The vision bench of 2026-10-29 (docs/bench/vision-2026-10-29.md): Gemini 4 Argon named most
 # exactly (80% exact on a click, at 5-9 s); Claude Opus 5.5 is the other choice (about 5 s). The quick look is VISION.
@@ -222,7 +261,10 @@ THINK = {
         Option("claude-opus-5-5", "Claude Opus 5.5", "the strongest on Hooke's own pictures; refusals said as refusals",
                model="claude-opus-5-5"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "OpenAI's frontier model; the other choice when Opus refuses",
-               model="gpt-6.1-sol"),
+               "openai:gpt-6.1-sol@low", model="gpt-6.1-sol"),
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)",
+               "the same model on OpenAI's fastest tier, at 6x the price; for a mind that keeps up with the voice",
+               "openai:gpt-6.1-sol@low+ultrafast", model="gpt-6.1-sol"),
     ]
 }
 
@@ -354,6 +396,11 @@ BRAIN_FAST = {
         Option("gpt-5.6-luna-priority", "GPT-5.6 Luna (priority)", "fast bench 78/80, p50 1.13 s / p90 1.66 s", model="gpt-5.6-luna"),
         Option("gemini-3.8-flash", "Gemini 3.8 Flash", "fast bench 79/80, p50 2.01 s / p90 3.40 s (2026-10-06; 0.81 s on 10-04)", model="gemini-3.8-flash"),
         Option("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "fast bench: 21/24, p50 0.68 s; answered detail it could not see", model="gemini-3.5-flash-lite"),
+        # Acting-model candidates for driving Hooke by voice (Will, 2026-11-03: one slot every actor uses, Sol Ultrafast
+        # beside Sonnet and the Flash models); compared on the fast bench and the will-drive journey before any default.
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)", "OpenAI's fastest tier at 6x the price; not yet on the fast bench",
+               model="gpt-6.1-sol"),
+        Option("claude-sonnet-5-5", "Claude Sonnet 5.5", "not yet on the fast bench", model="claude-sonnet-5-5"),
         Option("off", "Always look first", "every request waits for the vision call (~2 s)"),
     ]
 }
@@ -917,7 +964,7 @@ WATCH = {
 GROUPS = {"vision": VISION, "pointing": POINTING, "outline": OUTLINE, "voice": VOICE, "brain": BRAIN, "dissect": DISSECT,
           "research": RESEARCH_ENGINE, "presentation": PRESENTATION, "image": IMAGE_MODEL, "sight": SIGHT, "fast": BRAIN_FAST, "cells": CELLS, "quality": QUALITY,
           "speculate": SPECULATE, "reflex": REFLEX, "early_look_typed": EARLY_LOOK_TYPED, "answer_check": ANSWER_CHECK, "completion": COMPLETION, "sampling": SAMPLING, "style": STYLE, "menu": MENU, "outline_check": OUTLINE_CHECK, "track": TRACK,
-          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "partner_speaks": PARTNER_SPEAKS, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "naming_model": NAMING_MODEL, "seen": SEEN, "coach": COACH,
+          "voicelink": VOICELINK, "talk": TALK, "talk_key": TALK_KEY, "heard_cue": HEARD_CUE, "partner_acts": PARTNER_ACTS, "partner_speaks": PARTNER_SPEAKS, "handoff_acts": HANDOFF_ACTS, "look_after": LOOK_AFTER, "think": THINK, "look_hard": LOOK_HARD, "admit": ADMIT, "taught": TAUGHT, "lesson_check": LESSON_CHECK, "research_pacing": RESEARCH_PACING, "claim_check": CLAIM_CHECK, "reference_search": REFERENCE_SEARCH, "outline_repair": OUTLINE_REPAIR, "naming": NAMING, "naming_model": NAMING_MODEL, "seen": SEEN, "coach": COACH,
           "closeup": CLOSEUP, "dust": DUST, "embed": EMBED, "zeroshot": ZEROSHOT,
           "outcome_lines": OUTCOME_LINES, "session_context": SESSION_CONTEXT, "row_provenance": ROW_PROVENANCE,
           "orb_every": MOTION_ORB_EVERY, "library_looks": LIBRARY_LOOKS,
@@ -1077,6 +1124,8 @@ class Settings:
     heard_cue: str = "tone"  # the sign it heard you (HEARD_CUE)
     partner_acts: str = "brain"  # how the live partner gets things done in Hooke (PARTNER_ACTS)
     partner_speaks: str = "acknowledges"  # when the live partner speaks in a turn (PARTNER_SPEAKS)
+    handoff_acts: str = "hands"  # how work the voice hands over acts in Hooke (HANDOFF_ACTS)
+    look_after: str = "unverified"  # the picture after work handed over changed the screen (LOOK_AFTER)
     think: str = "claude-opus-5-5"  # the frontier mind behind the one-brain voice (THINK)
     look_hard: str = "gemini-4-argon"  # the live partner's close look (LOOK_HARD)
     admit: str = "quote"  # how a request for a big deliverable is told apart (ADMIT)
@@ -1173,7 +1222,7 @@ class Settings:
     def to_wire(self) -> dict:
         with _not_recorded():  # every setting, for the studio: not what the work in progress used
             return {"vision": self.vision, "pointing": self.pointing, "outline": self.outline, "voice": self.voice,
-                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "partner_speaks": self.partner_speaks, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "naming_model": self.naming_model, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
+                "brain": self.brain, "dissect": self.dissect, "research": self.research, "presentation": self.presentation, "image": self.image, "sight": self.sight, "fast": self.fast, "cells": self.cells, "quality": self.quality, "speculate": self.speculate, "reflex": self.reflex, "early_look_typed": self.early_look_typed, "answer_check": self.answer_check, "completion": self.completion, "sampling": self.sampling, "style": self.style, "track": self.track, "voicelink": self.voicelink, "talk": self.talk, "talk_key": self.talk_key, "heard_cue": self.heard_cue, "partner_acts": self.partner_acts, "partner_speaks": self.partner_speaks, "handoff_acts": self.handoff_acts, "look_after": self.look_after, "think": self.think, "look_hard": self.look_hard, "admit": self.admit, "taught": self.taught, "lesson_check": self.lesson_check, "research_pacing": self.research_pacing, "claim_check": self.claim_check, "reference_search": self.reference_search, "outline_repair": self.outline_repair, "naming": self.naming, "naming_model": self.naming_model, "seen": self.seen, "coach": self.coach, "closeup": self.closeup, "dust": self.dust, "embed": self.embed, "zeroshot": self.zeroshot, "outcome_lines": self.outcome_lines, "session_context": self.session_context, "row_provenance": self.row_provenance, "orb_every": self.orb_every, "library_looks": self.library_looks,
                 "watch": self.watch,
                 "outlineColor": self.outline_color, "menu": self.menu, "outline_check": self.outline_check, "researchCap": self.research_cap, "quieter": self.quieter, "userLeads": self.user_leads,
                 "level": self.level, "hintsFirst": self.hints_first, "compare": self.compare}

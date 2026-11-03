@@ -6,14 +6,17 @@
 // Top to bottom (Will, 2026-10-15: "a lot more intuitive, labeled, and the way to open the full camera setup at top"):
 // its title, Camera, with Open camera setup beside it; what is on stage when it isn't the camera, with Switch to live
 // camera (the header button only ever opens this menu: one click once swapped a recording for the camera); the state
-// in a sentence; Source, its four choices (No camera among them) and what the chosen one is; then the checklist and
-// the phone's controls.
+// in a sentence; Source, its four choices (No camera among them) and what the chosen one is; Microphone, which Talk
+// listens with (mic-picker.ts: the Mac's own unless another is picked, the iPhone only when picked, Will 3 Nov); then
+// the checklist and the phone's controls.
 
 import { BridgeApi, type Doctor, type PhoneState } from './camera/bridge-api';
 import { Checklist } from './camera/checklist';
 import { el } from './camera/dom';
 import { PhoneControls } from './camera/phone-controls';
 import { SOURCES, SOURCE_NOTES, dotState, headline, setupSteps, tab } from './camera/words';
+import { notePhoneCamera } from './mic-choice';
+import { MicPicker } from './mic-picker';
 import './camera/controls.css';
 
 /** One way to change the specimen, offered in the studio's Specimen menu (an input of this Project, open a file, ...). */
@@ -55,6 +58,9 @@ export class PhonePanel {
   private readonly liveDetail: HTMLElement;
   private readonly cameraSummary: HTMLElement;
   private readonly setupBox: HTMLElement;
+  private readonly micPicker: MicPicker;
+  /** The bridge's iPhone name has been read (it is asked again on each poll until the bridge answers). */
+  private phoneLearned = false;
 
   constructor(root: HTMLElement, toggle: HTMLButtonElement, bridgeUrl: () => string, hint: (text: string, problem?: boolean) => void,
     options: { feedSelector?: boolean } = {}) {
@@ -116,11 +122,14 @@ export class PhonePanel {
     });
     this.choicesBox = el('div', { className: 'phone-choices', hidden: true }, el('h3', { textContent: 'Change to' }), this.liveRow, this.choiceList);
     this.cameraSummary = el('summary', { className: 'phone-camera-summary' });
+    this.micPicker = new MicPicker({ labelledBy: 'phone-mic-label' });
     const camera = [this.head,
       el('div', { className: 'phone-source' },
         el('h3', { id: 'phone-source-label', textContent: options.feedSelector ? 'Live camera source' : 'Source' }),
         el('div', { className: 'phone-sources', role: 'group', 'aria-labelledby': 'phone-source-label' }, ...this.sources),
         this.sourceNote),
+      el('div', { className: 'phone-source phone-mic' },
+        el('h3', { id: 'phone-mic-label', textContent: 'Microphone' }), this.micPicker.root),
       this.setupBox, this.checklist.root, this.controlsBox];
     if (options.feedSelector) {
       // The studio's Specimen menu: what is on the Stage, the ways to change it, then the camera, folded to one line
@@ -140,6 +149,17 @@ export class PhonePanel {
     void this.poll();
   }
 
+  /** The bridge's iPhone by name ("iPhoneWild Camera", from /api/health): Talk then knows its microphone under any
+   * name the phone is given (mic-choice.ts). */
+  private async learnPhone(): Promise<void> {
+    try {
+      const health = await this.api.health();
+      this.phoneLearned = true;
+      notePhoneCamera(health.sourceChoices?.find((choice) => choice.kind === 'continuity')?.device);
+      if (health.sourceKind === 'continuity') notePhoneCamera(health.targetDevice);
+    } catch { /* the bridge isn't up: iPhone and iPad are still known by their labels */ }
+  }
+
   get open(): boolean {
     return this.root.hidden !== true;
   }
@@ -153,6 +173,7 @@ export class PhonePanel {
       // otherwise.
       if (this.cameraBox) this.cameraBox.open = !!options.camera || tab(this.doctor?.chosen ?? this.doctor?.source) !== 'none';
       this.render(); void this.refresh(true);
+      void this.learnPhone().then(() => this.micPicker.refresh());
     }
   }
 
@@ -161,6 +182,7 @@ export class PhonePanel {
     let tick = 0;
     for (;;) {
       if (!document.hidden) await this.refresh(this.open && tick % 2 === 0);
+      if (!this.phoneLearned) await this.learnPhone();
       tick += 1;
       await new Promise((resolve) => setTimeout(resolve, this.open ? 1000 : 3000));
     }

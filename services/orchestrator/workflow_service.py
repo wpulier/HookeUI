@@ -7,6 +7,7 @@ from .scientific_projects import InvalidProject
 from .scientific_comparisons import identity
 from .workflows import Workflows, wire, allowed_actor, run_identity
 from .workflow_execution import ScientificSteps, starter
+from .matrix_execution import ExecutionUncertain
 
 
 class WorkflowService:
@@ -100,6 +101,8 @@ class WorkflowService:
                 except asyncio.CancelledError:
                     # Work in a thread may still own its operation. Recovery must reconcile it.
                     raise
+                except ExecutionUncertain as exc:
+                    outcome={'status':'uncertain','output':None,'note':str(exc)[:500]}
                 except Exception as exc:
                     outcome={'status':'failed','output':None,'note':str(exc)[:500] or 'Scientific step failed'}
                 await asyncio.to_thread(self.workflows.finish,claim,outcome)
@@ -200,7 +203,12 @@ class WorkflowService:
                 task=self.tasks.get((session,id_))
                 if task is not None and not task.done():raise InvalidProject('This process still owns the execution; use Stop and wait for settlement')
                 await asyncio.to_thread(w.recover,id_,session,actor=actor)
+                from .matrix_execution import recover
+                await asyncio.to_thread(recover, self.steps, id_, session)
             elif action!='check':await asyncio.to_thread(w.control,id_,session,action,actor=actor)
+            if action == 'stop' and observation['executionObservation']['state'] != 'owned':
+                from .matrix_execution import recover
+                await asyncio.to_thread(recover, self.steps, id_, session)
             if action in ('resume','retry','review','stop') and observation['executionObservation']['state']!='interrupted':self.launch(id_,session)
             return {'run':await asyncio.to_thread(self.observed_status,id_,session)}
         raise InvalidProject('Choose a supported workflow command')

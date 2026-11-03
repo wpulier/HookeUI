@@ -1,5 +1,9 @@
 # Outside agents: the one door
 
+Workflow capability discovery includes optional installed execution profiles, with
+operator Project allowlists omitted. Exact profile generations remain checked by
+the shared workflow admission; discovery grants no external execution authority.
+
 With opt-in Project routing, new Project-scoped operations keep their authoritative
 receipt in `history/operations`, under the captured origin and host writer lease.
 Legacy receipts remain in host storage until explicit collection. Loading retained
@@ -275,6 +279,15 @@ original tracked operation. Destinations are generated under the configured
 Projects parent's Exports folder, never chosen by caller path. Saved snapshot
 receipts report unverified external dependencies and import no authority or jobs.
 Legacy/unavailable storage refuses; no complete-Project claim is made.
+
+Remotes (ADR 0028, hooke-projects ticket 09): `project.remote.status` reads, from the Project's own journal, where it
+is published and backed up, what it was started from and the publications agents asked for that the owner has not sent.
+`project.remote.backup` needs contribute access and goes only to a backup the owner set up (the newest active one, or
+the one `to` names: its folder or GitHub repository); there is no other destination, and the event records the agent
+as `by`. `project.publish` needs contribute access and only asks: it prepares the exact publication review on this Mac
+and records `project-publish-requested` (staging, reviewDigest, who). The owner sees it in the Publish section,
+reviews that exact review (`project-publish-review`) and signs off; `project-publish`, an owner command, sends it and
+records `requestedBy`. Signing off, choosing a destination, deleting or restoring are never door actions.
 
 `actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.
 

@@ -239,6 +239,32 @@ Stop terminates/reaps the worker before releasing its slot. Caller disconnect ha
 
 ## Current qualification and limits
 
+`matrix-package-vcc` takes four exact retained files: a complete final prediction,
+the official gene and perturbation CSVs, and the final-panel manifest. Its separate
+`vcc-packaging-runtime` pins official `vcc-cli==0.3.0` and a hashed cross-platform
+dependency lock. This deliberately extends the app-owned matrix boundary; the
+general RGB capability adapter does not accept these file inputs.
+
+Independent preflight requires all 360,000 D/E/F rows, 18,533 ordered genes and
+400 cells for each of 300 targets, without controls. It bounds HDF5 annotations,
+refuses external links/extra arrays and checks every sparse float32 count, cell
+total, label, canonical index and stored-entry count. Before upstream materializes
+the matrix, it checks explicit worker memory/file limits and temporary disk using
+the actual CSR payload, including 64-bit index promotion. Estimates do not prove
+peak use; the existing worker's RSS, disk and time supervision remains necessary.
+
+The worker calls the actual official `vcc.prep.run_prep` function with default
+count/density checks and the manifest's final contexts. All upstream temporary
+files stay under its monitored output directory. It then bounded-decompresses the
+actual `.vcc` into that directory and independently verifies all counts, ordered
+genes, groups and row labels against the preflight hashes. Official prep replaces
+cell IDs with sequential IDs; scientific row meaning must remain identical.
+Only the package is published, with exact input/output hashes and phase times.
+Matrix `storedEntries` means X entries, distinct from the worker's filesystem
+entry count. There is no authentication, network, upload or submission operation.
+Synthetic full-shape/tiny-density proof does not qualify real full-density memory,
+packaging duration, predictive performance or organizer acceptance.
+
 Tiny synthetic tests exercise real numerical libraries, sparse file assembly, Project retention, confined execution,
 idempotency, cancellation and foreign/stale-input refusal. They also cover panel-size-independent regularization,
 coverage priors, keyed seeds, approximate control moments and unsafe numerical-artifact headers. A separate prepared-
@@ -246,7 +272,11 @@ runtime canary exercised the actual upstream evaluator; this does not establish 
 
 Dense intermediate effect preparation and fitting are bounded to 512 MiB; large training sources need a declared
 compact preparation/fold recipe or further qualified streaming aggregation. Prediction preflights worst-case sparse
-output plus temporary assembly space. Scoring and aggregate preparation project only X and requested metadata,
+output plus temporary assembly space. Emission and count assembly reserve float32 values plus
+eight-byte sparse indices when the possible entry count exceeds the signed 32-bit range;
+their two-copy disk guard also retains the existing pointer and safety allowances.
+This is conservative admission arithmetic, not measured full-shape qualification.
+Scoring and aggregate preparation project only X and requested metadata,
 using HDF5/AnnData access; they do not load auxiliary layers, raw or embeddings. Sparse pointer/index dimensions and
 integer dtypes, monotone pointer contents and in-range indices are checked in cancellable bounded chunks before
 AnnData can cache pointers or invoke native sparse operations. Label arrays and categorical metadata are bounded before
@@ -322,3 +352,60 @@ are unchanged. Every new output records `dispersionEstimator`; older outputs lac
 that field and retain their original provenance. A newly frozen workflow must
 explicitly select the alternative. Numeric qualification does not establish an
 improvement on real data, which must be measured separately.
+
+## Development admission and selection
+
+`response-development-check` reads actual prepared training and reference effects
+before fitting or evaluating a declared development fold. Its retained
+`response-development-fold-v1` protocol explicitly lists `training_contexts`,
+`evaluation_contexts`, ordered `genes`, complete evaluation `targets`, `scale`,
+`normalization`, `target_regime` (`seen`, `mixed`, or `unseen`) and
+`expected_unseen_targets`. Context overlap, changed genes/normalization, incomplete
+reference panels, missing targets in a claimed seen-target fold and unexpected
+zero-prior coverage refuse. Observed zero-valued training effects are reported
+separately and remain valid data. This is a workflow step: place it before the
+fit/evaluation dependency. It does not silently alter existing frozen workflows,
+qualify biological context labels, reserve compute or replace resource admission.
+
+`cell-evaluation-select` compares two retained `cell-evaluation-v1` reports and a
+`development-selection-v1` config with `rule: "equal-metric-ranks"`, `left` and
+`right`, each containing a distinct `name` and `method`. Methods in simplicity order
+are `null`, `existing-transfer`, `low-rank-transfer`, `embedding`, `blend`.
+Both reports must use cell-eval2 0.20.0, the vcc2026 profile, the CPU/scanpy backend,
+the same complete context panels and configuration, and identical reference and
+protocol file hashes. Evaluator outputs now retain input hashes; older unhashed
+outputs remain readable but cannot certify this comparison.
+
+The six scored canonical metrics and directions are pinned to that upstream
+catalog: pds_cosine (higher), expr_mse_unbiased_capped_norm (lower),
+de_wilcoxon_lfc_nmae (lower), de_wilcoxon_direction_fidelity_yield_raw (higher),
+de_wilcoxon_direction_reach_raw (higher), de_wilcoxon_sig_jaccard (higher).
+The capability ranks each metric with exact-tie midranks, averages equally across
+metrics, then equally across qualified contexts. Missing/nonfinite/duplicate
+required aggregates refuse; diagnostic metrics are excluded. Simpler methods win
+rank ties; equally simple tied methods remain joint leaders. The output is labeled
+**development selection measure**, never an official overall score. This is an
+explicit fallback when scaling anchors are unavailable; it neither invents anchors
+nor implements reference scaling or a multi-candidate campaign tournament.
+
+`cell-evaluation-rank` supplies the joint comparison needed for three or more
+candidates; pairwise rankings must never be chained into a campaign winner. It
+accepts an ordinary retained ZIP `reports` and a `development-ranking-v1` config:
+`rule: "equal-metric-ranks"`, and two to six `candidates`, each with `name`,
+`method`, a flat `.json` member `file`, and its exact `sha256`. It reads bounded
+members without extracting or executing them. Missing, extra or duplicate members,
+duplicate JSON keys, changed hashes and excessive compressed/uncompressed bytes
+refuse. The output keeps a canonical candidate-set digest so adding or removing a
+candidate explicitly changes the comparison.
+
+All reports must satisfy the same pinned configuration/reference/panel checks.
+Joint per-metric midranks, six equal metric weights, equal context weights and the
+same simplicity rule determine the development measure. The original upstream
+aggregates are preserved. Each context/metric also records raw support counts
+`n_rows`, `n_used`, `n_nonfinite`, `n_missing` and the corresponding target IDs.
+The derived expression-error metric records its numerator and denominator support
+separately. Reference-ineligible upstream nulls or omitted rows may remain: the
+capability never drops a difficult target from the declared panel or requires all
+DE values to be finite. Unexplained support differences between candidates refuse
+selection and require investigation. These mechanics neither validate reference
+anchors nor establish a real scientific improvement.

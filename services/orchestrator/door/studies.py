@@ -263,7 +263,8 @@ def register(app, built, connected, body, reply, refusal):
             rows = await asyncio.to_thread(descriptors)
             for row in rows:
                 check(row, 'workflow-capability')
-            return reply({'ok': True, 'capabilities': rows})
+            from ..matrix_execution import discovery
+            return reply({'ok': True, 'capabilities': rows, 'executionProfiles': await asyncio.to_thread(discovery, built.hub)})
         except (Refused, ValueError, OSError) as error:
             return failure(error)
 

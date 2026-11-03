@@ -9,6 +9,33 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+Catalog notice snapshot regressions reproduce an update-card filesystem read through
+the real display projection. Real synthetic channel histories check changed/missing
+notices, exact manifest/profile separation, and live execution refusal even inside
+an older display scope. These are functional checks; simulated model latency remains
+a separate qualification with unchanged thresholds.
+
+`test_vcc_packaging.py` checks independent raw-count/axis/group/resource refusals,
+bounded HDF5 input and package inspection, and separate runtime discovery. Its
+optional pinned-runtime roundtrip invokes real official prep on synthetic final
+dimensions with only one stored value per cell. This produces and independently
+checks a `.vcc`; it is not a candidate, realistic-density resource measurement,
+confined-provider qualification, submission or organizer acceptance.
+
+`test_count_output_space.py` checks the 32-bit sparse-index transition and refuses
+the former disk envelope before prediction or count assembly. Its large dimensions
+use synthetic metadata and empty sparse inputs, not full-density computation;
+passing does not qualify full-shape memory, disk use or packaging time.
+
+`test_matrix_execution.py` uses synthetic provider transport over real workflow
+attempts and FileIntake to test original-job recovery, lost replies, cancellation,
+reserved allowance, local-only/disk refusal and bounded explicit worker resources.
+It also qualifies exact-generation recovery after active-profile changes and
+revocation, separate startup recovery transports, and retained reservations after
+removing a Project from admission. Unreadable ownership refuses new execution.
+It does not establish live cloud execution, Linux environment compatibility,
+predictive quality or submission acceptance.
+
 Fixed-admission scoped-client tests use synthetic door responses and the real MCP
 SDK to check exact input/key allowances, startup immutability, lost-reply recovery
 across fresh clients, invalid configuration and no execution under an empty
@@ -82,6 +109,8 @@ the connector contributes copied evidence and a Study. Shutdown, folder move or 
 restart retain the exact documents and shared inventory after original deletion.
 No public portable-mode switch, real browser/client, model, microscopy decoder or
 complete dependency collection is qualified by this test.
+The child probe emits lifecycle checkpoints and a thread traceback before the
+unchanged 60-second hang limit. These diagnose a timeout, not a performance pass.
 
 `test_project_record_collection.py` retains a synthetic shared Record folder through
 real immutable intake and reads it after deleting the synthetic original and moving
@@ -971,3 +1000,24 @@ actual retained comparison records. Neither substitutes for private-package proo
 actual UI activation or a genuine named connector run.
 
 Research-navigation regressions cover exact-revision page reuse, preserved work tabs, owner-only review/recovery, collaboration counts and lost-reply reconciliation through real isolated stores. These are synthetic lifecycle checks; actual Project/browser/connector evidence is retained separately.
+
+`test_development_protocol.py` checks declared context/target separation against
+synthetic prepared effects, signed-effect normalization, complete panels, and the
+missing-target zero-prior failure without rejecting measured zero effects. Its
+six-metric ranking oracles cover directions, midranks, equal context weights,
+simplicity ties, missing/nonfinite measurements and mismatched reference hashes.
+The optional upstream-catalog check requires cell-eval2 0.20.0. These tests do not
+qualify a biological fold, fit resources, full-panel scoring or a real decision.
+
+`test_development_bundle.py` checks joint two-to-six-candidate midranks, fixed-set
+identity, simplicity ties, exact report hashes, duplicate/extra ZIP members,
+duplicate JSON keys and bounded reads. Synthetic raw metric rows retain legitimate
+null/omitted reference support, including derived numerator/denominator counts;
+unexplained candidate support differences refuse. No test result is a contest
+metric, real fold qualification or proof of a winning candidate.
+
+Comparison-display regressions prohibit synchronous marker stats in the model-card path,
+preserve live execution approval during a stale display scope, and check changed generations,
+profiles, removal and recollection. Follow-clicks simulation sends each candidate's coordinates
+with that candidate's observed frame and records refusals. Synthetic moving-frame tests protect
+that pairing and preserve slow samples; real model latency remains a separate measured gate.

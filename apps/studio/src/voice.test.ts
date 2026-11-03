@@ -488,36 +488,86 @@ test('the voice\'s speaking phase goes to the server as it changes ({type:"voice
   } finally { vi.useRealTimers(); }
 });
 
-test("Talk listens with the Mac's own microphone when macOS made a nearby iPhone the default input", async () => {
+// The microphone (mic-choice.ts; Will, 3 Nov): the Mac's own, never the iPhone (the camera) unless picked.
+function micHarness(devices: { kind: string; deviceId: string; label: string }[]) {
   class Socket { static OPEN = 1; readyState = 1; onopen: (() => void) | null = null; send() {} close() {} }
   vi.stubGlobal('WebSocket', Socket);
   vi.stubGlobal('location', { protocol: 'http:', host: 'localhost:8770' });
+  const sources: { stream: unknown; connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> }[] = [];
   vi.stubGlobal('AudioContext', class {
     sampleRate = 24000;
     audioWorklet = { addModule: async () => {} };
     resume() { return Promise.resolve(); }
     destination = {};
     createGain() { return { gain: { value: 1 }, connect() {}, disconnect() {} }; }
-    createMediaStreamSource() { return { connect() {} }; }
+    createMediaStreamSource(stream: unknown) { const node = { stream, connect: vi.fn(), disconnect: vi.fn() }; sources.push(node); return node; }
     close() { return Promise.resolve(); }
   });
   vi.stubGlobal('AudioWorkletNode', class { port = { onmessage: null }; connect() {} disconnect() {} });
-  const stream = (label: string, stop = vi.fn()) => ({ getTracks: () => [{ stop }], getAudioTracks: () => [{ label, addEventListener() {} }], stop });
-  const phone = stream('Will’s iPhone Microphone');
-  const mac = stream('MacBook Pro Microphone');
+  const streams = new Map<string, { getTracks: () => unknown[]; getAudioTracks: () => unknown[]; track: Record<string, unknown> }>();
+  const stream = (id: string, label: string) => {
+    const track = { kind: 'audio', label, enabled: true, readyState: 'live', stop: vi.fn(), addEventListener: vi.fn(), getSettings: () => ({ deviceId: id }) };
+    const made = { getTracks: () => [track], getAudioTracks: () => [track], track };
+    streams.set(id, made);
+    return made;
+  };
   const asked: unknown[] = [];
+  const listeners: Record<string, () => void> = {};
+  const list = { devices };
   vi.stubGlobal('navigator', { mediaDevices: {
-    getUserMedia: async (constraints: { audio: { deviceId?: unknown } }) => { asked.push(constraints.audio.deviceId); return constraints.audio.deviceId ? mac : phone; },
-    enumerateDevices: async () => [
-      { kind: 'audioinput', deviceId: 'default', label: 'Default - Will’s iPhone Microphone' },
-      { kind: 'audioinput', deviceId: 'phone-id', label: 'Will’s iPhone Microphone' },
-      { kind: 'audioinput', deviceId: 'mac-id', label: 'MacBook Pro Microphone' },
-    ],
+    getUserMedia: async (constraints: { audio: { deviceId?: { exact: string } } }) => {
+      asked.push(constraints.audio.deviceId);
+      const id = constraints.audio.deviceId?.exact ?? 'phone';
+      return stream(id, list.devices.find((d) => d.deviceId === id)?.label ?? 'iPhoneWild Microphone');
+    },
+    enumerateDevices: async () => list.devices,
+    addEventListener: (name: string, fn: () => void) => { listeners[name] = fn; },
+    removeEventListener: vi.fn(),
   } });
+  return { asked, streams, listeners, list, sources };
+}
+
+const mic = (deviceId: string, label: string) => ({ kind: 'audioinput', deviceId, label });
+
+test('the chosen device opens first: with the iPhone as the default input, the phone is never opened', async () => {
+  const t = micHarness([mic('default', 'Default - iPhoneWild Microphone'), mic('phone', 'iPhoneWild Microphone'), mic('mac-id', 'MacBook Pro Microphone')]);
   const voice = new VoiceClient(vi.fn(), vi.fn(), vi.fn());
   await voice.start({});
-  expect(asked).toEqual([undefined, { exact: 'mac-id' }]);
-  expect(phone.stop).toHaveBeenCalledOnce();
-  expect(mac.stop).not.toHaveBeenCalled();
+  expect(t.asked).toEqual([{ exact: 'mac-id' }]);
+  expect(t.streams.has('phone')).toBe(false);
+  voice.stop();
+});
+
+test('only the iPhone: Talk says why it did not listen with it, and opens nothing', async () => {
+  const t = micHarness([mic('phone', 'iPhoneWild Microphone')]);
+  const state = vi.fn();
+  const voice = new VoiceClient(vi.fn(), state, vi.fn());
+  await voice.start({});
+  expect(t.asked).toEqual([]);
+  expect(state).toHaveBeenLastCalledWith('error', expect.stringContaining('the iPhone is the camera'));
+  expect(voice.micBlocked).toBe(false);
+});
+
+test('a headset unplugged mid-Talk: the Mac’s own takes over on the call’s sender and in the capture graph', async () => {
+  const t = micHarness([mic('headset', 'USB Headset'), mic('phone', 'iPhoneWild Microphone'), mic('mac-id', 'MacBook Pro Microphone')]);
+  const voice = new VoiceClient(vi.fn(), vi.fn(), vi.fn());
+  await voice.start({});
+  expect(t.asked).toEqual([{ exact: 'headset' }]);
+  const replaced: unknown[] = [];
+  const headset = t.streams.get('headset')!;
+  (voice as unknown as { peer: unknown }).peer = { getSenders: () => [{ track: headset.track, replaceTrack: async (track: unknown) => { replaced.push(track); } }], close() {} };
+  t.list.devices = [mic('phone', 'iPhoneWild Microphone'), mic('mac-id', 'MacBook Pro Microphone')];
+  headset.track.readyState = 'ended';
+  t.listeners.devicechange();
+  await vi.waitFor(() => expect(replaced).toEqual([t.streams.get('mac-id')!.track]));
+  expect(t.asked).toEqual([{ exact: 'headset' }, { exact: 'mac-id' }]);
+  expect(headset.track.stop).toHaveBeenCalled();
+  expect(t.sources.at(-1)!.stream).toBe(t.streams.get('mac-id'));
+  expect(t.sources[0].disconnect).toHaveBeenCalled();
+  expect(voice.state).not.toBe('error');
+  // A device change that leaves the choice as it is changes nothing.
+  t.listeners.devicechange();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(t.asked).toHaveLength(2);
   voice.stop();
 });

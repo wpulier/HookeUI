@@ -13,6 +13,9 @@ compared with what was asked, never the tool's words or the model's:
 | new_project, switch_session | the Project open is a new one and the studio shows it; "already in" and "nothing opened" are not done |
 | add_asset | the Project's stage holds that asset |
 | reference_photo | the picture's window is in the studio's report when its background result lands |
+| turn_on | the capability's card reads on (green); `running` while it is on its way or waits for the user's own step |
+| get_model | the download's row in the queue: `running` while queued, downloading or checking; verified once downloaded |
+| open_models | the studio said it shows the Models page (the tool fails otherwise) |
 | anything that saves (analysis, tables, a snapshot) | what it saved resolves in Hooke's stores, with its numbers |
 
 `Hands` stays generic: it calls `before` at the moment of dispatch, `check` with the result, and `spends` for what an
@@ -115,6 +118,8 @@ class Records:
             return {"settings": self._settings()}
         if tool == "add_asset":
             return {"stage": getattr(getattr(self._index(), "day", None), "on_stage", None)}
+        if tool == "get_model":
+            return {"downloads": {r.get("model"): r.get("state") for r in self._downloads()}}
         if intent.kind in ("cancel", "steer"):
             s = self._researcher(intent.args.get("researcher"))
             if s is None:
@@ -148,6 +153,12 @@ class Records:
             return self._workflow(result, run)
         if tool == "experiment":
             return self._experiment(intent, result, run)
+        if tool == "turn_on":
+            return self._turned_on(intent, result)
+        if tool == "get_model":
+            return self._downloading(result, before)
+        if tool == "open_models":
+            return {"result": "verified", "said": str(result.get("summary") or "The Models page is open.")[:300]}
         if intent.kind == "setting":
             return self._setting(intent, before)
         if tool == "use":
@@ -367,6 +378,55 @@ class Records:
         if isinstance(values.get("text"), str) and values.get("text") and result.get("ok"):
             return {"result": "verified", "said": "Done: its answer is in what it wrote."}
         return self._saved(result, run)
+
+    def _downloads(self) -> list[dict]:
+        queue = getattr(self.services, "downloads", None)
+        with contextlib.suppress(Exception):
+            return list(queue.wire()) if queue is not None else []
+        return []
+
+    def _turned_on(self, intent, result: dict) -> dict:
+        """A capability from its card on the shelf, read after the call: on (green) is done; on its way, or waiting for
+        the user's own step (a key, a licence), is still going; anything else is not known to have happened."""
+        from ..brain.toolbox.catalog import find_job_card
+
+        capabilities = getattr(self.services, "capabilities", None)
+        card = None
+        with contextlib.suppress(Exception):
+            card = find_job_card(capabilities(), str((intent.args or {}).get("job") or "")) if capabilities else None
+        if card is None:
+            return {"result": "uncertain", "error": "Hooke has no card for that capability",
+                    "said": "Not sure it was turned on: Hooke has no card for it."}
+        title, turning = card.get("title") or card.get("id"), card.get("turning") or {}
+        if card.get("colour") == "green":
+            return {"result": "verified", "said": f"{title} is on."}
+        state = turning.get("state")
+        if state in ("starting", "running"):
+            return {"result": "running", "said": f"Turning on {title}: {turning.get('says') or 'on its way'}."}
+        if state == "waiting":
+            return {"result": "running", "said": f"{title} waits for your step on its card: {card.get('word') or ''}".strip()}
+        if state == "failed":
+            return {"result": "failed", "error": str(turning.get("says") or card.get("word") or "it failed")[:300],
+                    "said": f"Turning on {title} failed: {turning.get('says') or card.get('word') or 'no reason given'}."}
+        return {"result": "uncertain", "error": f"{title} reads {card.get('word') or card.get('colour')}",
+                "said": f"Not sure {title} is on: its card reads {card.get('word') or card.get('colour')}."}
+
+    def _downloading(self, result: dict, before: dict) -> dict:
+        """The downloads the call started, from the queue's rows: the ones new or changed since just before it."""
+        was = before.get("downloads") or {}
+        rows = [r for r in self._downloads() if was.get(r.get("model")) != r.get("state")
+                or r.get("state") in ("queued", "downloading", "checking")]
+        if not rows:
+            return {"result": "uncertain", "error": "the downloads queue shows nothing it started",
+                    "said": "Not sure a download started: the queue shows none."}
+        failed = [r for r in rows if r.get("state") == "failed"]
+        if failed:
+            return {"result": "failed", "error": str(failed[0].get("says") or "the download failed")[:300],
+                    "said": f"{failed[0].get('name')}: {failed[0].get('says') or 'the download failed'}."}
+        if all(r.get("state") == "done" for r in rows):
+            return {"result": "verified", "said": ", ".join(f"{r.get('name')} is downloaded" for r in rows) + "."}
+        return {"result": "running", "said": "; ".join(str(r.get("says") or f"Downloading {r.get('name')}")
+                                                        for r in rows) + ". It shows on the Models page."}
 
     def _experiment(self, intent, result: dict, run) -> dict:
         """An experiment from its own record (experiments.py): a plan is shown and waits for the user's yes (nothing

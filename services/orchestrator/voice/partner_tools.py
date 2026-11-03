@@ -51,7 +51,11 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                "stop_watching", "what_happened", "hold", "focus_check", "set_style", "name_outline",
                                "bookmark", "way_to_bookmark", "show_map", "calibrate_scale", "set_objective",
                                "measure_saved_objects", "retain_population_labels", "compare_retained_methods",
-                               "register_volume", "describe_capability", "find_workflows", "assets", "add_asset")
+                               "register_volume", "describe_capability", "find_workflows", "assets", "add_asset",
+                               # Driving Hooke (Will, 2026-11-03): turning capabilities on, fetching and showing models,
+                               # experiments and writing up, each with its receipt (records.py).
+                               "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
+                               "write_document")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
 # approval back.
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
@@ -230,6 +234,89 @@ def realtime_tool(declaration: dict) -> dict:
     return {"name": declaration["name"], "description": declaration.get("description") or "", "parameters": params}
 
 
+class HandOffActing:
+    """A hand-off's steps carried out under the voice's Hands (brain/acting.py; the live partner spec 4.2): each acting
+    step of Hooke's brain gets its typed intent, the partner cursor under the lease, a check at the moment of dispatch
+    against a fresh look tied to this hand-off (never the voice turn: talking again never drops it), and a receipt from
+    Hooke's own state. The receipts decide what the voice says happened (`PartnerTools._do_in_hooke`)."""
+
+    def __init__(self, tools: "PartnerTools", job: str, approved: str | None = None) -> None:
+        self.tools, self.job, self.approved = tools, job, approved or None
+        self.receipts: list[dict] = []
+        self.asks: list[dict] = []  # permissions Hands asked (a paid model, a long researcher run): the voice asks once
+        self.holding = False  # the lease, from its first step on Hooke's UI to its end (Hands.hold)
+        # The takeovers (mouse, Escape) before it began: one after that ends the hand-off's UI steps, whatever look each
+        # step plans against.
+        self.hard_epoch = tools.hands.hard_epoch if tools.hands is not None else 0
+
+    def plan(self):
+        plan = self.tools.hands.plan(None, job=self.job)
+        plan.hard_epoch = self.hard_epoch
+        return plan
+
+    async def close(self) -> None:
+        if self.holding:
+            self.holding = False
+            await self.tools.hands.let_go()
+
+    def intent(self, tool: str, args: dict):
+        return self.tools.intent(tool, args)
+
+    async def step(self, run, args: dict, ctx, start, skip) -> dict:
+        from .. import user_stop
+
+        tools, hands = self.tools, self.tools.hands
+        intent = tools.intent(run.tool, args)
+        holder = user_stop.Stop() if intent is not None and intent.ui and not intent.background else None
+        if intent is not None and intent.ui and not self.holding and hands._own_job(self.plan()):
+            self.holding = True
+            await hands.hold()
+
+        async def effect() -> dict:
+            before = tools._reported_at()
+            start()
+            if holder is not None and run.task is not None:
+                holder.task = run.task  # a takeover's Stop cancels the tool's run where it can stop
+            if run.task is not None and run.ok is None:
+                await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
+            if run.ok is not False and changes_screen(run.tool, args):
+                # Checked against the studio's report after the change, as the voice's own calls are (_answer): the
+                # will-drive run of 3 Nov failed a made Tab, Main in front and a rename on the report from before them.
+                await tools.report_after(before)
+            result = tools._result(run)
+            result["_run"] = run  # for the receipt (records.py), never said
+            return result
+
+        action = getattr(getattr(run, "occurrence", None), "action_id", None)
+        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=self.plan(),
+                                  stop=holder.stop if holder is not None else None, intent=intent,
+                                  approved=self.approved)
+        kept = {k: v for k, v in receipt.items() if not k.startswith("_")}
+        if run.task is None:
+            # Hands ended it before it ran (a takeover, a question back, a permission to ask): the step is settled with
+            # that reason, so the brain's answer says it and the steps after it know.
+            if kept.get("result") == "permission":
+                self.asks.append(kept)
+                reason = f"not done yet: {kept.get('ask')} (asked once; nothing was done)"
+            elif kept.get("result") == "ask":
+                reason = ("not done: which one is meant? " + ", ".join(str(c) for c in kept.get("candidates") or [])
+                          + ". Ask the user in one short question; nothing was done.")
+            else:
+                reason = str(kept.get("error") or kept.get("note") or "not done")
+            skip(reason[:300])
+            await asyncio.wait([run.task])
+        elif kept.get("result") in ("failed", "uncertain") and run.ok is True:
+            # The tool's own work happened (its outputs exist, so the steps after it that use them still run), but the
+            # screen does not confirm it: its summary says so, so the answer never claims it shows, and the voice says
+            # the receipt (will-drive, 3 Nov: a find whose outlines the Tab in front hid failed its receipt, and the
+            # measurement and zoom after it were skipped where the zoom would have brought its Tab forward).
+            why = str(kept.get("said") or kept.get("error") or "not confirmed on screen")
+            run.summary = f"{run.summary} (not confirmed on screen: {why})"[:800]
+        run.receipt = kept
+        self.receipts.append({"name": run.tool, **kept})
+        return kept
+
+
 class PartnerTools:
     """The tools of one partner session. `partner` (voice/partner.py) gives the turn's words, the studio link, the
     camera and the screen as text."""
@@ -403,7 +490,7 @@ class PartnerTools:
                     "the user's request in their own words, whole, as they said it (\"use a segmentation model on the "
                     "center thing\"); not split, rephrased into steps or into tool names")},
                 "label": {"type": "string", "maxLength": 60, "description": HANDOFF_LABEL},
-                "then": {"type": "string", "description": HANDOFF_THEN}},
+                "then": {"type": "string", "description": HANDOFF_THEN}, **APPROVED},
                 "required": ["request", "label"]}, self.do_in_hooke))
             specs.append(ToolSpec("stop_work", STOP_WORK, {"type": "object", "properties": {
                 "id": {"type": "string", "description": "the work's id or number from the brief's jobs; leave it out "
@@ -967,14 +1054,19 @@ class PartnerTools:
         except Exception:
             return 0.0
 
-    async def look_after(self, name: str, before: float) -> tuple[dict, dict]:
-        """Act, then look: the studio's report newer than the change, then its window picture and the screen as text."""
+    async def report_after(self, before: float) -> float | None:
+        """The studio's report newer than a change (at most REPORT_WAIT_S): when it came, None when none did. What a
+        receipt is checked against must be the screen after the change, never the one before it."""
         screen = getattr(self.hub, "screen", None)
-        report_at = None
         if screen is not None and hasattr(screen, "until"):
             with contextlib.suppress(Exception):
                 if await screen.until(lambda report: True, before, timeout=REPORT_WAIT_S):
-                    report_at = time.time()
+                    return time.time()
+        return None
+
+    async def look_after(self, name: str, before: float) -> tuple[dict, dict]:
+        """Act, then look: the studio's report newer than the change, then its window picture and the screen as text."""
+        report_at = await self.report_after(before)
         shot = await self.partner.snapshot()
         text = f"After {name}, Hooke's screen now: " + (self.partner.screen_now() or "(no report from the studio)")
         images = [(shot["jpeg"], f"Hooke's window after {name} ({shot.get('how') or 'composed'})")] if shot else []
@@ -1390,11 +1482,17 @@ class PartnerTools:
             asked += (f"\n(The user also asked for a later step, for after the work this starts has finished: "
                       f"\"{later}\". Hooke keeps that step with that work and does it when the work lands: do only the "
                       "first part now, and neither do the later step nor promise it yourself.)")
+        bridge = self.handoff_acting(flight, approved=str(args.get("approved") or "") or None)
         try:
-            result = await brain.turn(asked, "voice", delegation_id=delegation, **kwargs)
+            from ..brain.acting import acting
+
+            with acting(bridge):
+                result = await brain.turn(asked, "voice", delegation_id=delegation, **kwargs)
             if delegation is not None:
                 result = await self._handoff_landed(result, self._late_of[delegation], request)
         finally:
+            if bridge is not None:
+                await bridge.close()  # the lease it held through its steps
             if delegation is not None:
                 self._late_of.pop(delegation, None)
             if request is not None:
@@ -1409,6 +1507,30 @@ class PartnerTools:
         # failed, said as that; never "done" and never "ask again".
         uncertain = [a.get("tool") for a in standing[:8]
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
+        if bridge is not None:
+            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone. A failure a
+            # later call of the same tool made good (the brain called it again, rightly: will-drive, 3 Nov, turn_on with
+            # the job's name after a refusal that listed them) is no failure of the request.
+            made_good: dict[str, int] = {}  # each tool's last call that did not fail ("later" is the kept step's words)
+            for i, r in enumerate(bridge.receipts):
+                if r.get("result") != "failed":
+                    made_good[r["name"]] = i
+            standing_receipts = [r for i, r in enumerate(bridge.receipts)
+                                 if not (r.get("result") == "failed" and made_good.get(r["name"], -1) > i)]
+            failed = [f for f in failed if not any(f.startswith(f"{r['name']}:") for r in bridge.receipts
+                                                    if r.get("result") == "failed" and r not in standing_receipts)]
+            for r in standing_receipts:
+                said_ = f"{r['name']}: {r.get('said') or r.get('error') or r.get('result')}"
+                if r.get("result") == "failed" and said_ not in failed:
+                    failed.append(said_)
+                elif r.get("result") == "uncertain" and r["name"] not in uncertain:
+                    uncertain.append(r["name"])
+                # "running" (a researcher started, a capability on its way) is a start that happened: its words are in
+                # the receipts, and its finish is told when it lands.
+            out_receipts = [{"tool": r["name"], "result": r.get("result"), "said": r.get("said")}
+                            for r in standing_receipts][:8]
+        else:
+            out_receipts = []
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
                                "answer": answer, "actions": actions}
         if result.get("answered_while_working"):
@@ -1418,6 +1540,13 @@ class PartnerTools:
                            "never that it is still running.")
         if failed:
             out["failed"] = failed
+        if out_receipts:
+            out["receipts"] = out_receipts  # each step's receipt, in Hooke's words: what the voice says happened
+        if bridge is not None and bridge.asks:
+            first = bridge.asks[0]
+            out.update(ok=None, result="permission", ask=first.get("ask"), approval=first.get("approval"),
+                       note=("Not done yet. Ask the user this once; if they say yes, hand the same request over again "
+                             "with approved set to this approval."))
         if uncertain:
             out["result"], out["uncertain"] = "uncertain", uncertain
             out["note"] = ("I sent it but couldn't confirm it on screen: say exactly that for "
@@ -1431,14 +1560,32 @@ class PartnerTools:
             out["then"] = self._keep_then(flight, result, out, words or text)
         changed = [a["tool"] for a in actions if a["ok"] and a["tool"] in SCREEN_CHANGING]
         if changed and look:  # act, then look: whether it shows is read from the screen, not from the brain's own answer
-            look, facts = await self.look_after(changed[-1], before)
-            out["_look"], out["_log"] = look, facts
+            confirmed = bridge is not None and all(
+                any(r["name"] == tool and r.get("result") == "verified" for r in bridge.receipts) for tool in changed)
+            if confirmed and str(getattr(getattr(hub, "settings", None), "look_after", "unverified")) == "unverified":
+                # Every change it made was confirmed by the studio's report: the screen as text, no picture to wait for.
+                out["_look"] = {"images": [], "detail": "auto",
+                                "text": f"After {changed[-1]}, Hooke's screen now: "
+                                        + (self.partner.screen_now() or "(no report from the studio)")}
+                out["_log"] = {"screenChange": True, "confirmed": True, "picture": "skipped: every change verified"}
+            else:
+                look, facts = await self.look_after(changed[-1], before)
+                out["_look"], out["_log"] = look, facts
         # What it made or opened, pointed at as its outcome is heard (and its line said later, when it ran long), when
         # the screen shows it now: never a mark the studio could not draw.
         points = self._pointable(pointing_at(standing))
         if points:
             out["_point"], out["pointed_at"], out["pointing"] = points, points, POINTING
         return out
+
+    def handoff_acting(self, flight=None, approved: str | None = None) -> HandOffActing | None:
+        """The hand-off's Hands (option HANDOFF_ACTS "hands", the default), or None: the brain's tools act directly, as
+        before 2026-11-03 (no cursor, no receipt)."""
+        if self.hands is None:
+            return None
+        if str(getattr(getattr(self.hub, "settings", None), "handoff_acts", "hands") or "hands") != "hands":
+            return None
+        return HandOffActing(self, f"handoff:{getattr(flight, 'id', None) or uuid.uuid4().hex[:8]}", approved)
 
     # --- a step for after the work a hand-off started (voice/followups.py) -------------------------------------
     def _research(self):

@@ -1,8 +1,16 @@
 """Ordinary server/lifespan, isolated profile and synthetic consent; no provider calls."""
+import faulthandler
 import json
 import os
 from pathlib import Path
 import sys
+
+from tests.waiting import HANG_S
+
+# Preserve the blocked thread when CI reaches the parent's unchanged hang limit,
+# including stalls during imports or server startup. This does not extend it.
+if __name__ == '__main__':
+    faulthandler.dump_traceback_later(HANG_S * 0.75, repeat=False)
 
 from fastapi.testclient import TestClient
 from orchestrator.paths import Paths
@@ -16,6 +24,10 @@ from tests.waiting import until
 
 
 def main(mode, folder, material="protocol"):
+    def checkpoint(phase):
+        print(f'Project host probe {mode}/{material}: {phase}', flush=True)
+
+    checkpoint('building server')
     base = Path(folder)
     os.environ['HOOKE_CONFIRM_KEY'] = WINDOW_PUBLIC
     os.environ['HOOKE_STUDIO_TOKEN'] = OWNER['X-Hooke-Studio']
@@ -24,7 +36,9 @@ def main(mode, folder, material="protocol"):
     locations = ProjectLocations(paths.sessions, ProjectRegistry(paths.home), base / 'Projects')
     http = create_app('http://127.0.0.1:1', use_gpu=False, paths=paths, project_locations=locations)
     built = http.state.app
+    checkpoint('opening lifespan')
     with TestClient(http, base_url=BASE) as client:
+        checkpoint('lifespan open')
         if mode == 'create':
             response = client.post('/api/session/new', headers={'Origin': BASE, HEADER: 'new-session'},
                                    json={'name': 'Research from Studio'})
@@ -58,10 +72,12 @@ def main(mode, folder, material="protocol"):
         # The actual UI reads the layout on every open; this reconciles jobs via a
         # detached store and must never create a shadow legacy journal.
         from orchestrator.commands import workspace_layout
+        checkpoint('reading workspace layout')
         layout = client.portal.call(workspace_layout, built, None, {'session': sid, 'schema': 7})
         assert layout['ok'], layout
         assert not (paths.sessions / sid / 'journal.jsonl').exists()
         if material == 'mixed':
+            checkpoint('checking mixed material')
             from tests import project_mixed_probe
             if mode == 'create':
                 receipt['mixed'] = project_mixed_probe.create(built, client, h, base, sid)
@@ -81,6 +97,7 @@ def main(mode, folder, material="protocol"):
             else:
                 assert mixed_evidence == receipt['mixedEvidence'], {key: {'before': receipt['mixedEvidence'].get(key), 'after': value} for key, value in mixed_evidence.items() if value != receipt['mixedEvidence'].get(key)}
 
+        checkpoint('waiting for identity and reading inventory')
         until(lambda: built.hub.identity.io.ready)
         response = client.get('/api/resources', params={'day': sid})
         assert response.status_code == 200, response.text
@@ -90,6 +107,7 @@ def main(mode, folder, material="protocol"):
         assert ref['id'] in entries and study in entries
         assert entries[study]['material']['kind'] == 'assignment'
         response = client.get(f'/api/agent/v1/studies/{study}', params={'session': sid}, headers=h)
+        checkpoint('checking retained study and source')
         assert response.status_code == 200, response.text
         saved = built.hub.resources.projects.read(ref['id'], sid, revision=ref['revision'])
         data = built.hub.resources.projects.file_source(saved.id, sid, saved.revision,
@@ -102,8 +120,13 @@ def main(mode, folder, material="protocol"):
             (base / 'server-receipt.json').write_text(json.dumps(receipt))
         else:
             assert evidence == receipt['evidence']
+        checkpoint('closing lifespan')
     assert locations.closed
+    checkpoint('closed')
 
 
 if __name__ == '__main__':
-    main(*sys.argv[1:])
+    try:
+        main(*sys.argv[1:])
+    finally:
+        faulthandler.cancel_dump_traceback_later()

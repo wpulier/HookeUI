@@ -289,8 +289,11 @@ def source(store,project,session,revision,reference,*,check=lambda:None,verify_c
     if type(verify_content) is not bool:raise InvalidProject('Choose full or per-read content verification')
     saved=store.read(project,session,revision=revision)
     if reference not in saved.document['resources']:raise InvalidProject('Source file reference is not accepted in this revision')
-    meta,content=_resolved(store,project,session,reference,check=check,verify=verify_content)
-    return FileSource(store,project,session,meta['name'],content['size'],content['sha256'],content['chunkBytes'],
+    # A document a Project started from a publication holds is read under its own handle; its files belong to the
+    # owner that accepted them (project_inherited), which its reference names.
+    owner=saved.owner or session
+    meta,content=_resolved(store,project,owner,reference,check=check,verify=verify_content)
+    return FileSource(store,project,owner,meta['name'],content['size'],content['sha256'],content['chunkBytes'],
                       tuple(content['chunks']),copy.deepcopy(reference),saved.revision,cleaned=content['cleaned'])
 
 

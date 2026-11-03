@@ -1,5 +1,9 @@
 # Researchers
 
+Workflow capability discovery includes installed file execution profiles without
+operator Project allowlists. Researchers must pin an admitted profile generation
+on a frozen matrix step; the original workflow attempt owns external recovery.
+
 Retained capture digests exclude the derived `source.comparisonInput` UI hint, including
 legacy whole-document receipts. Original source, pixel, revision and measurement facts
 remain checked; adding comparison discovery metadata cannot invalidate older findings.

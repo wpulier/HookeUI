@@ -100,6 +100,19 @@ def create(parent: Path, name: str, *, session: str, host_preferences: Prefs,
         return root
 
 
+def current_name(root: ProjectRoot) -> str:
+    """What the Project is called now: its latest rename in its own journal, else the name it was made with
+    (project.json keeps the name it was created with; a rename is a journal event)."""
+    name = root.name
+    try:
+        for event in ProjectRepository(root).events():
+            if event.get('type') == 'session-renamed' and isinstance(event.get('name'), str) and event['name'].strip():
+                name = event['name']
+    except (OSError, ValueError):
+        pass  # an unreadable journal leaves the name it was made with
+    return name
+
+
 class ProjectRepository:
     """Read saved research without starting an App, worker or installed runtime."""
     def __init__(self, root: ProjectRoot):

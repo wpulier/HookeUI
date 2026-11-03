@@ -19,6 +19,8 @@ function actions(backups: BackupEntry[] = [], overrides: Partial<BackupActions> 
   return {
     status: vi.fn(async () => ({backups})),
     backUp: vi.fn(async () => sent),
+    remove: vi.fn(async () => ({purgeAfter: 1_796_300_000})),
+    keep: vi.fn(async () => undefined),
     github: {status: vi.fn(async () => ({setUp: true, signedIn: true, says: 'Signed in to GitHub'})), start: vi.fn(), poll: vi.fn()},
     ...overrides,
   };
@@ -124,4 +126,31 @@ test('a project whose folder is not there is restored in its place only when ask
   click(dialog, 'Restore in its place');
   await vi.waitFor(() => expect(dialog.textContent).toContain('Restored “Research”'));
   expect(restore).toHaveBeenLastCalledWith({kind: 'folder', path: '/Volumes/Backup/Hooke'}, true);
+});
+
+test('deleting a backup asks first, says it stays restorable for 30 days, and can be undone', async () => {
+  dom();
+  let listed: BackupEntry[] = [folderEntry];
+  const a = actions([], {status: vi.fn(async () => ({backups: listed}))});
+  (a.remove as ReturnType<typeof vi.fn>).mockImplementation(async () => { listed = [{...folderEntry, state: 'deleting', purgeAfter: 1_796_300_000}]; return {purgeAfter: 1_796_300_000}; });
+  (a.keep as ReturnType<typeof vi.fn>).mockImplementation(async () => { listed = [{...folderEntry, state: 'active'}]; });
+  const view = projectBackup(a, () => true, 'Research');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Delete backup'));
+  click(view.element, 'Delete backup');
+  expect(view.element.textContent).toContain('It can still be restored, or kept, for 30 days; then Hooke removes it.');
+  expect(a.remove).not.toHaveBeenCalled();
+  click(view.element, 'Delete it');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('being deleted on'));
+  expect(a.remove).toHaveBeenCalledWith({kind: 'folder', path: '/Volumes/Backup/Hooke'});
+  expect(Array.from(view.element.querySelectorAll('button')).some(b => b.textContent === 'Back up again')).toBe(false);
+  click(view.element, 'Keep it');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Back up again'));
+  expect(a.keep).toHaveBeenCalledWith({kind: 'folder', path: '/Volumes/Backup/Hooke'});
+  view.dispose();
+});
+
+test('a backup that was removed is no longer offered', async () => {
+  dom(); const view = projectBackup(actions([{...folderEntry, state: 'deleted'}]), () => true, 'Research');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Not backed up yet.'));
+  view.dispose();
 });

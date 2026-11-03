@@ -48,12 +48,15 @@ def verify_records(root, *, check=lambda: None):
             if saved.revision == 1:
                 previous = None
             document = saved.document
+            # An inherited document (a Project started from a publication) is read under this Project's handle;
+            # its components belong to the owner that accepted them (project_inherited).
+            owner = saved.owner or root.session
             # Previously checked chunks are immutable; copy admission also
             # pins all file stamps, catching later changes before publication.
-            arrays.validate_references(store, saved.id, root.session, document,
-                accepted=arrays.accepted_parts(store, saved.id, root.session, previous),
+            arrays.validate_references(store, saved.id, owner, document,
+                accepted=arrays.accepted_parts(store, saved.id, owner, previous),
                 check=check, new_bytes=arrays.MAX_LOGICAL_BYTES)
-            files.validate_references(store, saved.id, root.session, document,
+            files.validate_references(store, saved.id, owner, document,
                 accepted=previous['resources'] if previous else (), check=check)
             previous = document
     except (OSError, ValueError) as error:

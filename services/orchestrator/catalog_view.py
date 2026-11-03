@@ -209,14 +209,16 @@ def execution_block(m: catalog.Manifest, environ: Mapping[str, str] = os.environ
     active = installed.m if installed else m
     if kinds.door_entry(active) is not None and (why := kinds.takes_why(active)):
         return {'action': 'unsupported', 'why': why}
-    if own_trials.pending(active, environ):
+    comparison, picture = own_trials.display_comparison(active, environ)
+    if comparison is None:
+        return {'action': 'unsupported', 'why': 'Checking comparison approval.'}
+    if comparison:
         if active.members:
             return {'action': 'review-bundle', 'why': 'Review each tool’s checked results before enabling this package.'}
         job = next((job for job, (_, output) in own_trials.JOBS.items()
                     if any(i.input == 'image.2d.rgb8' and i.output == output for i in active.implements)), None)
         if job is None:
             return {'action': 'unsupported', 'why': 'Comparison does not support this capability’s input and output yet.'}
-        picture = own_trials.awaiting_picture(m.key, environ)
         return {'action': 'choose-comparison-input' if picture else 'compare', 'job': job,
                 'why': 'Choose a picture for comparison before using this capability.' if picture else
                        'Compare your picture and accept the result before using this capability.'}
@@ -362,8 +364,12 @@ def face(m: catalog.Manifest, r: readiness.Readiness, used: list[dict],
     check. Not ready: its next step."""
     from . import own_trials, env_runner
     installed = env_runner.in_use(m, environ) if m.runner == "python-env" else None
-    if r.status == "ready" and own_trials.pending(installed.m if installed else m, environ):
-        if own_trials.awaiting_picture(m.key, environ):
+    comparison, picture = (own_trials.display_comparison(installed.m if installed else m, environ)
+                           if r.status == 'ready' else (False, False))
+    if comparison is None:
+        return {'state': 'unchecked', 'says': 'Checking comparison approval.', 'action': None}
+    if comparison:
+        if picture:
             return {"state": "unchecked", "says": "Setup checked; choose a picture of yours and Set up for comparison (Add "
                     "your own), then Use it to add the choice", "action": None}
         return {"state": "unchecked", "says": "Setup checked; compare your chosen picture, then Use it to add the choice", "action": None}

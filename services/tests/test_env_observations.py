@@ -23,6 +23,50 @@ def installed(m):
     return d
 
 
+def test_catalog_face_reads_observed_comparison_without_synchronous_disk(home, monkeypatch):
+    from gpu_worker import manifests as catalog
+    from orchestrator import catalog_view, own_trials
+    model = catalog.get('edgetam')
+    snapshot = observations.collect()
+    original = Path.stat
+    def no_marker_stat(path, *args, **kwargs):
+        if path.is_relative_to(own_trials.root()):
+            pytest.fail('comparison marker read on display caller')
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(Path, 'stat', no_marker_stat)
+    with observations.display(snapshot):
+        face = catalog_view.face(model, readiness.Readiness('ready', 'Ready'), [], os.environ)
+    assert face['state'] == 'unchecked'
+
+
+def test_comparison_display_never_authorizes_execution_and_refreshes_changes(home):
+    from gpu_worker import manifests as catalog
+    from orchestrator import own_trials
+    model = catalog.get('edgetam')
+    before = observations.collect()
+    own_trials.await_comparison(model.key)
+    with observations.display(before):
+        assert own_trials.display_comparison(model) == (False, False)
+        assert own_trials.pending(model) is True, 'execution checks the current marker even in a display scope'
+    with observations.display(observations.collect()):
+        assert own_trials.display_comparison(model) == (True, True)
+    own_trials.marker(model.key).unlink()
+    with observations.display(observations.collect()):
+        assert own_trials.display_comparison(model) == (False, False)
+
+
+def test_unknown_comparison_display_does_not_borrow_another_profile_or_generation(home, monkeypatch):
+    from dataclasses import replace
+    from gpu_worker import manifests as catalog
+    from orchestrator import own_trials
+    model = catalog.get('edgetam')
+    snapshot = observations.collect()
+    monkeypatch.setattr(own_trials, 'observe_comparison', lambda *args: pytest.fail('display must not read disk'))
+    with observations.display(snapshot):
+        assert own_trials.display_comparison(replace(model, version='changed')) == (None, False)
+        assert own_trials.display_comparison(model, {'MICROMIND_CATALOG': str(home / 'different')}) == (None, False)
+
+
 def test_update_display_uses_observed_maintenance_records(home, monkeypatch):
     from orchestrator.maintenance import store
     m = contribute(home)
@@ -39,6 +83,32 @@ def test_update_display_uses_observed_maintenance_records(home, monkeypatch):
     monkeypatch.setattr(Path, 'stat', no_maintenance_stat)
     with observations.display(snapshot):
         assert 'Update available' in env_runner.update_waiting(candidate)
+
+
+def test_update_display_keeps_catalog_notices_off_the_loop(home, monkeypatch):
+    from dataclasses import replace
+    from gpu_worker import manifests as catalog
+    from orchestrator.maintenance import revocations
+    # A bundled-style entry has a maintenance.toml, unlike a private mine entry.
+    m = replace(contribute(home), namespace='test')
+    active = installed(m)
+    env_runner.choose(m, active.name)
+    candidate = replace(contribute(home, version='dark-spots 0.2'), namespace='test')
+    root = home / 'bundled-notices'
+    root.mkdir()
+    with monkeypatch.context() as patch:
+        patch.setattr(catalog, 'ROOT', root)
+        patch.setattr(catalog, 'manifests', lambda: {candidate.key: candidate})
+        patch.setattr(catalog, 'mine', lambda environ=os.environ: {})
+        snapshot = observations.collect()
+        original = Path.stat
+        def no_notice_stat(path, *args, **kwargs):
+            if path.name == revocations.FILE:
+                pytest.fail('catalog notice read on display caller')
+            return original(path, *args, **kwargs)
+        patch.setattr(Path, 'stat', no_notice_stat)
+        with observations.display(snapshot):
+            assert 'Update available' in env_runner.update_waiting(candidate)
 
 
 @pytest.mark.parametrize('name', ['policies.json', 'checks.json', 'pins.json', 'attempts/mine--spots.json'])

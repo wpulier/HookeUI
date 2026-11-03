@@ -127,6 +127,12 @@ authorship and time; send no `by`, `byLabel`, `at` or `basis`. After a malformed
 refusal, correct the body and reuse the same request key. Read the Study to confirm
 publication before saying your finding is saved.
 
+Where `project.remote.status` is listed, it says where a Project is published and backed up. With contribute
+access, `project.remote.backup` backs it up again where its owner already backs it up (optionally `{"to": <that
+folder or owner/repo>}`); it never picks a new place. `project.publish` asks to publish: Hooke prepares the exact review
+and the owner reviews it and signs off in Hooke. Say it is waiting for the owner, never that it is published, until
+`project.remote.status` lists the publication.
+
 Project membership is the owner's choice in Settings → Connected agents → Project
 access. Read-only access never authorizes an experiment or a finding. Do not call a
 Studio grant route or alter files to gain access. A refusal is a real boundary.

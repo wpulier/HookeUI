@@ -138,6 +138,10 @@ A publication is a filtered sealed snapshot of the Project:
   that names another original, is refused. The publisher's claim that the pixels are unchanged cannot be checked
   without the original, and is shown as the publisher's (ADR 0012). The Project keeps its original.
 
+A connected agent may only ask for a publication: Hooke prepares the review as here and records
+`project-publish-requested` with its `reviewDigest`; the owner reviews that review and signs off, and the
+`project-published` event then names the agent as `requestedBy`.
+
 Before sending, the owner reviews the exact members and their sizes, and which files were cleaned of what. A secret
 finding blocks; a home-directory path, a metadata finding or a file in a format Hooke cannot check (HEIC, CZI, ND2,
 DICOM, video) is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0
@@ -199,3 +203,16 @@ It is then registered through the owner's folder registration: on a Mac that has
 that Mac's Project, with no agent permissions; on a Mac whose registered location is gone, it takes that location's
 place. A Mac whose location still exists refuses, so one Project never has two working folders on one Mac. The
 restored journal records `project-restored-from-backup` (destination, commit), which is the next backup's parent there.
+
+**Deleting** a backup marks it first: a folder remote gains `deleted.json` (`hooke-remote-deleted-v1`, with `at`), and
+a Git-host repository is archived. A marked backup accepts no new version but can still be restored, and the owner
+can keep it (the mark is removed). Thirty days after it was marked (`project-backup-deleted` records `purgeAfter`), the
+next look at the Project's backups removes it: a folder loses only the entries a folder remote writes (`remote.json`,
+`HEAD`, `.lock`, `deleted.json`, `commits/`, `blobs/`, `objects/`), and the folder itself only when nothing else is in
+it; a repository is deleted. `project-backup-purged` is recorded, and a later backup there starts with no parent.
+
+**Old data.** After each backup, an object of the bulk store is removed when it arrived more than 30 days ago and no
+version of the window names it: the current version, every version that arrived in the last 30 days, and the one that
+was current when the window began. A store that cannot say when things arrived is left as it is, and anything
+unreadable stops the removal with nothing removed. Record blobs and older version records stay; a version older than
+the window may no longer be fetchable whole.

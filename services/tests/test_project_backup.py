@@ -179,9 +179,21 @@ class PrivateGitHub:
             def call(self, method, path, payload=None):
                 if method == 'POST' and path == '/user/repos':
                     self.private[f'ada/{payload["name"]}'] = payload['private']
-                if method == 'GET' and path.count('/') == 3 and path.split('/')[2] + '/' + path.split('/')[3] in self.repos:
-                    full = path.split('/', 2)[2]
-                    return 200, {'full_name': full, 'private': self.private.get(full, False)}
+                full = path.split('/', 2)[2] if path.count('/') == 3 else None
+                if full in self.repos:
+                    archived = self.__dict__.setdefault('archived', {})
+                    if method == 'GET':
+                        return 200, {'full_name': full, 'private': self.private.get(full, False),
+                                     'archived': archived.get(full, False)}
+                    if method == 'PATCH':
+                        archived[full] = payload['archived']
+                        return 200, {}
+                    if method == 'DELETE':
+                        del self.repos[full]
+                        return 204, {}
+                if method in ('POST', 'PATCH') and full is None and self.__dict__.get('archived', {}).get(
+                        '/'.join(path.split('/')[2:4])):
+                    return 403, {'message': 'Repository was archived so is read-only.'}
                 return super().call(method, path, payload)
 
             def upload(self, url, body):
@@ -228,3 +240,107 @@ def test_a_private_github_backup_restores_on_another_mac(tmp_path, monkeypatch):
     finally:
         locations.close()
         other_locations.close()
+
+
+DAY = 24 * 3600
+
+
+def age(path, days):
+    """Make a stored file look as if it arrived `days` ago."""
+    import os
+    import time
+    when = time.time() - days * DAY
+    os.utime(path, (when, when))
+
+
+def test_data_no_recent_version_needs_is_removed_after_30_days_and_nothing_sooner(tmp_path):
+    import time
+    from orchestrator.project_backup import prune
+    from tests.test_project_remote import PIXELS
+    root, *_ = project(tmp_path)
+    remote = folder_remote(tmp_path / 'Drive', create=True)
+    first = back_up(seal(root), remote, staging=tmp_path / 'S1', scan_secrets=False)
+    old = {name for name, _, _ in remote.bulk.listing()}
+    # The large file is replaced: the next version's pack holds only the new bytes.
+    (root.path / 'artifacts' / 'results').mkdir(parents=True, exist_ok=True)
+    (root.path / 'artifacts' / 'results' / 'new.bin').write_bytes(PIXELS[::-1])
+    second = back_up(seal(root), remote, staging=tmp_path / 'S2', parent=first['commit'], scan_secrets=False)
+    assert second['pruned'] == {'removed': 0, 'bytes': 0}  # everything is recent
+    # Old objects are kept while any version of the last 30 days names them, or while they are recent themselves.
+    for path in (tmp_path / 'Drive' / 'objects').glob('*/*'):
+        age(path, 40)
+    assert prune(remote, now=time.time())['removed'] == 0  # the head and its 30-day window name them all
+    stray = tmp_path / 'Drive' / 'objects' / 'ab' / ('ab' + '0' * 62)
+    stray.parent.mkdir(exist_ok=True)
+    stray.write_bytes(b'left by an interrupted push')
+    assert prune(remote, now=time.time())['removed'] == 0  # unnamed, but it arrived today
+    age(stray, 31)
+    assert prune(remote, now=time.time()) == {'removed': 1, 'bytes': len(b'left by an interrupted push')}
+    assert not stray.exists() and old <= {name for name, _, _ in remote.bulk.listing()} | old
+    from orchestrator.project_remote import fetch
+    fetched, _ = fetch(remote, tmp_path / 'Check')  # the current version is whole
+    assert (fetched.path / 'artifacts' / 'results' / 'new.bin').read_bytes() == PIXELS[::-1]
+
+
+def test_a_deleted_backup_stays_restorable_for_30_days_can_be_kept_and_is_then_removed(tmp_path, monkeypatch):
+    import time
+    from orchestrator import project_backup
+    app, day, locations = host(tmp_path, 'Mac A')
+    try:
+        sid = day.new('Research')
+        drive = {'kind': 'folder', 'path': str(tmp_path / 'Backup drive'), 'create': True}
+        run(app, 'project-backup', session=sid, destination=drive)
+        place = {'kind': 'folder', 'path': drive['path']}
+        (tmp_path / 'Backup drive' / 'mine.txt').write_text('the owner keeps this here')
+        marked = run(app, 'project-backup-delete', session=sid, destination=place)
+        assert marked['purgeAfter'] > time.time() + 29 * DAY
+        [entry] = run(app, 'project-remote-status', session=sid)['backups']
+        assert entry['state'] == 'deleting'
+        with pytest.raises(ToolError, match='being deleted'):
+            run(app, 'project-backup', session=sid, destination=place)
+        run(app, 'project-backup-keep', session=sid, destination=place)
+        assert run(app, 'project-remote-status', session=sid)['backups'][0]['state'] == 'active'
+        run(app, 'project-backup', session=sid, destination=place)
+        run(app, 'project-backup-delete', session=sid, destination=place)
+        # Within 30 days nothing is removed; after them, the next look removes Hooke's files and nothing else.
+        assert (tmp_path / 'Backup drive' / 'HEAD').exists()
+        later = time.time() + 31 * DAY
+        monkeypatch.setattr(time, 'time', lambda: later)
+        [entry] = run(app, 'project-remote-status', session=sid)['backups']
+        assert entry['state'] == 'deleted'
+        assert sorted(p.name for p in (tmp_path / 'Backup drive').iterdir()) == ['mine.txt']
+        # A new backup there starts afresh (a new backup goes in an empty folder).
+        monkeypatch.undo()
+        (tmp_path / 'Backup drive' / 'mine.txt').rename(tmp_path / 'mine.txt')
+        again = run(app, 'project-backup', session=sid, destination=drive)
+        assert again['ok'] and run(app, 'project-remote-status', session=sid)['backups'][0]['state'] == 'active'
+        folder_remote(tmp_path / 'Elsewhere', create=True)  # another Hooke remote, not this Project's backup
+        with pytest.raises(ToolError, match='never backed up there'):
+            run(app, 'project-backup-delete', session=sid,
+                destination={'kind': 'folder', 'path': str(tmp_path / 'Elsewhere')})
+        assert project_backup.GRACE == 30 * DAY
+    finally:
+        locations.close()
+
+
+def test_a_deleted_github_backup_is_archived_then_its_repository_removed(tmp_path, monkeypatch):
+    import time
+    from orchestrator import project_remote_commands
+    from orchestrator.github_rest import Client
+    github = PrivateGitHub()
+    monkeypatch.setattr(project_remote_commands, '_github', lambda anonymous=False: Client(http=github))
+    app, day, locations = host(tmp_path, 'Mac A')
+    try:
+        sid = day.new('Research')
+        run(app, 'project-backup', session=sid, destination={'kind': 'github', 'create': True, 'name': 'research-backup'})
+        place = {'kind': 'github', 'repo': 'ada/research-backup'}
+        run(app, 'project-backup-delete', session=sid, destination=place)
+        assert github.archived['ada/research-backup'] is True
+        with pytest.raises(ToolError, match='being deleted'):
+            run(app, 'project-backup', session=sid, destination={'kind': 'github', 'repo': 'ada/research-backup'})
+        later = time.time() + 31 * DAY
+        monkeypatch.setattr(time, 'time', lambda: later)
+        assert run(app, 'project-remote-status', session=sid)['backups'][0]['state'] == 'deleted'
+        assert 'ada/research-backup' not in github.repos
+    finally:
+        locations.close()

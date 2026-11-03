@@ -7,18 +7,20 @@ from pathlib import Path
 import os
 import json
 
-IDS = ('matrix-project-counts', 'matrix-inspect', 'matrix-prepare', 'response-fit', 'response-predict', 'matrix-evaluate', 'response-combine', 'matrix-export', 'matrix-evaluate-cell', 'aggregate-profile-prepare', 'response-effects-merge', 'response-effect-evaluate', 'matrix-concatenate', 'matrix-count-diagnostics')
+IDS = ('matrix-package-vcc', 'cell-evaluation-rank', 'response-development-check', 'cell-evaluation-select', 'matrix-project-counts', 'matrix-inspect', 'matrix-prepare', 'response-fit', 'response-predict', 'matrix-evaluate', 'response-combine', 'matrix-export', 'matrix-evaluate-cell', 'aggregate-profile-prepare', 'response-effects-merge', 'response-effect-evaluate', 'matrix-concatenate', 'matrix-count-diagnostics')
 BASE = Path(__file__).resolve().parents[2]
 
 
 RUNTIME_ID = 'matrix-cpu-runtime'
+RUNTIME_OWNERS = {'matrix-evaluate-cell': 'cell-evaluation-runtime',
+                  'matrix-package-vcc': 'vcc-packaging-runtime'}
 
 
 def runtime(capability, environ=None):
     from gpu_worker import manifests
     from orchestrator import envs
     environ = os.environ if environ is None else environ
-    owner_id = 'cell-evaluation-runtime' if capability == 'matrix-evaluate-cell' else RUNTIME_ID
+    owner_id = RUNTIME_OWNERS.get(capability, RUNTIME_ID)
     owner = manifests.manifests()[owner_id]
     lock_hash = hashlib.sha256(envs.lock_file(owner, environ).read_bytes()).hexdigest()
     generation = envs._generation_from_files(owner, environ)
@@ -46,7 +48,7 @@ def execution_runtime(expected, environ=None):
     from gpu_worker import manifests
     from orchestrator import envs, interpreter_identity
     environ = os.environ if environ is None else environ
-    capability = 'matrix-evaluate-cell' if expected.get('owner') == 'cell-evaluation-runtime' else ''
+    capability = next((key for key, owner in RUNTIME_OWNERS.items() if owner == expected.get('owner')), '')
     actual = runtime(capability, environ)
     if not actual['prepared'] or actual != expected:
         raise ValueError('The prepared scientific runtime changed; admit a new attempt')
@@ -69,8 +71,9 @@ def descriptor(capability, environ=None):
     digest = hashlib.sha256()
     for path in (BASE / 'catalog' / 'models' / capability / 'model.toml',
                  Path(__file__).with_name('engine.py'), Path(__file__).with_name('cell_evaluation.py'), Path(__file__).with_name('worker.py'),
+                 Path(__file__).with_name('resource_profile.py'), Path(__file__).with_name('vcc_packaging.py'),
                  Path(__file__).with_name('reservation.py'), Path(__file__).with_name('aggregate_profiles.py'),
-                 Path(__file__).with_name('bounded_h5.py'), Path(__file__).with_name('effect_evaluation.py'), Path(__file__).with_name('matrix_assembly.py'), Path(__file__).with_name('matrix_projection.py'), Path(__file__).with_name('count_emission.py'), Path(__file__).with_name('count_diagnostics.py'),
+                 Path(__file__).with_name('bounded_h5.py'), Path(__file__).with_name('effect_evaluation.py'), Path(__file__).with_name('development_protocol.py'), Path(__file__).with_name('development_bundle.py'), Path(__file__).with_name('matrix_assembly.py'), Path(__file__).with_name('matrix_projection.py'), Path(__file__).with_name('count_emission.py'), Path(__file__).with_name('count_diagnostics.py'),
                  BASE / 'services' / 'orchestrator' / 'matrix_capability_runs.py', Path(__file__)):
         digest.update(path.name.encode() + b'\0' + path.read_bytes())
     digest.update(json.dumps(current, sort_keys=True).encode())

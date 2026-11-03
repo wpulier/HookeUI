@@ -9,7 +9,7 @@
 // PartnerMessage): hold to talk (talkDown/talkUp/talkCancel; the microphone is on only while held, and a little after
 // so the last word reaches the model), barge-in (pressing while it speaks silences its audio element at once), the
 // window snapshots and marks it asks for (handed to `onPartner`), and a fresh offer when its call has to be renewed.
-import { betterMicrophone } from './mic-choice';
+import { chooseMicrophone, listInputs, MicChoiceError, onMicrophonePick, openMicrophone, savedMicrophone } from './mic-choice';
 import { PARTNER_MESSAGES, studioSocketURL, type PartnerCommand, type PartnerMessage } from './protocol';
 
 /** The voice that hears, sees and acts in one model (options.py VOICE "gpt-realtime-2.1"). */
@@ -47,6 +47,9 @@ export interface VoiceTarget {
 }
 
 const AUDIO_MAGIC = 'MMA1';
+/** Talk's microphone processing: one channel, the browser's echo cancelling, noise suppression and gain. */
+const MIC_AUDIO: MediaTrackConstraints = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+const MIC_LOST = 'The microphone disconnected. Choose an available microphone, then start Talk again.';
 const OUTPUT_RATE = 24000;
 const INPUT_RATE = 24000;
 
@@ -111,6 +114,12 @@ export class VoiceClient {
   private outputProbe: MediaStreamAudioSourceNode | null = null;
   private socket: WebSocket | null = null;
   private mic: MediaStream | null = null;
+  /** The microphone's node in the capture graph: replaced when Talk switches microphone mid-conversation. */
+  private micSource: MediaStreamAudioSourceNode | null = null;
+  /** Stops listening for new devices and new picks (set while a Talk has its microphone). */
+  private unwatchMic: (() => void) | null = null;
+  private switchingMic = false;
+  private switchAgain = false;
   private micContext: AudioContext | null = null;
   private speaker: AudioContext | null = null;
   private capture: AudioWorkletNode | null = null;
@@ -165,21 +174,6 @@ export class VoiceClient {
    * arena trial is still being created. */
   private connectionAttempt = 0;
 
-  /** A phone the Mac made its default input (Continuity) gives way to the Mac's own microphone (mic-choice.ts).
-   * Anything that goes wrong keeps the microphone already open. */
-  private async ownMicrophone(mic: MediaStream, audio: MediaTrackConstraints): Promise<MediaStream> {
-    try {
-      const label = mic.getAudioTracks()[0]?.label ?? '';
-      const better = betterMicrophone(label, label ? await navigator.mediaDevices.enumerateDevices() : []);
-      if (!better) return mic;
-      const own = await navigator.mediaDevices.getUserMedia({ audio: { ...audio, deviceId: { exact: better } } });
-      mic.getTracks().forEach((track) => track.stop());
-      return own;
-    } catch {
-      return mic;
-    }
-  }
-
   async start(target?: VoiceTarget | Promise<VoiceTarget>): Promise<void> {
     if (this.state === 'connecting' || this.state === 'live') return;
     const attempt = ++this.connectionAttempt;
@@ -202,15 +196,14 @@ export class VoiceClient {
         if (attempt === this.connectionAttempt) this.setState('connecting',
           'Waiting for microphone access. Allow the microphone prompt, or end Talk and check microphone permissions.');
       }, 8_000);
-      let mic: MediaStream;
-      const audio = { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+      let mic: MediaStream | null;
       try {
-        mic = await navigator.mediaDevices.getUserMedia({ audio });
-        if (attempt === this.connectionAttempt) mic = await this.ownMicrophone(mic, audio);
+        // The chosen microphone is opened first, by its id; never the iPhone unless it was picked (mic-choice.ts).
+        mic = await openMicrophone(MIC_AUDIO, () => attempt === this.connectionAttempt);
       } finally {
         this.awaitingMic = false;
       }
-      if (attempt !== this.connectionAttempt) { mic.getTracks().forEach((track) => track.stop()); return; }
+      if (!mic || attempt !== this.connectionAttempt) { mic?.getTracks().forEach((track) => track.stop()); return; }
       if (this.permissionTimer !== null) clearTimeout(this.permissionTimer);
       this.permissionTimer = null;
       this.setState('connecting'); // the microphone is on: what is shown now is the real connect
@@ -222,6 +215,7 @@ export class VoiceClient {
       finally { URL.revokeObjectURL(url); }
       if (attempt !== this.connectionAttempt) return;
       const source = this.micContext.createMediaStreamSource(this.mic);
+      this.micSource = source;
       const capture = new AudioWorkletNode(this.micContext, 'capture');
       this.capture = capture;
       capture.port.onmessage = (event: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
@@ -246,17 +240,14 @@ export class VoiceClient {
       this.silent.gain.value = 0;
       capture.connect(this.silent);
       this.silent.connect(this.micContext.destination);
-      this.mic.getAudioTracks().forEach(track => track.addEventListener('ended', () => {
-        if (attempt !== this.connectionAttempt) return;
-        this.fail('The microphone disconnected. Choose an available microphone, then start Talk again.');
-      }));
+      this.watchMic(attempt);
     } catch (error) {
       this.awaitingMic = false;
       if (attempt !== this.connectionAttempt) return;
       this.cleanup();
       const denied = error instanceof DOMException && error.name === 'NotAllowedError';
       this.micBlocked = denied;
-      this.setState('error', denied ? MIC_BLOCKED : String(error));
+      this.setState('error', denied ? MIC_BLOCKED : error instanceof MicChoiceError ? error.message : String(error));
       return;
     }
 
@@ -361,6 +352,61 @@ export class VoiceClient {
       }, 20_000);
     } catch {
       if (attempt === this.connectionAttempt) this.fail('Voice could not establish audio. Check microphone and connection access, then start Talk again.');
+    }
+  }
+
+  /** While Talk has its microphone: a device plugged in or out, a new pick in a picker, or the microphone itself
+   * ending (unplugged) chooses again, and a different choice takes over without ending the conversation. */
+  private watchMic(attempt: number): void {
+    this.mic?.getAudioTracks().forEach((track) => track.addEventListener?.('ended', () => {
+      if (attempt === this.connectionAttempt) void this.switchMic(attempt);
+    }));
+    if (this.unwatchMic) return;
+    const changed = () => { if (attempt === this.connectionAttempt) void this.switchMic(attempt); };
+    const media = navigator.mediaDevices;
+    media?.addEventListener?.('devicechange', changed);
+    const unpick = onMicrophonePick(changed);
+    this.unwatchMic = () => { media?.removeEventListener?.('devicechange', changed); unpick(); };
+  }
+
+  /** Choose again and, when the choice differs from the open microphone (or it ended), open it and swap it in: on the
+   * WebRTC sender (`replaceTrack`, so the call goes on) and in the capture graph. Nothing usable while the open one
+   * ended: Talk says the microphone disconnected. */
+  private async switchMic(attempt: number): Promise<void> {
+    const current = this.mic?.getAudioTracks()[0];
+    if (!current) return;
+    if (this.switchingMic) { this.switchAgain = true; return; } // chosen again once this switch is done
+    this.switchingMic = true;
+    try {
+      const chosen = chooseMicrophone(await listInputs(), savedMicrophone());
+      if (attempt !== this.connectionAttempt || this.mic?.getAudioTracks()[0] !== current) return;
+      const ended = current.readyState === 'ended';
+      const openId = current.getSettings?.().deviceId;
+      const same = !!chosen && (openId ? chosen.deviceId === openId : chosen.label === current.label);
+      if (!chosen) { if (ended) this.fail(MIC_LOST); return; }
+      if (same && !ended) return;
+      let next: MediaStream;
+      try { next = await navigator.mediaDevices.getUserMedia({ audio: { ...MIC_AUDIO, deviceId: { exact: chosen.deviceId } } }); }
+      catch { if (ended && attempt === this.connectionAttempt) this.fail(MIC_LOST); return; }
+      if (attempt !== this.connectionAttempt || !this.mic) { next.getTracks().forEach((track) => track.stop()); return; }
+      const old = this.mic, track = next.getAudioTracks()[0];
+      this.mic = next;
+      for (const peer of [this.peer, this.nextPeer]) {
+        for (const sender of peer?.getSenders?.() ?? []) {
+          if (!sender.track || sender.track.kind === 'audio') void sender.replaceTrack(track ?? null).catch(() => {});
+        }
+      }
+      if (this.micContext && this.capture) {
+        this.micSource?.disconnect?.();
+        this.micSource = this.micContext.createMediaStreamSource(next);
+        this.micSource.connect(this.capture);
+      }
+      this.applyMic();
+      old.getTracks().forEach((t) => t.stop());
+      this.watchMic(attempt);
+    } finally {
+      this.switchingMic = false;
+      if (this.switchAgain) { this.switchAgain = false; if (attempt === this.connectionAttempt) void this.switchMic(attempt); }
     }
   }
 
@@ -722,6 +768,8 @@ export class VoiceClient {
     if (this.outputMuted) { this.outputMuted = false; this.onOutput?.(false); }
     if (this.remote) this.remote.srcObject = null;
     this.remote = null;
+    this.unwatchMic?.(); this.unwatchMic = null;
+    this.micSource?.disconnect?.(); this.micSource = null;
     this.mic?.getTracks().forEach((track) => track.stop());
     this.mic = null;
     void this.micContext?.close();
