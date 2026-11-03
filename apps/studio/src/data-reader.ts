@@ -934,9 +934,12 @@ export class DataReader {
           words.append(fig);
         }
         if (section.table) {
-          const wrap = el('div', 'rd-doc-table'), table = el('table'), head = el('tr');
+          // A key and its value per row (two columns, the first unnamed: a design's plan card) reads as a card: its
+          // labels down the left, its words wrapped beside them, no header row.
+          const card = section.table.columns.length === 2 && !section.table.columns[0];
+          const wrap = el('div', card ? 'rd-doc-table rd-doc-card' : 'rd-doc-table'), table = el('table'), head = el('tr');
           for (const c of section.table.columns) head.append(el('th', '', c));
-          const thead = el('thead'); thead.append(head);
+          const thead = el('thead'); if (!card) thead.append(head);
           const tbody = el('tbody');
           for (const row of section.table.rows) {
             const tr = el('tr');

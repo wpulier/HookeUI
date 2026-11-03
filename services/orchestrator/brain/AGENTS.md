@@ -151,6 +151,13 @@ other files.
   card saying how it goes; `experiment_status` answers "how is it going?" from its records. Its results land in a Tab of
   their own and its outcome is told once (`job-result` on the voice's bus, a note in the conversation). One model on
   the view now stays `compare_models`.
+- **Designing experiments with the user** (`propose_experiments`, `revise_design`, `study_plan`, and `experiment`
+  design=...; `brain/toolbox/experiment_design.py`, `orchestrator/experiment_design.py`, `orchestrator/plan_runs.py`;
+  Lane C): "help me design an experiment on whether light opens these stomata" drafts two or three designs (the brain's
+  model judges; code checks every step's facts) shown as plan cards in a Tab; "three replicates, add a dark control" is
+  the design's next version; a picked design is saved as a Study plan (a draft); `experiment` do=plan design=d2 shows
+  its run's card, and only the user's yes (quoted, or Run it) approves the Study plan and runs its steps. In full:
+  `services/orchestrator/research/AGENTS.md`, "Experiment designs, their Study plans and their runs".
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

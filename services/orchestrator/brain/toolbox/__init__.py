@@ -51,6 +51,7 @@ from .web import add_web_tools
 from .documents import add_document_tools
 from .workflows import add_workflow_tools
 from .experiments import add_experiment_tools
+from .experiment_design import add_experiment_design_tools
 
 
 @dataclass
@@ -153,6 +154,7 @@ def build(services: Services) -> Registry:
     add_scientific_tools(registry, services)
     add_workflow_tools(registry, services)
     add_experiment_tools(registry, services)
+    add_experiment_design_tools(registry, services)
     add_datatable_tools(registry, services)
     if services.log is not None:
         log_research_control(registry, services.log)

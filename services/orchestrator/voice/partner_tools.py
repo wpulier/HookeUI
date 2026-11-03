@@ -61,6 +61,9 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
                               "outline_cells", "find", "start_researcher", "run_capability"})
 HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
+# Designing experiments with the user, their Study plans and their runs (Lane C; brain/toolbox/experiment_design.py).
+THINK_TOOLS += tuple(name for name in ("propose_experiments", "revise_design", "study_plan", "experiment",
+                                       "experiment_status") if name not in THINK_TOOLS)
 # The one tool the voice acts with when Hooke's brain does the work (PARTNER_ACTS "brain").
 DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Project, in the user's own words: outline, "
                "segment or find a thing, magnify it or move the magnifier, Tabs, windows and what is in them, reference "
@@ -194,7 +197,8 @@ JOB_ID = {"type": "string", "description": "the job's id from jobs (a think job'
 STOP_WORK = ("Stop Hooke's own work in progress, only when the user says stop or cancel for something Hooke is doing "
              "now (\"actually, stop that\"): a request you handed to Hooke, by its id from the brief's jobs, else the "
              "newest one still running. It returns once the work has stopped (or says it is still being stopped): say "
-             "it stopped only then. A researcher is stopped by asking Hooke with do_in_hooke.")
+             "it stopped only then. A researcher or an experiment (it runs on its own, never one of these jobs) is "
+             "stopped by asking Hooke with do_in_hooke.")
 STOP_WAIT_S = 3.0  # stop_work waits this long for the work it cancelled to end before saying it is still being stopped
 # stop_work with nothing running: nothing to stop, checked (no work of Hooke's runs now), never a failed stop.
 NOTHING_TO_STOP = {"ok": True, "result": "verified", "stopped": False}

@@ -96,8 +96,11 @@ class Experiment:
     outcome: dict | None = None  # {words, document, table, tab, shown}
     why: str = ""
     ended: float | None = None
+    ran: list = field(default_factory=list)  # kind "steps": a row per plan step as it ran (plan_runs.py)
+    waiting: dict | None = None  # kind "steps": the user's own step it waits on {step, says}
     # Not kept: the job, and the studio that approved it (its results are placed there when they land).
     task: Any = field(default=None, repr=False)
+    resume: Any = field(default=None, repr=False)  # kind "steps": set when the user says their step is done
     client: Any = field(default=None, repr=False)
     asked_in: Any = field(default=None, repr=False)  # day/model.Asked of the conversation it was asked in
 
@@ -111,12 +114,27 @@ class Experiment:
 
     @property
     def title(self) -> str:
-        return " vs ".join(m["label"] for m in self.plan["models"])
+        return self.plan.get("title") or " vs ".join(m["label"] for m in self.plan["models"])
+
+    @property
+    def steps_kind(self) -> bool:
+        """A design's Study plan run step by step (plan_runs.py), not a comparison of models."""
+        return self.plan.get("kind") == "steps"
+
+    def step_states(self) -> list[str]:
+        """A design's plan run, step by step as its card marks them: done, now (under way, or waiting for the user) or
+        next, from its own record of what ran."""
+        rows = {r.get("step"): r.get("status") for r in self.ran}
+        out = []
+        for n in range(1, len(self.plan["steps"]) + 1):
+            state = rows.get(n)
+            out.append("done" if state == "done" else "now" if state == "running" and self.status in LIVE else "next")
+        return out
 
     def record(self) -> dict:
         return {k: copy.deepcopy(getattr(self, k)) for k in (
             "n", "session", "plan", "thread", "version", "status", "asked", "request_id", "turn_id", "created",
-            "approved", "frames", "run", "audit", "progress", "outcome", "why", "ended")}
+            "approved", "frames", "run", "audit", "progress", "outcome", "why", "ended", "ran", "waiting")}
 
     def wire(self, now: float | None = None) -> dict:
         """The studio's card: what the plan is, its state in words, and what the user can do."""
@@ -130,6 +148,9 @@ class Experiment:
                 "progress": self.progress, "why": self.why,
                 "outcome": {k: v for k, v in (self.outcome or {}).items() if k in ("words", "document", "tab", "shown")},
                 "canRun": self.status == "proposed" and now < expires, "canStop": self.status in LIVE,
+                "kind": self.plan.get("kind", "comparison"), "waiting": copy.deepcopy(self.waiting),
+                "canContinue": self.waiting is not None and self.status in LIVE,
+                **({"stepStates": self.step_states()} if self.steps_kind else {}),
                 "created": self.created, "ended": self.ended}
 
 
@@ -271,6 +292,10 @@ def duration(seconds: float) -> str:
 
 def time_words(plan: dict) -> str:
     """The plan's time, said as the estimate it is."""
+    if plan.get("kind") == "steps":
+        from . import plan_runs
+
+        return plan_runs.time_words(plan)
     e = plan.get("estimate") or {}
     if e.get("seconds") is not None:
         return f"About {duration(e['seconds'])} (an estimate from earlier runs here)"
@@ -284,6 +309,10 @@ def plan_said(x: "Experiment") -> str:
     """The plan as a scientist approves it, in two sentences the voice can say whole (the card shows every step):
     the models by name, what runs on what, what is compared and measured, the audit and what it checks, how long and
     what it may cost (estimates said as estimates), and that nothing runs before a yes."""
+    if x.steps_kind:
+        from . import plan_runs
+
+        return plan_runs.plan_said(x)
     p = x.plan
     models = [m["label"] for m in p["models"]]
     on = p["input"]
@@ -321,6 +350,8 @@ class Experiments:
         self.tasks: set[asyncio.Task] = set()
         self.fake_researcher: dict | None = None  # a scripted audit researcher (tests)
         self.landing: Callable | None = None  # async (x, entry) -> words: where the results were placed (tests)
+        # async (x, request=, brief=, effort=) -> researcher id: a plan step's Study researcher (tests stand one in)
+        self.start_study_researcher: Callable | None = None
         self.closing = False
 
     # --- the store ------------------------------------------------------------------------------------------------
@@ -344,7 +375,7 @@ class Experiments:
                 continue
             if x.status in LIVE:  # it was working when the app stopped: its records are kept, nothing is replayed
                 x.status, x.why = "failed", "the app stopped while it ran; its frames and the runs so far are kept"
-                x.progress = ""
+                x.progress, x.waiting = "", None
             self.items[(session, s.id)] = x
 
     def of_session(self, session: str) -> list[Experiment]:
@@ -471,7 +502,42 @@ class Experiments:
         self._changed(x)
         return x
 
+    def draft_steps(self, *, session: str, thread: str | None, plan: dict, asked: str = "",
+                    request_id: str | None = None, turn_id: int | None = None, asked_in=None) -> Experiment:
+        """An experiment that runs a design's Study plan step by step (plan_runs.plan_of_design): planned, nothing run."""
+        n = max((x.n for x in self.of_session(session)), default=0) + 1
+        key = "p" + _token({"experiment": session, "n": n, "at": self.clock()})[:32]
+        x = Experiment(key=key, n=n, session=session, plan=plan, thread=thread, asked=" ".join(asked.split())[:600],
+                       request_id=request_id, turn_id=turn_id, created=self.clock())
+        x.asked_in = asked_in
+        self.items[(session, key)] = x
+        self._changed(x)
+        return x
+
+    def replan(self, x: Experiment, plan: dict) -> Experiment:
+        """A steps experiment's plan made again from its design's newest version (its Study plan saved again)."""
+        if x.status != "proposed":
+            raise Refused(f"{x.name} is {x.status}; only a plan not run yet can change",
+                          next="plan a new experiment with the change")
+        x.plan = plan
+        x.version += 1
+        x.created = self.clock()
+        self._changed(x)
+        return x
+
+    def resume(self, x: Experiment, words: str) -> str:
+        """The user's own step is done (their words, or the card): the plan goes on to its next step."""
+        if x.waiting is None or x.status not in LIVE:
+            raise Refused(f"{x.name} is not waiting for a step of yours ({x.status})", next=None)  # no next: said
+        x.waiting["done"] = " ".join(str(words or "").split())[:300]
+        if x.resume is not None:
+            x.resume.set()
+        return f"{x.name} goes on after your step {x.waiting['step']} ({x.waiting['says']})"
+
     def change(self, x: Experiment, **choices) -> Experiment:
+        if x.steps_kind:
+            raise Refused(f"{x.name} runs a design's plan; change the design, then plan it again",
+                          next="revise the design with the user's words, then plan the experiment with it again")
         if x.status != "proposed":
             raise Refused(f"{x.name} is {x.status}; only a plan not run yet can change",
                           next="plan a new experiment with the change")
@@ -511,9 +577,13 @@ class Experiments:
                           next="look at the plan as it is now, then say yes to it")
         if self.day is not None and getattr(self.day, "sid", x.session) != x.session:
             raise Refused(f"{x.name} belongs to another Project", next="open its Project first")
+        if x.steps_kind:  # the user's yes is the owner review of its Study plan
+            from . import plan_runs
+
+            plan_runs.review(self, x, actor=actor, words=words if by == "words" else "")
         self._hold_audit(x)
         x.approved = {"by": by, "actor": actor, "at": self.clock(), "words": " ".join(words.split())[:300]}
-        x.status, x.progress = "sampling", "Holding the frames"
+        x.status, x.progress = ("running", "Starting its steps") if x.steps_kind else ("sampling", "Holding the frames")
         x.client = client
         self._changed(x)
         try:
@@ -532,6 +602,16 @@ class Experiments:
         if x.status not in LIVE:
             return f"{x.name} is {x.status}; nothing to stop"
         x.why = "you stopped it"
+        if x.steps_kind:
+            from . import plan_runs
+
+            await plan_runs.stop(self, x)
+            if x.task is not None:  # its ending is this stop's own answer, said once, never again as a late event
+                with contextlib.suppress(Exception):
+                    await asyncio.wait({x.task}, timeout=5.0)
+            if x.status == "stopped":
+                return f"{x.name} ({x.title}) is stopped; what its steps made so far stays in this Project"
+            return f"stopping {x.name} ({x.title}): what its steps made so far stays in this Project"
         from .workflow_service import service
 
         runner = service(self.hub, self.day)
@@ -563,6 +643,8 @@ class Experiments:
             self._changed(x, save=False)
 
     async def _job(self, x: Experiment) -> None:
+        if x.steps_kind:
+            return await self._steps_job(x)
         try:
             await self._hold_frames(x)
             x.status = "running"
@@ -601,6 +683,33 @@ class Experiments:
             if not self.closing:
                 x.ended = self.clock()
                 x.progress = ""
+                self._changed(x)
+                self._tell(x)
+
+    async def _steps_job(self, x: Experiment) -> None:
+        """A design's Study plan, step by step (plan_runs.run_steps); every ending said once, as _job says it."""
+        from . import plan_runs
+
+        try:
+            words = await plan_runs.run_steps(self, x)
+            x.status = "done"
+            x.outcome = {**(x.outcome or {}), "words": words}
+        except asyncio.CancelledError:
+            if self.closing:
+                x.status, x.why = "failed", "the app stopped while it ran; what its steps made so far is kept"
+                x.ended, x.progress, x.waiting = self.clock(), "", None
+                self._save(x)
+                raise
+            x.status, x.why = "stopped", x.why or "it was stopped"
+        except Exception as exc:  # noqa: BLE001 - every failure is said with its reason, never a raw error
+            if x.why == "you stopped it":
+                x.status = "stopped"
+            else:
+                x.status, x.why = "failed", str(exc)[:400] or "a step went wrong"
+                log.warning("experiment %s failed: %s", x.key, exc, exc_info=True)
+        finally:
+            if not self.closing:
+                x.ended, x.progress, x.waiting = self.clock(), "", None
                 self._changed(x)
                 self._tell(x)
 
@@ -1169,6 +1278,10 @@ class Experiments:
         return getattr(found, "name", None)
 
     def _live_words(self, x: Experiment, elapsed: float) -> str:
+        if x.steps_kind:
+            from . import plan_runs
+
+            return plan_runs.live_words(self, x, elapsed)
         n, models = x.plan["input"]["frames"], x.plan["models"]
         total = n * len(models)
         lead = f"{x.name} is {x.status}, {duration(elapsed)} in"
@@ -1227,11 +1340,16 @@ class Experiments:
         return f"{lead}: every run{' and the audit' if audit else ''} done; putting the results in a Tab of their own."
 
     def _tell(self, x: Experiment) -> None:
-        """One outcome, once: on the voice's bus (said at a pause, owed until heard) and in the conversation."""
+        """One outcome, once: on the voice's bus (said at a pause, owed until heard) and in the conversation. A design's
+        run the user stopped is not told again: the stop's own answer said it."""
+        if x.steps_kind and x.status == "stopped" and x.why == "you stopped it":
+            return
         if x.status == "done":
             text = f"{x.name} finished: {(x.outcome or {}).get('words')}"
         elif x.status == "stopped":
             text = f"{x.name} stopped ({x.why}); what it made so far stays in this Project"
+        elif x.steps_kind:
+            text = f"{x.name} did not finish: {x.why}; what its steps made so far stays in this Project"
         else:
             text = f"{x.name} did not finish: {x.why}; its frames and the runs so far stay in this Project"
         app = self.app

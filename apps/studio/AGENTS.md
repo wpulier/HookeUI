@@ -1813,6 +1813,10 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   the server. `experiments` (the open Project's, on connect and on a Project switch) and `experiment` messages keep it.
   The Data reader draws its results document with its `byline`, each section's `figure` (one of the entry's pictures)
   and `table` (data-reader.ts `readerDocument`).
+  A design's Study plan run (`kind` "steps", orchestrator/plan_runs.py) keeps its steps on the card while it runs, each
+  marked done (ticked, quiet), now (the card's own text) or next (`stepStates`), says "step N of M", and while it waits
+  on the user's own step shows it ("Your step: ...") with Done (the `experiment` command's `continue`, a press of the
+  user's own, as their spoken "done") beside Stop.
   **Work in flight while you keep talking** (`handoffs.ts`, `handoffs.css`; Will, 29 Oct: two things ran and nothing
   said so). Each request the voice hands to Hooke's brain (`do_in_hooke`; a server `handoff` line, filed with its
   conversation under one `lineId`, so a later state replaces it and a replay shows its last) is one row under the voice
@@ -2121,6 +2125,12 @@ not infer a file's scientific meaning or treat plain text as a qualified reader.
 A reader Tab retains one exact item. Opening a different Data/Input item or an
 internal source link from it goes to that item's retained Tab (reusing it when
 already open), rather than replacing the visible file under the previous title.
+
+The one exception is a new version of the same thing: the agent's `reader` command with `replaces` (the saved item
+it supersedes; `WorkspaceViews.replaceReaderTab`) shows the new item in the Tab that held the old one, in place and in
+front (a revised experiment design's plan cards update where they are; orchestrator/experiment_design.py). With no
+such Tab open it opens as Open in new Tab does. A document section's two-column table whose first column is unnamed
+is a key and value card (`rd-doc-card`): labels down the left, its words wrapped, no header row.
 
 Main waits for the current Project inventory and Studies before showing empty-project onboarding. A failed initial read offers Retry and Data rather than claiming there is no research. Refreshing a populated Project preserves its saved overview. Data’s rail badge remains the count of unread grouped rows, not all retained records.
 

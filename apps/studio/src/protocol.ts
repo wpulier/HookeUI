@@ -1744,7 +1744,7 @@ export type ClientCommand =
       expectedBase?: number | null; selection?: ResearchTarget }
   | { type: 'research-cancel'; rid: string }
   // An experiment's card (experiment-card.ts; experiments.py): Run it (exactly the plan's version shown), Stop, Open results.
-  | { type: 'experiment'; action: 'run' | 'stop' | 'open'; id: string; version?: number }
+  | { type: 'experiment'; action: 'run' | 'stop' | 'open' | 'continue'; id: string; version?: number }
   | { type: 'research-evidence'; rid: string; day: string; questionId: string; run: number; choice: 'hold' | 'decline'; requestId: string }
   | { type: 'research-presentation'; action: 'produce'; rid: string; requestId: string; findingVersion: number;
       findingDigest: string; expectedBase: string | null; model?: string; change?: string; contentKind?: 'report' | 'lesson' }

@@ -132,6 +132,10 @@ class WorkspaceTabs:
                 raise ToolFailed("the original workspace opening changed", next="inspect the current Tabs and ask again")
 
         current()
+        # reader: the saved item it is a new version of, whose Tab shows it in place (a revised design's cards)
+        replaces = args.get('replaces') if isinstance(args, dict) and args.get('action') == 'reader' else None
+        if isinstance(args, dict) and 'replaces' in args and replaces is not None:
+            args = {k: v for k, v in args.items() if k != 'replaces'}
         if not isinstance(args, dict) or args.get('action') not in ACTIONS:
             raise ToolFailed('choose one named Tab action', next='list the Tabs first', argument=True)
         if set(args) - {'action', 'tab', 'title', 'from', 'placement', 'resource', 'specimen', 'kind', 'keep',
@@ -230,6 +234,9 @@ class WorkspaceTabs:
             title = " ".join(str(args.get('title') or getattr(entry, 'shown', '') or entry.title).split())[:80] or entry.id
             payload = {'action': 'reader', 'item': {'resource': {'day': owner.session, 'id': entry.id,
                                                                  'version': entry.version}, 'title': title}}
+            if isinstance(replaces, str) and replaces:
+                # A new version of an item open in its own Tab (a revised design's cards): shown there, in place.
+                payload['replaces'] = replaces[:64]
         if action == 'add':
             payload['item'] = await self._item(args.get('resource'), args.get('presentation'), owner, current)
             payload.pop('resource', None)

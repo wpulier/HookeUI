@@ -58,3 +58,15 @@ def test_the_catalogs_rows_are_reachable_too(tmp_path, monkeypatch):
     assert {r["how"]["tool"] for r in rows} == {"run_capability", "find_workflows"}
     assert {r["how"]["tool"] for r in rows} <= REACH and "workflow" in REACH
     assert contract_of("run_capability") == contract_of("workflow") == "record"
+
+
+def test_designing_planning_and_running_experiments_is_reachable_and_each_ends_in_a_record(tmp_path):
+    """Lane C: "help me design an experiment on whether light opens these stomata", then edit, save and run it, by
+    voice as by chat (think acts through Hands): each is in reach and acts with a receipt from Hooke's record."""
+    built, _ = app(tmp_path)
+    registry = built.brain.registry
+    for name in ("propose_experiments", "revise_design", "study_plan", "experiment", "experiment_status"):
+        assert name in THINK_TOOLS and name in registry.tools, name
+    for name in ("propose_experiments", "revise_design", "study_plan", "experiment"):
+        assert contract(registry, name) == "record", name
+    assert contract(registry, "experiment_status") == "look"

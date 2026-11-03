@@ -1,0 +1,110 @@
+{
+ "id": "will-design",
+ "about": "Designing an experiment with Hooke (Lane C of Will's plan of 3 Nov 2026: \"Help me design an experiment on whether light opens these stomata.\" ... \"three replicates, add a dark control\"). On the real June 14 leaf recording, Hooke drafts two or three designs from the Project and what it can run, shown as plan cards in a Tab of their own, and talks them through like a colleague (what each tests, how they differ, which it would start with and why), never reading the cards or saying ids. A spoken change updates the design's card in its own Tab at once. Set up to run, the run is shown as a card and asked about once; nothing runs before the yes. On the yes it starts and says what happens first (a step of Will's own it waits for, or Hooke's first capture); asked how it is going, it says so from its records; stopped, it says so once. Any internal language spoken fails a step (standard LEAK_PHRASES). Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "design",
+   "kind": "act",
+   "say": "Help me design an experiment on whether light opens these stomata.",
+   "from": "Will, 3 November: \"Help me design an experiment on whether light opens these stomata\" (Lane C)",
+   "wait": 120,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "propose_experiments"
+    ],
+    "visible": "a Tab of its own in front holding the experiment designs as plan cards: two or three designs, each with its question, conditions and controls, replicates, what is measured, duration, what Hooke captures and analyses and what Will does by hand, and which one Hooke would start with",
+    "judge": "acknowledges briefly at once, then talks the two or three designs through like a colleague: one short sentence each on what it tests and how it differs, which one it would start with and why, then one question (which he likes or what to change); does not read the cards aloud, says no ids, tool names or step names, and says nothing has been run or started"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "edit",
+   "kind": "act",
+   "say": "I like the second one. Make it three replicates and add a dark control.",
+   "from": "Will, 3 November: \"three replicates, add a dark control\" (Lane C)",
+   "wait": 90,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "revise_design"
+    ],
+    "visible": "the same designs Tab, still in front, its second design's card now showing three replicates and a dark control (its next version); no second designs Tab",
+    "judge": "says in a sentence that the second design now has three replicates and a dark control, and what follows from it (more time, or a step of his own) when it does; says nothing has run; no ids or tool names"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "set-up",
+   "kind": "act",
+   "say": "Good. Set that one up to run.",
+   "wait": 60,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "experiment",
+     "study_plan"
+    ],
+    "visible": "the run's card under the request: the design's steps (what Will does by hand, what Hooke captures and analyses), how long Hooke's own steps take, what its researchers may cost, and Run it",
+    "judge": "says the run's plan in a sentence or two (its steps in plain words, how long, what it may cost) and asks once whether to start it; nothing is started and nothing is said to be running"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "yes",
+   "kind": "act",
+   "say": "Yes, start it.",
+   "wait": 60,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "experiment"
+    ],
+    "visible": "the run's card working: its first step under way, or waiting for Will's own step",
+    "outcome": true,
+    "judge": "says once, briefly, that the experiment has started exactly as planned and what happens first (a step of Will's own it is waiting for, or Hooke's first capture); never says it is finished and gives no results"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "going",
+   "kind": "ask",
+   "say": "How is it going?",
+   "wait": 30,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "experiment_status"
+    ],
+    "toolRequired": false,
+    "judge": "says from its records where the experiment is (which step, or that it is waiting for him to do his step), in a few plain words; invents nothing and never says it is finished"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "stop",
+   "kind": "act",
+   "say": "Stop the experiment for now.",
+   "wait": 40,
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "think",
+     "experiment"
+    ],
+    "visible": "the run's card stopped",
+    "judge": "says once that the experiment is stopped and what it made so far is kept; no ids or tool names"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}
