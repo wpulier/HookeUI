@@ -1511,12 +1511,12 @@ class PartnerTools:
             # What happened is what the receipts say (Hands, records.py), never the brain's own words alone. A failure a
             # later call of the same tool made good (the brain called it again, rightly: will-drive, 3 Nov, turn_on with
             # the job's name after a refusal that listed them) is no failure of the request.
-            later = {}
+            made_good: dict[str, int] = {}  # each tool's last call that did not fail ("later" is the kept step's words)
             for i, r in enumerate(bridge.receipts):
                 if r.get("result") != "failed":
-                    later[r["name"]] = i
+                    made_good[r["name"]] = i
             standing_receipts = [r for i, r in enumerate(bridge.receipts)
-                                 if not (r.get("result") == "failed" and later.get(r["name"], -1) > i)]
+                                 if not (r.get("result") == "failed" and made_good.get(r["name"], -1) > i)]
             failed = [f for f in failed if not any(f.startswith(f"{r['name']}:") for r in bridge.receipts
                                                     if r.get("result") == "failed" and r not in standing_receipts)]
             for r in standing_receipts:
