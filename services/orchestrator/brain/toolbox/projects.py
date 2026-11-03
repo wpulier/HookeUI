@@ -35,7 +35,7 @@ import time
 import uuid
 
 from ...untrusted import inline
-from ..registry import Registry, Tool, ToolContext, ToolFailed, schema
+from ..registry import Registry, Tool, ToolContext, ToolFailed, attach, schema
 from .threads import _span_words, _when
 
 LIST_MAX = 12  # Projects said in one list; the rest are counted
@@ -493,6 +493,7 @@ def add_project_tools(registry: Registry, services) -> None:
 
     async def declined(pid: str) -> str:
         proposals.pop(pid, None)
+        attach(values={"projectChange": {"declined": True}})
         cards.change(f"tidy-{pid}", status="declined", said="Not done · nothing changed", actions=[])
         return "the tidy was not done; nothing changed"
 
@@ -728,6 +729,7 @@ def add_project_tools(registry: Registry, services) -> None:
         where = {"session": getattr(asked, "session", None) or day.sid, "thread": getattr(asked, "thread", None)}
         try:  # on the loop, as the change itself was: the open Project's listeners hear it there
             store.record_change(change, what, says, steps, asked=where)
+            attach(values={"projectChange": {"id": change}})  # its receipt reads this change back (voice/records.py)
             return True
         except Exception as exc:
             return f"its undo record could not be saved ({type(exc).__name__}), so it cannot be undone by asking"
@@ -761,6 +763,7 @@ def add_project_tools(registry: Registry, services) -> None:
             # The newest change was made in another conversation (or before records said where): asked about, never
             # undone unasked (review of #189: "undo that" reverted an archive from days ago).
             when = time.strftime("%b %-d %H:%M", time.localtime(max(r["at"] for _, r in parts[cid])))
+            attach(values={"projectChange": {"asked": True}})
             return (f"nothing was undone yet: the newest such change was made in another conversation, {when}: "
                     f"{inline(record['says'], 200)}. Ask the user whether to undo that; on their yes call "
                     f"undo_project_change with change {cid}")
@@ -774,6 +777,7 @@ def add_project_tools(registry: Registry, services) -> None:
                     short.append(words.removeprefix(NOT_BACK))
             store.change_undone(cid)
         changed_list()
+        attach(values={"projectChange": {"id": cid, "undo": True, "short": short}})
         # "Undone" only once every part is back; a part that is not is named, with why (a Tab that did not reopen).
         cards.change(change_cards.pop(cid, None), status="undone" if not short else "partly",
                      said="Undone · put back as it was" if not short else "Partly undone",

@@ -626,3 +626,30 @@ def test_a_card_press_records_the_user_as_who_grouped_it(seeded):
     assert press(built, card["id"], "apply")["ok"] is True
     group = built.hub.resources.projects.read(membership_id(identity(original)), built.day.sid)
     assert group.document["state"]["materialMembership"]["by"] == "user"
+
+
+def test_each_project_change_has_a_receipt_from_its_record(seeded):
+    """Live, 3 Nov (voice, after #185's receipts): the yes, the undo and the archive were said "couldn't confirm it on
+    screen": their receipts looked for a saved resource. Each now reads back the change it journaled."""
+    from orchestrator.voice.hands import intent_of
+    from orchestrator.voice.records import Records
+
+    built, ids = seeded
+    records = Records(built.hub, services=built.brain.services)
+
+    def receipt(name, args, said):
+        run = call(built, name, args, said)
+        intent = intent_of(name, args, kind=built.brain.registry.tools[name].kind)
+        return asyncio.run(records.check(intent, {"ok": run.ok, "summary": run.summary}, run, {}))
+
+    renamed = receipt("rename_project", {"name": "Leaf series"}, "rename this Project to Leaf series")
+    assert renamed["result"] == "verified" and renamed["said"].startswith('Done: renamed "')
+    archived = receipt("archive_project", {"projects": [ids["test1"]], "asked_with": "archive the test run"},
+                       "archive the test run")
+    assert archived["result"] == "verified" and "archived" in archived["said"]
+    undone = receipt("undo_project_change", {"kind": "archive"}, "undo that")
+    assert undone["result"] == "verified" and undone["said"].startswith("Undone: archived")
+    tidy_project(built)
+    assert call(built, "organize_project", {"plan": {"conversations": [{"id": "t1", "title": "Count"}]}}).ok
+    no = receipt("apply_organization", {"confirms": "o1", "asked_with": "no", "decline": True}, "no")
+    assert no == {"result": "verified", "said": "Nothing was changed."}
