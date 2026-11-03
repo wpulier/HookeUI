@@ -355,7 +355,8 @@ def source(store, project, session, revision, reference):
         raise InvalidProject('Select an exact accepted scientific document revision')
     accepted = store.read(project, session, revision=revision)
     reference = parse_reference(reference)
-    if reference not in accepted.document['resources'] or reference['session'] != session:
+    # An inherited document's components belong to the owner that accepted them (project_inherited).
+    if reference not in accepted.document['resources'] or reference['session'] != (accepted.owner or session):
         raise InvalidProject('This component is not accepted in the selected scientific project revision')
     record = _manifest(store, project, reference)
     shape, dtype, axes, chunks, grid = _layout(record['shape'], record['dtype'], record['axes'], record['chunks'])

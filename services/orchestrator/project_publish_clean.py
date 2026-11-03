@@ -134,6 +134,8 @@ def clean(root: Path, scratch: Path, *, apply=True, check=lambda: None):
         for revision, meta in manifests:
             check()
             label = f'{str(meta["name"])[:200]} ({folder.parent.name})'
+            if not (folder / f'{meta["chunks"][0]}.bin').is_file():
+                continue  # held as a cleaned copy already (a Project started from a publication): it travels as it is
             with (folder / f'{meta["chunks"][0]}.bin').open('rb') as stream:
                 head = stream.read(HEAD)
             kind = scrub.kind_of(head[:8])

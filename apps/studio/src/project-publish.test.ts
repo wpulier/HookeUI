@@ -16,7 +16,7 @@ const review: PublicationReview = {
   origin: 'a'.repeat(32), name: 'Research', licence: 'CC-BY-4.0', licenceName: 'Creative Commons Attribution 4.0',
   snapshotSha256: 'b'.repeat(64), reviewDigest: 'c'.repeat(64), staging: 'publication-0123456789ab', bytes: 2_000_000,
   recordFiles: 12, largeFiles: 2, memberCount: 14, members: [{path: 'project.json', bytes: 120, sha256: 'd'.repeat(64)}],
-  leftOut: {conversations: '1 journal(s) reduced to their identity line and 3 line(s) that list results', transcripts: 3, otherFiles: []},
+  leftOut: {conversations: 'left out; 1 journal keeps only its identity line and the 3 lines that list results', transcripts: 3, otherFiles: []},
   publishedText: [{session: '2026-11-02', id: 'a1', version: 1, title: 'Division', text: '<b>Looks like</b> a dividing cell'}],
   includeTranscripts: false, findings: [{path: 'artifacts/results/r.json', line: 4, kind: 'home-path', blocks: false}], blocked: false,
 };
@@ -45,8 +45,8 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   const view = projectPublish(a, () => true, 'Cells under stress');
   document.body.append(view.element);
   click(view.element, 'Review what will be published');
-  await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: 1 journal(s) reduced'));
-  expect(view.element.textContent).toContain('Research transcripts left out: 3');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: left out; 1 journal keeps only its identity line'));
+  expect(view.element.textContent).toContain('Research transcripts: 3 files left out');
   expect(view.element.textContent).toContain('Your notes, published as written');
   const note = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('Division'))!;
   expect(note.textContent).toBe('Division: <b>Looks like</b> a dividing cell'); // as text, never markup
@@ -163,4 +163,21 @@ test('an agent’s request to publish opens its exact review, and only the owner
   expect(send.disabled).toBe(true);  // the owner's own sign-offs, as for any publication
   expect(a.publish).not.toHaveBeenCalled();
   again.dispose();
+});
+
+test('counts read naturally and files are named, not numbered', async () => {
+  dom();
+  const one = {...review, memberCount: 1, largeFiles: 1, leftOut: {...review.leftOut, transcripts: 0, otherFiles: ['history/operations/x.json']},
+    cleaned: [{path: `phone.jpg (p${'a'.repeat(32)})`, removed: ['location'], bytes: 9, cleanedBytes: 8, pixels: 'identical'}], cleanedFiles: 1};
+  const view = projectPublish(actions({prepare: vi.fn(async () => one)}), () => true, 'Research');
+  click(view.element, 'Review what will be published');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('1 file · '));
+  expect(view.element.textContent).toContain('1 large file');
+  expect(view.element.textContent).not.toContain('1 large files');
+  expect(view.element.textContent).not.toContain('Research transcripts');  // none to leave out
+  expect(view.element.textContent).toContain('connectors and restores: 1 file left out');
+  const cleaned = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('phone.jpg'))!;
+  expect(cleaned.textContent).toBe('phone.jpg: a location');
+  expect(cleaned.title).toContain('(p' + 'a'.repeat(32) + ')');
+  view.dispose();
 });

@@ -154,7 +154,8 @@ def back_up(seal, remote: Remote, *, staging: Path, parent=None, expected_head=N
     try:
         sealed = seal(staging / 'snapshot')
         sealed = sealed.path if isinstance(sealed, ProjectRoot) else Path(sealed)
-        name = ProjectRoot.open(sealed).name
+        from .project_repository import current_name
+        name = current_name(ProjectRoot.open(sealed))
         try:
             receipt = push_sealed(sealed, remote, parent=parent, summary=f'Back up {name}',
                                   scan_findings=None if scan_secrets else [],
@@ -197,7 +198,8 @@ def restore(remote: Remote, parent: Path, register, *, staging: Path, commit=Non
     try:
         fetched, details = fetch(remote, staging / 'fetched', commit=commit, check=check)
         Path(parent).mkdir(parents=True, exist_ok=True)  # a new Mac may not have made its Projects folder yet
-        destination = _free(Path(parent), fetched.name)
+        from .project_repository import current_name
+        destination = _free(Path(parent), current_name(fetched))
         try:  # the folder is new and only this restore's: a refusal or failure removes it, and nothing else
             root = restore_snapshot(fetched.path, destination, check=check)
             root = register(root if isinstance(root, ProjectRoot) else ProjectRoot.open(destination))
