@@ -9,6 +9,12 @@ inclusion preflight, not full collection or playback/browser acceptance.
 
 # Checks
 
+Catalog notice snapshot regressions reproduce an update-card filesystem read through
+the real display projection. Real synthetic channel histories check changed/missing
+notices, exact manifest/profile separation, and live execution refusal even inside
+an older display scope. These are functional checks; simulated model latency remains
+a separate qualification with unchanged thresholds.
+
 `test_vcc_packaging.py` checks independent raw-count/axis/group/resource refusals,
 bounded HDF5 input and package inspection, and separate runtime discovery. Its
 optional pinned-runtime roundtrip invokes real official prep on synthetic final

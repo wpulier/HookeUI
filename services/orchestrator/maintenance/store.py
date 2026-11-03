@@ -57,6 +57,12 @@ def display_reads():
         _DISPLAY_READS.reset(token)
 
 
+def display_fact(key, missing):
+    """Only an explicitly read-only projection may borrow an active display snapshot."""
+    from .. import env_observations
+    return env_observations.display_fact(key, missing) if _DISPLAY_READS.get() else None
+
+
 def _parsed(p: Path, parse):
     from .. import env_observations
     observed = (env_observations.display_fact(('maintenance-record', str(p)), None)

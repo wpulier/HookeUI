@@ -171,7 +171,7 @@ def collect(environ: Mapping[str, str] = os.environ) -> dict:
         from . import fiji_display, own_trials
         out = {fiji_display.key(environ): fiji_display.collect(environ)}
         comparison_entries = {repr(m): m for m in entries.values()}
-        from .maintenance import store
+        from .maintenance import revocations, store
         out.update(store.display_records(entries, environ))
         for m in entries.values():
             if not m.env:
@@ -196,6 +196,7 @@ def collect(environ: Mapping[str, str] = os.environ) -> dict:
         for installed in out[fiji_display.key(environ)].installed.values():
             if installed is not None:
                 comparison_entries[repr(installed.m)] = installed.m
+        out.update(revocations.display_records(comparison_entries.values(), environ))
         for m in comparison_entries.values():
             try:
                 out[own_trials.display_key(m, environ)] = own_trials.observe_comparison(m, environ)

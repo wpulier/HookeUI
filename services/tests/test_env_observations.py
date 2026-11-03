@@ -85,6 +85,32 @@ def test_update_display_uses_observed_maintenance_records(home, monkeypatch):
         assert 'Update available' in env_runner.update_waiting(candidate)
 
 
+def test_update_display_keeps_catalog_notices_off_the_loop(home, monkeypatch):
+    from dataclasses import replace
+    from gpu_worker import manifests as catalog
+    from orchestrator.maintenance import revocations
+    # A bundled-style entry has a maintenance.toml, unlike a private mine entry.
+    m = replace(contribute(home), namespace='test')
+    active = installed(m)
+    env_runner.choose(m, active.name)
+    candidate = replace(contribute(home, version='dark-spots 0.2'), namespace='test')
+    root = home / 'bundled-notices'
+    root.mkdir()
+    with monkeypatch.context() as patch:
+        patch.setattr(catalog, 'ROOT', root)
+        patch.setattr(catalog, 'manifests', lambda: {candidate.key: candidate})
+        patch.setattr(catalog, 'mine', lambda environ=os.environ: {})
+        snapshot = observations.collect()
+        original = Path.stat
+        def no_notice_stat(path, *args, **kwargs):
+            if path.name == revocations.FILE:
+                pytest.fail('catalog notice read on display caller')
+            return original(path, *args, **kwargs)
+        patch.setattr(Path, 'stat', no_notice_stat)
+        with observations.display(snapshot):
+            assert 'Update available' in env_runner.update_waiting(candidate)
+
+
 @pytest.mark.parametrize('name', ['policies.json', 'checks.json', 'pins.json', 'attempts/mine--spots.json'])
 def test_maintenance_observation_keeps_snapshot_but_live_reads_and_recollection_change(home, name):
     from orchestrator.maintenance import store
