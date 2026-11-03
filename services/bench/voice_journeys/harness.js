@@ -93,7 +93,7 @@
 
   function chat(data) {
     if (data.length < 200000 && data.includes('"settings"')) settings(data);
-    if (data.length < 20000 && data.includes('"type":"guide"')) { // a guidance line on the live view (guide.py)
+    if (data.length < 20000 && /"type":\s*"guide"/.test(data)) { // a guidance line on the live view (guide.py; json.dumps spaces it)
       try {
         const g = JSON.parse(data);
         if (g.type === 'guide') ev({ e: 'guide', m: { id: g.id, event: g.event, active: g.active, say: g.say, slide: g.slide, focus: g.focus } });
