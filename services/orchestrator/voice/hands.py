@@ -160,8 +160,11 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
                       ids=[tab] if tab else [])
     if tool == "show_measurements":
         tab = _target_of(args.get("tab"))
+        quiet = args.get("show") is False
         return Intent("open", tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs",
-                      caption="Opening the table", ids=[_target_of(args.get("of"))] if args.get("of") else [])
+                      caption="Preparing the table quietly" if quiet else "Opening the table",
+                      ids=[_target_of(args.get("of"))] if args.get("of") else [],
+                      **({"ui": False, "check": "record"} if quiet else {}))
     if tool == "highlight":
         things = [str(t) for t in (args.get("things") or args.get("members") or []) if t]
         return Intent("highlight", tool, args, target=_thing_target(things[0]) if things else "panel:outlines",

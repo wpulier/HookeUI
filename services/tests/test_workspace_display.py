@@ -79,11 +79,13 @@ class DisplayStudio(TableStudio):
     async def tabs_reply(self, message):
         action = message['action']
         kind = action['action']
-        ok, error = True, None
+        ok, error, made = True, None, None
         if kind == 'create':
             tab = {'id': f'tab-{len(self.tabs)}', 'title': action['title']}
             self.tabs.append(tab)
-            self.active = tab['id']
+            made = {'id': tab['id'], 'title': tab['title']}
+            if action.get('show') is not False:  # prepared quietly, it does not come to the front
+                self.active = tab['id']
             self.specimens[tab['id']] = {'state': 'hidden'}  # a new Tab is a canvas for data, with no specimen
         elif kind == 'switch':
             self.active = action['tab']
@@ -112,7 +114,8 @@ class DisplayStudio(TableStudio):
                 del self.windows[placement]
             self.specimens[action['tab']] = ({'state': 'float', 'rect': [16, 620, 240, 216]} if action['tab'] == 'main'
                                             else {'state': 'hidden'})
-        result = {'ok': ok, 'session': self.project, 'studioVisible': self.in_view, 'tabs': self.listed()}
+        result = {'ok': ok, 'session': self.project, 'studioVisible': self.in_view, 'tabs': self.listed(),
+                  **({'made': made} if made else {})}
         if error:
             result = {'ok': False, 'error': error}
         await self.send_report()

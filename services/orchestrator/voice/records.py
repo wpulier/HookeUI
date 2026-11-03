@@ -164,6 +164,13 @@ class Records:
             return self._webbed(result, facts)
         if tool == "tabs":
             return self._tabbed(intent, result)
+        if tool == "show_measurements" and (intent.args or {}).get("show") is False:
+            # Prepared quietly: the table's Tab acknowledged its save (tabs add) before the tool answered. The screen did
+            # not change, unless the Tab named was the one in front, where it was shown and checked as usual.
+            said = str(result.get("summary") or "")
+            if said.startswith("Prepared:"):
+                return {"result": "verified", "said": said.split(" Facts:")[0]}
+            return None
         return self._saved(result, run)
 
     @staticmethod

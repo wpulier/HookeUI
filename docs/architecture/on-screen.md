@@ -142,9 +142,12 @@ other files.
     to show it), `listMs` (a create's naming list) and `totalMs`. `make tab-speed` (`bench/tab_speed.py`) gives each
     action's p50 and p95, shown and quiet, against the targets: a switch within 150 ms and any Tab action done and
     checked within 1 s, at the median.
-  - Next: `show_measurements` and `present place` quiet (they bring
-    their Tab to the front today: `table_window._tab`, `placement.put`), and Hooke's own off-screen desk, a second
-    studio view whose front Tab is its own, for looking at a Tab's pixels while the user's screen stays put.
+  - `show_measurements` takes `show` too: with `show: false` and a `tab`, the table is put in that Tab's saved layout
+    (`table_window.prepare`: the Tab found, or this request's, or made quietly; then `tabs add`), the screen staying
+    put; on the Tab in front it is simply shown. Its receipt is the tool's "Prepared:" answer (`records.py`).
+  - Next: `present place` quiet (a photo, web page or video opens as a window on the Tab in front; one already open
+    moves to another Tab quietly with `tabs move`), and Hooke's own off-screen desk, a second studio view whose front
+    Tab is its own, for looking at a Tab's pixels while the user's screen stays put.
 - **Placing things: one vocabulary** (`orchestrator/placement.py`). Every tool that puts something on screen takes the
   same words, each done only when the studio's report shows it, with what the report shows when not:
   - `new-tab`: a Tab of its own, with no live feed. One thing fills it: the table asked for in a new Tab

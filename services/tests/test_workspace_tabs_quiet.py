@@ -151,3 +151,47 @@ def test_the_receipt_of_a_quiet_arrange_and_specimen():
     hidden[0]['specimen'] = {'state': 'hidden'}
     assert Records._tabbed(specimen, summary(tabs=hidden))['result'] == 'verified'
     assert Records._tabbed(specimen, summary(tabs=tabs(('other', 'Other', False, []))))['result'] == 'uncertain'
+
+
+def test_a_measurements_table_is_prepared_quietly_in_a_new_tab_while_the_screen_stays_on_main(tmp_path, monkeypatch):
+    """show_measurements show false: "get a tab ready with the cell measurements, but don't switch to it yet" (the
+    will-quiet-tabs journey). The Tab is made quietly and holds the table in its saved layout; Main stays in front."""
+    from tests.test_placing_windows_hooke_resolves import in_one_request
+    from tests.test_workspace_display import built as display_built, population
+
+    async def go():
+        app, studio = await display_built(tmp_path, monkeypatch)
+        eid = population(app, monkeypatch)
+        (run,) = await in_one_request(app, studio, [
+            ('show_measurements', {'of': eid, 'tab': 'Measurements', 'show': False})])
+        assert run.ok is True, run.summary
+        assert run.summary.startswith('Prepared: ') and 'not on screen until that Tab is shown' in run.summary
+        new = next(t['id'] for t in studio.tabs if t['title'] == 'Measurements')
+        assert studio.active == 'main', 'the screen stays on Main'
+        held = [w for w in studio.windows.values() if w['tab'] == new]
+        assert [w['resource']['id'] for w in held] == [eid] and held[0]['representation'] == 'table'
+        assert not [w for w in studio.windows.values() if w['tab'] == 'main'], 'nothing opened on the Tab in front'
+    asyncio.run(go())
+
+
+def test_a_quiet_table_on_the_tab_in_front_is_simply_shown(tmp_path, monkeypatch):
+    from tests.test_placing_windows_hooke_resolves import in_one_request
+    from tests.test_workspace_display import built as display_built, population
+
+    async def go():
+        app, studio = await display_built(tmp_path, monkeypatch)
+        eid = population(app, monkeypatch)
+        (run,) = await in_one_request(app, studio, [('show_measurements', {'of': eid, 'tab': 'Main', 'show': False})])
+        assert run.ok is True, run.summary
+        assert not run.summary.startswith('Prepared'), 'Main is in front: the table is shown there, not prepared'
+        assert studio.windows
+    asyncio.run(go())
+
+
+def test_a_quiet_table_has_no_hand_and_its_receipt_is_what_the_tool_prepared():
+    intent = intent_of('show_measurements', {'of': 'e3', 'tab': 'Measurements', 'show': False})
+    assert intent.ui is False and intent.check == 'record' and intent.caption == 'Preparing the table quietly'
+    prepared = {'ok': True, 'summary': 'Prepared: the measurements are in the Tab "Measurements", not on screen until '
+                                       'that Tab is shown. Facts: saved: in Data as e3'}
+    receipt = asyncio.run(Records(None).check(intent, prepared, None, {}))
+    assert receipt['result'] == 'verified' and 'Facts' not in receipt['said']

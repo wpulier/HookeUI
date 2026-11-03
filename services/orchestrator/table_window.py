@@ -178,6 +178,35 @@ async def _tab(services, ctx, asked: str, *, new: bool = False) -> tuple[str, st
     return tab["id"], str(tab.get("title") or asked), made
 
 
+async def prepare(services, ctx, *, target: str, revision: int, rows: int, what: str, tab: str | None) -> str | None:
+    """The measurements table put in a Tab quietly (show false): the Tab named (or this request's, or made quietly) holds
+    it in its saved layout, and the user's screen stays where it is; it opens with the Tab when that Tab is shown. None
+    when the Tab named is the one in front: there it is simply shown (`show`)."""
+    from .workspace_tabs import folded
+
+    asked = tab or NEW_TAB_TITLE
+    listed = await services.workspace_tabs(ctx, {"action": "list"})
+    tabs = [t for t in listed.get("tabs") or [] if (t.get("kind") or "work") == "work"]
+    broker = getattr(services.hub, "workspace_tabs", None)
+    mine = set(broker.made_for(ctx, asked)) if hasattr(broker, "made_for") else set()
+    found = (next((t for t in tabs if t.get("id") == asked), None)
+             or next((t for t in reversed(tabs) if t.get("id") in mine), None)
+             or next((t for t in tabs if folded(t.get("title")) == folded(asked)), None))
+    if found is not None and found.get("selected"):
+        return None
+    if found is None:
+        reply = await services.workspace_tabs(ctx, {"action": "create", "title": asked, "show": False})
+        made = reply.get("made") if isinstance(reply.get("made"), dict) else {}
+        if not made.get("id"):
+            raise ToolFailed(f"the Tab {inline(asked, 80)!r} was not confirmed made", next=None)
+        found = {"id": made["id"], "title": made.get("title") or asked}
+    await services.workspace_tabs(ctx, {"action": "add", "tab": found["id"], "show": False,
+                                        "resource": {"id": target, "version": revision}, "presentation": "table"})
+    where = inline(str(found.get("title") or asked), 80)
+    return (f'Prepared: {what} is in the Tab "{where}", not on screen until that Tab is shown (switch to it to show it). '
+            + facts(target, revision, rows, displayed=f'prepared in Tab "{where}", not shown', front="unchanged"))
+
+
 async def show(services, ctx, studio: ReaderStudio, *, target: str, revision: int, title: str, rows: int, what: str,
                tab: str | None, guard, beside: bool = False, moved: str | None = None, fit: bool | None = None) -> str:
     """Opens the measurements table of `target` at `revision` in its window on the Tab named (made when needed, fitted)
