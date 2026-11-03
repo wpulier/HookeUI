@@ -69,6 +69,7 @@ def plan_of_design(proposal: dict, d: dict, study: str) -> dict:
             "study": {"id": study}, "models": [], "measure": False, "audit": None,
             "input": {"kind": "plan", "says": f"Design {d['n']} ({d['id']}, version {d['version']}): {d['question']}"},
             "steps": steps, "replicates": d["replicates"],
+            "compares": {"conditions": [c["name"] for c in d["conditions"]], "controls": [c["name"] for c in d["controls"]]},
             "cost": {"says": says, "researchUsd": research, "auditUsd": 0.0, "modelsUsd": 0.0},
             "estimate": {"seconds": seconds, "least": seconds, "manual": d["manualSteps"], "unknown": [],
                          "auditS": None, "basis": "the design's schedules and its researchers' usual time"}}
@@ -106,7 +107,12 @@ def plan_said(x) -> str:
     analyses = kinds.count("researcher") + kinds.count("workflow")
     if analyses:
         parts.append(f"{analyses} analysed by Hooke")
-    return (f"{x.name}, not run yet: {p['title']}, the Study plan of design {p['design']['id']} "
+    compares = p.get("compares") or {}
+    what = "; ".join(compares.get("conditions") or [])
+    if compares.get("controls"):
+        what += " against " + "; ".join(compares["controls"])
+    return (f"{x.name}, not run yet: {p['title']}" + (f", {what}" if what else "")
+            + f", the Study plan of design {p['design']['id']} "
             f"({len(kinds)} steps: {', '.join(parts)}; {p.get('replicates')} replicates). {time_words(p)}; "
             f"{p['cost']['says'][:1].lower()}{p['cost']['says'][1:]}; nothing runs until you say yes, and your yes "
             "approves the Study plan.")

@@ -249,7 +249,8 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         assert revised["action"]["replaces"] == cards
         card = app.hub.resources.read(studio.reading[studio.active]["id"], studio.project)
         assert "Design 2: Light against shade · Hooke would start here · version 2" in card
-        assert "Changed as you asked" in card and "Replicates | 3" in card and "Controls | Dark" in card
+        assert "Changed | three replicates, add a dark control (as you asked; version 2)" in card
+        assert "Replicates | 3" in card and "Controls | Dark" in card
         nothing_ran(app)
         # 3. Saved as a Study plan: a draft, nothing reviewed, nothing run.
         run = await asked(app, studio, "study_plan", {"do": "save", "design": "d2"}, "save the second one")

@@ -337,9 +337,10 @@ def design_section(d: dict, *, recommended: bool = False) -> dict:
     measures = []
     for m in d["measures"]:  # what is measured; a capability that cannot run here is said so (its why in the plan)
         measures.append(m["what"] + (" (not available here)" if m.get("available") is False else ""))
-    captures = [s["says"] for s in d["steps"] if s["kind"] in ("capture", "watch")]
-    analyses = [s["says"] for s in d["steps"] if s["kind"] in ("researcher", "workflow")]
-    manual = [s["says"] for s in d["steps"] if s["kind"] == "manual"]
+    def said(kinds):  # each step's words, joined as one line (a step's own full stop dropped)
+        return [s["says"].rstrip(". ") for s in d["steps"] if s["kind"] in kinds]
+
+    captures, analyses, manual = said(("capture", "watch")), said(("researcher", "workflow")), said(("manual",))
     took = d["duration"] or "not said"
     if d["appSeconds"]:
         took += f" (Hooke's part about {duration_words(d['appSeconds'])})"
@@ -349,13 +350,12 @@ def design_section(d: dict, *, recommended: bool = False) -> dict:
             ["Hooke analyses", "; ".join(analyses) or "nothing"], ["You do", "; ".join(manual) or "nothing by hand"]]
     if d["material"]:
         rows.insert(0, ["Material", d["material"]])
+    rows.insert(0, ["Question", d["question"]])  # the reader draws a section's table before its paragraphs
+    if d.get("change"):
+        rows.insert(1, ["Changed", f"{d['change'].rstrip('. ')} (as you asked; version {d['version']})"])
     if d["researchUsd"]:
         rows.append(["Cost", f"Its researchers at most ${d['researchUsd']:.2f}"])
-    lead = d["question"] + (f" {d['hypothesis']}" if d["hypothesis"] else "")
-    paragraphs = [{"text": lead, "cites": []}]
-    if d.get("change"):
-        paragraphs.insert(0, {"text": f"Changed as you asked: \u201c{d['change']}\u201d (version {d['version']}).",
-                              "cites": []})
+    paragraphs = [{"text": f"Hypothesis: {d['hypothesis']}" if d["hypothesis"] else "Not run yet.", "cites": []}]
     if d["rationale"]:
         rows.append(["Why", d["rationale"]])
     if d["limitations"]:
