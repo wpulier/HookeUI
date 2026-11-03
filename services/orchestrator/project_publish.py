@@ -24,7 +24,7 @@ from .project_folder_copy import copy_snapshot
 from .project_readme import citation, licence_notice, readme, ro_crate
 from .project_remote import Remote, push_sealed, sealed_manifest
 from .project_remote_layers import RemoteRefused, canonical, classify, sha256
-from .project_repository import verify_owner
+from .project_repository import current_name, verify_owner
 from .project_roots import PARTS, ProjectRoot
 from .project_inherited import notes, published
 from .project_metadata_scan import scan as metadata_scan
@@ -118,7 +118,7 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
     full_manifest = json.loads(full_raw)
     kept = {e['path'] for e in manifest['entries']}
     review = {
-        'format': REVIEW_FORMAT, 'origin': root.origin, 'name': root.name, 'licence': licence,
+        'format': REVIEW_FORMAT, 'origin': root.origin, 'name': current_name(full), 'licence': licence,
         'licenceName': LICENCES[licence], 'snapshotSha256': sha256(raw),
         'members': manifest['entries'], 'bytes': sum(e['bytes'] for e in manifest['entries']),
         'recordFiles': len(record), 'largeFiles': len(bulk),

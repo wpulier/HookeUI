@@ -91,11 +91,11 @@ def start(environ: Mapping[str, str] = os.environ, post: Post = _post) -> dict:
     if not cid:
         raise NotSetUp(f"One-click GitHub sign-in isn't set up in this app yet. {TODAY}.")
     if not keychain.enabled():
-        raise SignInFailed("this Mac has no Keychain the app can keep a GitHub sign-in in")
+        raise SignInFailed("This copy of Hooke can't use the Keychain, so it can't keep a GitHub sign-in")
     try:
         got = post(DEVICE_URL, {"client_id": cid, "scope": SCOPES})
     except OSError as exc:
-        raise SignInFailed(f"couldn't reach GitHub ({type(exc).__name__}): check the connection and try again") from exc
+        raise SignInFailed(f"Couldn't reach GitHub ({type(exc).__name__}): check the connection and try again") from exc
     if got.get("error") or not got.get("device_code") or not got.get("user_code"):
         raise SignInFailed(_said(got))
     handle = secrets.token_hex(8)

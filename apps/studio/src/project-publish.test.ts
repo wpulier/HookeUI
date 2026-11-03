@@ -46,7 +46,7 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   document.body.append(view.element);
   click(view.element, 'Review what will be published');
   await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: 1 journal(s) reduced'));
-  expect(view.element.textContent).toContain('Research transcripts left out: 3');
+  expect(view.element.textContent).toContain('Research transcripts: 3 files left out');
   expect(view.element.textContent).toContain('Your notes, published as written');
   const note = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('Division'))!;
   expect(note.textContent).toBe('Division: <b>Looks like</b> a dividing cell'); // as text, never markup
@@ -163,4 +163,21 @@ test('an agent’s request to publish opens its exact review, and only the owner
   expect(send.disabled).toBe(true);  // the owner's own sign-offs, as for any publication
   expect(a.publish).not.toHaveBeenCalled();
   again.dispose();
+});
+
+test('counts read naturally and files are named, not numbered', async () => {
+  dom();
+  const one = {...review, memberCount: 1, largeFiles: 1, leftOut: {...review.leftOut, transcripts: 0, otherFiles: ['history/operations/x.json']},
+    cleaned: [{path: `phone.jpg (p${'a'.repeat(32)})`, removed: ['location'], bytes: 9, cleanedBytes: 8, pixels: 'identical'}], cleanedFiles: 1};
+  const view = projectPublish(actions({prepare: vi.fn(async () => one)}), () => true, 'Research');
+  click(view.element, 'Review what will be published');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('1 file · '));
+  expect(view.element.textContent).toContain('1 large file');
+  expect(view.element.textContent).not.toContain('1 large files');
+  expect(view.element.textContent).not.toContain('Research transcripts');  // none to leave out
+  expect(view.element.textContent).toContain('connectors and restores: 1 file left out');
+  const cleaned = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('phone.jpg'))!;
+  expect(cleaned.textContent).toBe('phone.jpg: a location');
+  expect(cleaned.title).toContain('(p' + 'a'.repeat(32) + ')');
+  view.dispose();
 });

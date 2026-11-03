@@ -174,3 +174,36 @@ def test_the_new_project_never_takes_a_handle_the_publication_uses(tmp_path):
         start_from(remote, lambda avoid: seen.append(avoid) or (_ for _ in ()).throw(AssertionError),
                    staging=tmp_path / 'Fetch')
     assert '2026-10-29' in seen[0]
+
+
+def test_a_publication_and_a_restored_backup_carry_the_projects_current_name(tmp_path):
+    """A rename is a journal event; project.json keeps the name the Project was made with (live test, ticket 13)."""
+    from orchestrator.project_backup import back_up, restore
+    root, repo, prefs, registry, *_ = project(tmp_path)
+    with repo.edit(prefs, registry=registry, host_runtime_root=tmp_path / 'runtimes') as edit:
+        edit.append({'type': 'session-renamed', 'name': 'Leaf cells', 'by': 'user', 'auto': False})
+    review = prepare(seal(root), tmp_path / 'Review')
+    assert review['name'] == 'Leaf cells' and root.name == 'Research'
+    remote = folder_remote(tmp_path / 'Public', create=True)
+    publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote)
+    readme = next(e for e in remote.records.read_commit(remote.records.head())['entries'] if e['path'] == 'README.md')
+    assert remote.records.read_blob(readme['ref'], 1 << 20).decode().startswith('# Leaf cells')
+    drive = folder_remote(tmp_path / 'Drive', create=True)
+    back_up(seal(root), drive, staging=tmp_path / 'Backup', scan_secrets=False)
+    restored, _ = restore(drive, tmp_path / 'Elsewhere', lambda r: r, staging=tmp_path / 'Restore')
+    assert restored.path.name == 'Leaf cells'
+
+
+def test_a_started_project_reads_an_inherited_files_bytes_under_its_own_handle(tmp_path):
+    """The studio asks for an inherited document's file under the copy's own handle (live test, ticket 13): its
+    preview, text and download must read it, though its reference names the publication's owner."""
+    from tests.test_project_remote import PIXELS
+    root, repo, prefs, registry, note, source, remote, review = published(tmp_path)
+    publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote)
+    working, _, _ = start_from(remote, elsewhere(tmp_path)[3], staging=tmp_path / 'Fetch')
+    store = ProjectStore(document_root(working))
+    held = store.read(source.id, working.session, revision=1)
+    assert held.owner == root.session and held.session == working.session
+    ref = held.document['state']['sourceFile']['reference']
+    file = store.file_source(source.id, working.session, 1, ref)
+    assert file.read(0, 1 << 20) == PIXELS[:1 << 20] and file.session == root.session

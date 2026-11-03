@@ -47,6 +47,9 @@ const removedWords: Record<string, string> = {
   'location': 'a location', 'person': 'a person’s name', 'home-path': 'a home-folder path',
   'details': 'dates and device details', 'slide-label': 'the slide label photo',
 };
+const plural = (n: number, one: string, many = `${one}s`) => `${n.toLocaleString()} ${n === 1 ? one : many}`;
+/** A file the server names as `name (p<document id>)`: the name to read, and the whole label for its tooltip. */
+const fileName = (label: string) => label.replace(/ \(p[0-9a-f]{32}\)$/, '');
 const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'hooke-project';
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
@@ -170,11 +173,12 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
   const show = (r: PublicationReview) => {
     content.replaceChildren(); controls.replaceChildren();
     status.textContent = r.blocked ? 'Some files need attention before this can be published.' : 'Review, then sign off.';
-    content.append(node('p', `${r.memberCount.toLocaleString()} files · ${size(r.bytes)} · ${r.largeFiles} large files`));
+    content.append(node('p', `${plural(r.memberCount, 'file')} · ${size(r.bytes)} · ${plural(r.largeFiles, 'large file')}`));
     const left = node('ul', '', 'project-publish-left');
     left.append(node('li', `Conversations: ${r.leftOut.conversations}`));
-    left.append(node('li', r.includeTranscripts ? 'Research transcripts are included' : `Research transcripts left out: ${r.leftOut.transcripts}`));
-    if (r.leftOut.otherFiles.length) left.append(node('li', `Also left out: ${r.leftOut.otherFiles.length} connector and restoration records`));
+    if (r.includeTranscripts) left.append(node('li', 'Research transcripts are included'));
+    else if (r.leftOut.transcripts) left.append(node('li', `Research transcripts: ${plural(r.leftOut.transcripts, 'file')} left out`));
+    if (r.leftOut.otherFiles.length) left.append(node('li', `Hooke’s own records of connectors and restores: ${plural(r.leftOut.otherFiles.length, 'file')} left out`));
     content.append(node('strong', 'Not published'), left);
     if (r.publishedText?.length) {
       const notes = node('ul', '', 'project-publish-notes');
@@ -184,14 +188,14 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     }
     if (r.cleaned?.length) {
       const list = node('ul', '', 'project-publish-cleaned');
-      for (const c of r.cleaned.slice(0, 20)) list.append(node('li', `${c.path}: ${c.removed.map(k => removedWords[k] ?? k).join(', ')}`));
+      for (const c of r.cleaned.slice(0, 20)) { const item = node('li', `${fileName(c.path)}: ${c.removed.map(k => removedWords[k] ?? k).join(', ')}`); item.title = c.path; list.append(item); }
       const more = (r.cleanedFiles ?? r.cleaned.length) - Math.min(20, r.cleaned.length);
       if (more > 0) list.append(node('li', `and ${more} more`));
       content.append(node('strong', 'Personal metadata removed (pixels unchanged; your Project keeps the originals)'), list);
     }
     if (r.findings.length) {
       const list = node('ul', '', 'project-publish-findings');
-      for (const f of r.findings.slice(0, 20)) list.append(node('li', `${f.path}${f.line ? ` line ${f.line}` : ''} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`));
+      for (const f of r.findings.slice(0, 20)) { const item = node('li', `${fileName(f.path)}${f.line ? ` line ${f.line}` : ''} ${words[f.kind] ?? f.kind}${f.blocks ? '' : ' (check it)'}`); item.title = f.path; list.append(item); }
       content.append(node('strong', r.blocked ? 'Must be resolved' : 'Please check'), list);
     }
     const files = node('details'), summary = node('summary', 'Every file');
@@ -231,7 +235,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     const rights = checkbox('I have the right to share every file listed');
     const human = checkbox('These files hold no identifiable human data, or release is permitted');
     const permanent = checkbox('I understand a publication can be withdrawn from listings but not erased');
-    const author = node('input'); author.placeholder = 'Your name for the citation (optional)'; author.setAttribute('aria-label', 'Author');
+    const author = node('input'); author.placeholder = 'Your name for the citation (optional)'; author.size = 40; author.setAttribute('aria-label', 'Author');
     content.append(rights.row, human.row, permanent.row, author);
     const send = button('Publish', async () => {
       const destination: Destination = github.checked ? {kind: 'github', create: true, name: repo.value.trim()}
@@ -242,7 +246,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
           permanent: permanent.box.checked, ...(author.value.trim() ? {author: author.value.trim()} : {})}, destination);
         if (!active()) return;
         content.replaceChildren(node('p', 'Published and checked.'), node('p', result.location, 'project-folder-path'),
-          node('p', `${result.published.recordFiles} record files and ${result.published.bulkFiles} large files. Anyone can now start from it.`));
+          node('p', `${plural(result.published.recordFiles, 'record file')} and ${plural(result.published.bulkFiles, 'large file')}. Anyone can now start from it.`));
         controls.replaceChildren(); status.textContent = '';
       } catch (error) { if (active()) { status.textContent = message(error); send.disabled = false; } }
       finally { busy = false; }

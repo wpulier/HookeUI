@@ -342,7 +342,8 @@ async def project_restore(app, client, msg) -> dict:
                          'is unplugged, plug the drive in and open it there.'}
     except (OSError, ProjectLocationError, BundleRefused) as error:
         raise _refused(error) from error
-    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': root.name,
+    from .project_repository import current_name
+    return {'ok': True, 'project': {'session': root.session, 'origin': root.origin, 'name': current_name(root),
                                     'location': str(root.path)}, 'restored': event}
 
 
