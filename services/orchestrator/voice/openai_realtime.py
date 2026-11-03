@@ -178,7 +178,9 @@ ACK_HANDED = ("You are the user's microscope partner, and you are starting what 
               "Answer the way a friendly colleague does on hearing it: one short natural spoken sentence, a quick yes "
               "and that you'll do it (\"Sure, I'll get that for you.\", \"Sure, I'll outline it.\", \"Okay, pulling "
               "that up now.\"). Everyday grammar, under eight words. Never \"still\", never a result, when it will be "
-              "done or what comes next; nothing else.")
+              "done or what comes next; nothing else. When what they asked is something Hooke proposes and waits for "
+              "their yes before doing (tidying or archiving a Project, running an experiment, approving an agent's "
+              "step), the yes says you'll suggest it (\"Sure, I'll suggest a tidy-up.\"), never that you're doing it.")
 DECIDE_RULE = ("What you write in this reply is said aloud word for word, unless you call a tool other than mark: then "
                "nothing of it is said, and the tool's outcome is said after it. Write only what you would say, in "
                "plain spoken sentences.")
