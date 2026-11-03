@@ -107,6 +107,8 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | heard_cue | `tone` | `tone` |
 | partner_acts | `brain` | `brain` |
 | partner_speaks | `acknowledges` | `acknowledges` |
+| handoff_acts | `hands` | `hands` |
+| look_after | `unverified` | `unverified` |
 | think | `claude-opus-5-5` | `claude-opus-5-5` |
 | look_hard | `gemini-4-argon` | `gemini-4-argon` |
 | admit | `quote` | `quote` |

@@ -1206,6 +1206,44 @@ def test_do_in_hooke_that_changed_the_screen_brings_a_fresh_look(monkeypatch):
     asyncio.run(go())
 
 
+def test_a_handoff_whose_changes_were_all_verified_is_seen_as_text_without_a_picture(monkeypatch):
+    """LOOK_AFTER "unverified" (the default since 2026-11-03): the studio's report already confirmed every change, so the
+    voice gets the screen as text and says the receipts without waiting for a window picture."""
+    from orchestrator.brain.acting import current
+
+    async def go():
+        t = await partner_session(monkeypatch)
+
+        async def turn(text, channel, **kw):
+            current().receipts.append({"name": "show_measurements", "result": "verified", "said": "The table shows."})
+            return {"answer": "It is open.", "actions": [{"tool": "show_measurements", "ok": True, "summary": "shown"}]}
+        t.brain.turn = turn
+        t.hub.screen.report(["w-2: table"])
+        result = await asyncio.wait_for(t.partner.tools.do_in_hooke({"request": "open the table"}), 5)
+        assert result["ok"] is True and result["_look"]["images"] == [] and "screen now" in result["_look"]["text"]
+        assert not any(m["type"] == "snapshot-request" for m in t.studio), "no picture waited for"
+        assert result["receipts"] == [{"tool": "show_measurements", "result": "verified", "said": "The table shows."}]
+    asyncio.run(go())
+
+
+def test_a_handoff_is_said_from_its_receipts_not_the_brains_word(monkeypatch):
+    """The brain said it opened the table; the studio's report did not show it: the voice is told it failed."""
+    from orchestrator.brain.acting import current
+
+    async def go():
+        t = await partner_session(monkeypatch)
+
+        async def turn(text, channel, **kw):
+            current().receipts.append({"name": "show_measurements", "result": "failed",
+                                       "said": "The studio does not show the table."})
+            return {"answer": "It is open.", "actions": [{"tool": "show_measurements", "ok": True, "summary": "shown"}]}
+        t.brain.turn = turn
+        result = await asyncio.wait_for(t.partner.tools.do_in_hooke({"request": "open the table"}), 5)
+        assert result["ok"] is False
+        assert result["failed"] == ["show_measurements: The studio does not show the table."]
+    asyncio.run(go())
+
+
 def test_a_researchers_own_words_reach_the_voice_inside_the_untrusted_wrapper(monkeypatch):
     """Review 9: a researcher's one-liner (from the web) went into a system item unwrapped."""
     async def go():

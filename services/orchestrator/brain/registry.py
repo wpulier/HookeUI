@@ -404,6 +404,10 @@ class ToolRun:
     after_steps: list | None = field(default=None, repr=False)  # original explicit sequencing metadata, never handler args
     _on_progress: Callable | None = field(default=None, repr=False, compare=False)  # bound by Registry.start
     late: bool = False  # still running when its answer was written: what it does next is news (actions.ActionRunner)
+    # A hand-off's step carried out under the voice's Hands (brain/acting.py): the task that ends with its receipt, and
+    # that receipt (verified, failed, uncertain or running, from Hooke's state, never the tool's words).
+    acting: asyncio.Task | None = field(default=None, repr=False)
+    receipt: dict | None = None
     # The user pressed Stop on it (user_stop.py; the Actions panel's Stop): it did not complete and is no failure. Nothing
     # after the Stop is applied (its finished listeners are not told, so no result entry is made of it).
     stopped: bool = False
