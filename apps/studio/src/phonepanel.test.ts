@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fire, settleMicrotasks, TestElement } from './workspace-windows.test-support';
 import type { Doctor } from './camera/bridge-api';
 import { PhonePanel } from './phonepanel';
+import { isPhone } from './mic-choice';
 
 const OFF: Doctor = { source: 'none', chosen: 'none', live: false, mode: 'off', headline: 'No camera',
   line: 'This uses pictures and videos only. Choose a camera when you want one.', first: null, items: [] };
@@ -50,6 +51,7 @@ describe('the camera menu', () => {
     const setup = top.querySelector('.phone-setup-link') as TestElement;
     expect(setup.textContent).toBe('Open camera setup ↗');
     expect(root.querySelectorAll('h3').map((h) => h.textContent)).toContain('Source');
+    expect(root.querySelectorAll('h3').map((h) => h.textContent)).toContain('Microphone'); // which Talk listens with
     expect(buttons(root.querySelector('.phone-sources') as TestElement).map((b) => b.textContent))
       .toEqual(['iPhone', 'Blackmagic', 'Other camera', 'No camera']);
     expect(root.querySelector('.phone-source-note')?.textContent).toContain('Continuity Camera');
@@ -139,5 +141,16 @@ describe('the camera menu', () => {
     expect(main).not.toMatch(/source\.addEventListener\('click'/); // the trap of 2026-10-14: "Live camera" swapped a recording out
     expect(main).not.toMatch(/'go-live'/);
     expect(main.match(/phonePanel\.goLive = \(\) => void ([A-Za-z]+)\('live'\);/)?.[1]).toBe('openUserInput'); // shared input-Tab admission, never a direct feed replacement // only Switch to live camera does
+  });
+
+  it("learns the bridge's iPhone by name, so Talk knows its microphone under any name", async () => {
+    const fetcher = fetch as unknown as ReturnType<typeof vi.fn>;
+    const base = fetcher.getMockImplementation() as (url: string, init?: { method?: string }) => Promise<unknown>;
+    fetcher.mockImplementation(async (url: string, init?: { method?: string }) => url.includes('/api/health')
+      ? { ok: true, status: 200, json: async () => ({ ok: true, sourceKind: 'continuity', targetDevice: 'Wilder Camera',
+        sourceChoices: [{ kind: 'continuity', title: 'iPhone', active: true, device: 'Wilder Camera' }] }) }
+      : base(url, init));
+    await menu();
+    await vi.waitFor(() => expect(isPhone('Wilder Microphone')).toBe(true));
   });
 });
