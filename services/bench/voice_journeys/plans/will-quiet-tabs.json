@@ -1,6 +1,6 @@
 {
  "id": "will-quiet-tabs",
- "about": "Will's ask of 3 Nov, \"navigate tabs without users to see things, navigate with the show user things\", as a journey on the real June 14 leaf recording: outline every cell, get a Tab ready with their measurements without leaving Main (tabs show false: compose, or create and add, prepared quietly), then show it when asked (a switch: it opens already arranged), then back to Main. The prepared step passes only if the screen stays on Main and the voice says it is ready, never that it is shown (ADR 0006). `make tab-speed LOG=<the stack's interactions.jsonl>` gives each Tab action's timings from the same run. Played as the camera; no setup.",
+ "about": "Will's ask of 3 Nov, \"navigate tabs without users to see things, navigate with the show user things\", as a journey on the real June 14 leaf recording: outline every cell, get a Tab ready with their measurements without leaving Main (show_measurements or tabs with show false: the table put in a Tab made quietly, or compose), then show it when asked (a switch: it opens already arranged), then back to Main. The prepared step passes only if the screen stays on Main and the voice says it is ready, never that it is shown (ADR 0006). `make tab-speed LOG=<the stack's interactions.jsonl>` gives each Tab action's timings from the same run. Played as the camera; no setup.",
  "minMs": 6000,
  "quietMs": 4000,
  "voices": {
@@ -27,6 +27,7 @@
    "say": "Get a tab ready with the cell measurements, but don't switch to it yet.",
    "expect": {
     "tools": [
+     "show_measurements",
      "tabs"
     ],
     "visible": "the screen stays on Main; no Tab is brought to the front",
