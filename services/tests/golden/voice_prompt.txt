@@ -124,6 +124,10 @@ Researchers: background researchers: pictures, videos, lessons, research; follow
 - change something a researcher made, as a new version (the old one is kept): use it when the user wants a change to its lesson, quiz, labels, picture or video ("make question 2 easier", "rename that label", "make the picture simpler")
 - pass a note to a researcher that is still working, to steer it ("focus on the guard cells", "keep it short"); it reads it before its next step
 - set or remove the daily spending cap for researchers when the user asks ("cap research at $10 a day", "remove the research cap"); dollars: an amount, or "none"
+- start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review
+- what every worker is doing: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed)
+- pass an outside agent a note from the user ("tell Codex to use micro-sam"); it is marked as Hooke's relay, never as the user's approval of anything
+- stop an outside agent Hooke started, and revoke its connection
 - plan, change, run or stop an experiment the user asks for: models compared on this footage (frames of the live view over time) or on the view now, each through the app's runner, compared frame by frame and measured, optionally audited by a researcher who checks the run's records ("compare Cellpose and micro-sam on this footage and have a researcher audit it")
 - how an experiment is going, or how it ended ("how is the experiment going?"), from its records: its state, its frames, each model's runs so far, its audit, its results
 Results: show, read, step through and close a researcher's work

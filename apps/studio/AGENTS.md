@@ -30,6 +30,20 @@ at the captured Project/document revision. Markup is literal text; previewing ne
 runs a reader nor qualifies scientific interpretation. Failed pages preserve the
 previous text and retry the same range. The original-byte download remains available.
 
+The Agents drawer (`agents-panel.ts`, rail item Agents below Researchers; ADR 0029) lists every worker in the Project:
+the outside agents Hooke started on this Mac (Codex, Claude Code, Grok Build) and Hooke's own researchers (a click opens
+its Tab), grouped Needs you, Working, Done in the drawer's one row anatomy, with the lit cell (failed: the red outline;
+stopped: the dim one). An outside agent's quiet line is "Codex · what it is doing", with "about $0.31 by its own count"
+only when it reports dollars. Its ask sits in its row with what it would do (the command, the paths) and Allow, Allow for
+this session (only when the program offers a session rule) and Decline: the only place an ask is answered, and nothing
+answers it on its own; the buttons say Sending your answer… until the list says it was answered. A click opens a peek
+at its transcript (whose words each line is: Hooke's relays are "Hooke", never "You"; what it ran; its answer; what it
+is writing now) with a reply box sent as Hooke's note; ⋯ holds Interrupt, Stop (it ends and its connection is revoked;
+what it kept stays) and Show transcript. Start an agent: which program (one not installed is listed, not choosable, with
+how to install it) and what it should do. A refusal says "Not sent: …" with its next step; nothing is queued. The rail
+item carries a blue count of agents asking you something, else the lit cell while any works. Every route carries
+`X-MicroscopeMind: agents` and, in the Mac app, the window's studio token. Its test: `agents-panel.test.ts`.
+
 The Assistant offers a compact connected-agent entry inside each Project, including the local-only example: the
 header's ⋯ item "Connect your own agent…" opens it as a small popover (`AgentConnections.openEntry`; it was a card always
 in the chat column, moved out on Will's ask, W3), and a small green dot before that ⋯ shows while an agent is connected,

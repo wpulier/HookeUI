@@ -6,6 +6,7 @@ import type { WorkspaceViewport } from './workspace-runtime';
 import type { MotionTracksWire, TracksLayerWire } from './motiontracks';
 import type { ResearchCapture } from './research-captures';
 import type { AgentConnectionsMessage } from './agent-connections';
+import type { AgentsMessage } from './agents-panel';
 // Wire protocol shared with services/orchestrator (hub.py, scene.py, server.py), both ways:
 // ServerMessage is what the server sends, ClientCommand what the studio sends
 // (services/orchestrator/commands.py has one handler per kind).
@@ -784,6 +785,7 @@ export type ServerMessage =
   | import('./web-window').WebWindowRequest
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
+  | AgentsMessage
   // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
   | { type: 'onboarding-changed' }
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;

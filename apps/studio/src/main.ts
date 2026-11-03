@@ -106,6 +106,7 @@ import { WorkflowPage } from './workflow-page';
 import { SessionsPage } from './sessions-page';
 import { GearMenu } from './gear';
 import { agentConnections } from './agent-connections';
+import { agentsPanel } from './agents-panel';
 import { ActionsPanel, type ToolList } from './actions-panel';
 import { MeasurementsPage, measurementsHash, measurementsTarget, measurementsPin, type MeasurementPin } from './measurements';
 
@@ -1237,6 +1238,9 @@ function handleMessage(message: ServerMessage): void {
   switch (message.type) {
     case 'agent-connections': // an outside agent asked to connect, or the list changed (ADR 0026)
       agentConnections.message(message);
+      break;
+    case 'agents': // the outside agents Hooke started changed (ADR 0029): the Agents panel
+      agentsPanel.message(message);
       break;
     case 'onboarding-changed': // an agent moved the walkthrough on (the door's example): its card rereads where it is
       void exampleGuide.agentAdvanced();

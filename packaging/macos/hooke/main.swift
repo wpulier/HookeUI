@@ -282,7 +282,24 @@ func checkKeychainWritable() {
     if status != errSecSuccess { fail("Your Keychain can't keep Hooke's connection here (\(status)).", next: keychainLockedNext) }
 }
 
+/// An agent Hooke started itself (ADR 0029; services/orchestrator/agents) is given its own connection in a mode-0600 file
+/// named by HOOKE_CONNECTION_FILE. That file is used instead of the Keychain, for this process only; nothing is written
+/// to the Keychain, and such an agent never connects again. Hooke deletes the file and revokes the connection when the
+/// agent ends.
+let connectionFile = ProcessInfo.processInfo.environment["HOOKE_CONNECTION_FILE"].flatMap { $0.isEmpty ? nil : $0 }
+
+func launchToken(_ path: String) -> String {
+    guard let data = FileManager.default.contents(atPath: path),
+          let token = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !token.isEmpty else {
+        fail("The connection Hooke gave this agent can't be read: Hooke may have stopped it.",
+             next: "ask the researcher to start the agent again from Hooke")
+    }
+    return token
+}
+
 func tokenLookup(agent: String) -> (token: String?, locked: Bool) {
+    if let path = connectionFile { return (launchToken(path), false) }
     var found: CFTypeRef?
     let one = keychain([kSecAttrAccount as String: connectionAccount(agent), kSecReturnData as String: true, kSecMatchLimit as String: kSecMatchLimitOne])
     let status = SecItemCopyMatching(one as CFDictionary, &found)
@@ -348,6 +365,9 @@ func installSkill(agent: String) -> String {
 // MARK: - Commands
 
 func connect() {
+    if connectionFile != nil {
+        fail("This agent was started by Hooke and already has its own connection.", next: "run hooke status")
+    }
     let me = agent()
     let label = options["label"] ?? (labels[me]! + (connectionName.map { " (\($0))" } ?? ""))
     var bytes = [UInt8](repeating: 0, count: 32)

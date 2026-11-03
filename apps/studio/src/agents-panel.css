@@ -1,0 +1,43 @@
+/* The Agents drawer (agents-panel.ts, ADR 0029): Start an agent, then every worker in the drawer's one row anatomy. */
+.agents-panel {display:flex;flex-direction:column;gap:6px;padding:4px 0 16px;color:var(--mm-text,#ededf0);}
+.agents-start {display:grid;grid-template-columns:1fr auto;gap:6px;padding:8px 16px 4px;}
+.agents-program {grid-column:1 / -1;height:30px;font:500 12px var(--mm-sans,system-ui);}
+.agents-task {grid-column:1;min-height:44px;resize:vertical;box-sizing:border-box;padding:7px 9px;
+  font:400 13px/18px var(--mm-sans,system-ui);color:var(--mm-text,#ededf0);background:var(--mm-card,#222226);
+  border:1px solid var(--mm-line-strong,#ffffff1c);border-radius:var(--mm-r-control,6px);}
+.agents-task:focus-visible,.agents-reply-text:focus-visible {outline:2px solid var(--mm-focus-ring,#79adff);outline-offset:2px;}
+.agents-go {grid-column:2;align-self:end;height:30px;padding:0 14px;font:600 12px var(--mm-sans,system-ui);
+  border-radius:7px;}
+.agents-status {margin:0 16px;font:400 12px/16px var(--mm-sans,system-ui);color:var(--mm-text-2,#a7a7b0);}
+.agents-status:empty,.agents-status[hidden] {display:none;}
+.agents-note {margin:8px 16px 0;}
+.agents-empty {margin:8px 16px;}
+.agents-thumb {display:grid;place-items:center;position:relative;background:var(--mm-raise,#2a2a2f);}
+.agents-thumb .lit-cell {position:absolute;right:2px;bottom:2px;}
+.agents-initial {font:600 14px var(--mm-sans,system-ui);color:var(--mm-text-2,#a7a7b0);}
+.agents-row[data-status='failed'] .mm-row-sub {color:var(--mm-attention,#ff6f66);}
+.agents-ask {align-items:flex-start;}
+.agents-ask-title {color:var(--mm-text,#ededf0);font-weight:500;}
+.agents-ask-detail {flex-basis:100%;display:block;max-height:7.5em;overflow:auto;white-space:pre-wrap;word-break:break-word;
+  padding:6px 8px;font:400 11px/15px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--mm-text,#ededf0);
+  background:var(--mm-card,#222226);border:1px solid var(--mm-line,#ffffff12);border-radius:var(--mm-r-control,6px);}
+.agents-ask-reason {flex-basis:100%;color:var(--mm-text-3,#909099);}
+.agents-ask-buttons {display:flex;flex-wrap:wrap;gap:6px;}
+.agents-ask-buttons > button {height:28px;padding:0 10px;font:500 12px var(--mm-sans,system-ui);border-radius:7px;}
+.agents-ask-buttons > button:disabled {opacity:.6;cursor:wait;}
+.agents-sending {flex-basis:100%;color:var(--mm-text-3,#909099);}
+.agents-peek {display:grid;gap:8px;padding:0 16px 12px 62px;}
+.agents-transcript {list-style:none;margin:0;padding:0;display:grid;gap:4px;max-height:320px;overflow:auto;
+  font:400 12px/16px var(--mm-sans,system-ui);}
+.agents-line {display:grid;grid-template-columns:auto 1fr;gap:6px;}
+.agents-who {color:var(--mm-text-3,#909099);font-weight:500;white-space:nowrap;}
+.agents-text {color:var(--mm-text-2,#a7a7b0);white-space:pre-wrap;word-break:break-word;}
+.agents-line.is-hooke .agents-who {color:var(--mm-accent,#79adff);}
+.agents-line.is-agent .agents-text,.agents-line.is-live .agents-text {color:var(--mm-text,#ededf0);}
+.agents-line.is-live .agents-who {color:var(--mm-alive,#ffd28a);}
+.agents-reply {display:grid;grid-template-columns:1fr auto;gap:6px;}
+.agents-reply-text {height:28px;box-sizing:border-box;padding:0 8px;font:400 12px var(--mm-sans,system-ui);
+  color:var(--mm-text,#ededf0);background:var(--mm-card,#222226);border:1px solid var(--mm-line-strong,#ffffff1c);
+  border-radius:var(--mm-r-control,6px);}
+.agents-reply > button {height:28px;padding:0 10px;font:500 12px var(--mm-sans,system-ui);border-radius:7px;}
+.agents-facts {margin:0;font:400 11px/15px var(--mm-sans,system-ui);color:var(--mm-text-3,#909099);}

@@ -55,7 +55,9 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                # Driving Hooke (Will, 2026-11-03): turning capabilities on, fetching and showing models,
                                # experiments and writing up, each with its receipt (records.py).
                                "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
-                               "write_document")
+                               "write_document",
+                               # Outside agents Hooke starts (ADR 0029).
+                               "start_agent", "agents", "agent_note", "stop_agent")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
 # approval back.
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
