@@ -1800,7 +1800,7 @@
      "type": "string"
     },
     "until": {
-     "description": "sharp (the default): centred and in focus; centred: only centred",
+     "description": "sharp (the default, also for \"centre it\": a thing centred to look at should be in focus); centred: only when the user says the focus does not matter",
      "enum": [
       "sharp",
       "centred"

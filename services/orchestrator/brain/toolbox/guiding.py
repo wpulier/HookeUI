@@ -95,8 +95,9 @@ def add_guide_tools(registry: Registry, services) -> None:
                                        "empty with object"},
                               "object": OBJECT,
                               "until": {"type": "string", "enum": ["sharp", "centred"],
-                                        "description": "sharp (the default): centred and in focus; centred: only "
-                                                       "centred"}}),
+                                        "description": "sharp (the default, also for \"centre it\": a thing centred "
+                                                       "to look at should be in focus); centred: only when the user "
+                                                       "says the focus does not matter"}}),
                       guide_tool, inline_ms=6000, family="map", outline_refs=("object",)))
 
     async def stop_guiding(ctx: ToolContext, args: dict) -> str:
