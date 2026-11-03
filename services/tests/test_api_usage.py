@@ -140,13 +140,15 @@ def test_manager_passes_unlimited_to_worker(tmp_path, cap, unlimited):
     assert dispatched['unlimited_budget'] is unlimited
 
 
-def test_known_fast_pass_and_unknown_priority_prices_are_distinct(ledger):
+def test_tiers_are_priced_at_their_multiple_and_an_unknown_tier_is_unpriced(ledger):
     usage.response('gemini-3.5-flash', NS(usage_metadata=NS(prompt_token_count=1000, candidates_token_count=100)), provider='Google')
     usage.response('gpt-6-luna', NS(usage=NS(input_tokens=1000, output_tokens=100)), provider='OpenAI')
+    # Priority (renamed Fast by OpenAI on 30 July 2026) is twice the list price (OpenAI's pricing page, 2026-11-03).
     usage.response('gpt-6-luna', NS(usage=NS(input_tokens=1000, output_tokens=100)), provider='OpenAI', tier='priority')
+    usage.response('gpt-6-luna', NS(usage=NS(input_tokens=1000, output_tokens=100)), provider='OpenAI', tier='scale')
     report = today(ledger)
-    assert report['estimatedUsd'] == pytest.approx(.00255)
-    assert report['unpriced'] == 1
+    assert report['estimatedUsd'] == pytest.approx(.00255 + .0003)
+    assert report['unpriced'] == 1  # a tier with no known price is never priced as standard
 
 
 def test_late_research_charges_do_not_erase_retained_history(ledger):

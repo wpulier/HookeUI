@@ -268,7 +268,7 @@ class OpenAIVision(_Client):
     async def ask(self, images: list[bytes], prompt: str, max_output_tokens: int = 1500) -> VisionResult:
         execution.note(selected=self.model, adapter="orchestrator.vision.OpenAIVision", provider="openai",
                        model=self.model, identity="request-model; hosted revision unconfirmed",
-                       optionId=self.model + ("-priority" if self.service_tier == "priority" else ""))
+                       optionId=self.model + (f"-{self.service_tier}" if self.service_tier else ""))
         _diagnostic_entry(prompt, max_output_tokens)
         content = [
             {"type": "input_image", "image_url": f"data:{image_mime(img)};base64," + base64.b64encode(img).decode()}
@@ -289,8 +289,9 @@ class OpenAIVision(_Client):
             client = await self._ready()
             t0 = time.perf_counter()  # the model's time, never the client's first making
             most = api_usage.bound(self.model, api_usage.tokens_in(prompt, len(images)), max_output_tokens)  # reasoning included
+            factor = api_usage.tier_factor(self.service_tier)
             async with api_usage.attempt(self.model, provider="OpenAI", area="Live",
-                                         most=None if most is None else most * (2 if self.service_tier == "priority" else 1)):
+                                         most=None if most is None or factor is None else most * max(factor, 1.0)):
                 response = await client.responses.create(**kwargs)
             api_usage.response(self.model, response, provider="OpenAI", area="Live", tier=self.service_tier, search=False)
         except Exception as exc:
@@ -299,6 +300,8 @@ class OpenAIVision(_Client):
         reported = getattr(response, "model", None)
         if reported:
             execution.note(reportedModel=reported, identity="provider-reported")
+        if self.service_tier:  # the tier OpenAI served, beside the one asked for
+            execution.note(askedTier=self.service_tier, servedTier=getattr(response, "service_tier", None))
         latency = (time.perf_counter() - t0) * 1000
         text = response.output_text or ""
         usage = {}
