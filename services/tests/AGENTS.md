@@ -103,6 +103,8 @@ the connector contributes copied evidence and a Study. Shutdown, folder move or 
 restart retain the exact documents and shared inventory after original deletion.
 No public portable-mode switch, real browser/client, model, microscopy decoder or
 complete dependency collection is qualified by this test.
+The child probe emits lifecycle checkpoints and a thread traceback before the
+unchanged 60-second hang limit. These diagnose a timeout, not a performance pass.
 
 `test_project_record_collection.py` retains a synthetic shared Record folder through
 real immutable intake and reads it after deleting the synthetic original and moving
