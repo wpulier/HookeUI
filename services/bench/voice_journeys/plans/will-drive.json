@@ -95,8 +95,7 @@
      "models"
     ],
     "judge": "turns the capability on (or says exactly what step of the user's it waits for), from its card's state, never that it is on before the card says so",
-    "outcome": true,
-    "visible": "Spot look-alikes reads on, on its way, or shows the step of yours it waits for"
+    "outcome": true
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
   },

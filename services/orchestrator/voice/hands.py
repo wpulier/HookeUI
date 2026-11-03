@@ -763,7 +763,8 @@ class Hands:
         if intent.ui and plan.job is not None and not self._own_job(plan):
             # A hand-off's step after the user took over: nothing more of it is done, and control stays theirs.
             return self._ended(intent, {"ok": False, "result": "failed", "error": TOOK_OVER,
-                                        "_hands": {"rejected": "the user took over during this hand-off"}}, None, "failed")
+                                        "_hands": {"rejected": "the user took over during this hand-off",
+                                                   "expected": "failed"}}, None, "failed")
         if intent.ui and not self.looked and not self._own_job(plan):
             return self._ended(intent, {"ok": False, "result": "failed", "error": LOOK_AGAIN,
                                         "_hands": {"rejected": "no fresh look since the takeover"}}, None, "failed")
