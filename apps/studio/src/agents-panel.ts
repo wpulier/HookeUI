@@ -70,14 +70,34 @@ export function agentTime(row: AgentRow, now = Date.now() / 1000): string {
   return row.status === 'working' ? `Working ${clock((now - row.at) * 1000)}` : '';
 }
 
-/** An entry of the transcript, in words: whose it is first. Hooke's own are marked as Hooke's, never as yours. */
+/** An entry of the transcript, in words: whose it is first. Hooke's own are marked as Hooke's, never as yours. A
+ * command is said as itself ("Ran · hooke status"), not as "Ran a command: …". */
 export function entryWords(entry: AgentEntry): { who: string; text: string } {
   const text = entry.text.replace(/^\[Hooke\]\s*/, '');
   if (entry.role === 'hooke') return { who: entry.how === 'steered' ? 'Hooke, while it worked' : 'Hooke', text };
-  if (entry.role === 'tool') return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? 'Running' : 'Did', text };
+  if (entry.role === 'tool') {
+    const files = /^(Changed|Changing) files: /.test(text);
+    const bare = text.replace(/^(Ran|Running) a command: /, '').replace(/^(Changed|Changing) files: /, '')
+      .replace(/^Using (Bash|Read|Write|Edit): /, '$1 ');
+    const done = files ? 'Changed' : 'Ran';
+    return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? (files ? 'Changing' : 'Running') : done, text: bare };
+  }
   if (entry.role === 'ask') return { who: 'Asked', text };
-  if (entry.role === 'note') return { who: 'Hooke noted', text };
+  if (entry.role === 'note') return { who: '', text };
   return { who: entry.final ? 'Answer' : 'Said', text };
+}
+
+/** An agent's words with its **bold** and `code` drawn as such, never as markup characters. */
+export function inline(text: string): Node[] {
+  const out: Node[] = [];
+  text = text.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');  // a link is said as its words
+  for (const part of text.split(/(\*\*[^*]+\*\*|`[^`]+`)/)) {
+    if (!part) continue;
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) out.push(el('strong', '', part.slice(2, -2)));
+    else if (part.startsWith('`') && part.endsWith('`') && part.length > 2) out.push(el('code', '', part.slice(1, -1)));
+    else out.push(document.createTextNode?.(part) ?? el('span', '', part));
+  }
+  return out;
 }
 
 /** A refusal as the panel says it: what happened, then what to do. */
@@ -125,8 +145,9 @@ export class AgentsPanel {
     form.setAttribute('aria-label', 'Start an outside agent');
     this.program = el('select', 'mm-control agents-program'); this.program.setAttribute('aria-label', 'Which agent');
     this.task = el('textarea', 'agents-task'); this.task.setAttribute('aria-label', 'What it should do');
-    this.task.placeholder = 'What should it do? It works in this Project and reports back for your review.';
-    this.task.rows = 2;
+    this.task.placeholder = 'What should it do?';
+    this.task.title = 'It works in this Project, in a Study of its own, and reports back for your review';
+    this.task.rows = 3;
     this.start = el('button', 'mm-primary agents-go', 'Start'); this.start.type = 'submit';
     form.append(this.program, this.task, this.start);
     form.addEventListener('submit', (event) => { event.preventDefault(); void this.begin(); });
@@ -353,7 +374,6 @@ export class AgentsPanel {
 
   private ask(row: AgentRow, ask: AgentAsk, card = false): HTMLElement {
     const box = el('div', card ? 'agents-ask is-card' : 'mm-row-question agents-ask'); box.dataset.ask = ask.id;
-    if (!card) box.append(el('span', 'agents-ask-title', `${row.label} asks to ${ask.title.toLowerCase()}`));
     if (ask.detail) box.append(el('code', 'agents-ask-detail', ask.detail));
     if (ask.reason) box.append(el('span', 'agents-ask-reason', ask.reason));
     const sending = this.sending.has(ask.id);
@@ -377,7 +397,10 @@ export class AgentsPanel {
     for (const entry of entries) {
       const words = entryWords(entry);
       const li = el('li', `agents-line is-${entry.role}`);
-      li.append(el('span', 'agents-who', words.who), el('span', 'agents-text', words.text));
+      const body = el('span', 'agents-text');
+      if (entry.role === 'agent') body.append(...inline(words.text)); else body.textContent = words.text;
+      if (entry.role === 'tool') body.title = words.text;  // a long command on one line; all of it on hover
+      li.append(el('span', 'agents-who', words.who), body);
       lines.append(li);
     }
     if (row.live) { const li = el('li', 'agents-line is-live'); li.append(el('span', 'agents-who', 'Writing'), el('span', 'agents-text', row.live)); lines.append(li); }
@@ -394,7 +417,7 @@ export class AgentsPanel {
         void this.reply(row, text).then((ok) => { send.disabled = false; if (ok) input.value = ''; }); });
       peek.append(form);
     }
-    const facts = [row.study ? `Study ${row.study.slice(0, 9)}…` : '', row.report?.returned ? 'Report returned' : '',
+    const facts = [row.study ? 'Works in a Study of its own in this Project' : '', row.report?.returned ? 'Report returned' : '',
       row.report?.claims ? `${row.report.claims} claim${row.report.claims === 1 ? '' : 's'} awaiting your review` : ''].filter(Boolean);
     if (facts.length) peek.append(el('p', 'agents-facts', facts.join(' · ')));
     return peek;

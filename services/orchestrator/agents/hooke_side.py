@@ -85,7 +85,7 @@ class HookeSide:
 
         studies = service(self.built)
         made = studies.create(project, actor="studio", label="You", request=f"launch:{launch}", title=title[:240],
-                              objective=task, criteria="The agent returns a report the researcher can review.",
+                              objective=task, criteria="its report, kept in this Project, and a claim you can review",
                               budget_usd=budget or 0, inputs=[])
         assignment = Coordination(studies).propose(made.id, project, request=f"launch:{launch}", assignment={
             "objective": task, "deliverable": "A report kept in this Project and a claim for the researcher to review",

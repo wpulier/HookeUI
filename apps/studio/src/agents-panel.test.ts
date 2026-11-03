@@ -1,7 +1,7 @@
 // The Agents panel (ADR 0029): every worker grouped Needs you, Working, Done; an outside agent's ask is answered only by
 // the person's own button, sent with the panel's header; replies go as Hooke's notes; refusals say what to do.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { AgentsPanel, agentGroup, agentSub, entryWords, parseAgents, refusalWords, type AgentRow } from './agents-panel';
+import { AgentsPanel, agentGroup, agentSub, entryWords, inline, parseAgents, refusalWords, type AgentRow } from './agents-panel';
 import { TestElement, fire, settleMicrotasks, syntheticDOM } from './workspace-windows.test-support';
 
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -45,6 +45,16 @@ describe('the Agents panel', () => {
       .toEqual({ who: 'Hooke, while it worked', text: 'use micro-sam' });
     expect(entryWords({ n: 2, role: 'agent', text: 'Done.', at: 2, final: true }).who).toBe('Answer');
     expect(agentSub(row({ costUsd: 0.314 }))).toBe('Codex · Ran a command: ls · about $0.31 by its own count');
+    expect(entryWords({ n: 3, role: 'tool', text: 'Ran a command: hooke status --json', at: 3, state: 'done' }))
+      .toEqual({ who: 'Ran', text: 'hooke status --json' });
+    expect(entryWords({ n: 5, role: 'tool', text: 'Changed files: its folder/report.md', at: 5, state: 'done' }))
+      .toEqual({ who: 'Changed', text: 'its folder/report.md' });
+    expect(entryWords({ n: 4, role: 'note', text: 'You allowed it', at: 4 })).toEqual({ who: '', text: 'You allowed it' });
+    vi.stubGlobal('document', syntheticDOM().document);
+    expect(inline('Saved **report.md** as `artifact`').map((n) => (n as unknown as TestElement).tagName?.toLowerCase() ?? 'text'))
+      .toEqual(['span', 'strong', 'span', 'code']);
+    expect(inline('Read the [Hooke skill](/x/SKILL.md).').map((n) => (n as unknown as TestElement).textContent).join(''))
+      .toBe('Read the Hooke skill.');
     expect(agentGroup(row({ status: 'failed' }))).toBe('done');
     expect(refusalWords({ says: 'Codex has ended.', next: 'start a new agent to continue' }, ''))
       .toBe('Codex has ended. Start a new agent to continue.');
@@ -58,7 +68,7 @@ describe('the Agents panel', () => {
       programs: [{ id: 'codex', label: 'Codex', installed: true }, { id: 'grok', label: 'Grok Build', installed: false, next: 'install it' }] });
     const groups = root.querySelectorAll('.agents-group').map((g) => g.dataset.group);
     expect(groups).toEqual(['needs', 'done']);
-    expect(root.textContent).toContain('Codex asks to run a command');
+    expect(root.textContent).toContain('Codex · Asks to run a command');
     expect(root.textContent).toContain('pip install micro-sam');
     expect(calls).toEqual([]);  // shown, never answered on its own
     fire(button(root, 'Allow for this session')!, 'click'); await settleMicrotasks();

@@ -27,6 +27,7 @@ from typing import Callable
 from . import programs as installed
 from .adapter import Adapter, Spec, marked, short
 from .brief import first_message, instructions
+from ..paths import REPO
 from .transport import Gone, ProcessTransport, child_env
 
 MOST_LIVE = 4  # agents working at once
@@ -107,7 +108,7 @@ class Launch:
                 "folder": self.folder if full else None}
 
 
-_SHELL = re.compile(r"""^/bin/(?:ba|z)?sh -l?c (['"])(.*)\1$""", re.S)
+_SHELL = re.compile(r"""^/bin/(?:ba|z)?sh -l?c (['"])(.*?)(?:\1)?(…?)$""", re.S)  # a cut-short line keeps its …
 
 
 def tidy(text: str, launch: "Launch") -> str:
@@ -117,16 +118,18 @@ def tidy(text: str, launch: "Launch") -> str:
     if ": " in text and text.split(": ", 1)[1].startswith("/bin/"):
         head, body = text.split(": ", 1)
         inner = _SHELL.match(body)
-        text = f"{head}: {inner.group(2)}" if inner else text
+        text = f"{head}: {inner.group(2)}{inner.group(3)}" if inner else text
     else:
         inner = _SHELL.match(text)
-        text = inner.group(2) if inner else text
+        text = inner.group(2) + inner.group(3) if inner else text
     if launch.cli:
         text = text.replace(f"'{launch.cli}'", "hooke").replace(launch.cli, "hooke")
     text = re.sub(r"(hooke) --agent [a-z-]+", r"\1", text)
     if launch.folder:
         text = text.replace(launch.folder, "its folder")
-    return text
+    text = text.replace(str(REPO / ".agents/skills/hooke/SKILL.md"), "Hooke's guide")
+    home = str(Path.home())
+    return text.replace(home + "/", "~/")
 
 
 def adapter_for(program: str, path: str) -> Adapter:
@@ -472,7 +475,7 @@ class Conductor:
                            "how the user answers": "yes or no by voice (answer_agent with their own words), or on "
                                                    "its approval card; Hooke never answers for them"},
                           still=lambda: any(a["id"] == pid for a in launch.asks))
-            self._note(launch, "ask", f"Asks to {ask['title'].lower()}: {ask['detail']}", item=ask["id"])
+            self._note(launch, "ask", f"to {ask['title'].lower()}: {ask['detail']}", item=ask["id"])
             self.side.activity(f"{launch.label} asks to {ask['title'].lower()}", state="running",
                                id=f"agent:{launch.id}:{ask['id']}", ref={"agent": launch.label},
                                details={"lines": [short(ask["detail"], 300)]})

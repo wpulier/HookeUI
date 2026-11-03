@@ -47,7 +47,7 @@
 .agents-review:hover {text-decoration:underline;}
 .agents-review:focus-visible {outline:2px solid var(--mm-focus-ring,#79adff);outline-offset:2px;border-radius:4px;}
 /* The approval card over the composer: one per waiting ask, answered there, in Agents, or by voice. */
-.agents-asks {display:grid;gap:6px;margin:0 0 8px;}
+.agents-asks {display:grid;gap:6px;margin:0 16px 8px;}
 .agents-asks[hidden] {display:none;}
 .agents-asks-card {display:grid;gap:6px;padding:10px 12px;background:var(--mm-card,#222226);
   border:1px solid var(--mm-line-strong,#ffffff1c);border-radius:var(--mm-r-card,10px);box-shadow:var(--mm-highlight,none);}
@@ -57,3 +57,11 @@
   color:var(--mm-text-2,#a7a7b0);}
 .agents-ask-voice {flex-basis:100%;color:var(--mm-text-3,#909099);}
 .agents-asks-more {margin:0;font:400 12px var(--mm-sans,system-ui);color:var(--mm-text-3,#909099);}
+.agents-line.is-tool .agents-text {white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font:400 11px/16px ui-monospace,SFMono-Regular,Menlo,monospace;}
+.agents-line.is-note {grid-template-columns:1fr;}
+.agents-line.is-note .agents-text {color:var(--mm-text-3,#909099);}
+.agents-line.is-note .agents-who:empty {display:none;}
+.agents-text code {font:400 11px ui-monospace,SFMono-Regular,Menlo,monospace;padding:0 3px;border-radius:4px;
+  background:var(--mm-raise,#2a2a2f);}
+.agents-text strong {font-weight:600;color:var(--mm-text,#ededf0);}
