@@ -97,6 +97,19 @@ def counted_unknown(model: str) -> tuple[float, bool]:
     return UNKNOWN_USD, False
 
 
+# OpenAI's service tiers as multiples of the standard list price (OpenAI's pricing page, read 2026-11-03: Fast, which
+# Priority was renamed on 30 July 2026, is twice standard for gpt-6.1-sol and gpt-5.6-luna; Ultrafast is six times it
+# for gpt-6.1-sol, $12 in and $60 out a million; Flex is half). A tier not named here is priced as unknown, never as
+# standard.
+TIER_FACTORS = {"priority": 2.0, "fast": 2.0, "ultrafast": 6.0, "flex": 0.5}
+STANDARD_TIERS = (None, "default", "auto")
+
+
+def tier_factor(tier: str | None) -> float | None:
+    """What a call on `tier` costs against its model's list price: 1 for standard, None when unknown."""
+    return 1.0 if tier in STANDARD_TIERS else TIER_FACTORS.get(tier)
+
+
 def bound(model: str, in_tokens: int | None = None, out_tokens: int | None = None) -> float | None:
     """The most one call to `model` can cost, from its list price (None: no price known here, so it can't be bounded).
     `out_tokens` is the call's own output limit, which the provider enforces and which counts thinking with the visible
@@ -668,12 +681,18 @@ def response(model: str, result, *, provider: str, area: str = 'Live', tier: str
         usage = getattr(result, 'usage', None)
         incoming = getattr(usage, 'input_tokens', None)
         outgoing = getattr(usage, 'output_tokens', None)  # includes reasoning
+    # The tier the provider says it served is what is billed (a request for one it can't give falls back to another).
+    served = getattr(result, 'service_tier', None)
+    if isinstance(served, str) and served:
+        tier = served
     price = PRICES.get(model)
-    known = isinstance(price, dict) and 'in' in price and tier in (None, 'default', 'auto')
-    usd = ((incoming * price['in'] + outgoing * price['out']) / 1e6
+    factor = tier_factor(tier)
+    known = isinstance(price, dict) and 'in' in price and factor is not None
+    usd = ((incoming * price['in'] + outgoing * price['out']) / 1e6 * factor
            if known and incoming is not None and outgoing is not None else None)
+    tiered = '' if tier in STANDARD_TIERS else f' · {tier} tier'
     record(model, usd, provider=provider, area=area,
-           basis='Reported tokens · list price before discounts' if usd is not None else 'Usage or price unavailable')
+           basis=f'Reported tokens · list price before discounts{tiered}' if usd is not None else 'Usage or price unavailable')
     if search:
         queries = search_queries(result)
         record('google_search', len(queries) * PRICES['google_search'] if queries else None,

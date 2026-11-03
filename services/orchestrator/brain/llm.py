@@ -57,9 +57,12 @@ class FunctionCallingBrain:
             return await dispatch_answer(lambda: self._gemini(model, level or "low", jpeg, prompt, registry),
                                          model=model, effort=level or "low")
         if provider == "openai":
+            # As the look reads the spec (vision.make_vision): the service tier after '+' ('@none+priority',
+            # '@low+ultrafast'), never sent as part of the effort.
+            level, _, tier = level.partition("+")
             # gpt-6.1-sol rejects reasoning effort "none" (spike S1); "low" works for all.
             effort = "low" if level in ("", "none") else level
-            return await dispatch_answer(lambda: self._openai(model, effort, jpeg, prompt, registry),
+            return await dispatch_answer(lambda: self._openai(model, effort, jpeg, prompt, registry, tier or None),
                                          model=model, effort=effort)
         if provider == "anthropic":
             # As the look reads the spec (vision.make_vision): effort low unless named, '+fast' for Opus fast mode.
@@ -100,7 +103,8 @@ class FunctionCallingBrain:
         _diagnostic_result(response, "gemini", data)
         return data, {"model": model, "latency_ms": ms, "marks": None}
 
-    async def _openai(self, model: str, effort: str, jpeg: bytes, prompt: str, registry) -> tuple[dict, dict]:
+    async def _openai(self, model: str, effort: str, jpeg: bytes, prompt: str, registry,
+                      tier: str | None = None) -> tuple[dict, dict]:
         from openai import AsyncOpenAI
 
         key = os.environ["OPENAI_API_KEY"]
@@ -109,16 +113,25 @@ class FunctionCallingBrain:
                   "parameters": OUTLINE_SCHEMA, "strict": False}] + registry.responses_tools()
         content = [{"type": "input_image", "image_url": f"data:{image_mime(jpeg)};base64," + base64.b64encode(jpeg).decode()},
                    {"type": "input_text", "text": prompt}]
+        kwargs: dict = {"model": model, "input": [{"role": "user", "content": content}],
+                        "max_output_tokens": MAX_OUTPUT_TOKENS, "tools": tools, "reasoning": {"effort": effort}}
+        if tier:
+            kwargs["service_tier"] = tier
+        in_tokens = api_usage.tokens_in(prompt, 1, extra=json.dumps(tools, default=str))
+        most = api_usage.bound(model, in_tokens, MAX_OUTPUT_TOKENS)  # reasoning included
+        factor = api_usage.tier_factor(tier)
         t0 = time.perf_counter()
         _diagnostic_entry(prompt, MAX_OUTPUT_TOKENS)
-        async with api_usage.attempt(model, provider="OpenAI", area="Chat", out_tokens=MAX_OUTPUT_TOKENS,  # reasoning included
-                                     in_tokens=api_usage.tokens_in(prompt, 1, extra=json.dumps(tools, default=str))):
-            response = await client.responses.create(model=model, input=[{"role": "user", "content": content}],
-                                                     max_output_tokens=MAX_OUTPUT_TOKENS, tools=tools,
-                                                     reasoning={"effort": effort})
-        api_usage.response(model, response, provider="OpenAI", area="Chat", tier=None, search=False)
+        async with api_usage.attempt(model, provider="OpenAI", area="Chat", out_tokens=MAX_OUTPUT_TOKENS,
+                                     in_tokens=in_tokens,
+                                     most=None if most is None or factor is None else most * max(factor, 1.0)):
+            response = await client.responses.create(**kwargs)
+        api_usage.response(model, response, provider="OpenAI", area="Chat", tier=tier, search=False)
         ms = (time.perf_counter() - t0) * 1000
-        execution.note(reportedModel=getattr(response, "model", None))
+        # The tier OpenAI served, beside the one asked for: a bench line holds them equal (an Ultrafast request it
+        # can't give comes back on another tier, at another speed and price).
+        execution.note(reportedModel=getattr(response, "model", None), askedTier=tier,
+                       servedTier=getattr(response, "service_tier", None))
         calls = []
         for item in response.output or []:
             if getattr(item, "type", None) == "function_call":

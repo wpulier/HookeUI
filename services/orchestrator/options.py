@@ -89,6 +89,13 @@ VISION = {
                "openai:gpt-5.6-luna@none+priority", "OPENAI_API_KEY", model="gpt-5.6-luna"),
         Option("gpt-6-luna", "GPT-6 Luna", "12/15, ~1.8 s", "openai:gpt-6-luna@none", "OPENAI_API_KEY", model="gpt-6-luna"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "28/30 right with tools (spike S1); rejects reasoning effort none, so low", "openai:gpt-6.1-sol@low", "OPENAI_API_KEY", model="gpt-6.1-sol"),
+        # The same model on OpenAI's fastest tier (service_tier "ultrafast": six times the list price, $12 in and $60 out a
+        # million; OpenAI's pricing page, 2026-11-03). HeyClicky's real-time graphics run on it. Smoke 2026-11-03: served
+        # "ultrafast", a one-word reply in 0.94 s warm (2.7 s on a cold connection) against 1.5 s standard. A candidate for
+        # the acting model behind the voice (BRAIN_FAST), decided on the will-drive journey, not yet a default.
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)",
+               "OpenAI's fastest tier at 6x the price; smoke: 0.94 s warm vs 1.5 s standard; not yet benched for acting",
+               "openai:gpt-6.1-sol@low+ultrafast", "OPENAI_API_KEY", model="gpt-6.1-sol"),
         # Claude and Gemini 4, measured 2026-10-29 beside the Gemini defaults in the same hour (docs/bench/vision-2026-10-29.md):
         # grounding 15 questions x 3 (box), BCCD find, naming 180 uBench pictures x 4 conditions.
         Option("claude-opus-5-5", "Claude Opus 5.5",
@@ -222,7 +229,10 @@ THINK = {
         Option("claude-opus-5-5", "Claude Opus 5.5", "the strongest on Hooke's own pictures; refusals said as refusals",
                model="claude-opus-5-5"),
         Option("gpt-6.1-sol", "GPT-6.1 Sol", "OpenAI's frontier model; the other choice when Opus refuses",
-               model="gpt-6.1-sol"),
+               "openai:gpt-6.1-sol@low", model="gpt-6.1-sol"),
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)",
+               "the same model on OpenAI's fastest tier, at 6x the price; for a mind that keeps up with the voice",
+               "openai:gpt-6.1-sol@low+ultrafast", model="gpt-6.1-sol"),
     ]
 }
 
@@ -354,6 +364,11 @@ BRAIN_FAST = {
         Option("gpt-5.6-luna-priority", "GPT-5.6 Luna (priority)", "fast bench 78/80, p50 1.13 s / p90 1.66 s", model="gpt-5.6-luna"),
         Option("gemini-3.8-flash", "Gemini 3.8 Flash", "fast bench 79/80, p50 2.01 s / p90 3.40 s (2026-10-06; 0.81 s on 10-04)", model="gemini-3.8-flash"),
         Option("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "fast bench: 21/24, p50 0.68 s; answered detail it could not see", model="gemini-3.5-flash-lite"),
+        # Acting-model candidates for driving Hooke by voice (Will, 2026-11-03: one slot every actor uses, Sol Ultrafast
+        # beside Sonnet and the Flash models); compared on the fast bench and the will-drive journey before any default.
+        Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)", "OpenAI's fastest tier at 6x the price; not yet on the fast bench",
+               model="gpt-6.1-sol"),
+        Option("claude-sonnet-5-5", "Claude Sonnet 5.5", "not yet on the fast bench", model="claude-sonnet-5-5"),
         Option("off", "Always look first", "every request waits for the vision call (~2 s)"),
     ]
 }

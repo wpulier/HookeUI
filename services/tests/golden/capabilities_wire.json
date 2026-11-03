@@ -9745,6 +9745,34 @@
      "why": ""
     },
     {
+     "available": true,
+     "id": "gpt-6.1-sol-ultrafast",
+     "label": "GPT-6.1 Sol (Ultrafast)",
+     "licence": "OpenAI API: OpenAI services agreement",
+     "models": [
+      "OpenAI API"
+     ],
+     "note": "OpenAI's fastest tier at 6x the price; smoke: 0.94 s warm vs 1.5 s standard; not yet benched for acting",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "cloud",
+     "said": "GPT-6.1 Sol (Ultrafast) in the cloud",
+     "sources": [
+      {
+       "licence": "OpenAI services agreement",
+       "title": "OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)",
+       "url": "https://openai.com/policies/services-agreement"
+      }
+     ],
+     "tier": "terms",
+     "why": ""
+    },
+    {
      "available": false,
      "id": "claude-opus-5-5",
      "label": "Claude Opus 5.5",
@@ -10042,6 +10070,76 @@
      ],
      "tier": "terms",
      "why": ""
+    },
+    {
+     "available": true,
+     "id": "gpt-6.1-sol-ultrafast",
+     "label": "GPT-6.1 Sol (Ultrafast)",
+     "licence": "OpenAI API: OpenAI services agreement",
+     "models": [
+      "OpenAI API"
+     ],
+     "note": "OpenAI's fastest tier at 6x the price; not yet on the fast bench",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "cloud",
+     "said": "GPT-6.1 Sol (Ultrafast) in the cloud",
+     "sources": [
+      {
+       "licence": "OpenAI services agreement",
+       "title": "OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)",
+       "url": "https://openai.com/policies/services-agreement"
+      }
+     ],
+     "tier": "terms",
+     "why": ""
+    },
+    {
+     "available": false,
+     "id": "claude-sonnet-5-5",
+     "label": "Claude Sonnet 5.5",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "not yet on the fast bench",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Sonnet 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
     },
     {
      "available": true,
@@ -13129,6 +13227,34 @@
      },
      "runs": "cloud",
      "said": "GPT-6.1 Sol (cloud)",
+     "sources": [
+      {
+       "licence": "OpenAI services agreement",
+       "title": "OpenAI API (GPT-Live voice, GPT vision, research, GPT Image)",
+       "url": "https://openai.com/policies/services-agreement"
+      }
+     ],
+     "tier": "terms",
+     "why": ""
+    },
+    {
+     "available": true,
+     "id": "gpt-6.1-sol-ultrafast",
+     "label": "GPT-6.1 Sol (Ultrafast)",
+     "licence": "OpenAI API: OpenAI services agreement",
+     "models": [
+      "OpenAI API"
+     ],
+     "note": "the same model on OpenAI's fastest tier, at 6x the price; for a mind that keeps up with the voice",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "cloud",
+     "said": "GPT-6.1 Sol (Ultrafast) in the cloud",
      "sources": [
       {
        "licence": "OpenAI services agreement",
