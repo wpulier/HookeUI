@@ -1713,6 +1713,7 @@ export type ClientCommand =
   | { type: 'project-start-from'; source: string | {kind: 'folder'; path: string}; name?: string }
   | { type: 'project-update-from'; session: string }
   | { type: 'project-remote-status'; session: string }
+  | { type: 'project-publish-review'; session: string; staging: string }
   | { type: 'project-backup'; session: string; destination: import('./project-backup').BackupDestination }
   | { type: 'project-backup-delete'; session: string; destination: import('./project-backup').BackupDestination }
   | { type: 'project-backup-keep'; session: string; destination: import('./project-backup').BackupDestination }
@@ -1804,6 +1805,7 @@ interface Replies {
   'project-reveal': { path: string; error?: string };
   'project-export-prepare': {export: import('./project-export').ExportPlan};
   'project-publish-prepare': {review: import('./project-publish').PublicationReview};
+  'project-publish-review': {review: import('./project-publish').PublicationReview};
   'project-publish': {published: import('./project-publish').Published; location: string};
   'project-start-from': {project: import('./project-open').OpenedProject; startedFrom: unknown};
   'project-update-from': {update: import('./project-publish').UpdateResult};

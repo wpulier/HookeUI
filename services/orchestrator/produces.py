@@ -268,6 +268,7 @@ COMMANDS = {
     "project-restore": "none: restores a backed-up Project as this Mac's Project folder, with the same identity",
     "project-backup-delete": "none: marks a backup for deletion; it stays restorable for 30 days, then is removed",
     "project-backup-keep": "none: keeps a backup that was marked for deletion",
+    "project-publish-review": "none: reads the exact publication review an agent asked the owner to publish",
     "project-record-review": "none: owner reviews whole shared Record inclusion and required space",
     "project-record-include": "none: owner explicitly copies the whole reviewed Record dataset into a Project",
     "project-record-status": "none: owner observes an admitted whole Record inclusion",

@@ -2891,7 +2891,8 @@
      "project-backup",
      "project-restore",
      "project-backup-delete",
-     "project-backup-keep"
+     "project-backup-keep",
+     "project-publish-review"
     ],
     "command": "session",
     "control": "session"

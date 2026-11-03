@@ -20,9 +20,13 @@ export interface GitHubCode {id: string; code: string; open: string; every: numb
 export interface Signoff {rights: boolean; noIdentifiableHumanData: boolean; permanent: boolean; author?: string}
 export type Destination = {kind: 'github'; create: true; name: string} | {kind: 'github'; repo: string} | {kind: 'folder'; path: string; create?: boolean};
 export interface UpdateResult {added: string[]; extended: string[]; unchanged: string[]; refused: {id: string; reason: string}[]; filesAdded: number; fileConflicts: string[]; resultsAdded?: number}
-export interface RemoteStatus {published: {destination: unknown; commit: string; snapshotSha256: string; licence: string}[]; startedFrom: unknown | null}
+/** A publication an agent asked for (door `project.publish`): prepared on this Mac, sent only by the owner. */
+export interface PublishRequest {staging: string; reviewDigest: string; byLabel?: string | null; blocked?: boolean; at?: number | null}
+export interface RemoteStatus {published: {destination: unknown; commit: string; snapshotSha256: string; licence: string}[]; startedFrom: unknown | null; publishRequests?: PublishRequest[]}
 export interface PublishActions {
   prepare(options: {includeTranscripts: boolean; licence: string; cleanMetadata: boolean}): Promise<PublicationReview>;
+  /** The exact review an agent's request prepared. */
+  requested?(staging: string): Promise<PublicationReview>;
   publish(review: PublicationReview, signoff: Signoff, destination: Destination): Promise<{published: Published; location: string}>;
   status(): Promise<RemoteStatus>;
   update(): Promise<UpdateResult>;
@@ -123,6 +127,16 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     try {
       const remote = await actions.status();
       if (!active()) return;
+      for (const request of (remote.publishRequests ?? []).slice(-3)) {
+        if (!actions.requested) break;
+        content.append(node('p', `${request.byLabel ?? 'An agent'} asked to publish this project. Nothing is sent until you review it and sign off.`));
+        button(`Review ${request.byLabel ?? 'the agent'}’s request`, async () => {
+          busy = true; controls.replaceChildren(); status.textContent = 'Reading the prepared publication…';
+          try { const r = await actions.requested!(request.staging); if (active()) show(r); }
+          catch (error) { if (active()) { status.textContent = message(error); button('Back', intro); } }
+          finally { busy = false; }
+        });
+      }
       if (remote.published.length) content.append(node('p', `Published ${remote.published.length} time${remote.published.length > 1 ? 's' : ''}. A new publication adds the latest version.`));
       if (remote.startedFrom) {
         const update = button('Update from the published version', async () => {
