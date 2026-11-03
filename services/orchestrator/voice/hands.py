@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 import re
 import inspect
 import itertools
@@ -154,18 +155,28 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         action, tab = str(args.get("action") or ""), _target_of(args.get("tab"))
         if action in ("list", ""):
             return None
-        kind_ = {"switch": "focus", "create": "open", "close": "close"}.get(action, "present")
+        kind_ = {"switch": "focus", "create": "open", "compose": "open", "close": "close", "reopen": "open"}.get(
+            action, "present")
         caption = {"switch": "Switching Tabs", "create": "Making a Tab", "close": "Closing the Tab",
-                   "rename": "Renaming the Tab", "add": "Adding it to the Tab",
+                   "reopen": "Reopening the Tab",
+                   "rename": "Renaming the Tab", "add": "Adding it to the Tab", "compose": "Setting up a Tab",
                    "arrange": "Putting them side by side", "only": "Closing the rest",
                    "specimen": SPECIMEN_CAPTIONS.get(str(args.get("specimen") or ""), "Moving the specimen"),
                    }.get(action, "Arranging Tabs")
+        if args.get("show") is False and action != "switch":
+            # Prepared quietly: the user's screen stays where it is, so no hand and no lease; its receipt is the studio's
+            # saved layout (records.py), never the screen, which does not show it until that Tab is shown.
+            return Intent(kind_, tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs",
+                          caption=f"{caption} quietly", ids=[tab] if tab else [], ui=False, check="record")
         return Intent(kind_, tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs", caption=caption,
                       ids=[tab] if tab else [])
     if tool == "show_measurements":
         tab = _target_of(args.get("tab"))
+        quiet = args.get("show") is False
         return Intent("open", tool, args, target=f"tab:{tab}" if tab else "panel:workspace-tabs",
-                      caption="Opening the table", ids=[_target_of(args.get("of"))] if args.get("of") else [])
+                      caption="Preparing the table quietly" if quiet else "Opening the table",
+                      ids=[_target_of(args.get("of"))] if args.get("of") else [],
+                      **({"ui": False, "check": "record"} if quiet else {}))
     if tool == "highlight":
         things = [str(t) for t in (args.get("things") or args.get("members") or []) if t]
         return Intent("highlight", tool, args, target=_thing_target(things[0]) if things else "panel:outlines",
@@ -319,6 +330,21 @@ def _tab_is(tab: dict | None, name: str) -> bool:
     return bool(tab) and name in (tab.get("id"), tab.get("title"))
 
 
+def tab_reply(result: dict | None) -> dict:
+    """The tabs tool's reply (the studio's saved layout after its save), as the tool's summary carries it."""
+    summary = (result or {}).get("summary")
+    try:
+        reply = json.loads(summary) if isinstance(summary, str) else {}
+    except ValueError:
+        return {}
+    return reply if isinstance(reply, dict) else {}
+
+
+def _made_tab(result: dict | None) -> str | None:
+    made = tab_reply(result).get("made")
+    return str(made["id"]) if isinstance(made, dict) and made.get("id") else None
+
+
 def _output_ids(result: dict, *kinds: str) -> list[str]:
     return [str(o.get("id")) for o in result.get("outputs") or []
             if isinstance(o, dict) and o.get("id") and (not kinds or o.get("kind") in kinds)]
@@ -336,8 +362,14 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
             return None
         if action == "switch" and ids:
             return _tab_is(front, ids[0])
+        if action == "compose":
+            # The Tab it made (the reply names it) is the one in front; its windows' arrangement is the tool's own check.
+            made = _made_tab(result)
+            return None if made is None else _tab_is(front, made)
         if action == "close" and ids:
             return not any(_tab_is(t, ids[0]) for t in facts["tabs"])
+        if action == "reopen" and ids:
+            return _tab_is(front, ids[0])  # shown: the Tab reopened is the one in front
         if action in ("create", "rename"):
             title = str(intent.args.get("title") or "").strip()
             if not title:

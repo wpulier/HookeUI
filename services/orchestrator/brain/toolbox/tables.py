@@ -127,6 +127,13 @@ def add_table_tools(registry: Registry, services) -> None:
 
         if placement is not None and placement not in PLACEMENTS:
             raise ToolFailed(f"{placement!r} is not a place for it", next="say one of: " + ", ".join(PLACEMENTS))
+        if args.get("show") is False:
+            from ...table_window import prepare
+
+            prepared = await prepare(services, ctx, target=target, revision=revision, rows=int(table['count']),
+                                     what=what, tab=tab)
+            if prepared is not None:
+                return prepared
         return await open_table(services, ctx, session=session, target=target, revision=revision,
                                 title=str(table['title']), rows=int(table['count']), what=what, tab=tab, guard=guard,
                                 placement=placement, instead=args.get("instead") is True,
@@ -145,7 +152,9 @@ def add_table_tools(registry: Registry, services) -> None:
         "screen with no live feed: \"open the table in a new tab\"), only, replace, window, "
         "close. `instead`: when the user wants it here rather than where it is open (\"instead\", \"move it\"), it moves "
         "from the Tab it is open in; otherwise it opens here too, and the answer says where else it still is. Done only "
-        "when the studio shows it; otherwise its answer says where the table is saved.",
+        "when the studio shows it; otherwise its answer says where the table is saved. `show` false with a `tab`: "
+        "prepared quietly in that Tab (made when none has it), the user's screen staying where it is; it opens when "
+        "that Tab is switched to.",
         schema({"of": {"type": "string", "description": "a population (e3) or motion item (m1); empty: the newest"},
                 "tab": {"type": "string", "maxLength": 80,
                         "description": "a Tab inside this Project to open it in, by title or id; made when none has it; "
@@ -153,5 +162,7 @@ def add_table_tools(registry: Registry, services) -> None:
                 "placement": {"type": "string", "enum": ["beside", "new-tab", "only", "replace", "window", "close"],
                               "description": "where it goes (default beside)"},
                 "instead": {"type": "boolean", "description": "move it here from the Tab it is open in, when the user "
-                                                              "wants it here rather than there"}}),
+                                                              "wants it here rather than there"},
+                "show": {"type": "boolean", "description": "false: prepare it quietly in `tab`, not brought to the "
+                                                           "front; leave out to show it"}}),
         show_measurements, kind="effect", inline_ms=4000, family="measuring"))

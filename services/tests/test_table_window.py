@@ -60,6 +60,7 @@ class TableStudio:
         self.seq, self.messages, self.tasks = 0, [], []
         self.tabs = [{'id': 'main', 'title': 'Main'}]
         self.active = 'main'
+        self.held = {}  # tab -> the saved items `tabs add` put there
         self.windows = {}  # placement -> its window
         self.hash = ''
 
@@ -134,15 +135,23 @@ class TableStudio:
     async def tabs_reply(self, message):
         """workspace-views.ts agentCommand, for the actions this test uses."""
         action = message['action']
+        made = None
         if action['action'] == 'create':
             tab = {'id': f'tab-{len(self.tabs)}', 'title': action['title']}
             self.tabs.append(tab)
-            self.active = tab['id']  # addView activates the new Tab
+            made = {'id': tab['id'], 'title': tab['title']}
+            if action.get('show') is not False:
+                self.active = tab['id']  # addView activates the new Tab, unless Hooke prepares it quietly
         elif action['action'] == 'switch':
             self.active = action['tab']
+        elif action['action'] == 'add':
+            self.held.setdefault(action['tab'], []).append(
+                {'placement': f"pl-{len(self.held.get(action['tab'], []))}", 'resource': action['item']['resource'],
+                 'presentation': action['item']['presentation']})
         result = {'ok': True, 'session': self.project, 'studioVisible': self.in_view,
                   'tabs': [{**t, 'open': True, 'selected': t['id'] == self.active, 'kind': 'work', 'omittedItems': 0,
-                            'items': []} for t in self.tabs]}
+                            'items': list(self.held.get(t['id'], []))} for t in self.tabs],
+                  **({'made': made} if made else {})}
         await self.send_report()
         await COMMANDS['workspace-tabs-result'](self.app, self, {'type': 'workspace-tabs-result', 'id': message['id'],
                                                                  'session': message['session'],

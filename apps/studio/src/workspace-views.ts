@@ -142,6 +142,10 @@ private revision=0;private generation=0;private revealSequence=0;
   * corner), not one asked for there: it goes away once something is placed in the Tab (feedAway). Kept for the session. */
  private pip?:Set<string>;
  private pips(){return this.pip??=new Set<string>();} // made on first use: test doubles built from the prototype have it too
+ private prepared?:Map<string,{action:'arrange'|'only';keep:string[]}>;
+ /** Arrangements Hooke asked for quietly on a Tab not in view ("show": false): applied when that Tab is next shown, by
+  * Hooke's switch or the person's click, so it opens already arranged. Per viewer, never saved. */
+ private preparedArrangements(){return this.prepared??=new Map();}
  private openingInput=false;
  private loaded=new Set<string>();private changing=false;private navigating=false;private dirty=false;
  private saving:Promise<void>|null=null;private timer=0;private lastSaved='';private conflict=false;
@@ -534,6 +538,7 @@ private revision=0;private generation=0;private revealSequence=0;
     for(const root of this.visibleRoots()){const item=v.items.find(n=>n.placementId===root.dataset.placementId);if(item?.position&&item.size)root.dataset.savedRect=JSON.stringify([...item.position,...item.size]);}this.loaded.add(id);
    }
   }finally{if(g===this.generation){this.changing=false;this.navigating=false;this.visibility();this.resumeReveal();}}
+  if(g===this.generation&&this.layout.active===id)this.applyPrepared(id);
   if(!initial&&(fromRow||this.focusLost()))document.getElementById?.(`work-tab-${id}`)?.focus?.({preventScroll:true});
   this.observeInput();return true;
  }
@@ -1210,6 +1215,12 @@ private revision=0;private generation=0;private revealSequence=0;
   else if(root.matches('.workspace-window')&&root.dataset.presentationId)window.dispatchEvent(new CustomEvent('workspace-place-window',{detail:{id:root.dataset.presentationId,rect:[...rect]}}));
   else studyArtifacts().place(root,rect);
  }
+ /** The arrangement prepared quietly for this Tab, now that it is in view (preparedArrangements). */
+ private applyPrepared(id:string){
+  const prepared=this.prepared?.get(id),view=this.layout.views.find(v=>v.id===id);this.prepared?.delete(id);
+  if(!prepared||!view||view.kind==='reader'||legacyResearcher(view))return;
+  try{if(prepared.action==='arrange')this.arrange();else this.only(view,prepared.keep);}catch(error){this.opts.notice(error);}
+ }
  private arrange(){this.capture();const roots=this.visibleRoots(),v=this.active();if(!v)return;const before=structuredClone(v);if(roots.length)this.feedAway(v);const rects=tileRects(roots.length+Number(v.specimen.visible),this.stage.clientWidth,this.stage.clientHeight-60);let i=0;if(v.specimen.visible){v.specimen.rect=rects[i++];this.applySpecimen();}this.changing=true;try{for(const root of roots)this.place(root,rects[i++]);}finally{this.changing=false;}for(const root of roots)delete root.dataset.savedRect;this.capture();this.undo={before,arranged:structuredClone(v)};this.changed();}
  private fit(){this.capture();const roots=this.visibleRoots(),rects=tileRects(roots.length,this.stage.clientWidth,this.stage.clientHeight-60);this.changing=true;try{roots.forEach((root,i)=>{root.dataset.savedRect=JSON.stringify(this.rect(root));this.place(root,rects[i]);});}finally{this.changing=false;}this.opts.notice('Windows fitted temporarily. Saved desktop positions are unchanged. Use Arrange to save a new arrangement.');}
  locations(id:string){return this.layout.views.filter(v=>v.items.some(i=>i.resource.id===id)||v.notes.some(n=>n.id===id)).map(v=>v.title);}
@@ -1246,7 +1257,10 @@ private revision=0;private generation=0;private revealSequence=0;
    if(this.dirty||this.conflict)throw new Error('The arrangement is not saved. Use Retry save or Review recovery.');
    await this.settle(check);if(this.busy()||document.querySelector('dialog:modal'))throw new Error('The workspace is still busy with another action.');
    const target=this.layout.views.find(v=>v.id===args.tab);let loose=false; // a move of a window the arrangement does not save
-   if(args.action!=='create'&&args.action!=='reader'&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
+   // "show": false is Hooke preparing quietly: the person's screen stays on the Tab it is on. A Tab made so is not put in
+   // front, and an arrangement asked for on a Tab not in view waits for that Tab to be shown (preparedArrangements).
+   const quiet=args.show===false;let made:string|undefined,deferred=false;
+   if(!['create','reader','compose'].includes(args.action)&&!target)throw new Error('That exact Tab is no longer available. List Tabs again.');
    if(args.action==='reader'){
     // Open in new Tab, as a person's: one saved item in a Tab of its own, the Data reader full width (an item that has
     // one goes to it). The Assistant's document opens so (orchestrator/documents.py); done once the report shows it.
@@ -1257,7 +1271,29 @@ private revision=0;private generation=0;private revealSequence=0;
     if(!await this.openReaderTab({resource:{day:resource.day,id:resource.id,version:typeof resource.version==='number'?resource.version:null},title},owner))throw new Error('Its Tab did not open. Open it from Data.');
     check();
    }else if(args.action==='create'){
-    const id=await this.addView(String(args.title).trim().slice(0,80));check();if(!id)throw new Error('No Tab was created. Check the workspace.');
+    const id=await this.addView(String(args.title).trim().slice(0,80),!quiet);check();if(!id)throw new Error('No Tab was created. Check the workspace.');
+    made=id;
+   }else if(args.action==='compose'){
+    // One Tab made, filled and arranged in one action (no list, create, add and arrange round trips): the saved items
+    // asked for, its specimen as asked (hidden when it holds something), then in front and arranged, or prepared
+    // quietly and arranged when it is shown.
+    const items=Array.isArray(args.items)?args.items as StudyRetainedView[]:[];
+    if(items.length>8||items.some(i=>!i?.resource||i.resource.day!==session||!i.resource.id))throw new Error('Choose up to 8 saved items in this Project.');
+    if(args.specimen!==undefined&&!['fill','float','hide'].includes(args.specimen))throw new Error('Say fill, float or hide for the specimen.');
+    const id=await this.addView(String(args.title??'').trim().slice(0,80),false,items.length?{visible:false,rect:null}:undefined);check();
+    const view=id?this.layout.views.find(v=>v.id===id):undefined;if(!view)throw new Error('No Tab was created. Check the workspace.');
+    for(const item of items)if(!view.items.some(i=>sameStudyResource(i.resource,item.resource)&&i.presentation===item.presentation))view.items.push({...structuredClone(item),placementId:uuid()});
+    if(items.length)this.feedAway(view);
+    if(args.specimen)this.setSpecimen(view,args.specimen);
+    this.loaded.delete(view.id);this.changed();made=view.id;
+    const arranged=items.length>0&&args.arrange!==false;
+    if(quiet){if(arranged)this.preparedArrangements().set(view.id,{action:'arrange',keep:[]});}
+    else{
+     await this.flush();check();if(this.dirty||this.conflict)throw new Error('The new Tab is not confirmed saved. Check Retry save or Review recovery.');
+     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+     if(arranged)this.preparedArrangements().set(view.id,{action:'arrange',keep:[]});
+     if(!await this.goTo(view.id,owner))throw new Error('The new Tab did not open. It is saved; switch to it.');check();
+    }
    }else if(args.action==='rename'){
     target!.title=String(args.title).trim().slice(0,80);this.changed();this.render();
    }else if(args.action==='switch'){
@@ -1267,6 +1303,22 @@ private revision=0;private generation=0;private revealSequence=0;
    }else if(args.action==='close'){
     if(this.isHome(target!.id))throw new Error('Main stays open; it holds the live input.');
     await this.closeTab(target!.id);check();if(this.openIds.includes(target!.id))throw new Error('The Tab could not close. Save or finish its work first.');
+   }else if(args.action==='reopen'){
+    // A closed Tab back where it stood, its arrangement as kept: the same reopen as the toast's Reopen, ⌘⇧T and Tabs….
+    // Quiet: back among the open Tabs, not put in front (how Hooke undoes a tidy without moving the person's screen).
+    const id=target!.id,open=this.openIds.includes(id);
+    if(quiet&&!open){
+     const closed=this.closedStack.find(c=>c.id===id);
+     this.openIds.splice(Math.min(closed?.at??this.openIds.length,this.openIds.length),0,id);
+     this.closedStack=this.closedStack.filter(c=>c.id!==id);if(this.closedId===id)this.clearReopen();this.navSave();this.render();
+     window.dispatchEvent(new CustomEvent('workspace-tab-reopened',{detail:{session:this.session,kind:'work',id}}));
+    }else if(!quiet){
+     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+     if(open){if(!await this.goTo(id,owner))throw new Error('The Tab did not come to the front. Switch to it.');}
+     else await this.reopenClosed(id);
+    }
+    check();if(!this.openIds.includes(id))throw new Error('The Tab could not reopen. Reopen it from Tabs….');
+    if(!quiet&&this.layout.active!==id)throw new Error('The Tab reopened but is not in front. Switch to it.');
    }else if(args.action==='move'){
     const source=this.layout.views.find(v=>v.id===args.from);
     loose=!!source&&!!this.looseRoot(source.id,args.placement);
@@ -1290,12 +1342,17 @@ private revision=0;private generation=0;private revealSequence=0;
     // gestures: beside is its Arrange (its windows and its specimen side by side, tiled); only closes every other
     // window through its own × and hides the specimen (Main's floats small: it always keeps it).
     if(target!.kind==='reader'||legacyResearcher(target!))throw new Error('This Tab shows one thing on its own.');
-    if(target!.id!==this.layout.active){
-     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
-     if(!await this.goTo(target!.id,owner))throw new Error('The target Tab did not open. Check its input and saved work.');check();
+    const keep=Array.isArray(args.keep)?args.keep.map(String):[];
+    if(target!.id!==this.layout.active&&quiet){
+     this.preparedArrangements().set(target!.id,{action:args.action,keep});deferred=true;
+    }else{
+     if(target!.id!==this.layout.active){
+      if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+      if(!await this.goTo(target!.id,owner))throw new Error('The target Tab did not open. Check its input and saved work.');check();
+     }
+     if(args.action==='arrange')this.arrange();
+     else this.only(target!,keep);
     }
-    if(args.action==='arrange')this.arrange();
-    else this.only(target!,Array.isArray(args.keep)?args.keep.map(String):[]);
    }else if(args.action==='add'){
     const item=args.item as StudyRetainedView;
     if(!item?.resource||item.resource.day!==session||!item.resource.id||target!.items.length>=64)throw new Error('Choose a retained resource in this Project and a Tab with room.');
@@ -1309,7 +1366,9 @@ private revision=0;private generation=0;private revealSequence=0;
    if(['add','move'].includes(args.action)&&!loose&&target!.id===this.layout.active){
     if(!await this.activate(target!.id,true))throw new Error('The placement was saved but its Tab could not reopen. Reopen it from Data.');check();
    }
-   this.render();return report();
+   this.render();
+   const tab=made?this.layout.views.find(v=>v.id===made):undefined;
+   return {...report(),...(tab?{made:{id:tab.id,title:tab.title}}:{}),...(deferred?{deferred:true}:{}),...(quiet?{quiet:true}:{})};
   }catch(error){return {ok:false,error:error instanceof Error?error.message:String(error)};}
  }
  /** One navigation row; virtual researcher tabs never enter the saved work layout. */

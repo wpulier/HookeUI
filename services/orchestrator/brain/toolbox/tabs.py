@@ -32,9 +32,27 @@ def add_tab_tools(registry, services):
         'after its arrangement save; visibility is reported separately. A measurements table in a Tab (new or not) is '
         'show_measurements with tab: one action, confirmed on screen. Anything else put in a Tab (a photo, a '
         'researcher\'s picture, a window open in another Tab), as its main item or beside, is present do=place with '
-        'tab: one action, wherever it is now.',
+        'tab: one action, wherever it is now. '
+        'reopen brings back a closed Tab (list shows it with open false) as it was kept, its arrangement and items '
+        'with it: how a close is undone. '
+        'compose makes one new Tab holding saved items (items: up to 8, by id; a population with presentation table '
+        'shows its measurements), its windows side by side: one action instead of create, add and arrange. '
+        'show false prepares quietly, for looking or getting ready while the user keeps their own view: the Tab is '
+        'made, filled, arranged or its specimen set without coming to the front, and the reply says prepared, never '
+        'shown; switch to it when the user should see it, and it opens already arranged. Leave show out when the user '
+        'asked to see it.',
         schema({'action': {'type': 'string', 'enum': ['list', 'create', 'rename', 'switch', 'add', 'move', 'close',
-                                                      'specimen', 'arrange', 'only']},
+                                                      'reopen', 'specimen', 'arrange', 'only', 'compose']},
+                'show': {'type': 'boolean',
+                         'description': 'false: prepare it quietly, not brought to the front (the user sees it when it '
+                                        'is switched to); leave out to show it'},
+                'items': {'type': 'array', 'maxItems': 8,
+                          'items': {'type': 'object', 'properties': {
+                              'id': {'type': 'string'}, 'version': {'type': 'integer'},
+                              'presentation': {'type': 'string', 'enum': ['table']}},
+                              'required': ['id'], 'additionalProperties': False},
+                          'description': 'compose: the saved items the new Tab holds'},
+                'arrange': {'type': 'boolean', 'description': 'compose: false leaves its windows where they open'},
                 'kind': {'type': 'string', 'enum': ['table', 'outlines', 'tracks', 'image', 'reference', 'document',
                                                     'graph', 'video', 'web-page', 'magnifier', 'note'],
                          'description': 'list: only the Tabs holding this kind'},
