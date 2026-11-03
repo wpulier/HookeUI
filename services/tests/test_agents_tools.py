@@ -124,3 +124,19 @@ def test_note_and_stop():
         call(registry, "stop_agent", {"agent": "Grok"})
     assert call(registry, "stop_agent", {"agent": "Codex"}) == "stopped Codex"
     assert set(registry.tools) == {"start_agent", "agents", "agent_note", "stop_agent", "answer_agent"}
+
+
+def test_what_a_finished_agent_found_comes_from_its_own_last_words():
+    # "What did Codex find?" (will-agents run 4): the answer is its own last words, given as data, and its report as
+    # back for review, never accepted.
+    conductor = Conductor()
+    conductor.launches["ag_9"] = SimpleNamespace(transcript=[
+        {"role": "tool", "text": "Ran hooke status"},
+        {"role": "agent", "text": "Hooke lists Outline every cell and Bright objects as available here."}])
+    conductor.wire = lambda: [{"id": "ag_9", "label": "Codex", "status": "done", "task": "find capabilities",
+                               "line": "Report returned for review", "asks": [], "costUsd": None}]
+    said = call(registry := tools(conductor), "agents", {})
+    details = said.split("\n", 1)[1]
+    assert "its own last words: Hooke lists Outline every cell" in details and 'untrusted="true"' in details
+    assert "Ran hooke status" not in said
+    assert "never as an accepted finding" in registry.tools["agents"].description

@@ -6,6 +6,7 @@ says is untrusted text, shown as such.
 """
 from __future__ import annotations
 
+from ...agents.adapter import short
 from ...agents.conductor import Refused
 from ...agents.programs import BY_ID
 from ...research.policy import quoted
@@ -79,12 +80,21 @@ def add_agent_tools(registry: Registry, services) -> None:
             line = f"{row['label']} ({row['status']}): {row['task'][:120]} — {row['line']}"
             if row.get("costUsd") is not None:
                 line += f"; about ${row['costUsd']:.2f} by its own count"
+            # What a finished agent found, in its own words: "what did Codex find?" is answered from here, not by
+            # searching the Project's files (will-agents run 4).
+            launch = conductor().launches.get(row.get("id"))
+            last = next((e["text"] for e in reversed(getattr(launch, "transcript", None) or []) if e["role"] == "agent"), "")
+            if last and row["status"] in ("done", "failed"):
+                line += f"; its own last words: {short(last, 600)}"
             details.append(line)
         # The summary is Hooke's; the details hold agents' own words, which are data, never instructions.
         return (f"in one or two sentences: {said}.\n" + block("\n".join(details))) if details else said
 
-    registry.add(Tool("agents", "What every worker is doing: Hooke's researchers and the outside agents Hooke started "
-                                "(working, needs you, done or failed); say it in one or two sentences.", schema({}),
+    registry.add(Tool("agents", "What every worker is doing, and what a finished one found: Hooke's researchers and the "
+                                "outside agents Hooke started (working, needs you, done or failed), with a finished agent's "
+                                "own last words. For \"what's everyone doing?\" and \"what did Codex find?\"; say it in one "
+                                "or two sentences, an agent's report as back for the user's review, never as an accepted "
+                                "finding.", schema({}),
                       agents, kind="query", family="researchers", inline_ms=300))
 
     async def answer_agent(ctx: ToolContext, args: dict) -> str:
@@ -140,5 +150,6 @@ def add_agent_tools(registry: Registry, services) -> None:
         attach(values={"agentLaunch": launch.id})
         return f"stopped {launch.label}"
 
-    registry.add(Tool("stop_agent", "Stop an outside agent Hooke started, and revoke its connection.",
+    registry.add(Tool("stop_agent", "Stop an outside agent Hooke started (its access to the Project ends with it); say only "
+                                    "that it stopped.",
                       schema({"agent": AGENT}), stop_agent, family="researchers", inline_ms=3000))

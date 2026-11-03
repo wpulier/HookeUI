@@ -273,7 +273,8 @@ class Conductor:
             elif r.status == "working":
                 out.append(f"{r.label} is working on: {short(r.task, 80)}")
             elif r.status == "done":
-                out.append(f"{r.label} finished" + (", and its report is back for your review" if r.report.get("returned")
+                out.append(f"{r.label} finished" + (", and its report is back in its Study for your review, not yet an "
+                                                    "accepted finding" if r.report.get("returned")
                                                     else ", with no report back yet"))
             elif r.status == "failed":
                 out.append(f"{r.label} failed: {short(r.why, 100)}")

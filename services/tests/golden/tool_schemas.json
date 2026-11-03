@@ -1395,7 +1395,7 @@
   }
  },
  {
-  "description": "What every worker is doing: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed); say it in one or two sentences.",
+  "description": "What every worker is doing, and what a finished one found: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed), with a finished agent's own last words. For \"what's everyone doing?\" and \"what did Codex find?\"; say it in one or two sentences, an agent's report as back for the user's review, never as an accepted finding.",
   "inline_ms": 300,
   "kind": "query",
   "name": "agents",
@@ -1462,7 +1462,7 @@
   }
  },
  {
-  "description": "Stop an outside agent Hooke started, and revoke its connection.",
+  "description": "Stop an outside agent Hooke started (its access to the Project ends with it); say only that it stopped.",
   "inline_ms": 3000,
   "kind": "effect",
   "name": "stop_agent",
