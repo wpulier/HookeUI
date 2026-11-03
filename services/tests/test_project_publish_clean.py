@@ -198,3 +198,23 @@ def test_metadata_after_the_first_chunk_is_cleaned_and_the_copy_still_starts_fro
     source, theirs = read(ProjectStore(document_root(working)), ProjectRepository(working).read(saved.id, 1),
                           root.session)
     assert b'Ada Researcher' not in theirs and pixels(theirs) == pixels(original) and source.cleaned
+
+
+def test_a_started_project_republishes_a_cleaned_photo_as_it_is(tmp_path):
+    """Live test, ticket 13: a copy holds the cleaned photo without the original's bytes; publishing the copy keeps
+    that cleaned copy rather than failing to read the original."""
+    root, *_ = project(tmp_path)
+    original = photo()
+    saved = imported(root, original, 'bench-photo.jpg')
+    review = prepare(lambda d: copy_snapshot(root, d), tmp_path / 'Review')
+    remote = folder_remote(tmp_path / 'Public', create=True)
+    publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote)
+    working, _, _ = start_from(remote, elsewhere(tmp_path)[3], staging=tmp_path / 'Fetch')
+    again = prepare(lambda d: copy_snapshot(working, d), tmp_path / 'Review again')
+    assert not again['blocked'] and again['cleanedFiles'] == 0
+    assert not any(f['kind'].startswith('metadata-') for f in again['findings'])
+    second = folder_remote(tmp_path / 'Public again', create=True)
+    publish(again['staging'], review_digest=again['reviewDigest'], signoff=SIGNOFF, remote=second)
+    later, _, _ = start_from(second, elsewhere(tmp_path, name='Third Mac', session='2026-11-04')[3], staging=tmp_path / 'F2')
+    _, theirs = read(ProjectStore(document_root(later)), ProjectRepository(later).read(saved.id, 1), root.session)
+    assert pixels(theirs) == pixels(original) and b'Ada Researcher' not in theirs

@@ -9,7 +9,9 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-folder details { border-top: 1px solid var(--mm-line); padding-top: 16px; color: var(--mm-text-2); }
 .project-folder details p { margin-top: 12px; }
 .project-folder summary { cursor: pointer; }
-.project-folder-status { font-size: 13px; line-height: 1.5; }
+.project-folder-status { font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+/* A long location or a refusal naming one wraps; nothing in the window widens it past its edge. */
+.project-folder-body > *, .project-folder-body p, .project-folder-body li { min-width: 0; overflow-wrap: anywhere; }
 .project-folder-status:empty { display: none; }
 .project-folder footer { margin-top: 24px; display: flex; justify-content: flex-end; }
 .project-folder button { appearance: none; display: inline-flex; justify-content: center; align-items: center; min-height: 36px; padding: 8px 14px; border: 1px solid var(--mm-line-strong); border-radius: var(--mm-r-button); font: inherit; font-size: 14px; line-height: 1.25; color: var(--mm-text); background: var(--mm-raise); cursor: pointer; }
