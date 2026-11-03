@@ -197,8 +197,7 @@ class ActionRunner:
                             acted = getattr(prerequisite, "acting", None)
                             if acted is not None and not acted.done():
                                 await asyncio.wait([acted])  # its receipt, not only its run (brain/acting.py)
-                            receipt = getattr(prerequisite, "receipt", None) or {}
-                            if prerequisite.ok is not True or receipt.get("result") in ("failed", "uncertain"):
+                            if prerequisite.ok is not True:
                                 reason = f"step {n} skipped: dependency {number} did not succeed"
                                 break
                     if request is not None and (request.closed or request.expired() or request.superseded("session")):

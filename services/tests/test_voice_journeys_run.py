@@ -555,3 +555,19 @@ def test_the_judge_is_shown_what_the_voice_pointed_at():
     told = {f["id"]: f for f in facts(bench, conv, inter)}
     assert any("pointed: a mark drawn on tab:Measurements" in a for a in told["table"]["actions"])
     assert not any("pointed" in a for a in told["outline"]["actions"]), "only the step's own marks"
+
+
+def test_a_stack_waits_for_its_ports_and_says_which_are_still_taken():
+    import socket
+
+    from bench.voice_journeys.stack import ports_free
+
+    held = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    held.bind(("127.0.0.1", 0))
+    held.listen()
+    port = held.getsockname()[1]
+    try:
+        assert ports_free([port], wait=0.0) == [port]
+    finally:
+        held.close()
+    assert ports_free([port], wait=0.0) == []

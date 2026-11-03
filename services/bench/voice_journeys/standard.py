@@ -41,7 +41,7 @@ THINK = "think"
 # The scorer's version, recorded with every result: a kept run rescored by the same version gives the same result
 # (hooke-web part-2.5-live-partner-spec.md, section 2 "The rescore is a warning about the gate itself"). Raise it with
 # any change to what is scored.
-SCORER_VERSION = "2026-10-29.4"
+SCORER_VERSION = "2026-11-03.1"
 
 # The standard's numbers (live-partner-contract.md "The acceptance standard", sharpened by the spec's section 1). One place, so the scoreboard and the tests
 # read the same thresholds.
@@ -615,6 +615,10 @@ def backed(receipt: dict, calls: list[Call], bench: dict) -> bool:
     tool = receipt.get("tool")
     mine = [c for c in calls if c.name == tool and c.start <= receipt["t"] + NEAR_S]
     if receipt.get("intent") in VISIBLE_INTENTS or any(c.screen_change for c in mine):
+        if receipt.get("job"):
+            # A hand-off's step: its call is the hand-off row's step, settled when the row was (after the receipt), and
+            # confirmed only when the studio showed it (not STUDIO_UNREPORTED: `_unseen`); a failed step is never that.
+            return any(c.confirmed_at is not None and c.ok is True for c in mine)
         return any(c.confirmed_at is not None and c.confirmed_at <= receipt["t"] + 1.0 for c in mine)
     for c in mine:
         if c.ok is True and state_backed(c, bench) is not None:
@@ -845,7 +849,11 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         # A researcher this step started says its own result when it lands, once (its event): that is the researcher's
         # outcome, not this request's a second time (will-research, 30 Oct: "Researcher 2 is testing five classifiers"
         # then, 150 s later, "Researcher 2 finished the comparison…" counted as the start said twice).
-        theirs = [x for rid in started for x in (bench.get("_outcomes") or {}).get(rid, [])]
+        # Any researcher's, not only one this step started: its result landing during a later step is its own news, not
+        # that step's outcome said again (will-drive, 3 Nov: "Researcher 1 finished…" counted as the zoom said twice).
+        own = {c.call_id for c in acting if c.call_id}  # this step's own calls: a slow tool's outcome is still its own
+        theirs = [x for key, spans in (bench.get("_outcomes") or {}).items() if key in started or key not in own
+                  for x in spans]
         firsts = [l for l in outcome_lines if not l.get("again") and not any(a <= l["first"] <= b for a, b in theirs)]
         said_lines = len(firsts) if firsts else min(len(outcome_lines), 1)
         row["outcomesSaid"] = said_lines if visible_at is not None or expect.get("fails") else None
@@ -1059,10 +1067,16 @@ def drive(inter: list[dict], bench: dict) -> dict:
     sent = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive"}
     ended = {(e.get("m") or {}).get("id") for e in bench["events"] if e.get("e") == "ws-in" and (e.get("m") or {}).get("type") == "drive-end"}
     receipted = {h.get("driveId") for h in hands if h.get("result") in RECEIPTS}
+    # A hand-off's steps (Plan.job): never dropped because the user spoke again, and a step after another of the same
+    # hand-off never fails on a screen that changed (it waits for the earlier one's receipt; brain/acting.py).
+    steps = [h for h in hands if h.get("job")]
+    dropped = [h for h in steps if str(h.get("error") or "").startswith("not done: the user started speaking")]
+    changed = [h for h in steps if str(h.get("error") or "").startswith("the screen changed before it ran")]
     return {"cues": len(drives), "cueFirst": len(first), "notShown": [r.get("why") for r in drives if not r.get("ok")],
             "unreceipted": sum(1 for r in drives if r.get("id") not in receipted),
             "invalidReceipts": sum(1 for h in hands if h.get("result") not in RECEIPTS or "expected" not in h),
             "takeovers": len(takeovers), "takeoverS": ways, "staleAfterTakeover": len(stale),
+            "handoffSteps": len(steps), "droppedByTalk": len(dropped), "screenChanged": len(changed),
             "unended": len(sent - ended) if sent else None,
             "results": {k: sum(1 for h in hands if h.get("result") == k) for k in ("verified", "failed", "uncertain", "running")}}
 
@@ -1436,7 +1450,8 @@ def summarise(runs: list[dict]) -> dict:
         "doInHooke": {"calls": fallback, "of": calls, "share": round(fallback / calls, 3) if calls else None},
         "think": think_share([r for r in steps if r["toolSource"] == "partner"]),
         "drive": {k: sum((run.get("drive") or {}).get(k, 0) for run in runs)
-                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover", "unreceipted", "invalidReceipts")}
+                  for k in ("cues", "cueFirst", "takeovers", "staleAfterTakeover", "unreceipted", "invalidReceipts",
+                            "handoffSteps", "droppedByTalk", "screenChanged")}
                  | {"takeoverMax": max((w for run in runs for w in (run.get("drive") or {}).get("takeoverS", [])), default=None),
                     "unended": sum((run.get("drive") or {}).get("unended") or 0 for run in runs),
                     "verified": sum(((run.get("drive") or {}).get("results") or {}).get("verified", 0) for run in runs),
@@ -1612,6 +1627,15 @@ def scoreboard(s: dict, voice: str | None = None) -> list[dict]:
                    False if dv.get("staleAfterTakeover") or (dv.get("cues") and dv["cueFirst"] < dv["cues"])
                    else True if measured else None,
                    "no takeover in the run" if dv.get("cues") and not dv.get("takeovers") else ""))
+    hs = dv.get("handoffSteps") or 0
+    L.append(_line("Acting", "Work handed over keeps going when you talk",
+                   f"hand-off steps dropped because you spoke {dv.get('droppedByTalk', 0)} of {hs}" if hs else "—",
+                   "0", None if not hs else not dv.get("droppedByTalk"),
+                   "no hand-off steps through Hands" if not hs else ""))
+    L.append(_line("Acting", "Steps after steps",
+                   f"hand-off steps failed on a screen that changed {dv.get('screenChanged', 0)} of {hs}" if hs else "—",
+                   "0", None if not hs else not dv.get("screenChanged"),
+                   "no hand-off steps through Hands" if not hs else ""))
     L.append(_line("Acting", "Receipts",
                    f"actions without a receipt {dv.get('unreceipted', 0)} of {dv.get('cues', 0)}; receipts without a checked "
                    f"result {dv.get('invalidReceipts', 0)} of {dv.get('hands', 0)}" if dv.get("cues") or dv.get("hands") else "—",

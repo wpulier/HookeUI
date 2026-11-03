@@ -32,7 +32,9 @@ page.on('console', (message) => { if (message.type() === 'error') problems.push(
 // A takeover while the partner acts (the Drive line): the person's own mouse or Escape, trusted.
 await page.exposeFunction('__benchTakeover', async (how) => {
   if (how === 'escape') await page.keyboard.press('Escape');
-  else { await page.mouse.move(700, 450); await page.mouse.move(760, 490, { steps: 6 }); }
+  // A pointer only moving is no takeover since 29 Oct (drive.ts Takeover: a press, a scroll or Escape is): the hand on
+  // the mouse also scrolls one notch.
+  else { await page.mouse.move(700, 450); await page.mouse.move(760, 490, { steps: 6 }); await page.mouse.wheel(0, 1); }
   return Date.now();
 });
 await page.exposeFunction('__benchKey', async (down) => {

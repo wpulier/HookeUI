@@ -162,8 +162,37 @@ def start_app(stack: dict, out: Path) -> int:
     return app.pid
 
 
+PORT_FREE_S = 60.0  # how long a stack waits for its ports to be let go (a stack before it still shutting down)
+
+
+def ports_free(ports, wait: float = PORT_FREE_S, clock=time.monotonic, sleep=time.sleep) -> list[int]:
+    """The ports still taken after `wait` seconds (none: free to start). A run that started while the run before it was
+    still letting go of its ports failed with 'address already in use' and recorded nothing (30 Oct, 3 Nov)."""
+    import socket
+
+    def taken(port: int) -> bool:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                sock.bind(("127.0.0.1", port))
+            except OSError:
+                return True
+            return False
+
+    until = clock() + wait
+    while True:
+        busy = [p for p in ports if taken(p)]
+        if not busy or clock() >= until:
+            return busy
+        sleep(1.0)
+
+
 def up(args: argparse.Namespace) -> dict:
     checkout, out = Path(args.checkout).resolve(), Path(args.out).resolve()
+    busy = ports_free([args.port, args.bridge_port])
+    if busy:
+        raise SystemExit(f"ports {busy} are still in use after {PORT_FREE_S:.0f} s (another stack?): choose others with "
+                         "--port and --bridge-port")
     plan = load_plan(args.plan)
     for sub in ("home", "recordings", "datasets", "footage"):
         (out / sub).mkdir(parents=True, exist_ok=True)

@@ -244,6 +244,20 @@ class HandOffActing:
         self.tools, self.job, self.approved = tools, job, approved or None
         self.receipts: list[dict] = []
         self.asks: list[dict] = []  # permissions Hands asked (a paid model, a long researcher run): the voice asks once
+        self.holding = False  # the lease, from its first step on Hooke's UI to its end (Hands.hold)
+        # The takeovers (mouse, Escape) before it began: one after that ends the hand-off's UI steps, whatever look each
+        # step plans against.
+        self.hard_epoch = tools.hands.hard_epoch if tools.hands is not None else 0
+
+    def plan(self):
+        plan = self.tools.hands.plan(None, job=self.job)
+        plan.hard_epoch = self.hard_epoch
+        return plan
+
+    async def close(self) -> None:
+        if self.holding:
+            self.holding = False
+            await self.tools.hands.let_go()
 
     def intent(self, tool: str, args: dict):
         return self.tools.intent(tool, args)
@@ -254,6 +268,9 @@ class HandOffActing:
         tools, hands = self.tools, self.tools.hands
         intent = tools.intent(run.tool, args)
         holder = user_stop.Stop() if intent is not None and intent.ui and not intent.background else None
+        if intent is not None and intent.ui and not self.holding and hands._own_job(self.plan()):
+            self.holding = True
+            await hands.hold()
 
         async def effect() -> dict:
             before = tools._reported_at()
@@ -271,7 +288,7 @@ class HandOffActing:
             return result
 
         action = getattr(getattr(run, "occurrence", None), "action_id", None)
-        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=hands.plan(None, job=self.job),
+        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=self.plan(),
                                   stop=holder.stop if holder is not None else None, intent=intent,
                                   approved=self.approved)
         kept = {k: v for k, v in receipt.items() if not k.startswith("_")}
@@ -288,9 +305,13 @@ class HandOffActing:
                 reason = str(kept.get("error") or kept.get("note") or "not done")
             skip(reason[:300])
             await asyncio.wait([run.task])
-        elif kept.get("result") == "failed" and run.ok is not False:
-            # The tool said it worked, Hooke's state says not: the receipt is what happened.
-            run.ok, run.summary = False, str(kept.get("said") or kept.get("error") or run.summary)[:600]
+        elif kept.get("result") in ("failed", "uncertain") and run.ok is True:
+            # The tool's own work happened (its outputs exist, so the steps after it that use them still run), but the
+            # screen does not confirm it: its summary says so, so the answer never claims it shows, and the voice says
+            # the receipt (will-drive, 3 Nov: a find whose outlines the Tab in front hid failed its receipt, and the
+            # measurement and zoom after it were skipped where the zoom would have brought its Tab forward).
+            why = str(kept.get("said") or kept.get("error") or "not confirmed on screen")
+            run.summary = f"{run.summary} (not confirmed on screen: {why})"[:800]
         run.receipt = kept
         self.receipts.append({"name": run.tool, **kept})
         return kept
@@ -1470,6 +1491,8 @@ class PartnerTools:
             if delegation is not None:
                 result = await self._handoff_landed(result, self._late_of[delegation], request)
         finally:
+            if bridge is not None:
+                await bridge.close()  # the lease it held through its steps
             if delegation is not None:
                 self._late_of.pop(delegation, None)
             if request is not None:
@@ -1485,8 +1508,18 @@ class PartnerTools:
         uncertain = [a.get("tool") for a in standing[:8]
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
         if bridge is not None:
-            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone.
-            for r in bridge.receipts:
+            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone. A failure a
+            # later call of the same tool made good (the brain called it again, rightly: will-drive, 3 Nov, turn_on with
+            # the job's name after a refusal that listed them) is no failure of the request.
+            made_good: dict[str, int] = {}  # each tool's last call that did not fail ("later" is the kept step's words)
+            for i, r in enumerate(bridge.receipts):
+                if r.get("result") != "failed":
+                    made_good[r["name"]] = i
+            standing_receipts = [r for i, r in enumerate(bridge.receipts)
+                                 if not (r.get("result") == "failed" and made_good.get(r["name"], -1) > i)]
+            failed = [f for f in failed if not any(f.startswith(f"{r['name']}:") for r in bridge.receipts
+                                                    if r.get("result") == "failed" and r not in standing_receipts)]
+            for r in standing_receipts:
                 said_ = f"{r['name']}: {r.get('said') or r.get('error') or r.get('result')}"
                 if r.get("result") == "failed" and said_ not in failed:
                     failed.append(said_)
@@ -1495,7 +1528,7 @@ class PartnerTools:
                 # "running" (a researcher started, a capability on its way) is a start that happened: its words are in
                 # the receipts, and its finish is told when it lands.
             out_receipts = [{"tool": r["name"], "result": r.get("result"), "said": r.get("said")}
-                            for r in bridge.receipts][:8]
+                            for r in standing_receipts][:8]
         else:
             out_receipts = []
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),

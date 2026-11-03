@@ -1,0 +1,219 @@
+{
+ "id": "will-drive",
+ "about": "Will, 3 Nov: \"The main thing is DRIVING the Hooke app: activating capabilities, creating and organizing tabs, activating researchers, workflows, and helping you do research.\" Every request is handed to Hooke's brain and acted through Hands (HANDOFF_ACTS hands): Hooke's cursor shows each step, and each ends in a receipt from Hooke's state, so false \"done\" is measured. It covers Tabs made, used and renamed (a later step names the Tab an earlier one made, and waits for its receipt), a capability turned on from its card (Spot look-alikes), a researcher started, asked about, steered and stopped, a request spoken while a hand-off still works (talking again never drops it), a multi-step request, and a mouse takeover. Compare acting models with --settings '{\"fast\": ...}' on the same commit and judge.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "new-tab",
+   "kind": "act",
+   "say": "Make a new tab called Stomata.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "tabs"
+    ],
+    "judge": "acknowledges at once in a few words, makes a Tab named Stomata, shows Hooke's cursor on it while it does, and says it is made once, from the studio's confirmation",
+    "outcome": true,
+    "visible": "a Tab named Stomata in the strip, in front"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "outline-there",
+   "kind": "act",
+   "say": "Go back to main and outline every cell.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "tabs",
+     "outline_cells"
+    ],
+    "judge": "brings Main to the front, then outlines every cell on the live view, says how many once, and never says it before the outlines show",
+    "outcome": true,
+    "visible": "Main in front, every cell outlined"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "table-into-tab",
+   "kind": "act",
+   "say": "Put their measurements in the Stomata tab, next to the picture.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "show_measurements",
+     "present",
+     "tabs"
+    ],
+    "judge": "puts the measurements table in the Stomata Tab beside the picture and says so once; the Tab it names is the one made earlier",
+    "outcome": true,
+    "visible": "the measurements table in the Stomata Tab, beside the picture"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "rename",
+   "kind": "act",
+   "say": "Rename that tab to Leaf measurements.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "tabs"
+    ],
+    "judge": "renames the Tab just used (not another) to Leaf measurements and says so once",
+    "outcome": true,
+    "visible": "the Tab once called Stomata now named Leaf measurements"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "whats-off",
+   "kind": "ask",
+   "say": "What capabilities aren't turned on yet?",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "models",
+     "capabilities"
+    ],
+    "judge": "answers from Hooke's own catalog in one or two sentences, naming one or two that are off here and what each needs, never a promise",
+    "toolRequired": false
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "turn-on",
+   "kind": "act",
+   "say": "Turn on Spot look-alikes.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "models"
+    ],
+    "judge": "turns the capability on (or says exactly what step of the user's it waits for), from its card's state, never that it is on before the card says so",
+    "outcome": true
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "researcher",
+   "kind": "act",
+   "say": "Start a researcher to find out what normal stomata density is for a leaf like this.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "start_researcher"
+    ],
+    "judge": "starts one researcher at once, says its number and that it is working, and never that it has finished",
+    "outcome": true,
+    "researchers": 1
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "talk-over",
+   "kind": "act",
+   "say": "Meanwhile, zoom in on the biggest stoma.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "zoom",
+     "find"
+    ],
+    "judge": "while the researcher works, opens a close-up of the biggest outlined stoma and says so once; the researcher is not stopped or forgotten",
+    "outcome": true,
+    "visible": "a close-up of one large stoma"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4",
+   "interrupt": {
+    "afterMs": 1200
+   }
+  },
+  {
+   "id": "status",
+   "kind": "ask",
+   "say": "What's the researcher doing?",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "research_status"
+    ],
+    "judge": "says in one sentence what that researcher is doing now, naming it by its number, or, when its record says it has finished, that it finished and what it found; never one when the record says the other",
+    "toolRequired": false
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "note",
+   "kind": "act",
+   "say": "Tell it to focus on monocots.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "researcher_note",
+     "researcher_followup"
+    ],
+    "judge": "passes the focus on to that researcher (a note while it works, a follow-up question once it has finished) and says it has it, from the researcher's record",
+    "outcome": true
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "multi",
+   "kind": "act",
+   "say": "Open a new tab called Notes, write up what we've measured so far in it, then go back to main.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "tabs",
+     "write_document",
+     "present"
+    ],
+    "judge": "makes the Notes Tab, writes a short document of the measured numbers into it, then brings Main to the front, and says what it did once at the end",
+    "outcome": true,
+    "visible": "a Notes Tab holding a document of the measurements, and Main in front"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "take-over",
+   "kind": "act",
+   "say": "Outline every cell again, then colour them by size.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "outline_cells",
+     "present",
+     "highlight"
+    ],
+    "judge": "the user pressed Escape while it was acting: it stops at once, says so in a few words, and does nothing more of the request",
+    "takeover": true,
+    "toolRequired": false
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4",
+   "takeover": {
+    "how": "escape",
+    "afterMs": 300
+   }
+  },
+  {
+   "id": "cancel",
+   "kind": "act",
+   "say": "Actually, stop the researcher.",
+   "expect": {
+    "tools": [
+     "do_in_hooke",
+     "cancel_researcher",
+     "stop_work"
+    ],
+    "judge": "stops that researcher and says it is stopped only once its record says so; when it has already finished, says that plainly in one sentence, with nothing unrelated added",
+    "outcome": true
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

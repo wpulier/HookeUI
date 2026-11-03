@@ -67,9 +67,12 @@ def test_each_step_waits_for_the_previous_steps_receipt():
     asyncio.run(scenario())
 
 
-def test_a_step_after_one_whose_receipt_failed_or_is_uncertain_is_skipped():
+def test_a_step_after_a_failed_step_is_skipped_but_one_after_an_unconfirmed_step_runs():
+    """A dependent step needs its prerequisite's work, not its picture: a step that failed skips it; a step whose work
+    happened but the screen did not confirm (uncertain) does not (will-drive, 3 Nov: the zoom after a find hidden by
+    the Tab in front was skipped, where it would have brought its Tab forward)."""
     async def scenario():
-        for kind in ("failing", "uncertain"):
+        for kind, expected in (("failing", ["flaky", "plain"]), ("uncertain", ["flaky", "after_flaky", "plain"])):
             entered = []
             runner, ctx, ticket, _ = rig(_handlers(entered))
             bridge = Bridge(**{kind: ["flaky"]})
@@ -81,8 +84,9 @@ def test_a_step_after_one_whose_receipt_failed_or_is_uncertain_is_skipped():
                         {"tool": "plain", "args": {}}]), ctx)
                     await settled(runs)
                     await asyncio.wait([r.acting for r in runs if r.acting is not None])
-                assert entered == ["flaky", "plain"], kind  # the tool said it worked; Hooke's state decides
-                assert runs[1].ok is False and "dependency 1" in runs[1].summary
+                assert entered == expected, kind
+                if kind == "failing":
+                    assert runs[1].ok is False and "dependency 1" in runs[1].summary
             finally:
                 ticket.close()
     asyncio.run(scenario())
@@ -180,6 +184,62 @@ def test_a_step_hands_ends_before_it_runs_is_settled_with_its_reason():
             assert receipt["result"] == "ask" and entered == []  # asked, never guessed; nothing was run
             assert runs[0].ok is False and "Stomata 1" in runs[0].summary and "Stomata 2" in runs[0].summary
             assert bridge.receipts[0]["name"] == "tabs"
+        finally:
+            ticket.close()
+    asyncio.run(scenario())
+
+
+def test_a_handoffs_steps_are_logged_with_their_job():
+    """The journeys count hand-off steps (bench/voice_journeys/standard.py drive) from this field."""
+    async def go():
+        screen = {"now": report(front="main")}
+        hands, _, logged = make(screen)
+
+        async def effect():
+            screen["now"] = report(front="Measurements", seq=8)
+            return {"ok": True}
+        await hands.act("tabs", {"action": "switch", "tab": "Measurements"}, effect, plan=hands.plan(None, job="handoff:h9"))
+        record = next(r for r in logged if r["kind"] == "partner-hands")
+        assert record["job"] == "handoff:h9" and record["result"] == "verified"
+    asyncio.run(go())
+
+
+def test_a_mouse_takeover_between_a_handoffs_steps_ends_the_rest():
+    """The hand-off holds the lease through its steps, so moving the mouse between two of them is a takeover the server
+    hears (will-drive, 3 Nov: nothing reached it), and the steps after it are not done."""
+    async def scenario():
+        screen = {"now": report(front="main", tabs=("main", "Measurements", "Stomata"))}
+        hands, studio, _ = make(screen)
+        tools = type("Tools", (), {})()
+        tools.hands, tools.intent, tools._result = hands, (lambda name, args: intent_of(name, args)), PartnerTools._result
+        tools._reported_at = lambda: 0.0
+
+        async def report_after(before):
+            return None
+        tools.report_after = report_after
+        entered = []
+
+        async def switch(ctx, args):
+            entered.append(args["tab"])
+            screen["now"] = report(front=args["tab"], tabs=("main", "Measurements", "Stomata"), seq=8 + len(entered))
+            return "switched"
+        runner, ctx, ticket, _ = rig({"tabs": switch})
+        bridge = HandOffActing(tools, "handoff:h5")
+        try:
+            with using(ticket), acting(bridge):
+                first = await runner.run(parse_actions([{"tool": "tabs", "args": {"action": "switch",
+                                                                                  "tab": "Measurements"}}]), ctx)
+                await settled(first)
+                await asyncio.wait([first[0].acting])
+                assert hands.owner == "partner", "the lease is held between the hand-off's steps"
+                await hands.takeover({"why": "mouse", "version": hands.version})
+                second = await runner.run(parse_actions([{"tool": "tabs", "args": {"action": "switch",
+                                                                                   "tab": "Stomata"}}]), ctx)
+                await settled(second)
+                await asyncio.wait([second[0].acting])
+            assert entered == ["Measurements"] and second[0].ok is False and TOOK_OVER in second[0].summary
+            await bridge.close()
+            assert hands.owner == "user"
         finally:
             ticket.close()
     asyncio.run(scenario())
