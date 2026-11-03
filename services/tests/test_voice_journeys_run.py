@@ -229,9 +229,10 @@ def test_part_two_and_a_half_covers_the_journey_and_its_second_pass():
 def test_words_are_said_once_and_kept(tmp_path, monkeypatch):
     said = []
 
-    def fake(cmd, check):
+    def fake(cmd, check, timeout=None):
         said.append(cmd[0])
         if cmd[0] == "say":
+            assert timeout == stack.SAY_S, "a hung say gives up instead of stalling the run for hours"
             Path(cmd[4]).write_bytes(b"aiff")
         else:
             Path(cmd[-1]).write_bytes(b"wav")
@@ -241,6 +242,19 @@ def test_words_are_said_once_and_kept(tmp_path, monkeypatch):
     stack.words(plan, tmp_path)
     stack.words(plan, tmp_path)
     assert said.count("say") == 2 and sorted(p.name for p in tmp_path.glob("*.wav")) == ["looking.wav", "outline.wav"]
+
+
+def test_a_hung_say_is_tried_again_then_said_plainly(tmp_path, monkeypatch):
+    tries = []
+
+    def hangs(cmd, check, timeout=None):
+        tries.append(timeout)
+        raise stack.subprocess.TimeoutExpired(cmd, timeout)
+
+    monkeypatch.setattr(stack.subprocess, "run", hangs)
+    with pytest.raises(RuntimeError, match="hung 3 times"):
+        stack.say("Samantha", tmp_path / "x.aiff", "hello")
+    assert tries == [stack.SAY_S] * 3
 
 
 def test_harness_and_driver_parse():
