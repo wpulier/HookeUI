@@ -42,6 +42,10 @@ class Member:
     stamp: tuple
 
 
+# A temporary file of an agent operation's record while it is written: never part of a Project, and gone a moment later.
+TRANSIENT = re.compile(r'history/operations/\.[^/]+\.json\.[0-9a-f]{12}\.tmp')
+
+
 def _members(root, check, directories=None):
     found = []
     directories = [] if directories is None else directories
@@ -49,10 +53,12 @@ def _members(root, check, directories=None):
         check()
         if depth > MAX_DEPTH:
             raise ProjectLocationError('Project folders exceed the supported nesting depth; reorganize working files before collection')
-        info = path.lstat()
         relative = path.relative_to(root).as_posix()
         if relative in EXCLUDED or re.fullmatch(r'artifacts/records/p[0-9a-f]{32}/\.write\.lock', relative):
             return
+        if TRANSIENT.fullmatch(relative):
+            return  # an operation record's own temporary file (door/operations._write), renamed into place any moment
+        info = path.lstat()
         if stat.S_ISDIR(info.st_mode):
             directories.append(relative)
             if len(directories) > MAX_FILES:

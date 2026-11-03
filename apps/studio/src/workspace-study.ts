@@ -1367,7 +1367,8 @@ function projectPublishActions(session: string): PublishActions {
   return {
     prepare: async options => { const r = await bridge.request('project-publish-prepare', {session, ...options}); if (!r.review) throw new Error(r.error ?? 'The publication could not be prepared.'); return r.review; },
     publish: async (review, signoff, destination) => { const r = await bridge.request('project-publish', {session, staging: review.staging, reviewDigest: review.reviewDigest, signoff, destination}); if (!r.published) throw new Error(r.error ?? 'The publication was not sent.'); return {published: r.published, location: r.location ?? ''}; },
-    status: async () => { const r = await bridge.request('project-remote-status', {session}); return {published: r.published ?? [], startedFrom: r.startedFrom ?? null}; },
+    status: async () => { const r = await bridge.request('project-remote-status', {session}); return {published: r.published ?? [], startedFrom: r.startedFrom ?? null, publishRequests: r.publishRequests ?? []}; },
+    requested: async staging => { const r = await bridge.request('project-publish-review', {session, staging}); if (!r.review) throw new Error(r.error ?? 'That prepared publication is no longer here.'); return r.review; },
     update: async () => { const r = await bridge.request('project-update-from', {session}); if (!r.update) throw new Error(r.error ?? 'The update could not be fetched.'); return r.update; },
     github: {
       status: async () => { const r = await bridge.request('github-signin', {do: 'status'}); return {setUp: r.setUp === true, signedIn: r.signedIn === true, says: String(r.says ?? '')}; },

@@ -28,9 +28,18 @@ SCHEMAS = {
     'material.organize': {'reference': {'$ref': 'artifact-reference.schema.json'}, 'role': {'type': 'string', 'maxLength': 80}, 'input': {'type': 'boolean'}, 'expectedRevision': {'type':'integer','minimum':0}},
     'project.import': {'file': {'type': 'string', 'minLength': 1}},
     'artifact.read': {'reference': {'$ref': 'artifact-reference.schema.json'}, 'offset': {'type':'integer','minimum':0}, 'length': {'type':'integer','minimum':1,'maximum':65536}},
+    # Remotes (ADR 0028, hooke-projects ticket 09). A backup goes only where the owner already backs this Project up;
+    # a publication is prepared for the owner, who reviews it and signs off in Hooke. Neither picks a destination.
+    'project.remote.status': {},
+    'project.remote.backup': {'to': {'type': 'string', 'minLength': 1, 'maxLength': 300}},
+    'project.publish': {'licence': {'type': 'string', 'enum': ['CC-BY-4.0', 'CC0-1.0']},
+                        'includeTranscripts': {'type': 'boolean'}},
 }
 
-REQUIRED = {'artifact.read': ['reference'], 'project.state': []}  # every other action's fields are all required
+REQUIRED = {'artifact.read': ['reference'], 'project.state': [], 'project.remote.backup': [],
+            'project.publish': []}  # every other action's fields are all required
+WRITES = ('project.import', 'material.organize', 'project.export', 'study.coordinate', 'project.remote.backup',
+          'project.publish')
 
 
 def descriptors(build):
@@ -46,7 +55,7 @@ def authorize(built, name, project, actor):
     if name not in SCHEMAS or not agent_runnable.door_resource(name):
         raise Refused(403, 'action-not-admitted', 'This action is not declared for agents.', next='discover available tools')
     if name not in ('project.create', 'project.list', 'research.instructions'):
-        access(built).require(project, actor, write=name in ('project.import', 'material.organize', 'project.export', 'study.coordinate'))
+        access(built).require(project, actor, write=name in WRITES)
 
 
 def _summary(built, project, actor):
@@ -56,6 +65,70 @@ def _summary(built, project, actor):
     result = {'session': project, 'name': owner.name, 'role': role, 'localOnly': owner.local_only}
     check(result, 'project-reference')
     return result
+
+
+def _folder(built, project):
+    locations = getattr(built.day, 'locations', None)
+    root = locations.project(project) if locations is not None else None
+    if root is None:
+        raise Refused(409, 'not-a-project-folder', 'Only a Project folder can be backed up or published.',
+                      next='ask the owner to move this Project into a Project folder')
+    return root
+
+
+def _place(entry, to):
+    """Whether a recorded backup is the one named by `to`: its folder, or its GitHub repository."""
+    records = entry['destination']['records']
+    if records.get('kind') == 'folder':
+        return records.get('base') == to
+    return str(records.get('location', '')).lower().removeprefix('https://github.com/') == to.lower().removeprefix('github.com/')
+
+
+def _remote_backup(built, record):
+    from ..project_backup import backups
+    from ..project_remote_commands import back_up_now, backup_summary, source_of
+    from ..project_repository import ProjectRepository
+    project, actor, to = record['project'], record['by'], record['params'].get('to')
+    access(built).require(project, actor, write=True)
+    root = _folder(built, project)
+    places = [b for b in backups(ProjectRepository(root).events()) if b.get('state') == 'active']
+    if to is not None:
+        places = [b for b in places if _place(b, to)]
+    if not places:
+        raise Refused(409, 'no-owner-backup', 'This Project has no backup there that its owner set up.' if to else
+                      'This Project has no backup its owner set up.',
+                      next='ask the owner to back it up once in Hooke; an agent backs up only where the owner does')
+    chosen = max(places, key=lambda b: b.get('at') or 0)
+    receipt = back_up_now(built, built.day.locations, root, source_of(chosen['destination']['records']))
+    access(built).require(project, actor, write=True)
+    built.day.elsewhere(project)._record({**receipt['event'], 'by': actor}, strict=True)
+    return backup_summary(receipt)
+
+
+MAX_WAITING_REQUESTS = 3  # each holds a sealed copy of the Project on this Mac until the owner answers
+
+
+def _ask_to_publish(built, record):
+    from ..project_remote_commands import prepare_publication, remote_status
+    from ..project_repository import ProjectRepository
+    project, actor, args = record['project'], record['by'], record['params']
+    access(built).require(project, actor, write=True)
+    root = _folder(built, project)
+    waiting = remote_status(ProjectRepository(root).events(),
+                            staging=Path(built.paths.home) / 'project-remotes' / root.origin)['publishRequests']
+    if len(waiting) >= MAX_WAITING_REQUESTS:
+        raise Refused(429, 'publish-requests-waiting', 'Requests to publish this Project already wait for its owner.',
+                      next='wait for the owner to review a waiting request in Hooke')
+    review = prepare_publication(built, built.day.locations, root, include_transcripts=args.get('includeTranscripts', False),
+                                 licence=args.get('licence', 'CC-BY-4.0'))
+    access(built).require(project, actor, write=True)
+    built.day.elsewhere(project)._record({'type': 'project-publish-requested', 'staging': review['staging'],
+                                          'reviewDigest': review['reviewDigest'], 'by': actor,
+                                          'byLabel': record['byLabel'], 'blocked': review['blocked']}, strict=True)
+    return {'state': 'awaiting-owner', 'reviewDigest': review['reviewDigest'], 'licence': review['licence'],
+            'memberCount': review['memberCount'], 'bytes': review['bytes'], 'blocked': review['blocked'],
+            'findings': review['findings'][:50], 'cleanedFiles': review.get('cleanedFiles', 0),
+            'leftOut': review['leftOut']}
 
 
 def _import(built, record, stopped):
@@ -176,6 +249,23 @@ async def run(built, record, progress):
         value = await _owned(review, on_cancel=cancel)
         check()
         result = {'dependencies': value}
+    elif name == 'project.remote.status':
+        from ..project_remote_commands import remote_status
+        from ..project_repository import ProjectRepository
+        def status():
+            access(built).require(project, actor)
+            root = _folder(built, project)
+            value = remote_status(ProjectRepository(root).events(),
+                                  staging=Path(built.paths.home) / 'project-remotes' / root.origin)
+            return {k: value[k] for k in ('published', 'startedFrom', 'backups', 'publishRequests')}
+        result = {'remote': await asyncio.to_thread(status),
+                  'says': 'Where this Project is published and backed up, from its own journal.'}
+    elif name == 'project.remote.backup':
+        result = {**await asyncio.to_thread(_remote_backup, built, record),
+                  'says': 'Backed up where the owner backs this Project up, and checked.'}
+    elif name == 'project.publish':
+        result = {'publication': await asyncio.to_thread(_ask_to_publish, built, record),
+                  'says': 'Prepared for the owner. Nothing is published until they review it and sign off in Hooke.'}
     elif name == 'project.state':
         from .. import project_state
         try:

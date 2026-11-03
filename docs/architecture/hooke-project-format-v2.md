@@ -138,6 +138,10 @@ A publication is a filtered sealed snapshot of the Project:
   that names another original, is refused. The publisher's claim that the pixels are unchanged cannot be checked
   without the original, and is shown as the publisher's (ADR 0012). The Project keeps its original.
 
+A connected agent may only ask for a publication: Hooke prepares the review as here and records
+`project-publish-requested` with its `reviewDigest`; the owner reviews that review and signs off, and the
+`project-published` event then names the agent as `requestedBy`.
+
 Before sending, the owner reviews the exact members and their sizes, and which files were cleaned of what. A secret
 finding blocks; a home-directory path, a metadata finding or a file in a format Hooke cannot check (HEIC, CZI, ND2,
 DICOM, video) is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0

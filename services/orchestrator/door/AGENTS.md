@@ -280,6 +280,15 @@ Projects parent's Exports folder, never chosen by caller path. Saved snapshot
 receipts report unverified external dependencies and import no authority or jobs.
 Legacy/unavailable storage refuses; no complete-Project claim is made.
 
+Remotes (ADR 0028, hooke-projects ticket 09): `project.remote.status` reads, from the Project's own journal, where it
+is published and backed up, what it was started from and the publications agents asked for that the owner has not sent.
+`project.remote.backup` needs contribute access and goes only to a backup the owner set up (the newest active one, or
+the one `to` names: its folder or GitHub repository); there is no other destination, and the event records the agent
+as `by`. `project.publish` needs contribute access and only asks: it prepares the exact publication review on this Mac
+and records `project-publish-requested` (staging, reviewDigest, who). The owner sees it in the Publish section,
+reviews that exact review (`project-publish-review`) and signs off; `project-publish`, an owner command, sends it and
+records `requestedBy`. Signing off, choosing a destination, deleting or restoring are never door actions.
+
 `actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.
 
 Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding.

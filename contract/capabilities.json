@@ -2585,7 +2585,8 @@
           "project-backup",
           "project-restore",
           "project-backup-delete",
-          "project-backup-keep"
+          "project-backup-keep",
+          "project-publish-review"
         ]
       },
       "pair": "new-session",

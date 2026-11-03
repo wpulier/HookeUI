@@ -144,3 +144,23 @@ test('Start from takes a GitHub address or a folder and offers to open the copy'
   click(again, 'Start from it');
   await vi.waitFor(() => expect(start).toHaveBeenLastCalledWith({kind: 'folder', path: '/Volumes/Drive/Research'}, 'Started project'));
 });
+
+test('an agent’s request to publish opens its exact review, and only the owner’s sign-off sends it', async () => {
+  dom();
+  const requested = vi.fn(async () => ({...review, reviewDigest: 'f'.repeat(64)}));
+  const a = actions({requested, status: vi.fn(async () => ({published: [], startedFrom: null,
+    publishRequests: [{staging: 'publication-0123456789ab', reviewDigest: 'f'.repeat(64), byLabel: 'Helper'}]}))});
+  const view = projectPublish(a, () => true, 'Research');
+  click(view.element, 'Review what will be published');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations:'));
+  view.dispose();
+  const again = projectPublish(a, () => true, 'Research');
+  await vi.waitFor(() => expect(again.element.textContent).toContain('Helper asked to publish this project. Nothing is sent until you review it and sign off.'));
+  click(again.element, 'Review Helper’s request');
+  await vi.waitFor(() => expect(again.element.textContent).toContain('Conversations:'));
+  expect(requested).toHaveBeenCalledWith('publication-0123456789ab');
+  const send = Array.from(again.element.querySelectorAll('button')).find(b => b.textContent === 'Publish') as HTMLButtonElement;
+  expect(send.disabled).toBe(true);  // the owner's own sign-offs, as for any publication
+  expect(a.publish).not.toHaveBeenCalled();
+  again.dispose();
+});
