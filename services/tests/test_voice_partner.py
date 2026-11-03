@@ -2398,3 +2398,24 @@ def test_an_acknowledgement_not_yet_heard_is_let_go_once_the_work_has_landed(mon
         await done(t.sb, "resp_2", status="cancelled")
         answered.set()
     asyncio.run(go())
+
+
+def test_a_failure_a_later_call_of_the_same_tool_made_good_is_not_said_as_a_failure(monkeypatch):
+    """will-drive, 3 Nov: turn_on refused an unknown job (listing the jobs), the brain called it again with the right
+    name and it started; the voice said it had failed."""
+    from orchestrator.brain.acting import current
+
+    async def go():
+        t = await partner_session(monkeypatch)
+
+        async def turn(text, channel, **kw):
+            current().receipts.extend([{"name": "turn_on", "result": "failed", "said": "no job is called 'find-like'"},
+                                       {"name": "turn_on", "result": "running", "said": "Turning on Spot look-alikes."}])
+            return {"answer": "Turning it on.", "actions": [
+                {"tool": "turn_on", "ok": False, "summary": "no job is called 'find-like'"},
+                {"tool": "turn_on", "ok": True, "summary": "Turning on Spot look-alikes"}]}
+        t.brain.turn = turn
+        result = await asyncio.wait_for(t.partner.tools.do_in_hooke({"request": "turn on spot look-alikes"}), 5)
+        assert not result.get("failed") and result["receipts"] == [
+            {"tool": "turn_on", "result": "running", "said": "Turning on Spot look-alikes."}]
+    asyncio.run(go())

@@ -1508,8 +1508,18 @@ class PartnerTools:
         uncertain = [a.get("tool") for a in standing[:8]
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
         if bridge is not None:
-            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone.
-            for r in bridge.receipts:
+            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone. A failure a
+            # later call of the same tool made good (the brain called it again, rightly: will-drive, 3 Nov, turn_on with
+            # the job's name after a refusal that listed them) is no failure of the request.
+            later = {}
+            for i, r in enumerate(bridge.receipts):
+                if r.get("result") != "failed":
+                    later[r["name"]] = i
+            standing_receipts = [r for i, r in enumerate(bridge.receipts)
+                                 if not (r.get("result") == "failed" and later.get(r["name"], -1) > i)]
+            failed = [f for f in failed if not any(f.startswith(f"{r['name']}:") for r in bridge.receipts
+                                                    if r.get("result") == "failed" and r not in standing_receipts)]
+            for r in standing_receipts:
                 said_ = f"{r['name']}: {r.get('said') or r.get('error') or r.get('result')}"
                 if r.get("result") == "failed" and said_ not in failed:
                     failed.append(said_)
@@ -1518,7 +1528,7 @@ class PartnerTools:
                 # "running" (a researcher started, a capability on its way) is a start that happened: its words are in
                 # the receipts, and its finish is told when it lands.
             out_receipts = [{"tool": r["name"], "result": r.get("result"), "said": r.get("said")}
-                            for r in bridge.receipts][:8]
+                            for r in standing_receipts][:8]
         else:
             out_receipts = []
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
