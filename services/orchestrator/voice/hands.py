@@ -64,6 +64,10 @@ RECORDED = {
     "set_default": ("setting", "Changing the setting"),
     "set_research_cap": ("setting", "Changing the cap"),
     "use": ("choice", "Choosing the model"),
+    # Turning a capability on and fetching a model (catalog.py): background work checked against the capability shelf's
+    # card and the downloads queue, never the tool's words (before 2026-11-03 both ended "uncertain" through _saved).
+    "turn_on": ("setup", "Turning it on"),
+    "get_model": ("setup", "Starting the download"),
 }
 # Project and stage actions: on Hooke's UI (lease, cue, one at a time), checked against the record and the studio.
 PROJECT_TOOLS = frozenset({"new_project", "new_session", "switch_session"})
@@ -109,6 +113,11 @@ class Plan:
     revision: int | None
     facts: dict
     at: float
+    # A hand-off's step (brain/acting.py): planned against its own job, not the voice turn, so the user talking again
+    # (a new request) never stops it; only taking over (mouse, Escape) or a spoken stop does. `hard_epoch`: the
+    # takeovers that were not the talk key, when it was planned.
+    job: str | None = None
+    hard_epoch: int = 0
 
 
 def _target_of(value) -> str:
@@ -200,6 +209,8 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         kind_, caption = RECORDED[tool]
         return Intent(kind_, tool, args, target=_researcher_target(args) if kind_ in ("cancel", "steer") else "",
                       caption=caption, ui=False, check="record")
+    if tool == "open_models":  # the Models page, done once the studio says it shows it (the tool's own check)
+        return Intent("open", tool, args, target="panel:workspace", caption="Opening the Models page", check="record")
     if tool == "retrieve_page" and args.get("show") is True:  # a lookup that also opens what it read in a window
         return Intent("open", tool, args, target="panel:workspace", caption="Opening the page", check="record",
                       background=True)
@@ -565,6 +576,7 @@ class Hands:
         self.version = 0
         self.owner = "user"
         self.epoch = 0  # rises with each takeover (talk, mouse, Escape): a plan from before it is not run
+        self.hard_epoch = 0  # rises with each takeover that is not the talk key: a hand-off's plan from before it is not run
         self.stopped_by = ""  # what the last takeover was
         self.cancel = asyncio.Event()
         self.active = 0
@@ -610,13 +622,20 @@ class Hands:
         facts = self.facts()
         self._basis = {"facts": facts, "project": self._project_now(), "at": self.clock(), "revision": facts.get("seq")}
 
-    def plan(self, turn: int | None = None, *, fresh: bool = False) -> Plan:
-        """What a call is planned against: the last fresh look (the voice's), or the screen now (think's call start)."""
+    def plan(self, turn: int | None = None, *, fresh: bool = False, job: str | None = None) -> Plan:
+        """What a call is planned against: the last fresh look (the voice's), or the screen now (think's call start, and
+        each step of a hand-off: `job`, its own)."""
         basis = self._basis
-        if fresh or basis is None:
+        if fresh or basis is None or job is not None:
             facts = self.facts()
             basis = {"facts": facts, "project": self._project_now(), "at": self.clock(), "revision": facts.get("seq")}
-        return Plan(turn, self.epoch, basis["project"], basis["revision"], basis["facts"], basis["at"])
+        return Plan(turn, self.epoch, basis["project"], basis["revision"], basis["facts"], basis["at"],
+                    job=job, hard_epoch=self.hard_epoch)
+
+    def _own_job(self, plan: Plan) -> bool:
+        """A hand-off's step with no takeover since it was planned other than the user talking (a pause for the voice's
+        own calls, never for work Hooke already owns)."""
+        return plan.job is not None and plan.hard_epoch == self.hard_epoch and not self.cancel.is_set()
 
     # --- control ------------------------------------------------------------------------------------------------
     async def _send(self, message: dict) -> None:
@@ -648,6 +667,8 @@ class Hands:
                       "atStudio": message.get("at"), "atServer": at})
             return
         self.owner, self.version, self.epoch = "user", self.version + 1, self.epoch + 1
+        if why != "talk":
+            self.hard_epoch += 1
         self.stopped_by = "talk" if why == "talk" else "takeover"
         self.looked = False
         stopped = []
@@ -726,7 +747,7 @@ class Hands:
         plan = plan or self.plan()
         if project is not None and plan.project is None:
             plan.project = project
-        if intent.ui and not self.looked:
+        if intent.ui and not self.looked and not self._own_job(plan):
             return self._ended(intent, {"ok": False, "result": "failed", "error": LOOK_AGAIN,
                                         "_hands": {"rejected": "no fresh look since the takeover"}}, None, "failed")
         planned = known(intent, plan.facts)
@@ -765,6 +786,11 @@ class Hands:
             intent.before = plan.facts
             async with self._lock:  # one at a time; one queued behind a takeover is not run
                 line = self._activity(intent, "running")
+                if self._own_job(plan) and (self.owner != "partner" or intent.version != self.version):
+                    # The talk key paused the lease while this hand-off's step waited its turn: the step is Hooke's
+                    # own work, so the lease is taken again (its cue shows it), never dropped for a new request.
+                    await self._take()
+                    intent.version = self.version
                 # Checked at the moment of dispatch: the same lease and epoch, the same turn, the same Project, the
                 # target still there.
                 why = self._precondition(intent, planned, plan)
@@ -834,7 +860,12 @@ class Hands:
         return None
 
     def _precondition(self, intent: Intent, planned: bool, plan: Plan) -> str | None:
-        if intent.ui:
+        if intent.ui and plan.job is not None:
+            # A hand-off's step: the user talking again is a new request beside it, never a stop of it (Will's review,
+            # 3 Nov: "make a Tab, put the table beside it, rename it", then any new words, dropped the rest).
+            if not self._own_job(plan) or intent.version != self.version or self.owner != "partner":
+                return TOOK_OVER
+        elif intent.ui:
             if plan.epoch != self.epoch or intent.version != self.version or self.cancel.is_set() \
                     or self.owner != "partner":
                 return SPOKE if self.stopped_by == "talk" else TOOK_OVER

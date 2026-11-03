@@ -33,6 +33,19 @@ KEYS_ARE_THEIRS = ("Keys are the user's to add: open_models shows its card with 
                    "key in the conversation, and never repeat one.")
 
 
+def norm_job(text: str) -> str:
+    return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
+
+
+def find_job_card(w: dict, name: str) -> dict | None:
+    """The capability shelf's one card a job's name or id names (capability_shelf.py), None for none or several: what
+    turn_on acts on and what its receipt reads back (voice/records.py)."""
+    shelf = (w.get("setup") or {}).get("shelf") or {}
+    matches = [c for c in [*shelf.get("cards", []), *shelf.get("behind", [])]
+               if norm_job(name) in (norm_job(c["id"]), norm_job(c["title"]))]
+    return matches[0] if len(matches) == 1 else None
+
+
 def add_catalog_tools(registry: Registry, services) -> None:
     if services.capabilities is None:
         return
@@ -44,14 +57,7 @@ def add_catalog_tools(registry: Registry, services) -> None:
     def wire() -> dict:
         return services.capabilities()
 
-    def norm_job(text: str) -> str:
-        return " ".join(re.sub(r"[^a-z0-9]+", " ", text.lower()).split())
-
-    def job_card(w: dict, name: str) -> dict | None:
-        shelf = (w.get("setup") or {}).get("shelf") or {}
-        matches = [c for c in [*shelf.get("cards", []), *shelf.get("behind", [])]
-                   if norm_job(name) in (norm_job(c["id"]), norm_job(c["title"]))]
-        return matches[0] if len(matches) == 1 else None
+    job_card = find_job_card
 
     def owner(ctx: ToolContext) -> tuple:
         asked = ctx.asked
