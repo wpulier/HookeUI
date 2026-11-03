@@ -244,6 +244,20 @@ class HandOffActing:
         self.tools, self.job, self.approved = tools, job, approved or None
         self.receipts: list[dict] = []
         self.asks: list[dict] = []  # permissions Hands asked (a paid model, a long researcher run): the voice asks once
+        self.holding = False  # the lease, from its first step on Hooke's UI to its end (Hands.hold)
+        # The takeovers (mouse, Escape) before it began: one after that ends the hand-off's UI steps, whatever look each
+        # step plans against.
+        self.hard_epoch = tools.hands.hard_epoch if tools.hands is not None else 0
+
+    def plan(self):
+        plan = self.tools.hands.plan(None, job=self.job)
+        plan.hard_epoch = self.hard_epoch
+        return plan
+
+    async def close(self) -> None:
+        if self.holding:
+            self.holding = False
+            await self.tools.hands.let_go()
 
     def intent(self, tool: str, args: dict):
         return self.tools.intent(tool, args)
@@ -254,6 +268,9 @@ class HandOffActing:
         tools, hands = self.tools, self.tools.hands
         intent = tools.intent(run.tool, args)
         holder = user_stop.Stop() if intent is not None and intent.ui and not intent.background else None
+        if intent is not None and intent.ui and not self.holding and hands._own_job(self.plan()):
+            self.holding = True
+            await hands.hold()
 
         async def effect() -> dict:
             before = tools._reported_at()
@@ -271,7 +288,7 @@ class HandOffActing:
             return result
 
         action = getattr(getattr(run, "occurrence", None), "action_id", None)
-        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=hands.plan(None, job=self.job),
+        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=self.plan(),
                                   stop=holder.stop if holder is not None else None, intent=intent,
                                   approved=self.approved)
         kept = {k: v for k, v in receipt.items() if not k.startswith("_")}
@@ -1470,6 +1487,8 @@ class PartnerTools:
             if delegation is not None:
                 result = await self._handoff_landed(result, self._late_of[delegation], request)
         finally:
+            if bridge is not None:
+                await bridge.close()  # the lease it held through its steps
             if delegation is not None:
                 self._late_of.pop(delegation, None)
             if request is not None:

@@ -849,7 +849,11 @@ def score_step(step: dict, expect: dict, window: tuple[float, float], bench: dic
         # A researcher this step started says its own result when it lands, once (its event): that is the researcher's
         # outcome, not this request's a second time (will-research, 30 Oct: "Researcher 2 is testing five classifiers"
         # then, 150 s later, "Researcher 2 finished the comparison…" counted as the start said twice).
-        theirs = [x for rid in started for x in (bench.get("_outcomes") or {}).get(rid, [])]
+        # Any researcher's, not only one this step started: its result landing during a later step is its own news, not
+        # that step's outcome said again (will-drive, 3 Nov: "Researcher 1 finished…" counted as the zoom said twice).
+        own = {c.call_id for c in acting if c.call_id}  # this step's own calls: a slow tool's outcome is still its own
+        theirs = [x for key, spans in (bench.get("_outcomes") or {}).items() if key in started or key not in own
+                  for x in spans]
         firsts = [l for l in outcome_lines if not l.get("again") and not any(a <= l["first"] <= b for a, b in theirs)]
         said_lines = len(firsts) if firsts else min(len(outcome_lines), 1)
         row["outcomesSaid"] = said_lines if visible_at is not None or expect.get("fails") else None

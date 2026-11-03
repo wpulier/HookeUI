@@ -143,7 +143,7 @@
      "do_in_hooke",
      "research_status"
     ],
-    "judge": "says in one sentence what that researcher is doing now, naming it by its number",
+    "judge": "says in one sentence what that researcher is doing now, naming it by its number, or, when its record says it has finished, that it finished and what it found; never one when the record says the other",
     "toolRequired": false
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
@@ -155,9 +155,10 @@
    "expect": {
     "tools": [
      "do_in_hooke",
-     "researcher_note"
+     "researcher_note",
+     "researcher_followup"
     ],
-    "judge": "passes the note to that researcher and says it has it, from the researcher's record",
+    "judge": "passes the focus on to that researcher (a note while it works, a follow-up question once it has finished) and says it has it, from the researcher's record",
     "outcome": true
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
@@ -182,13 +183,13 @@
   {
    "id": "take-over",
    "kind": "act",
-   "say": "Close everything on this tab except the live view.",
+   "say": "Outline every cell again, then colour them by size.",
    "expect": {
     "tools": [
      "do_in_hooke",
+     "outline_cells",
      "present",
-     "tabs",
-     "clear"
+     "highlight"
     ],
     "judge": "the user moved the mouse while it was acting: it stops at once, says so in a few words, and does nothing more of the request",
     "takeover": true,
@@ -197,7 +198,7 @@
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4",
    "takeover": {
     "how": "mouse",
-    "afterMs": 300
+    "afterMs": 100
    }
   },
   {
@@ -210,7 +211,7 @@
      "cancel_researcher",
      "stop_work"
     ],
-    "judge": "stops that researcher and says it is stopped only once its record says so",
+    "judge": "stops that researcher and says it is stopped only once its record says so; when it has already finished, says that plainly in one sentence, with nothing unrelated added",
     "outcome": true
    },
    "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"

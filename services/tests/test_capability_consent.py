@@ -90,3 +90,21 @@ def test_partial_catalog_registry_keeps_queries_but_omits_unavailable_setup_effe
     ctx = ToolContext('chat', 1, None, 'can you talk with me?', asked=app.day.here())
     said = asyncio.run(registry.tools['models'].handler(ctx, {'about': 'Talk with you'}))
     assert 'Capability offer' not in said and 'call turn_on' not in said
+
+
+@pytest.mark.parametrize("words", ["turn on Talk with-you", "Turn on talkwith you."])
+def test_a_named_request_heard_with_its_words_run_together_or_apart_is_the_same_name(tmp_path, words):
+    """will-drive, 3 Nov: "Turn on Spot lookalikes." (the transcript's spelling of Spot look-alikes) was refused as no
+    named request, and the user was asked for another yes."""
+    rig = Rig(tmp_path)
+    ctx = ToolContext("chat", 1, None, words, asked=rig.app.day.here())
+    said = asyncio.run(rig.brain.registry.tools["turn_on"].handler(ctx, {"job": "Talk with you", "asked_with": words}))
+    assert "Turning on" in said and rig.app.turn_on.wire()["voice"]["state"] == "waiting"
+
+
+def test_another_name_is_still_not_this_one(tmp_path):
+    rig = Rig(tmp_path)
+    words = "turn on talk with them"
+    ctx = ToolContext("chat", 1, None, words, asked=rig.app.day.here())
+    with pytest.raises(ToolFailed):
+        asyncio.run(rig.brain.registry.tools["turn_on"].handler(ctx, {"job": "Talk with you", "asked_with": words}))

@@ -39,10 +39,11 @@ def norm_job(text: str) -> str:
 
 def find_job_card(w: dict, name: str) -> dict | None:
     """The capability shelf's one card a job's name or id names (capability_shelf.py), None for none or several: what
-    turn_on acts on and what its receipt reads back (voice/records.py)."""
+    turn_on acts on and what its receipt reads back (voice/records.py). Spacing does not count ("lookalikes")."""
     shelf = (w.get("setup") or {}).get("shelf") or {}
+    squash = lambda text: norm_job(text).replace(" ", "")  # noqa: E731
     matches = [c for c in [*shelf.get("cards", []), *shelf.get("behind", [])]
-               if norm_job(name) in (norm_job(c["id"]), norm_job(c["title"]))]
+               if squash(name) in (squash(c["id"]), squash(c["title"]))]
     return matches[0] if len(matches) == 1 else None
 
 
@@ -382,7 +383,9 @@ def add_catalog_tools(registry: Registry, services) -> None:
         words = ctx.question if ctx.channel != "voice" else said_by_user
         normalized = f" {norm_job(words or '')} "
         negative = re.search(r"\b(?:no|not|never|don['’]?t|cancel|stop)\b", (words or "").lower())
-        named = "(?:" + "|".join(re.escape(norm_job(n)) for n in (card["id"], card["title"])) + ")"
+        # A name heard with its words run together or apart ("Spot lookalikes" for Spot look-alikes: will-drive, 3 Nov,
+        # refused the user's own named request on the transcript's spelling) is the same name.
+        named = "(?:" + "|".join(" ?".join(re.escape(w) for w in norm_job(n).split()) for n in (card["id"], card["title"])) + ")"
         direct = re.fullmatch(r"(?:please )?(?:(?:can|could|would) you (?:please )?|i want you to )?"
                               r"(?:turn on|enable|activate|set up) (?:the )?" + named + r"(?: please)?",
                               normalized.strip()) and not negative
