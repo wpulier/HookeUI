@@ -5,6 +5,7 @@ writes layouts nor redirects an absent requester to another open Studio.
 """
 import asyncio
 import json
+import time
 import uuid
 
 from .brain.registry import ToolFailed
@@ -13,7 +14,9 @@ from .workspace_observation import SPECIMEN_ASKED as SPECIMEN, front
 
 
 _PIN_FIELDS = ("id", "rootId", "kind", "lifetimeGeneration", "sourceGeneration")
-ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only', 'reader')
+ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only', 'reader',
+           'compose')
+COMPOSE_ITEMS = 8  # saved items one compose puts in its new Tab
 SPECIMEN_WAIT_S = 4.0  # the studio's report showing the specimen as asked, after its save was acknowledged
 PLACED_WAIT_S = 4.0  # the studio's report showing a Tab arranged (beside) or holding only what was kept (only)
 ARRANGES = 3  # beside: the Tab's Arrange, sent again while the report shows its windows overlapping
@@ -88,6 +91,27 @@ class WorkspaceTabs:
             self.made.pop(next(iter(self.made)))
 
     async def run(self, ctx, args, *, verify=True):
+        """One Tab action, timed: the studio's round trip and the wait for the screen to show it are logged (`tab-action`,
+        read by bench/tab_speed.py), so how fast Tabs are is measured in use, not guessed."""
+        started, timing = time.monotonic(), {}
+        outcome = 'failed'
+        try:
+            reply = await self._run(ctx, args, verify=verify, timing=timing)
+            outcome = 'ok'
+            return reply
+        finally:
+            record = {'kind': 'tab-action', 'action': args.get('action') if isinstance(args, dict) else None,
+                      'outcome': outcome, 'show': not (isinstance(args, dict) and args.get('show') is False),
+                      'totalMs': round((time.monotonic() - started) * 1000, 1),
+                      **{f"{k.removesuffix('S')}Ms": round(v * 1000, 1) for k, v in timing.items()}}
+            log = getattr(getattr(self.app, 'agent', None), 'log', None)
+            if callable(log):
+                try:
+                    log(record)
+                except Exception:  # a log line that cannot be written never fails the action
+                    pass
+
+    async def _run(self, ctx, args, *, verify, timing):
         from .brain.toolbox.present import _original_screen
         from .screen import screen_of
         app = self.app
@@ -111,12 +135,16 @@ class WorkspaceTabs:
         if not isinstance(args, dict) or args.get('action') not in ACTIONS:
             raise ToolFailed('choose one named Tab action', next='list the Tabs first', argument=True)
         if set(args) - {'action', 'tab', 'title', 'from', 'placement', 'resource', 'specimen', 'kind', 'keep',
-                        'presentation'}:
+                        'presentation', 'show', 'items', 'arrange'}:
             raise ToolFailed('the Tab action has unsupported arguments', next='use its declared fields', argument=True)
         for key in ('tab', 'title', 'from', 'placement', 'kind'):
             if key in args and (not isinstance(args[key], str) or not 1 <= len(args[key]) <= 256):
                 raise ToolFailed('Tab names and identities must be nonempty bounded text', next='list the Tabs first', argument=True)
+        for key in ('show', 'arrange'):
+            if key in args and not isinstance(args[key], bool):
+                raise ToolFailed(f'{key} is true or false', next=f'call tabs again with {key} true or false', argument=True)
         action = args['action']
+        quiet = args.get('show') is False
         if action == 'only' and isinstance(args.get('keep'), str):
             args = {**args, 'keep': [args['keep']]}  # one id as a string (the brain sent it so, 29 Oct): that one stays
         if action == 'only' and 'keep' not in args:
@@ -141,9 +169,9 @@ class WorkspaceTabs:
                          == " ".join(args['tab'].split()).casefold()]
                 if len(named) == 1:
                     args = {**args, 'tab': named[0]['id']}
-        if action not in ('list', 'create', 'reader') and 'tab' not in args:
+        if action not in ('list', 'create', 'reader', 'compose') and 'tab' not in args:
             raise ToolFailed('name the exact target Tab', next='list the Tabs first', argument=True)
-        if action == 'create' and not str(args.get('title') or '').strip():
+        if action in ('create', 'compose') and not str(args.get('title') or '').strip():
             # "Open a new tab", no name said: named as the studio's own New Tab names one ("Tab 3"), never refused
             # (Will's try-out, 30 Oct: refused for its title, made on a second call, and its row said it did not work).
             args = {**args, 'title': f"Tab {len(screen_tabs(screen, ctx)) + 1}"}
@@ -155,20 +183,39 @@ class WorkspaceTabs:
             # only puts the specimen away itself (hidden; Main's floats small): the hint is what it does already
             # (will-workspace, 29 Oct: only with specimen hide was refused, and nothing was closed).
             args = {k: v for k, v in args.items() if k != 'specimen'}
-        if (action == 'specimen') != ('specimen' in args) or (action == 'specimen'
-                                                              and args['specimen'] not in tuple(SPECIMEN)):
+        if action != 'compose' and ((action == 'specimen') != ('specimen' in args)
+                                    or (action == 'specimen' and args['specimen'] not in tuple(SPECIMEN))):
             raise ToolFailed('say fill, float or hide for the specimen, with the specimen action',
                              next='call tabs with action specimen, the Tab and specimen fill, float or hide', argument=True)
+        if action == 'compose' and 'specimen' in args and args['specimen'] not in tuple(SPECIMEN):
+            raise ToolFailed('say fill, float or hide for the specimen', next='call compose again with one of them',
+                             argument=True)
         asked_title, before_ids = None, set()
-        if action == 'create':
+        if action in ('create', 'compose'):
             # A new Tab is asked for: it is made, named so it can be told apart from a Tab already called that
             # ("Reference 2"), and the reply says its name. Never the user's to resolve (spec 4.8, horizontal 3).
-            listed = await self.run(ctx, {'action': 'list'})
+            mark = time.monotonic()
+            listed = await self._run(ctx, {'action': 'list'}, verify=True, timing={})
+            timing['listS'] = time.monotonic() - mark
             current()
             asked_title = " ".join(str(args['title']).split())[:80]
             before_ids = {t.get('id') for t in listed.get('tabs') or ()}
             args = {**args, 'title': fresh_title(listed.get('tabs'), asked_title)}
         payload = dict(args)
+        if action == 'compose':
+            # Each saved item as `add` takes it (its kind's window); a photo, video or document goes by present place.
+            asked_items = args.get('items')
+            if asked_items is None:
+                asked_items = []
+            if not isinstance(asked_items, list) or len(asked_items) > COMPOSE_ITEMS:
+                raise ToolFailed(f'items is a list of up to {COMPOSE_ITEMS} saved items', next='name them by their ids',
+                                 argument=True)
+            resolved = []
+            for asked in asked_items:
+                presentation = asked.get('presentation') if isinstance(asked, dict) else None
+                ref = {k: v for k, v in asked.items() if k != 'presentation'} if isinstance(asked, dict) else asked
+                resolved.append(await self._item(ref, presentation, owner, current))
+            payload['items'] = resolved
         if action == 'reader':
             # Open in new Tab, as a person's (WorkspaceViews.openReaderTab): one saved item in a Tab of its own, the
             # Data reader full width; an item that has one already goes to it (documents.py opens a document so).
@@ -184,36 +231,7 @@ class WorkspaceTabs:
             payload = {'action': 'reader', 'item': {'resource': {'day': owner.session, 'id': entry.id,
                                                                  'version': entry.version}, 'title': title}}
         if action == 'add':
-            ref = args.get('resource')
-            # Named by its id alone ("d1", or {id} with no version): the version saved now, read here. Hooke resolves
-            # that itself (will-workspace, 29 Oct: "put that photo in it" was refused for want of a version, and the
-            # voice said "Hooke needs an exact saved version chosen"); an explicit version that is not the saved one
-            # is still refused.
-            if isinstance(ref, str):
-                ref = {'id': ref}
-            named = isinstance(ref, dict) and set(ref) <= {'id', 'version'} and isinstance(ref.get('id'), str)
-            entry = await asyncio.to_thread(app.hub.resources.get, ref['id'], owner.session) if named else None
-            current()
-            if entry is None:
-                said = str(ref.get('id'))[:60] if named else 'that item'
-                raise ToolFailed(f"{said} is not in this Project's Data", next='name it by its id from the screen, the Tabs or Data',
-                                 argument=True)
-            # A photo, a video, a document or a researcher's work has no version to name (will-workspace and
-            # will-research, 29 Oct: refused "not saved in this Project", and the voice told the user to save it first).
-            if ref.get('version') is not None and ref['version'] != entry.version:
-                raise ToolFailed('the selected resource is unavailable or has changed', next='read its current saved revision')
-            presentation = ADD_PRESENTATIONS.get(entry.kind)
-            if args.get('presentation') == 'table' and entry.kind == 'population':
-                presentation = 'table'  # a population's measurements table, the window its masks' Measurements opens
-            if presentation is None:
-                # A photo, a video or a document is placed, not added: present do=place puts it where it is asked, on
-                # the Tab in front (will-workspace, 29 Oct: the brain tried tabs add for a reference photo, was refused
-                # without where to go, and the user was told about saved versions).
-                raise ToolFailed(f'a {entry.kind} is not added to a Tab this way',
-                                 next=f'present with do place, what {entry.id}, tab and placement only, beside or window '
-                                      'puts it in that Tab')
-            payload['item'] = {'resource': {'day': owner.session, 'id': entry.id, 'version': entry.version, 'picture': None},
-                               'title': entry.title, 'presentation': presentation, 'zoom': 1, 'pan': [.5, .5]}
+            payload['item'] = await self._item(args.get('resource'), args.get('presentation'), owner, current)
             payload.pop('resource', None)
             payload.pop('presentation', None)
         current()
@@ -221,20 +239,25 @@ class WorkspaceTabs:
         future = asyncio.get_running_loop().create_future()
         self.pending[request_id] = (ctx.client, owner, future, pin, current)
         try:
+            mark = time.monotonic()
             ctx.client.offer(json.dumps({'type': 'workspace-tabs', 'id': request_id, 'session': owner.session, 'workspacePin': pin, 'action': payload}))
             reply = await asyncio.wait_for(future, 10)
+            timing['studioS'] = time.monotonic() - mark
             current()
             if not reply.get('ok'):
                 raise ToolFailed(str(reply.get('error') or 'the Tab action was not confirmed'), next='check the workspace before retrying')
-            if action in ('create', 'switch'):
+            if action in ('create', 'switch', 'compose'):
                 key = request_key(ctx)
                 selected = [str(t.get('id')) for t in reply.get('tabs') or () if t.get('selected')]
                 if key and selected:
                     self.fronted.setdefault(key, set()).update(selected)
                     while len(self.fronted) > MADE_KEPT:
                         self.fronted.pop(next(iter(self.fronted)))
-            if action == 'create':
-                new = [t for t in reply.get('tabs') or () if t.get('id') not in before_ids]
+            if action in ('create', 'compose'):
+                # The studio names the Tab it made (made.id); an older studio's reply is read by what is new in it.
+                said = reply.get('made') if isinstance(reply.get('made'), dict) else {}
+                new = [t for t in reply.get('tabs') or () if t.get('id') == said.get('id')] if said.get('id') else \
+                    [t for t in reply.get('tabs') or () if t.get('id') not in before_ids]
                 if len(new) == 1:
                     made = {'id': new[0]['id'], 'title': str(new[0].get('title') or args['title']), 'asked': asked_title}
                     self._remember(ctx, made)
@@ -249,24 +272,80 @@ class WorkspaceTabs:
                 if observed is not None:
                     reply = {**reply, 'front': front(observed.wire())}
                 reply = await self._kinds(reply, owner.session, args.get('kind'))
-            if action == 'only':
+            mark = time.monotonic()
+            if reply.get('deferred'):
+                # Asked quietly on a Tab not in view: saved as prepared, done when that Tab is shown. Nothing on screen
+                # changed, so nothing is said to be shown (ADR 0006).
+                reply = {**reply, 'prepared': 'arranged when that Tab is shown; not on screen yet'}
+            elif action == 'only':
                 await self._close_panels(screen, ctx, args)
-            if action == 'only' and verify:
+            if action == 'only' and verify and not reply.get('deferred'):
                 # What was to stay, by every name the Tabs give it (its placement, its window, the Data item it shows):
                 # the screen knows a native window by its window id, the Tab list also by its placement (will-workspace,
                 # 30 Oct: "only the image" kept it by placement, and the check said it was not shown and still open).
                 args = {**args, 'keep': aliases(reply, args['keep'])}
-            if action in ('arrange', 'only') and verify:
+            if action in ('arrange', 'only') and verify and not reply.get('deferred'):
                 placed = await self._placed(screen, ctx, args, current)
                 reply = {**reply, 'shown': placed}
-            if action == 'specimen':
+            if action == 'specimen' and quiet:
+                # Prepared quietly: what the studio saved for that Tab is the check (its reply), not the screen.
+                tab = next((t for t in reply.get('tabs') or () if args['tab'] in (t.get('id'), t.get('title'))), None)
+                saved = ((tab or {}).get('specimen') or {}).get('state')
+                if saved != SPECIMEN[args['specimen']]:
+                    raise ToolFailed(f"the specimen change was not saved on that Tab: it is {saved or 'not reported'}",
+                                     next='list the Tabs to see the specimen as it is now')
+                reply = {**reply, 'prepared': 'saved on that Tab; not on screen until it is shown'}
+            elif action == 'specimen':
                 shown = await self._specimen_shown(screen, ctx, args['tab'], args['specimen'], current)
                 reply = {**reply, 'shown': shown}
+            if action == 'compose':
+                made = reply.get('made') if isinstance(reply.get('made'), dict) else {}
+                if quiet:
+                    reply = {**reply, 'prepared': 'made with what it holds; not on screen until that Tab is shown'}
+                elif verify and made.get('id') and payload.get('items') and args.get('arrange') is not False:
+                    # In front and arranged: done once the report shows its windows side by side (beside).
+                    placed = await self._placed(screen, ctx, {'action': 'arrange', 'tab': made['id']}, current)
+                    reply = {**reply, 'shown': placed}
+            if action == 'create' and quiet:
+                reply = {**reply, 'prepared': 'made; not on screen until that Tab is shown'}
+            timing['verifyS'] = time.monotonic() - mark
             return reply
         except TimeoutError:
             raise ToolFailed('the original Studio did not confirm the Tab action', next='inspect its saved Tabs before retrying') from None
         finally:
             self.pending.pop(request_id, None)
+
+    async def _item(self, ref, presentation, owner, current) -> dict:
+        """A saved item as a Tab holds it (add, compose): its saved version, and the window its kind opens in."""
+        # Named by its id alone ("d1", or {id} with no version): the version saved now, read here. Hooke resolves
+        # that itself (will-workspace, 29 Oct: "put that photo in it" was refused for want of a version, and the
+        # voice said "Hooke needs an exact saved version chosen"); an explicit version that is not the saved one
+        # is still refused.
+        if isinstance(ref, str):
+            ref = {'id': ref}
+        named = isinstance(ref, dict) and set(ref) <= {'id', 'version'} and isinstance(ref.get('id'), str)
+        entry = await asyncio.to_thread(self.app.hub.resources.get, ref['id'], owner.session) if named else None
+        current()
+        if entry is None:
+            said = str(ref.get('id'))[:60] if named else 'that item'
+            raise ToolFailed(f"{said} is not in this Project's Data", next='name it by its id from the screen, the Tabs or Data',
+                             argument=True)
+        # A photo, a video, a document or a researcher's work has no version to name (will-workspace and
+        # will-research, 29 Oct: refused "not saved in this Project", and the voice told the user to save it first).
+        if ref.get('version') is not None and ref['version'] != entry.version:
+            raise ToolFailed('the selected resource is unavailable or has changed', next='read its current saved revision')
+        shown_as = ADD_PRESENTATIONS.get(entry.kind)
+        if presentation == 'table' and entry.kind == 'population':
+            shown_as = 'table'  # a population's measurements table, the window its masks' Measurements opens
+        if shown_as is None:
+            # A photo, a video or a document is placed, not added: present do=place puts it where it is asked, on
+            # the Tab in front (will-workspace, 29 Oct: the brain tried tabs add for a reference photo, was refused
+            # without where to go, and the user was told about saved versions).
+            raise ToolFailed(f'a {entry.kind} is not added to a Tab this way',
+                             next=f'present with do place, what {entry.id}, tab and placement only, beside or window '
+                                  'puts it in that Tab')
+        return {'resource': {'day': owner.session, 'id': entry.id, 'version': entry.version, 'picture': None},
+                'title': entry.title, 'presentation': shown_as, 'zoom': 1, 'pan': [.5, .5]}
 
     async def _kinds(self, reply: dict, session: str, kind: str | None) -> dict:
         """Each listed item's resource kind as the index keeps it (resources.py), and with `kind` only the Tabs holding
@@ -363,7 +442,7 @@ class WorkspaceTabs:
                     and arranges < ARRANGES and loop.time() - arranged_at >= REARRANGE_S):
                 # A window that landed after the Arrange sits over the tiling: Hooke arranges again, a few times at
                 # most, never the user (will-workspace, 30 Oct: "its windows still overlap").
-                await self.run(ctx, {'action': 'arrange', 'tab': tab}, verify=False)
+                await self._run(ctx, {'action': 'arrange', 'tab': tab}, verify=False, timing={})
                 arranged_at, arranges = loop.time(), arranges + 1
                 deadline = max(deadline, arranged_at + REARRANGE_S)
             if loop.time() - ask >= ASK_EVERY_S:

@@ -1,0 +1,67 @@
+{
+ "id": "will-quiet-tabs",
+ "about": "Will's ask of 3 Nov, \"navigate tabs without users to see things, navigate with the show user things\", as a journey on the real June 14 leaf recording: outline every cell, get a Tab ready with their measurements without leaving Main (tabs show false: compose, or create and add, prepared quietly), then show it when asked (a switch: it opens already arranged), then back to Main. The prepared step passes only if the screen stays on Main and the voice says it is ready, never that it is shown (ADR 0006). `make tab-speed LOG=<the stack's interactions.jsonl>` gives each Tab action's timings from the same run. Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "steps": [
+  {
+   "id": "outline",
+   "kind": "act",
+   "say": "Outline every cell.",
+   "expect": {
+    "tools": [
+     "outline_cells"
+    ],
+    "visible": "every cell in view outlined on Main",
+    "outcome": true,
+    "judge": "outlines the cells, says how many once, and claims nothing it did not do"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "prepare",
+   "kind": "act",
+   "say": "Get a tab ready with the cell measurements, but don't switch to it yet.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "visible": "the screen stays on Main; no Tab is brought to the front",
+    "outcome": true,
+    "judge": "prepares a Tab holding the cell measurements without leaving Main, says it is ready once, and never says it is showing it"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "show",
+   "kind": "act",
+   "say": "Okay, show me.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "visible": "the prepared Tab in front with its measurements table already arranged",
+    "outcome": true,
+    "judge": "brings the Tab it prepared to the front, arranged, and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "back-main",
+   "kind": "act",
+   "say": "Take me back to Main.",
+   "expect": {
+    "tools": [
+     "tabs"
+    ],
+    "visible": "Main in front with the live view",
+    "outcome": true,
+    "judge": "switches back to Main and says so once"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  }
+ ]
+}

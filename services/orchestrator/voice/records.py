@@ -162,7 +162,65 @@ class Records:
             return self._pictured(result, run, facts)
         if tool == "show_web" or (tool == "retrieve_page" and (intent.args or {}).get("show") is True):
             return self._webbed(result, facts)
+        if tool == "tabs":
+            return self._tabbed(intent, result)
         return self._saved(result, run)
+
+    @staticmethod
+    def _tabbed(intent, result: dict) -> dict:
+        """A Tab prepared quietly (show false): the record is the studio's saved layout, its reply once the save was
+        accepted. Not on screen yet, and said so: prepared, never shown (ADR 0006)."""
+        from ..workspace_observation import SPECIMEN_ASKED
+        from .hands import tab_reply
+
+        reply, args = tab_reply(result), intent.args or {}
+        action = str(args.get("action") or "")
+        tabs = [t for t in reply.get("tabs") or () if isinstance(t, dict)]
+
+        def tab(key) -> dict | None:
+            return next((t for t in tabs if key and key in (t.get("id"), t.get("title"))), None)
+
+        unsure = {"result": "uncertain", "error": "the studio's saved layout does not show it",
+                  "said": "Not sure the Tab was prepared: the saved layout does not show it."}
+        if not reply.get("ok"):
+            return unsure
+        made = reply.get("made") if isinstance(reply.get("made"), dict) else {}
+        if action in ("create", "compose"):
+            found = tab(made.get("id"))
+            if found is None:
+                return unsure
+            held = len(found.get("items") or ()) + int(found.get("omittedItems") or 0)
+            if action == "compose" and held < len(args.get("items") or ()):
+                return {**unsure, "error": f"the new Tab holds {held} of the {len(args.get('items') or ())} items asked"}
+            what = f" holding {held} item{'s' if held != 1 else ''}" if held else ""
+            return {"result": "verified", "tab": found.get("id"),
+                    "said": f'Prepared the Tab "{found.get("title")}"{what}; not on screen until it is shown.'}
+        target = tab(args.get("tab"))
+        if action in ("arrange", "only"):
+            if reply.get("deferred") or target is not None:
+                return {"result": "verified", "said": "Prepared: it is arranged when that Tab is shown."
+                        if reply.get("deferred") else "Arranged on that Tab."}
+            return unsure
+        if target is None:
+            return {**unsure, "error": "that Tab is not in the saved layout"} if action != "close" else \
+                {"result": "verified", "said": "The Tab is closed; its Data stays."}
+        if action == "specimen":
+            ok = (target.get("specimen") or {}).get("state") == SPECIMEN_ASKED.get(str(args.get("specimen") or ""))
+            return {"result": "verified", "said": "Saved on that Tab; not on screen until it is shown."} if ok else unsure
+        if action == "rename":
+            ok = " ".join(str(target.get("title") or "").split()) == " ".join(str(args.get("title") or "").split())
+            return {"result": "verified", "said": f'The Tab is now called "{target.get("title")}".'} if ok else unsure
+        if action in ("add", "move"):
+            want = args.get("placement") if action == "move" else (args.get("resource") or {})
+            want = want.get("id") if isinstance(want, dict) else want
+            items = target.get("items") or ()
+            ok = any(want in (i.get("placement"), (i.get("resource") or {}).get("id")) for i in items if isinstance(i, dict))
+            if ok or int(target.get("omittedItems") or 0):
+                return {"result": "verified", "said": "Saved on that Tab; not on screen until it is shown."}
+            return unsure
+        if action == "close":
+            return unsure if target.get("open") else {"result": "verified", "said": "The Tab is closed; its Data stays."}
+        return unsure
 
     def _started(self, result: dict, run) -> dict:
         rid = result.get("researcher") or _researcher_of(run)
