@@ -21,7 +21,8 @@ ORIGIN = re.compile(r'[0-9a-f]{32}')
 # Root names a remote tree may hold besides project/ and .hooke/ (format v2, section 3).
 ROOT_FILES = frozenset({'README.md', 'LICENSE', 'CITATION.cff', 'ro-crate-metadata.json'})
 HOOKE_FILES = frozenset({'.hooke/snapshot.json', '.hooke/bulk.json'})
-BULK_FORMAT = 'hooke-bulk-v1'
+BULK_FORMAT = 'hooke-bulk-v2'  # v2 adds `packs`; a v1 manifest (one object per content) is still read
+BULK_FORMATS = ('hooke-bulk-v1', BULK_FORMAT)
 SNAPSHOT_FORMAT = 'hooke-project-folder-snapshot-v1'
 
 
@@ -107,24 +108,60 @@ def remote_path(path: str) -> str:
     raise ChangedOutsideHooke('The remote holds a file outside a Hooke Project layout')
 
 
-def bulk_document(origin, snapshot_sha, bulk_entries, stores):
+def bulk_document(origin, snapshot_sha, bulk_entries, stores, packs):
     return canonical({'format': BULK_FORMAT, 'origin': origin, 'snapshotSha256': snapshot_sha,
-                      'entries': [dict(e) for e in bulk_entries], 'stores': list(stores)})
+                      'entries': [dict(e) for e in bulk_entries], 'stores': list(stores), 'packs': list(packs)})
 
 
-def bulk_manifest(raw: bytes, *, origin, snapshot_sha, expected):
-    """Parse hooke-bulk.json and require it to list exactly the snapshot's bulk members."""
+def _bulk_value(raw: bytes, origin):
     try:
         value = json.loads(raw)
     except (ValueError, RecursionError) as error:
         raise ChangedOutsideHooke('The bulk manifest is unreadable') from error
-    if (type(value) is not dict or set(value) != {'format', 'origin', 'snapshotSha256', 'entries', 'stores'}
-            or value['format'] != BULK_FORMAT or value['origin'] != origin or value['snapshotSha256'] != snapshot_sha
-            or type(value['entries']) is not list or type(value['stores']) is not list or len(value['stores']) > 16):
+    keys = {'format', 'origin', 'snapshotSha256', 'entries', 'stores'}
+    if type(value) is not dict or value.get('format') not in BULK_FORMATS:
+        raise ChangedOutsideHooke('The bulk manifest does not belong to this snapshot')
+    if value['format'] != 'hooke-bulk-v1':
+        keys |= {'packs'}
+    if (set(value) != keys or value['origin'] != origin or not isinstance(value['snapshotSha256'], str)
+            or type(value['entries']) is not list or len(value['entries']) > MAX_ENTRIES
+            or type(value['stores']) is not list or len(value['stores']) > 16):
+        raise ChangedOutsideHooke('The bulk manifest does not belong to this snapshot')
+    return value
+
+
+def _sizes(entries):
+    sizes = {}
+    for entry in entries:
+        if (type(entry) is not dict or set(entry) != {'path', 'bytes', 'sha256'} or type(entry['bytes']) is not int
+                or entry['bytes'] < 0 or not isinstance(entry['sha256'], str) or not DIGEST.fullmatch(entry['sha256'])
+                or sizes.setdefault(entry['sha256'], entry['bytes']) != entry['bytes']):
+            raise ChangedOutsideHooke('The bulk manifest lists an invalid member')
+    return sizes
+
+
+def _packs(value):
+    """The checked packs of a v2 manifest; None for v1, whose objects are its contents."""
+    if value['format'] == 'hooke-bulk-v1':
+        return None
+    from .project_remote_packs import parse
+    return parse(value['packs'], _sizes(value['entries']))
+
+
+def bulk_manifest(raw: bytes, *, origin, snapshot_sha, expected):
+    """Parse hooke-bulk.json and require it to list exactly the snapshot's bulk members, held in its packs."""
+    value = _bulk_value(raw, origin)
+    if value['snapshotSha256'] != snapshot_sha:
         raise ChangedOutsideHooke('The bulk manifest does not belong to this snapshot')
     if value['entries'] != [dict(e) for e in expected]:
         raise ChangedOutsideHooke('The bulk manifest does not list exactly the snapshot’s large members')
+    value['packs'] = _packs(value)
     return value
+
+
+def previous_packs(raw: bytes, *, origin) -> list:
+    """The packs of a parent version's bulk manifest, for the next version to reuse; [] for a v1 manifest."""
+    return _packs(_bulk_value(raw, origin)) or []
 
 
 TRAILERS = ('Hooke-Snapshot', 'Hooke-Origin', 'Hooke-Format')

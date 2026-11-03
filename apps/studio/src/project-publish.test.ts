@@ -23,7 +23,7 @@ const review: PublicationReview = {
 function actions(overrides: Partial<PublishActions> = {}): PublishActions {
   return {
     prepare: vi.fn(async () => review),
-    publish: vi.fn(async () => ({published: {commit: 'e'.repeat(40), snapshotSha256: review.snapshotSha256, recordFiles: 12, bulkObjects: 2, uploadedBytes: 1, bytes: 2}, location: 'https://github.com/ada/research'})),
+    publish: vi.fn(async () => ({published: {commit: 'e'.repeat(40), snapshotSha256: review.snapshotSha256, recordFiles: 12, bulkFiles: 3, bulkObjects: 2, uploadedBytes: 1, bytes: 2}, location: 'https://github.com/ada/research'})),
     status: vi.fn(async () => ({published: [], startedFrom: null})),
     update: vi.fn(async () => ({added: [], extended: ['p1'], unchanged: [], refused: [], filesAdded: 1, fileConflicts: []})),
     github: {status: vi.fn(async () => ({setUp: true, signedIn: true, says: 'Signed in to GitHub'})), start: vi.fn(), poll: vi.fn()},
