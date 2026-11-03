@@ -6,11 +6,16 @@ export type BackupDestination = {kind: 'github'; create: true; name: string} | {
 export interface BackupEntry {
   type: string; commit: string; snapshotSha256: string; bytes?: number | null; at?: number | null;
   destination: {records: {kind: string; base?: string; location?: string}; bulk?: unknown};
+  /** `deleting`: marked for deletion, still restorable until `purgeAfter`; `deleted`: removed. */
+  state?: 'active' | 'deleting' | 'deleted'; purgeAfter?: number | null;
 }
 export interface BackedUp {commit: string; snapshotSha256: string; recordFiles: number; bulkFiles: number; bulkObjects: number; uploadedBytes: number; bytes: number}
 export interface BackupActions {
   status(): Promise<{backups: BackupEntry[]}>;
   backUp(destination: BackupDestination): Promise<{backup: BackedUp; location: string}>;
+  /** Mark a backup for deletion (removed after 30 days), or keep one that was marked. */
+  remove(destination: BackupDestination): Promise<{purgeAfter: number}>;
+  keep(destination: BackupDestination): Promise<void>;
   github: PublishActions['github'];
 }
 export type RestoreSource = {kind: 'folder'; path: string} | {kind: 'github'; repo: string};
@@ -89,11 +94,29 @@ export function projectBackup(actions: BackupActions, current: () => boolean, ti
     let listed: BackupEntry[] = [];
     try { listed = (await actions.status()).backups; } catch { /* the choices below still work */ }
     if (!active()) return;
-    const places = listed.map(entry => ({entry, to: again(entry)})).filter(p => p.to);
+    const places = listed.filter(entry => entry.state !== 'deleted').map(entry => ({entry, to: again(entry)})).filter(p => p.to);
+    const change = async (work: () => Promise<unknown>, doing: string) => {
+      busy = true; controls.replaceChildren(); status.textContent = doing;
+      try { await work(); if (active()) void intro(false); }
+      catch (error) { if (active()) { status.textContent = message(error); button('Back', () => intro()); } }
+      finally { busy = false; }
+    };
     for (const {entry, to} of places) {
+      const many = places.length > 1;
+      if (entry.state === 'deleting') {
+        content.append(node('p', `${to!.label} · being deleted${entry.purgeAfter ? ` on ${new Date(entry.purgeAfter * 1000).toLocaleDateString()}` : ''}. It can still be restored until then.`, 'project-folder-path'));
+        button(many ? `Keep ${to!.label}` : 'Keep it', () => change(async () => { await actions.keep(to!.destination); status.textContent = 'Kept.'; }, 'Keeping the backup…'));
+        continue;
+      }
       const row = node('p', `${entry.type === 'project-restored-from-backup' ? 'Restored from' : 'Backed up to'} ${to!.label}${entry.at ? ` · ${when(entry.at)}` : ''}`, 'project-folder-path');
       content.append(row);
-      button(places.length > 1 ? `Back up again to ${to!.label}` : 'Back up again', () => send(to!.destination), true);
+      button(many ? `Back up again to ${to!.label}` : 'Back up again', () => send(to!.destination), true);
+      button(many ? `Delete ${to!.label}` : 'Delete backup', () => {
+        controls.replaceChildren();
+        status.textContent = `Delete the backup at ${to!.label}? It can still be restored, or kept, for 30 days; then Hooke removes it.`;
+        button('Delete it', () => change(async () => { await actions.remove(to!.destination); status.textContent = 'Marked for deletion.'; }, 'Marking the backup for deletion…'));
+        button('Cancel', () => intro());
+      });
     }
     if (!places.length) content.append(node('p', 'Not backed up yet.'));
     button(places.length ? 'Back up somewhere else' : 'Back up…', choose, !places.length);

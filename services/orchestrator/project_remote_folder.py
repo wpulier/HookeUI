@@ -2,7 +2,8 @@
 
 It needs no network and no account. Record blobs, commits and bulk objects are all named by SHA-256 and written once.
 The pointer moves by compare-and-swap under an exclusive lock, so two Macs pushing at once cannot both win.
-Layout: remote.json, HEAD, commits/<id>.json, blobs/<aa>/<sha256>, objects/<aa>/<sha256>.
+Layout: remote.json, HEAD, commits/<id>.json, blobs/<aa>/<sha256>, objects/<aa>/<sha256>, and deleted.json while a
+backup is being deleted (no version may be added then; it can still be read).
 """
 from __future__ import annotations
 
@@ -18,6 +19,8 @@ from .project_remote import Diverged, Remote, RemoteFile
 from .project_remote_layers import DIGEST, MAX_ENTRIES, ChangedOutsideHooke, RemoteRefused, canonical, sha256
 
 FORMAT = 'hooke-folder-remote-v1'
+DELETED = 'hooke-remote-deleted-v1'
+OWN = ('remote.json', 'HEAD', '.lock', 'deleted.json', 'commits', 'blobs', 'objects')  # all a folder remote writes
 COMMIT_FORMAT = 'hooke-remote-commit-v1'
 MAX_COMMIT = 64 << 20
 
@@ -148,6 +151,43 @@ class FolderRemote:
             _publish(target, lambda s: s.write(raw))
         return commit
 
+    def deletion(self):
+        """When this remote was marked to be deleted, or None."""
+        path = self.base / 'deleted.json'
+        if not path.exists() and not path.is_symlink():
+            return None
+        try:
+            value = json.loads(_read(path, 4096))
+        except (ValueError, RemoteRefused):
+            return {'at': None}
+        return {'at': value.get('at')} if type(value) is dict and value.get('format') == DELETED else {'at': None}
+
+    def mark_deleted(self, at: float):
+        _publish(self.base / 'deleted.json', lambda s: s.write(canonical({'format': DELETED, 'at': at})))
+
+    def unmark(self):
+        (self.base / 'deleted.json').unlink(missing_ok=True)
+
+    def purge(self):
+        """Remove everything this remote wrote, and the folder when nothing else is left in it."""
+        import shutil
+        if self.deletion() is None:
+            raise RemoteRefused('Only a backup marked for deletion is removed')
+        for name in OWN:
+            path = self.base / name
+            if path.is_symlink() or path.is_file():
+                path.unlink()
+            elif path.is_dir():
+                shutil.rmtree(path)
+        try:
+            self.base.rmdir()
+        except OSError:
+            pass  # the owner keeps other things there
+
+    def arrived(self, commit: str) -> float:
+        self.read_commit(commit)
+        return (self.base / 'commits' / f'{commit}.json').stat().st_mtime
+
     def advance(self, old, new):
         if not DIGEST.fullmatch(new):
             raise RemoteRefused('Name a version by its id')
@@ -155,6 +195,9 @@ class FolderRemote:
         fd = os.open(self.base / '.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
         try:
             fcntl.flock(fd, fcntl.LOCK_EX)
+            if self.deletion() is not None:
+                raise RemoteRefused('This backup is being deleted. Nothing was sent. Keep it first, or back up '
+                                    'somewhere else.')
             if self.head() != old:
                 raise Diverged('This project changed in two places: another version arrived first. Nothing was changed.')
             _publish(self.base / 'HEAD', lambda s: s.write(new.encode() + b'\n'))
@@ -178,6 +221,18 @@ class FolderBulk:
 
     def missing(self, digests):
         return [d for d in digests if not self._object(d).is_file()]
+
+    def listing(self):
+        """[(object name, when it arrived, bytes)] of every object here."""
+        found = []
+        for path in sorted((self.base / 'objects').glob('*/*')):
+            if DIGEST.fullmatch(path.name) and path.parent.name == path.name[:2] and path.is_file() and not path.is_symlink():
+                info = path.stat()
+                found.append((path.name, info.st_mtime, info.st_size))
+        return found
+
+    def remove(self, digest):
+        self._object(digest).unlink(missing_ok=True)
 
     def put(self, digest, path, size, *, check=lambda: None):
         target = self._object(digest)

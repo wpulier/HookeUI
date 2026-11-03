@@ -1357,6 +1357,8 @@ function projectBackupActions(session: string): BackupActions {
   return {
     status: async () => { const r = await bridge.request('project-remote-status', {session}); return {backups: r.backups ?? []}; },
     backUp: async destination => { const r = await bridge.request('project-backup', {session, destination}); if (!r.backup) throw new Error(r.error ?? 'The backup was not sent.'); return {backup: r.backup, location: r.location ?? ''}; },
+    remove: async destination => { const r = await bridge.request('project-backup-delete', {session, destination}); if (typeof r.purgeAfter !== 'number') throw new Error(r.error ?? 'The backup was not marked for deletion.'); return {purgeAfter: r.purgeAfter}; },
+    keep: async destination => { const r = await bridge.request('project-backup-keep', {session, destination}); if (r.ok !== true) throw new Error(r.error ?? 'The backup was not kept.'); },
     github: projectPublishActions(session).github,
   };
 }
