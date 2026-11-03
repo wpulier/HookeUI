@@ -75,8 +75,10 @@ Part of the working context the root `AGENTS.md` maps. ADR 0030 records why it i
   it. Zero breaches or it fails: 250 commands on the virtual OpenFlexure microscope and 400 on Micro-Manager's demo in
   the tests; `make scope-fuzz` runs 2,000 on the demo.
 - **The virtual microscope** (`services/sim/virtual_scope.py`) is the tests' OpenFlexure: the same stage the camera
-  bridge can play as the camera (`/sim/stage`), so a test can move the stage through the scope bridge and see it move
-  in the live view.
+  bridge plays as the camera (`/sim/stage`). The sim scenario `scope-move` (`services/sim/scoped.py`, in the gate)
+  moves it through the scope bridge and checks the live view saw the move (60 µm across at 1.6x: the picture moved
+  -96.3 px against -96 expected), that refused moves show no move, that a large acquisition waits for its yes, and
+  that every action has its receipt.
 
 ## Real rigs (2026-11-03)
 
