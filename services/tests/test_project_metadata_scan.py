@@ -1,4 +1,4 @@
-"""Personal metadata in a publication's imported files is shown for the owner to judge, never removed silently."""
+"""Personal metadata in a publication's imported files is found, so the review can say what is removed or left."""
 import io
 import struct
 
@@ -59,7 +59,11 @@ def test_a_publication_review_names_a_photo_that_carries_a_location(tmp_path):
         intake.publish()
     finally:
         intake.close()
-    review = prepare(lambda destination: copy_snapshot(root, destination), tmp_path / 'Review')
+    # With cleaning turned off the review names what the photo carries, and the owner decides.
+    review = prepare(lambda destination: copy_snapshot(root, destination), tmp_path / 'Review', clean_metadata=False)
     found = {(f['path'].split(' ')[0], f['kind']) for f in review['findings']}
     assert ('bench-photo.jpg', 'metadata-location') in found and ('bench-photo.jpg', 'metadata-person') in found
-    assert not review['blocked']  # the owner decides; accepted bytes are never edited
+    assert not review['blocked']
+    # By default the publication carries a cleaned copy, so nothing is left to name (test_project_publish_clean).
+    review = prepare(lambda destination: copy_snapshot(root, destination), tmp_path / 'Review 2')
+    assert review['cleanedFiles'] == 1 and not any(f['kind'].startswith('metadata-') for f in review['findings'])

@@ -119,9 +119,28 @@ A publication is a filtered sealed snapshot of the Project:
 - A person's notes (`annotation` text and title) are published text: the review lists them as `publishedText`, and the
   secret scan reads them with every other text member.
 - It keeps the Project's origin and every revision digest.
+- An imported JPEG, PNG or TIFF (including OME-TIFF, ImageJ and Aperio SVS) whose metadata names a place, a person, a
+  home folder, a date or a device goes **cleaned** unless the owner turns cleaning off (`project_publish_clean`,
+  `project_metadata_scrub`). Every edit is at the byte level, so image data is copied verbatim; Hooke also decodes the
+  original and the copy and compares their pixels where this Mac can, and a copy that differs is not used. A slide
+  scanner's label and macro photographs are dropped. The file's manifest stays byte for byte, so no document changes;
+  the original's chunks are left out, and a second manifest in the same `files/` folder, named by its own SHA-256,
+  stands in for it:
 
-Before sending, the owner reviews the exact members and their sizes. A secret finding blocks; a home-directory path
-or metadata finding is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0
+  ```json
+  {"format": "project-source-file-clean-v1", "of": "<the original manifest's sha256>",
+   "originalSha256": "<the original file's sha256>", "removed": ["location", "person"],
+   "tool": "hooke-metadata-clean-1", "name": "<the original's name>", "size": 812345,
+   "sha256": "<the cleaned file's sha256>", "chunkBytes": 1048576, "chunks": ["<sha256>", "..."]}
+  ```
+
+  A reader uses the cleaned copy only where the original's chunks are absent; a file with two cleaned copies, or one
+  that names another original, is refused. The publisher's claim that the pixels are unchanged cannot be checked
+  without the original, and is shown as the publisher's (ADR 0012). The Project keeps its original.
+
+Before sending, the owner reviews the exact members and their sizes, and which files were cleaned of what. A secret
+finding blocks; a home-directory path, a metadata finding or a file in a format Hooke cannot check (HEIC, CZI, ND2,
+DICOM, video) is shown for the owner to resolve. The owner signs off on rights, the licence (CC BY 4.0
 preselected) and the absence of identifiable human data; the review digest (SHA-256 over the canonical review) binds
 what is sent. The first publication is a parentless commit in its own destination; later publications of the same
 Project chain onto it. Publishing never changes the visibility of a backup.
@@ -159,5 +178,6 @@ again.
 
 ## 10. Reproduction levels
 
-Receipts record device, model version and seed. A re-run is reported at three levels: inputs byte-identical;
-deterministic CPU steps reproduce their hashes; GPU model results match within a stated tolerance.
+Receipts record device, model version and seed. A re-run is reported at three levels: inputs byte-identical (a
+cleaned image, section 8, has the original's pixels and says the original's SHA-256 instead); deterministic CPU steps
+reproduce their hashes; GPU model results match within a stated tolerance.

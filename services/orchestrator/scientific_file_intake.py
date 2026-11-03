@@ -50,11 +50,13 @@ class FileIntake:
         self.name,self.size=name,size
         if retained_source is not None and (not isinstance(retained_source,files.FileSource)
                 or retained_source.store is not store or retained_source.session!=session
-                or retained_source.name!=name or retained_source.size!=size):
+                or retained_source.name!=name or retained_source.original_size!=size):
             raise InvalidProject('Retain an accepted source owned by this Project store and session')
         from .scientific_provenance import frozen
         self.producer = frozen(producer) if producer is not None else None
         self.retained_source=retained_source
+        if retained_source is not None:
+            self.size=retained_source.size  # a cleaned copy is retained as the file it is (retain_into)
         self.verified_files=()
         # One public retry key binds the same destination, independently of a lost
         # HTTP acknowledgement. Existing bytes must match before a retry succeeds.

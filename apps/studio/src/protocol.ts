@@ -1708,7 +1708,7 @@ export type ClientCommand =
   | { type: 'project-storage'; session: string }
   | { type: 'project-reveal'; session: string }
   | { type: 'project-export-prepare'; session: string }
-  | { type: 'project-publish-prepare'; session: string; includeTranscripts?: boolean; licence?: string }
+  | { type: 'project-publish-prepare'; session: string; includeTranscripts?: boolean; licence?: string; cleanMetadata?: boolean }
   | { type: 'project-publish'; session: string; staging: string; reviewDigest: string; signoff: import('./project-publish').Signoff; destination: import('./project-publish').Destination }
   | { type: 'project-start-from'; source: string | {kind: 'folder'; path: string}; name?: string }
   | { type: 'project-update-from'; session: string }

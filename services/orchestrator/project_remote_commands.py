@@ -73,7 +73,8 @@ async def project_publish_prepare(app, client, msg) -> dict:
     try:
         review = await asyncio.to_thread(prepare, seal, staging,
                                          include_transcripts=msg.get('includeTranscripts') is True,
-                                         licence=msg.get('licence') or DEFAULT_LICENCE)
+                                         licence=msg.get('licence') or DEFAULT_LICENCE,
+                                         clean_metadata=msg.get('cleanMetadata') is not False)
     except (OSError, ProjectLocationError) as error:
         raise _refused(error) from error
     members = review.pop('members')
