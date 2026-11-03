@@ -232,7 +232,8 @@ def test_help_me_design_an_experiment_edit_it_by_voice_save_it_and_run_nothing_b
         assert "Nothing has run" in text
         assert "Hooke would start with Design 2" in text, "a colleague's pick, with why"
         assert "Shading half of one leaf" in text and "You would start with d2" in run.summary
-        assert "never ids" in run.summary, "the voice talks them through, never reading ids or the cards"
+        assert "never by its number, id" in run.summary and "Which one do you want?" in run.summary, "a colleague's words"
+        assert "its trade-off: One leaf." in run.summary, "each design's trade-off, for the brain to say"
         nothing_ran(app)
         cards_tab = studio.active
         # 2. A spoken edit revises one design: its next version, the old kept, shown again.
@@ -333,6 +334,8 @@ def test_on_the_yes_the_plan_is_approved_and_its_steps_run_in_order_waiting_for_
                 break
             await asyncio.sleep(0.01)
         assert x.waiting == {"step": 1, "says": "Put the slide under the lamp"} and calls == []
+        card = x.wire()
+        assert card["stepStates"] == ["now", "next", "next"] and card["canContinue"] is True, "its card: the step now, Done"
         assert "waiting for you (step 1)" in xs.status_words(x)
         refused = await asked(app, studio, "experiment", {"do": "continue", "asked_with": "done"}, "how long left?")
         assert refused.ok is False and x.waiting is not None, "their step is done only on their word"
@@ -347,6 +350,7 @@ def test_on_the_yes_the_plan_is_approved_and_its_steps_run_in_order_waiting_for_
         assert calls == [("researcher", f"{x.key}:analyst", "quick"), ("mission", "r9", 7, 600.0, 5.0),
                          ("researcher", f"{x.key}:s3", "quick")]
         assert [r["status"] for r in x.ran] == ["done", "done", "done"]
+        assert x.wire()["stepStates"] == ["done", "done", "done"] and x.wire()["canContinue"] is False
         assert x.ran[0]["said"] == "you said it was done: the lamp is on"
         assert "all 3 steps of its plan done" in x.outcome["words"]
 
@@ -391,5 +395,34 @@ def test_a_stopped_run_is_said_stopped_once_by_the_stop_itself(tmp_path, monkeyp
         run = await asked(app, studio, "experiment", {"do": "stop"}, "stop the experiment for now")
         assert run.ok is True and "Experiment 1 (Light time course) is stopped" in run.summary, run.summary
         assert x.status == "stopped" and told == [], "said once, by the stop's own answer"
+
+    asyncio.run(go())
+
+
+def test_the_cards_done_goes_on_after_the_users_own_step_as_their_word_does(tmp_path, monkeypatch):
+    """The run's card shows the user's step with Done (experiment-card.ts); Done is the card's `continue`, a press of
+    the user's own, through the brain's `experiment` tool as their spoken "done" is."""
+    from orchestrator.commands import COMMANDS
+
+    async def go():
+        app, studio = await built(tmp_path, monkeypatch)
+        E.designs_of(app.hub, app.day).write = Model()
+        await asked(app, studio, "propose_experiments", {"question": ASK, "open": False}, ASK)
+        await asked(app, studio, "experiment", {"do": "plan", "design": "d1"}, "plan the first one")
+        await asked(app, studio, "experiment", {"do": "run", "asked_with": "yes, run it"}, "yes, run it")
+        xs = experiments_of(app.hub, app.day)
+        (x,) = xs.of_session(app.day.sid)
+        for _ in range(200):
+            if x.waiting:
+                break
+            await asyncio.sleep(0.01)
+        reply = await COMMANDS["experiment"](app, studio, {"type": "experiment", "action": "continue", "id": x.id})
+        assert reply.get("ok") is True, reply
+        for _ in range(200):
+            if (x.ran[0] or {}).get("status") == "done":
+                break
+            await asyncio.sleep(0.01)
+        assert x.ran[0]["status"] == "done" and x.ran[0]["said"] == "you pressed Done on its card"
+        await xs.stop(x)
 
     asyncio.run(go())

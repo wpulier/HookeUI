@@ -124,10 +124,11 @@ def add_experiment_design_tools(registry: Registry, services) -> None:
                 else "")
         return (f"{len(proposal['designs'])} designs, nothing run{left}: "
                 + " | ".join(E.said(d) for d in proposal["designs"]) + f".{lead} "
-                + f"{where[:1].upper()}{where[1:]}. Talk them through as a colleague would, in two sentences: the "
-                  "first says what each design does and how they differ, in a few words each (by number and what it "
-                  "does; never ids, Data or step names, never the cards read aloud), and which you would start with and "
-                  "why; the second asks which they like or what to change. Nothing has run")
+                + f"{where[:1].upper()}{where[1:]}. Talk them through as a colleague would, in three short sentences: "
+                  "the first names each design by what it tests, with its trade-off, a few words each (\"a time course "
+                  "on the same pores, cleanest but long; ...\"), never by its number, id, Data or step names, never "
+                  "the cards read aloud; the second, which you would start with and why; the third asks \"Which one do "
+                  "you want?\". Nothing has run, and nothing is under way")
 
     registry.add(Tool(
         "propose_experiments", "Design experiments with the user (\"help me design an experiment on whether light opens "

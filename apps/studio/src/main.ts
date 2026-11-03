@@ -1109,7 +1109,7 @@ element<HTMLButtonElement>('activity-toggle').addEventListener('click', () => sh
 element<HTMLButtonElement>('activity-close').addEventListener('click', () => showActivity(false));
 /** The experiments the server has told this studio of, by Project and id (experiment-card.ts; experiments.py). */
 const experiments = new Map<string, import('./experiment-card').ExperimentWire>();
-async function experimentAct(action: 'run' | 'change' | 'stop' | 'open', x: import('./experiment-card').ExperimentWire): Promise<void> {
+async function experimentAct(action: 'run' | 'change' | 'continue' | 'stop' | 'open', x: import('./experiment-card').ExperimentWire): Promise<void> {
   if (action === 'change') { // the user's own words change it: the composer, ready for them
     const fill = `Change ${x.name}: `;
     composer.set(fill); question.focus(); question.setSelectionRange(fill.length, fill.length);

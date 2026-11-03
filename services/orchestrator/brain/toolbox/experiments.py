@@ -94,7 +94,7 @@ def add_experiment_tools(registry: Registry, services) -> None:
         if do == "continue":
             _card, words = yes_of(ctx, args, f"{x.name} goes on after a step of the user's only on their own word that it "
                                   "is done", "ask whether their step is done, then quote their reply in asked_with")
-            said = xs.resume(x, words or "the card's Continue")
+            said = xs.resume(x, words or "pressed Done on its card")
             attach(values={"experiment": x.wire()})
             return said
         if do == "change":

@@ -408,7 +408,9 @@ def said(d: dict) -> str:
     return (f"{d['id']} = Design {d['n']}, \"{d['title']}\" (version {d['version']}): {conditions}"
             + (f" against {controls}" if controls else "") + f", {d['replicates']} replicates, measuring "
             + "; ".join(m["what"] for m in d["measures"]) + f"; {d['duration'] or 'duration not said'}; "
-            f"{captures} capture and {analyses} analysis steps by Hooke, {d['manualSteps']} by hand")
+            f"{captures} capture and {analyses} analysis steps by Hooke, {d['manualSteps']} by hand"
+            + (f"; its strength: {_text(d['rationale'], 160)}" if d["rationale"] else "")
+            + (f"; its trade-off: {_text(d['limitations'], 160)}" if d["limitations"] else ""))
 
 
 # --- the service ----------------------------------------------------------------------------------------------------

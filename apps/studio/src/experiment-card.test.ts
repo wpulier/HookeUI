@@ -46,6 +46,45 @@ describe('what an experiment card says', () => {
   });
 });
 
+describe('a design\u2019s plan while it runs', () => {
+  const plan = (fields: Partial<ExperimentWire> = {}) => wire({ kind: 'steps', title: 'Paired peels: light vs dark',
+    status: 'running', canRun: false, canStop: true, steps: ['You: Cut three peels and float them in buffer',
+      'Hooke captures 3 fresh 5-second clips, one every 30 s (about 1 min): the dark baseline',
+      'A researcher (quick, at most $0.25): compare pore widths'], ...fields });
+
+  test('waiting on the user\u2019s own step: its steps marked, what to do, Done and Stop', () => {
+    const view = experimentView(plan({ stepStates: ['now', 'next', 'next'], canContinue: true,
+      waiting: { step: 1, says: 'Cut three peels and float them in buffer' },
+      progress: 'Waiting for you (step 1): Cut three peels and float them in buffer; say when it is done' }));
+    expect(view).toMatchObject({ cell: 'needs', status: 'Running · step 1 of 3 · waiting for you',
+      yours: 'Cut three peels and float them in buffer', stepStates: ['now', 'next', 'next'], actions: ['continue', 'stop'] });
+    expect(view.steps).toHaveLength(3);
+  });
+
+  test('a step of Hooke\u2019s under way: counted, its progress said, no Done', () => {
+    const view = experimentView(plan({ stepStates: ['done', 'now', 'next'], progress: 'Step 2 of 3: 1 of 3 slots' }));
+    expect(view).toMatchObject({ cell: 'working', status: 'Running · step 2 of 3 · Step 2 of 3: 1 of 3 slots', yours: '',
+      actions: ['stop'] });
+  });
+
+  test('Done sends continue; the card draws the steps marked and the user\u2019s step', () => {
+    const dom = syntheticDOM();
+    vi.stubGlobal('document', dom.document);
+    try {
+      const act = vi.fn();
+      const card = new ExperimentCard('x1', act);
+      card.update(plan({ stepStates: ['now', 'next', 'next'], canContinue: true,
+        waiting: { step: 1, says: 'Cut three peels and float them in buffer' } }), true);
+      const items = card.root.querySelectorAll('li') as unknown as TestElement[];
+      expect(items.map((li) => li.className)).toEqual(['is-now', 'is-next', 'is-next']);
+      expect((card.root.querySelector('.chat-xcard-yours') as unknown as TestElement).textContent)
+        .toBe('Your step: Cut three peels and float them in buffer');
+      fire(card.root.querySelector('[data-action="continue"]') as unknown as TestElement, 'click');
+      expect(act).toHaveBeenCalledWith('continue', expect.objectContaining({ id: 'x1' }));
+    } finally { vi.unstubAllGlobals(); }
+  });
+});
+
 describe('where a card goes', () => {
   function model(...messages: ServerMessage[]) {
     const m = new ChatModel(() => false); m.apply(day); for (const message of messages) m.apply(message); return m;

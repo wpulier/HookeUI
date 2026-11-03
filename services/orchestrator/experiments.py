@@ -121,6 +121,16 @@ class Experiment:
         """A design's Study plan run step by step (plan_runs.py), not a comparison of models."""
         return self.plan.get("kind") == "steps"
 
+    def step_states(self) -> list[str]:
+        """A design's plan run, step by step as its card marks them: done, now (under way, or waiting for the user) or
+        next, from its own record of what ran."""
+        rows = {r.get("step"): r.get("status") for r in self.ran}
+        out = []
+        for n in range(1, len(self.plan["steps"]) + 1):
+            state = rows.get(n)
+            out.append("done" if state == "done" else "now" if state == "running" and self.status in LIVE else "next")
+        return out
+
     def record(self) -> dict:
         return {k: copy.deepcopy(getattr(self, k)) for k in (
             "n", "session", "plan", "thread", "version", "status", "asked", "request_id", "turn_id", "created",
@@ -140,6 +150,7 @@ class Experiment:
                 "canRun": self.status == "proposed" and now < expires, "canStop": self.status in LIVE,
                 "kind": self.plan.get("kind", "comparison"), "waiting": copy.deepcopy(self.waiting),
                 "canContinue": self.waiting is not None and self.status in LIVE,
+                **({"stepStates": self.step_states()} if self.steps_kind else {}),
                 "created": self.created, "ended": self.ended}
 
 

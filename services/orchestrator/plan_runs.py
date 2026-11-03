@@ -167,7 +167,8 @@ async def run_steps(xs, x) -> str:
         kind = step["kind"]
         if kind == "manual":
             words = await _wait_for_user(xs, x, i, step)
-            row.update(status="done", said=f"you said it was done: {words}" if words else "you said it was done")
+            row.update(status="done", said=(f"you {words}" if words.startswith("pressed ") else
+                                             f"you said it was done: {words}" if words else "you said it was done"))
         elif kind == "researcher":
             rid = await start_researcher(xs, x, request=f"{x.key}:s{i + 1}", brief=_brief(x, step), effort=step["effort"])
             row["researcher"] = rid
