@@ -165,7 +165,7 @@ def seed_projects(plan: dict, sessions: Path, now: float | None = None) -> list[
     """The plan's `projects`, written as journals into the stack's fresh home before its app starts, dated from the day
     the run is (Projects by voice: "the leaf one from last week" needs a Project from last week). Each is {"name",
     "daysAgo" or "lastWeek" (0 Monday of the calendar week before this one), "specimens", "conversations": [{"title",
-    "first" (its first request), "summary"}], "tabs" (titles of empty Tabs beside Main), "archived"}. Returns the session ids written; a home that already holds one is left as it is."""
+    "first" (its first request), "summary"}], "tabs" (titles of empty Tabs beside Main), "archived", "open" (the app starts in it)}. Returns the session ids written; a home that already holds one is left as it is."""
     import datetime
 
     today = datetime.date.fromtimestamp(now if now is not None else time.time())
@@ -209,6 +209,9 @@ def seed_projects(plan: dict, sessions: Path, now: float | None = None) -> list[
         folder.mkdir(parents=True, exist_ok=True)
         (folder / "journal.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
         written.append(sid)
+        if spec.get("open"):  # the Project the app starts in (prefs.py's pointer), as if the user was last in it
+            with (sessions / "preferences.jsonl").open("a") as f:
+                f.write(json.dumps({"type": "current-session", "session": sid, "at": at}) + "\n")
     return written
 
 

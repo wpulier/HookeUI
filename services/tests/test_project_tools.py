@@ -203,8 +203,9 @@ def test_tidy_this_project_proposes_then_applies_on_yes_and_undoes(seeded):
     partly = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes but don't close the Tab"},
                   "yes but don't close the Tab")
     assert not partly.ok and "pass skip" in partly.summary
+    assert '[5] close the Tab "Tab 2"' in proposed.summary  # parts by number: name, two titles, a group, the Tab
     done = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes, but don't close the Tab",
-                                              "skip": ["v2"]}, "yes, but don't close the Tab")
+                                              "skip": ["5"]}, "yes, but don't close the Tab")
     assert done.ok, done.summary
     assert built.day.name == "Stomata in light and dark"
     assert [built.day.threads[t].title for t in ("t1", "t2")] == ["Guard cell count", "Aperture"]
@@ -242,8 +243,8 @@ def test_a_tab_close_that_no_studio_did_is_said_not_done(seeded):
                                                      "closeTabs": ["v2"]}}).ok
     done = call(built, "apply_organization", {"confirms": "o1", "asked_with": "yes go ahead"}, "yes go ahead")
     assert done.ok, done.summary
-    assert 'called conversation t1 "Count"' in done.summary
-    assert 'Not done: [v2] close the Tab "Tab 2"' in done.summary and "closed the Tab" not in done.summary
+    assert 'renamed the conversation “Outline the guard cells” to “Count”' in done.summary and " t1" not in done.summary
+    assert 'Not done: [2] close the Tab "Tab 2"' in done.summary and "closed the Tab" not in done.summary
 
 
 def test_the_journey_plans_seeded_home_answers_its_steps(tmp_path):
@@ -373,3 +374,36 @@ def test_a_plan_said_in_words_is_refused_with_its_shape(seeded):
     assert not words.ok and '"closeTabs"' in words.summary and cards(built, "tidy") == {}
     assert call(built, "organize_project", {"plan": {"closeTabs": ["v2"]}}, "tidy this Project").ok
     assert len(cards(built, "tidy")) == 1
+
+
+def test_words_meaning_the_open_project_never_open_another(seeded):
+    """Live, 3 Nov (voice): in Leaf epidermis already, "open the leaf one from last week" was called with "Stomata in
+    light" and opened it. Now nothing is opened and the model is told the words mean the Project open now."""
+    built, ids = seeded
+    built.day.switch_session(ids["leaf"])
+    wrong = call(built, "switch_session", {"session": "Stomata in light"}, "Open the leaf one from last week.")
+    assert not wrong.ok and built.day.sid == ids["leaf"] and "the Project open now" in wrong.summary
+
+
+def test_a_proposed_tidy_is_noted_for_the_next_turn(seeded):
+    """Live, 3 Nov (voice): the next turn reads the conversation, not the tool's result; the note says the yes is
+    apply_organization."""
+    built, _ = seeded
+    tidy_project(built)
+    assert call(built, "organize_project", {"plan": {"closeTabs": ["v2"]}}, "tidy this Project").ok
+    notes = [t.text for t in built.day.active.turns if t.role == "note"]
+    assert any("waits for the user's yes on its card" in n and "apply_organization with confirms o1" in n for n in notes)
+
+
+def test_a_voice_hand_off_is_read_as_the_words_heard_and_the_voices_reading(seeded):
+    """Live, 3 Nov (voice): heard "Open the leave one from last week." with the voice's reading "Open the leaf one from
+    last week." on the next line; called with "Stomata in light". Each is read on its own: the reading means Leaf
+    epidermis beyond doubt, so nothing is opened."""
+    built, ids = seeded
+    here = built.day.sid
+    handed = ("Open the leave one from last week.\n(The voice partner, who sees the same view, took this to mean: "
+              "Open the leaf one from last week.)")
+    wrong = call(built, "switch_session", {"session": "Stomata in light"}, handed, channel="voice")
+    assert not wrong.ok and built.day.sid == here and '"Leaf epidermis"' in wrong.summary
+    right = call(built, "switch_session", {"session": "the leaf one from last week"}, handed, channel="voice")
+    assert right.ok and built.day.sid == ids["leaf"]

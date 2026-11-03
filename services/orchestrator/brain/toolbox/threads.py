@@ -7,6 +7,7 @@ tabs tool). `new_project` starts one; `new_session` is its earlier name, kept so
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 
 from ...day.catalogue import days_before
@@ -99,17 +100,16 @@ def add_thread_tools(registry: Registry, services) -> None:
         # carried from an earlier answer opens nothing when what they said this turn means another Project beyond doubt
         # (live, 3 Nov: "open the leaf one from last week" was called with "Stomata in light"), or several (live, 3 Nov:
         # "open the leaf one" was called with "Leaf epidermis" while two leaf Projects matched): those are asked about.
-        said = " ".join(str(ctx.question or "").split())
-        if said and others and said.lower() != ref.lower():
-            heard = await asyncio.to_thread(catalogue.rank, said, current=day.sid, now=now)
-            meant = heard.sure
-            if meant is not None and meant.info.id not in (others[0].id, day.sid) and len(others) == 1:
+        if others and len(others) == 1:
+            meant, several, said = await _heard(catalogue, str(ctx.question or ""), ref, day.sid, now)
+            if meant is not None and meant.info.id != others[0].id:
+                # Live, 3 Nov (voice): already in Leaf epidermis, "open the leaf one from last week" opened Stomata.
+                here = "; it is the Project open now" if meant.info.id == day.sid else ""
                 raise ToolFailed(f'nothing was opened: the user said {inline(said, 120)!r}, which means '
-                                 f'"{inline(meant.info.label, 60)}" (id for tools {meant.info.id}), not '
+                                 f'"{inline(meant.info.label, 60)}" (id for tools {meant.info.id}){here}, not '
                                  f'"{inline(others[0].label, 60)}"',
-                                 next="call switch_session again with the user's own words", argument=True)
-            several = [m.info for m in heard.matches if m.full and m.info.id != day.sid]
-            if meant is None and len(several) > 1 and len(others) == 1:
+                                 next="say so, or call switch_session again with the user's own words", argument=True)
+            if meant is None and len(several) > 1:
                 others = several
         if found and not others:
             return f'already in the session "{inline(day.label, 80)}"'
@@ -212,6 +212,33 @@ def add_thread_tools(registry: Registry, services) -> None:
                                                                            "a day, a specimen, or previous"}},
                              ["query"]), recall,
                       kind="query", family="conversation"))
+
+
+# A voice hand-off's question is the user's words heard, then the voice's reading of them (voice/partner_tools.py):
+# "Open the leave one from last week.\n(The voice partner, who sees the same view, took this to mean: Open the leaf one
+# from last week.)". Each is read on its own: joined, neither is sure (live, 3 Nov).
+_READING = re.compile(r"\(The voice partner, who sees the same view, took this to mean: (.*)\)\s*$", re.S)
+
+
+async def _heard(catalogue, question: str, ref: str, current: str, now: float):
+    """What the user's own words this turn mean, as (the one Project they mean beyond doubt or None, the Projects that
+    match them in full when several do, the words read), from the words heard and the voice's reading of them; a
+    reading of the words, never a choice for the model."""
+    reading = _READING.search(question or "")
+    texts = [(question[:reading.start()] if reading else question or "").strip()]
+    if reading:
+        texts.append(reading.group(1).strip())
+    for text in texts:
+        said = " ".join(text.split())
+        if not said or said.lower() == ref.lower():
+            continue
+        heard = await asyncio.to_thread(catalogue.rank, said, current=current, now=now)
+        if heard.sure is not None:
+            return heard.sure, [], said
+        several = [m.info for m in heard.matches if m.full and m.info.id != current]
+        if len(several) > 1:
+            return None, several, said
+    return None, [], ""
 
 
 def _day_words(at: float, now: float) -> str:

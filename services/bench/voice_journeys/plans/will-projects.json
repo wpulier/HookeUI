@@ -15,7 +15,8 @@
   {"name": "Onion skin", "daysAgo": 25, "specimens": ["onion epidermis"],
    "conversations": [{"first": "how do these compare with a leaf?", "summary": "Compared onion cells with the guard cells of a leaf."}]},
   {"name": "Test run", "daysAgo": 40},
-  {"name": "Test run 2", "daysAgo": 40}
+  {"name": "Test run 2", "daysAgo": 40},
+  {"name": "", "daysAgo": 0, "open": true}
  ],
  "steps": [
   {
@@ -50,7 +51,7 @@
    "expect": {
     "tools": ["do_in_hooke", "think", "organize_project"],
     "visible": "the tidy's card under the request: what it would change, with Do it and Not now",
-    "judge": "proposes a short tidy (a clearer title for the conversation the app named from its first question, from what was said in it, and any Tab or group worth changing) and asks once whether to do it; says nothing is changed yet and never says it is done"
+    "judge": "proposes a short tidy (closing the two empty Tabs, and any title or group worth changing) and asks once whether to do it; makes clear nothing is changed yet and never says it is done"
    }
   },
   {
@@ -82,7 +83,18 @@
    "wait": 25,
    "expect": {
     "tools": ["do_in_hooke", "think", "list_projects", "archive_project"],
-    "judge": "archives Test run and Test run 2 (or names them and asks once, then archives them on the yes), says they are kept with their work and out of the list, and that it can be undone; never archives Leaf epidermis or another real Project"
+    "judge": "names Test run and Test run 2 and asks once whether to archive both, or archives them and says so; never archives Leaf epidermis or another real Project"
+   }
+  },
+  {
+   "id": "archive-yes",
+   "kind": "act",
+   "say": "Yes, both.",
+   "wait": 20,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "archive_project"],
+    "toolRequired": false,
+    "judge": "archives Test run and Test run 2 (if not already), says they are kept with their work and out of the Projects list and can be undone, once; never archives Leaf epidermis or another real Project"
    }
   }
  ]
