@@ -12,11 +12,21 @@ from .project_remote_layers import RemoteRefused
 API = 'https://api.github.com'
 
 
+def refused(what: str, status: int, data) -> str:
+    """GitHub's refusal in plain words. A GitHub App's token is refused where the app isn't installed, so that one says
+    where to install it (github_signin.INSTALL_URL)."""
+    message = data.get('message') if isinstance(data, dict) else ''
+    said = untrusted.inline(message, 160) if message else ''
+    words = f'GitHub refused {what} ({status}{": " + said if said else ""})'
+    if status == 403 and isinstance(message, str) and 'not accessible by integration' in message.lower():
+        from .github_signin import INSTALL_URL
+        words += f'. Install the HookeUI app on your GitHub account ({INSTALL_URL}), then try again'
+    return words
+
+
 class GitHubRefused(RemoteRefused):
     def __init__(self, what, status, data):
-        message = data.get('message') if isinstance(data, dict) else ''
-        said = untrusted.inline(message, 160) if message else ''
-        super().__init__(f'GitHub refused {what} ({status}{": " + said if said else ""})')
+        super().__init__(refused(what, status, data))
         self.status = status
 
 
