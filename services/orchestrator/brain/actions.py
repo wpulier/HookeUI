@@ -194,7 +194,11 @@ class ActionRunner:
                                 await asyncio.wait([prerequisite.sequence])
                             if prerequisite.task is not None and not prerequisite.task.done():
                                 await asyncio.wait([prerequisite.task])
-                            if prerequisite.ok is not True:
+                            acted = getattr(prerequisite, "acting", None)
+                            if acted is not None and not acted.done():
+                                await asyncio.wait([acted])  # its receipt, not only its run (brain/acting.py)
+                            receipt = getattr(prerequisite, "receipt", None) or {}
+                            if prerequisite.ok is not True or receipt.get("result") in ("failed", "uncertain"):
                                 reason = f"step {n} skipped: dependency {number} did not succeed"
                                 break
                     if request is not None and (request.closed or request.expired() or request.superseded("session")):
@@ -205,11 +209,27 @@ class ActionRunner:
                     continue
                 args = await self._seen_as_outlines(run.tool, run.args, ctx, made, run)
                 ctx.step = n  # what this step produces is filed under n ("@n" to the steps after it)
-                self.registry.start(run.tool, args, ctx, run=run)
-                if holder is not None:
-                    holder.started(run.task)  # a stop of the whole request (stop_work) cancels it
-                if run.task is not None:
-                    together.append(run.task)
+                if acting is not None and acting.intent(run.tool, args) is not None:
+                    # A hand-off's acting step: carried out under the voice's Hands (its cursor, lease and receipt), and
+                    # the next step waits for that receipt, so "make a Tab, then rename it" renames the Tab confirmed.
+                    def start(tool=run.tool, args=args, run=run) -> None:
+                        self.registry.start(tool, args, ctx, run=run)
+                        if holder is not None and run.task is not None:
+                            holder.started(run.task)
+
+                    def skip(reason: str, run=run) -> None:
+                        self.registry.skip(run, ctx, reason)
+
+                    run.acting = asyncio.ensure_future(acting.step(run, args, ctx, start, skip))
+                    if holder is not None:
+                        holder.started(run.acting)
+                    together.append(run.acting)
+                else:
+                    self.registry.start(run.tool, args, ctx, run=run)
+                    if holder is not None:
+                        holder.started(run.task)  # a stop of the whole request (stop_work) cancels it
+                    if run.task is not None:
+                        together.append(run.task)
                 if together and not alongside(k):
                     await asyncio.wait(together)
                     together = []
@@ -217,8 +237,10 @@ class ActionRunner:
                 await asyncio.wait(together)
 
         from .. import user_stop
+        from .acting import current as current_acting
 
         holder = user_stop.current()  # the request's stop holder (a voice hand-off's), when it has one
+        acting = current_acting()  # a voice hand-off's Hands, when this request is one (brain/acting.py)
         steps = asyncio.ensure_future(in_order())
         if holder is not None:
             holder.started(steps)

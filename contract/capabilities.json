@@ -2362,6 +2362,7 @@
         "heard_cue",
         "partner_acts",
         "partner_speaks",
+        "handoff_acts",
         "think",
         "look_hard",
         "fixed:voice-words",
@@ -4779,6 +4780,13 @@
       "title": "When it speaks",
       "purpose": "Whether the voice decides silently before it speaks, says at once that it is on work it hands over, or speaks as it decides",
       "hint": "decides, then says it is on it (the default: a few words at once for work handed over, then its outcome), decides before it speaks, or speaks as it decides"
+    },
+    {
+      "id": "handoff_acts",
+      "kind": "policy",
+      "title": "Work handed over",
+      "purpose": "Whether work the voice hands to Hooke shows each step with Hooke's cursor and is checked against Hooke's own state",
+      "hint": "shows and checks each step (the default), or acts without showing as before"
     },
     {
       "id": "naming_model",

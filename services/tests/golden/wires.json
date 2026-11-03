@@ -374,6 +374,7 @@
   "early_look_typed": "sequential",
   "embed": "dinov2-small",
   "fast": "off",
+  "handoff_acts": "hands",
   "heard_cue": "tone",
   "hintsFirst": true,
   "image": "gpt-image-2.5-flare",

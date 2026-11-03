@@ -51,7 +51,11 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                "stop_watching", "what_happened", "hold", "focus_check", "set_style", "name_outline",
                                "bookmark", "way_to_bookmark", "show_map", "calibrate_scale", "set_objective",
                                "measure_saved_objects", "retain_population_labels", "compare_retained_methods",
-                               "register_volume", "describe_capability", "find_workflows", "assets", "add_asset")
+                               "register_volume", "describe_capability", "find_workflows", "assets", "add_asset",
+                               # Driving Hooke (Will, 2026-11-03): turning capabilities on, fetching and showing models,
+                               # experiments and writing up, each with its receipt (records.py).
+                               "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
+                               "write_document")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
 # approval back.
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
@@ -230,6 +234,63 @@ def realtime_tool(declaration: dict) -> dict:
     return {"name": declaration["name"], "description": declaration.get("description") or "", "parameters": params}
 
 
+class HandOffActing:
+    """A hand-off's steps carried out under the voice's Hands (brain/acting.py; the live partner spec 4.2): each acting
+    step of Hooke's brain gets its typed intent, the partner cursor under the lease, a check at the moment of dispatch
+    against a fresh look tied to this hand-off (never the voice turn: talking again never drops it), and a receipt from
+    Hooke's own state. The receipts decide what the voice says happened (`PartnerTools._do_in_hooke`)."""
+
+    def __init__(self, tools: "PartnerTools", job: str, approved: str | None = None) -> None:
+        self.tools, self.job, self.approved = tools, job, approved or None
+        self.receipts: list[dict] = []
+        self.asks: list[dict] = []  # permissions Hands asked (a paid model, a long researcher run): the voice asks once
+
+    def intent(self, tool: str, args: dict):
+        return self.tools.intent(tool, args)
+
+    async def step(self, run, args: dict, ctx, start, skip) -> dict:
+        from .. import user_stop
+
+        tools, hands = self.tools, self.tools.hands
+        intent = tools.intent(run.tool, args)
+        holder = user_stop.Stop() if intent is not None and intent.ui and not intent.background else None
+
+        async def effect() -> dict:
+            start()
+            if holder is not None and run.task is not None:
+                holder.task = run.task  # a takeover's Stop cancels the tool's run where it can stop
+            if run.task is not None and run.ok is None:
+                await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
+            result = tools._result(run)
+            result["_run"] = run  # for the receipt (records.py), never said
+            return result
+
+        action = getattr(getattr(run, "occurrence", None), "action_id", None)
+        receipt = await hands.act(run.tool, args, effect, action_id=action, plan=hands.plan(None, job=self.job),
+                                  stop=holder.stop if holder is not None else None, intent=intent,
+                                  approved=self.approved)
+        kept = {k: v for k, v in receipt.items() if not k.startswith("_")}
+        if run.task is None:
+            # Hands ended it before it ran (a takeover, a question back, a permission to ask): the step is settled with
+            # that reason, so the brain's answer says it and the steps after it know.
+            if kept.get("result") == "permission":
+                self.asks.append(kept)
+                reason = f"not done yet: {kept.get('ask')} (asked once; nothing was done)"
+            elif kept.get("result") == "ask":
+                reason = ("not done: which one is meant? " + ", ".join(str(c) for c in kept.get("candidates") or [])
+                          + ". Ask the user in one short question; nothing was done.")
+            else:
+                reason = str(kept.get("error") or kept.get("note") or "not done")
+            skip(reason[:300])
+            await asyncio.wait([run.task])
+        elif kept.get("result") == "failed" and run.ok is not False:
+            # The tool said it worked, Hooke's state says not: the receipt is what happened.
+            run.ok, run.summary = False, str(kept.get("said") or kept.get("error") or run.summary)[:600]
+        run.receipt = kept
+        self.receipts.append({"name": run.tool, **kept})
+        return kept
+
+
 class PartnerTools:
     """The tools of one partner session. `partner` (voice/partner.py) gives the turn's words, the studio link, the
     camera and the screen as text."""
@@ -403,7 +464,7 @@ class PartnerTools:
                     "the user's request in their own words, whole, as they said it (\"use a segmentation model on the "
                     "center thing\"); not split, rephrased into steps or into tool names")},
                 "label": {"type": "string", "maxLength": 60, "description": HANDOFF_LABEL},
-                "then": {"type": "string", "description": HANDOFF_THEN}},
+                "then": {"type": "string", "description": HANDOFF_THEN}, **APPROVED},
                 "required": ["request", "label"]}, self.do_in_hooke))
             specs.append(ToolSpec("stop_work", STOP_WORK, {"type": "object", "properties": {
                 "id": {"type": "string", "description": "the work's id or number from the brief's jobs; leave it out "
@@ -1390,8 +1451,12 @@ class PartnerTools:
             asked += (f"\n(The user also asked for a later step, for after the work this starts has finished: "
                       f"\"{later}\". Hooke keeps that step with that work and does it when the work lands: do only the "
                       "first part now, and neither do the later step nor promise it yourself.)")
+        bridge = self.handoff_acting(flight, approved=str(args.get("approved") or "") or None)
         try:
-            result = await brain.turn(asked, "voice", delegation_id=delegation, **kwargs)
+            from ..brain.acting import acting
+
+            with acting(bridge):
+                result = await brain.turn(asked, "voice", delegation_id=delegation, **kwargs)
             if delegation is not None:
                 result = await self._handoff_landed(result, self._late_of[delegation], request)
         finally:
@@ -1409,6 +1474,20 @@ class PartnerTools:
         # failed, said as that; never "done" and never "ask again".
         uncertain = [a.get("tool") for a in standing[:8]
                      if a.get("ok") and ((a.get("outcome") or {}).get("failure") or {}).get("code") == "STUDIO_UNREPORTED"]
+        if bridge is not None:
+            # What happened is what the receipts say (Hands, records.py), never the brain's own words alone.
+            for r in bridge.receipts:
+                said_ = f"{r['name']}: {r.get('said') or r.get('error') or r.get('result')}"
+                if r.get("result") == "failed" and said_ not in failed:
+                    failed.append(said_)
+                elif r.get("result") == "uncertain" and r["name"] not in uncertain:
+                    uncertain.append(r["name"])
+                # "running" (a researcher started, a capability on its way) is a start that happened: its words are in
+                # the receipts, and its finish is told when it lands.
+            out_receipts = [{"tool": r["name"], "result": r.get("result"), "said": r.get("said")}
+                            for r in bridge.receipts][:8]
+        else:
+            out_receipts = []
         out: dict[str, Any] = {"ok": None if (working or uncertain) and not failed else (not failed and bool(answer or actions)),
                                "answer": answer, "actions": actions}
         if result.get("answered_while_working"):
@@ -1418,6 +1497,13 @@ class PartnerTools:
                            "never that it is still running.")
         if failed:
             out["failed"] = failed
+        if out_receipts:
+            out["receipts"] = out_receipts  # each step's receipt, in Hooke's words: what the voice says happened
+        if bridge is not None and bridge.asks:
+            first = bridge.asks[0]
+            out.update(ok=None, result="permission", ask=first.get("ask"), approval=first.get("approval"),
+                       note=("Not done yet. Ask the user this once; if they say yes, hand the same request over again "
+                             "with approved set to this approval."))
         if uncertain:
             out["result"], out["uncertain"] = "uncertain", uncertain
             out["note"] = ("I sent it but couldn't confirm it on screen: say exactly that for "
@@ -1439,6 +1525,15 @@ class PartnerTools:
         if points:
             out["_point"], out["pointed_at"], out["pointing"] = points, points, POINTING
         return out
+
+    def handoff_acting(self, flight=None, approved: str | None = None) -> HandOffActing | None:
+        """The hand-off's Hands (option HANDOFF_ACTS "hands", the default), or None: the brain's tools act directly, as
+        before 2026-11-03 (no cursor, no receipt)."""
+        if self.hands is None:
+            return None
+        if str(getattr(getattr(self.hub, "settings", None), "handoff_acts", "hands") or "hands") != "hands":
+            return None
+        return HandOffActing(self, f"handoff:{getattr(flight, 'id', None) or uuid.uuid4().hex[:8]}", approved)
 
     # --- a step for after the work a hand-off started (voice/followups.py) -------------------------------------
     def _research(self):

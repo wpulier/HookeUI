@@ -2664,6 +2664,7 @@
     "heard_cue",
     "partner_acts",
     "partner_speaks",
+    "handoff_acts",
     "think",
     "look_hard",
     "fixed:voice-words",
@@ -13043,6 +13044,63 @@
   },
   {
    "agentCanChange": [],
+   "current": "hands",
+   "default": "hands",
+   "defaultReason": null,
+   "fallbackFor": [],
+   "hint": "shows and checks each step (the default), or acts without showing as before",
+   "id": "handoff_acts",
+   "kind": "policy",
+   "options": [
+    {
+     "available": true,
+     "id": "hands",
+     "label": "Shows and checks each step",
+     "licence": "",
+     "models": [],
+     "note": "each step of work handed over is shown with Hooke's cursor and checked against Hooke's own state; what it says happened is that check",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Shows and checks each step",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    },
+    {
+     "available": true,
+     "id": "brain",
+     "label": "Acts without showing",
+     "licence": "",
+     "models": [],
+     "note": "Hooke's brain runs the steps directly, as before 2026-11-03: no cursor, and done is the brain's own word",
+     "readiness": {
+      "group": "Ready",
+      "next": null,
+      "status": "ready",
+      "steps": [],
+      "word": "Ready"
+     },
+     "runs": "",
+     "said": "Acts without showing",
+     "sources": [],
+     "tier": "open",
+     "why": ""
+    }
+   ],
+   "powers": [
+    "talk"
+   ],
+   "purpose": "Whether work the voice hands to Hooke shows each step with Hooke's cursor and is checked against Hooke's own state",
+   "title": "Work handed over"
+  },
+  {
+   "agentCanChange": [],
    "current": "close-look",
    "default": "close-look",
    "defaultReason": null,
@@ -14987,6 +15045,7 @@
    "fixed:retrieval": "gemini-3.8-flash",
    "fixed:video": "gemini-omni-1.1-flash",
    "fixed:voice-words": "gpt-4o-mini-transcribe",
+   "handoff_acts": "hands",
    "heard_cue": "tone",
    "image": "gpt-image-2.5-flare",
    "lesson_check": "check",
