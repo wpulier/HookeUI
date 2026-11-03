@@ -189,7 +189,9 @@ def _build() -> list[Entry]:
             elif rid == "voice":
                 probe = ("voice", option.id)
             elif rid in ("research", "presentation", "think"):
-                probe = ("text", _provider(option.id) + ":" + option.id)
+                # An OpenAI option's own spec when it has one (gpt-6.1-sol-ultrafast is gpt-6.1-sol on another tier,
+                # never a model of that name), else the model named by the option's id.
+                probe = ("text", option.spec if option.spec.startswith("openai:") else _provider(option.id) + ":" + option.id)
             elif rid == "image":
                 probe = ("image", option.id)
             elif chosen in METHOD_PROBES:
@@ -745,7 +747,8 @@ class Checker:
         return _answered(result.data, getattr(result, "error", None), model, getattr(result, "usage", {}) or {})
 
     async def _text(self, what: str) -> dict:
-        provider, _, model = what.partition(":")
+        provider, _, rest = what.partition(":")
+        model = rest.partition("@")[0]
         if provider == "anthropic":
             return await _anthropic(model, self.environ)
         if provider == "gemini":
@@ -755,7 +758,8 @@ class Checker:
         else:
             from .vision import make_vision
 
-            result = await make_vision(f"openai:{model}@low").ask([], TEXT_PROMPT, max_output_tokens=200)
+            result = await make_vision(what if "@" in rest else f"openai:{model}@low").ask([], TEXT_PROMPT,
+                                                                                           max_output_tokens=200)
         return _answered(result.data, getattr(result, "error", None), model, getattr(result, "usage", {}) or {})
 
     async def _image(self, model: str) -> dict:
