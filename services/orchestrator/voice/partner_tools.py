@@ -256,11 +256,16 @@ class HandOffActing:
         holder = user_stop.Stop() if intent is not None and intent.ui and not intent.background else None
 
         async def effect() -> dict:
+            before = tools._reported_at()
             start()
             if holder is not None and run.task is not None:
                 holder.task = run.task  # a takeover's Stop cancels the tool's run where it can stop
             if run.task is not None and run.ok is None:
                 await asyncio.wait([run.task], timeout=TOOL_WAIT_S)
+            if run.ok is not False and changes_screen(run.tool, args):
+                # Checked against the studio's report after the change, as the voice's own calls are (_answer): the
+                # will-drive run of 3 Nov failed a made Tab, Main in front and a rename on the report from before them.
+                await tools.report_after(before)
             result = tools._result(run)
             result["_run"] = run  # for the receipt (records.py), never said
             return result
@@ -1028,14 +1033,19 @@ class PartnerTools:
         except Exception:
             return 0.0
 
-    async def look_after(self, name: str, before: float) -> tuple[dict, dict]:
-        """Act, then look: the studio's report newer than the change, then its window picture and the screen as text."""
+    async def report_after(self, before: float) -> float | None:
+        """The studio's report newer than a change (at most REPORT_WAIT_S): when it came, None when none did. What a
+        receipt is checked against must be the screen after the change, never the one before it."""
         screen = getattr(self.hub, "screen", None)
-        report_at = None
         if screen is not None and hasattr(screen, "until"):
             with contextlib.suppress(Exception):
                 if await screen.until(lambda report: True, before, timeout=REPORT_WAIT_S):
-                    report_at = time.time()
+                    return time.time()
+        return None
+
+    async def look_after(self, name: str, before: float) -> tuple[dict, dict]:
+        """Act, then look: the studio's report newer than the change, then its window picture and the screen as text."""
+        report_at = await self.report_after(before)
         shot = await self.partner.snapshot()
         text = f"After {name}, Hooke's screen now: " + (self.partner.screen_now() or "(no report from the studio)")
         images = [(shot["jpeg"], f"Hooke's window after {name} ({shot.get('how') or 'composed'})")] if shot else []
