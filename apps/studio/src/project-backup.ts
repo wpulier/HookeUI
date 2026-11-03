@@ -46,7 +46,7 @@ export function projectBackup(actions: BackupActions, current: () => boolean, ti
   const element = node('section', '', 'project-publish project-backup');
   const status = node('p', '', 'project-folder-status'); status.setAttribute('role', 'status');
   const content = node('div'), controls = node('div', '', 'project-publish-controls');
-  element.append(node('h3', 'Back up'), node('p', 'A backup holds the whole project, conversations included, where only you can read it. Restore it on another Mac, or on this one after a loss.'), content, status, controls);
+  element.append(node('h3', 'Private backup'), node('p', 'Keep a versioned copy of your Project, including its conversations and research history, in a private GitHub repository or another folder. Back up again to send later changes; this is not automatic sync.'), content, status, controls);
   let disposed = false, busy = false;
   const active = () => !disposed && current();
   const button = (label: string, fn: () => Promise<void> | void, primary = false) => {
@@ -63,12 +63,12 @@ export function projectBackup(actions: BackupActions, current: () => boolean, ti
     } catch (error) { if (active()) { status.textContent = message(error); button('Back', () => intro()); } }
     finally { busy = false; }
   };
-  const choose = () => {
+  const choose = (destination: 'folder' | 'github' = 'folder') => {
     content.replaceChildren(); controls.replaceChildren(); status.textContent = '';
     const where = node('fieldset', '', 'project-publish-where'); where.append(node('legend', 'Back up to'));
     const folder = node('input'), github = node('input');
-    folder.type = 'radio'; folder.name = 'backup-where'; folder.checked = true;
-    github.type = 'radio'; github.name = 'backup-where';
+    folder.type = 'radio'; folder.name = 'backup-where'; folder.checked = destination === 'folder';
+    github.type = 'radio'; github.name = 'backup-where'; github.checked = destination === 'github';
     const path = node('input'); path.placeholder = '/Volumes/Backup/Hooke'; path.setAttribute('aria-label', 'Backup folder location');
     const repo = node('input'); repo.value = slug(title); repo.setAttribute('aria-label', 'New private GitHub repository name');
     const folderRow = node('label'); folderRow.append(folder, node('span', ' A folder (an external drive or shared folder) at '), path);
@@ -119,7 +119,8 @@ export function projectBackup(actions: BackupActions, current: () => boolean, ti
       });
     }
     if (!places.length) content.append(node('p', 'Not backed up yet.'));
-    button(places.length ? 'Back up somewhere else' : 'Back up…', choose, !places.length);
+    if (!places.some(({to}) => to?.destination.kind === 'github')) button('Back up to GitHub…', () => choose('github'), !places.length);
+    button(places.length ? 'Back up somewhere else' : 'Back up…', () => choose());
   };
   void intro();
   return {element, dispose: () => { disposed = true; }};

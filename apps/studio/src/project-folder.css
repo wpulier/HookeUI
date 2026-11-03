@@ -56,3 +56,5 @@ dialog.project-folder { width: min(560px, calc(100vw - 40px)); max-height: calc(
 .project-publish-code { font-size: 14px; }
 .project-publish-code strong { font-family: var(--mm-mono, ui-monospace, monospace); letter-spacing: .08em; user-select: all; }
 .project-start-from input { width: 100%; margin-top: 12px; }
+
+.project-publish-controls { display: flex; flex-wrap: wrap; gap: 8px; }
