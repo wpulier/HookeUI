@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -189,6 +190,20 @@ PLANS: dict[str, Plan] = {
     "guide": Plan("find me a stoma and centre it", [("guide", {"object": O1})], ("outline",),
                   not_on_path={"guide": "its first line is the app's own reading, said at once; the model judges the lines "
                                "after it as the slide moves, on later frames, never inside the request (test_guide.py)"}),
+    # The microscope's motors through a scope bridge on the virtual OpenFlexure microscope (the world's `scope`): it moves,
+    # snaps and focuses; it has no exposure, channel or light of its own to set, so those are refused, saying so.
+    "microscope": Plan("what is the microscope doing?", [("microscope", {})]),
+    "move-stage": Plan("move the stage 20 microns right", [("move_stage", {"x": 20})]),
+    "scope-snap": Plan("take a picture with the microscope", [("scope_snap", {})]),
+    "scope-focus": Plan("autofocus", [("scope_focus", {"range": 2, "step": 1})]),
+    "scope-exposure": Plan("set the exposure to 20 ms", [("scope_exposure", {"ms": 20})],
+                           expect="refused: does not set the exposure"),
+    "scope-channel": Plan("switch to FITC", [("scope_channel", {"name": "FITC"})], expect="refused: no channel"),
+    "scope-light": Plan("turn the light off", [("scope_light", {"on": False})], expect="refused: not switched from here"),
+    "scope-acquire": Plan("take three pictures a second apart",
+                          [("scope_acquire", {"plan": {"time_plan": {"interval": 0, "loops": 3}}})]),
+    "stop-scope": Plan("stop", [("stop_scope", {})]),
+    "scope-limits": Plan("what are the microscope's limits?", [("scope_limits", {})]),
     "stop-guiding": Plan("stop guiding", [("stop_guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "guiding": Plan("what are you guiding me to?", [("guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "bookmark": Plan("bookmark this, the nice stomata", [("bookmark", {"note": "the nice stomata"})]),
@@ -395,11 +410,41 @@ def test_every_capability_and_actor_has_a_planned_row():
 
 
 # --- running the rows ---------------------------------------------------------------------------------------------------
+_SCOPE: dict = {}
+
+
+def scope_bridge_url() -> str:
+    """One scope bridge per test process on the harness's virtual OpenFlexure microscope (sim/virtual_scope.py), for
+    the microscope's rows: every rig's app is given it (MICROMIND_SCOPE_URL), as `make start SCOPE_BACKEND=...` does."""
+    if "url" not in _SCOPE:
+        import tempfile
+
+        import cv2
+
+        from scope_bridge.backends.openflexure import OpenFlexure
+        from scope_bridge.bridge import ScopeBridge
+        from scope_bridge.server import serve
+        from sim.virtual_scope import VirtualScope
+
+        rng = np.random.default_rng(4)
+        slide = cv2.GaussianBlur(rng.uniform(0, 255, (600, 600)).astype(np.float32), (0, 0), 1.5)
+        slide = cv2.cvtColor(cv2.normalize(slide, None, 30, 230, cv2.NORM_MINMAX).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        scope = VirtualScope(slide, size=(160, 120), disc=(80.0, 60.0, 55.0), zoom=1.0, fps=5, motor_speed=1e6,
+                             motor_z_speed=1e4)
+        scope.serve()
+        bridge = ScopeBridge(OpenFlexure(scope.url, um_per_z_step=0.01), Path(tempfile.mkdtemp(prefix="matrix-scope-")))
+        server = serve(bridge, 0)
+        _SCOPE.update(scope=scope, bridge=bridge, server=server, url=f"http://127.0.0.1:{server.server_address[1]}")
+    return _SCOPE["url"]
+
+
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     """Keys present, every model's code installed, the cloud stood in for: so a row's run is the wiring, and a refusal
     a row expects is made on purpose."""
     from orchestrator import fal_segment, operations
+
+    monkeypatch.setenv("MICROMIND_SCOPE_URL", scope_bridge_url())
 
     for key in ("GEMINI_API_KEY", "OPENAI_API_KEY", "FAL_KEY", "ANTHROPIC_API_KEY", "HF_TOKEN"):
         monkeypatch.setenv(key, "stand-in")

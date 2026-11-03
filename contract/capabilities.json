@@ -57,6 +57,11 @@
       "what": "Where things are on the whole slide"
     },
     {
+      "id": "scope",
+      "title": "The microscope's motors",
+      "what": "Moving the stage and focus, pictures, light and acquisitions, inside your limits"
+    },
+    {
       "id": "seeing",
       "title": "A clearer picture",
       "what": "Better pictures made from real frames"
@@ -2105,6 +2110,146 @@
       },
       "parts": [
         "guide"
+      ]
+    },
+    {
+      "id": "microscope",
+      "family": "scope",
+      "actor": "agent",
+      "title": "What the microscope is doing",
+      "what": "Says where the stage is, its light, exposure and your limits",
+      "how": {
+        "tool": "microscope",
+        "say": "what is the microscope doing?"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "move-stage",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Move the stage",
+      "what": "Moves the stage or the focus, inside your limits",
+      "how": {
+        "tool": "move_stage",
+        "say": "move the stage 20 microns right"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-snap",
+      "family": "scope",
+      "actor": "agent",
+      "title": "A picture with the microscope",
+      "what": "Takes a picture with the microscope's own camera",
+      "how": {
+        "tool": "scope_snap",
+        "say": "take a picture with the microscope"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-focus",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Autofocus the microscope",
+      "what": "Sweeps the focus and stops at the sharpest, inside your limits",
+      "how": {
+        "tool": "scope_focus",
+        "say": "autofocus"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-exposure",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Set the exposure",
+      "what": "Sets the microscope camera's exposure, inside your limits",
+      "how": {
+        "tool": "scope_exposure",
+        "say": "set the exposure to 20 ms"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-channel",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Switch the channel",
+      "what": "Switches the microscope to one of its channels",
+      "how": {
+        "tool": "scope_channel",
+        "say": "switch to FITC"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-light",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Switch the light",
+      "what": "Turns the light on after your yes, or off at once",
+      "how": {
+        "tool": "scope_light",
+        "say": "turn the light off"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-acquire",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Run an acquisition",
+      "what": "Runs a time, focus and position plan; a large one asks first",
+      "how": {
+        "tool": "scope_acquire",
+        "say": "take three pictures a second apart"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "stop-scope",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Stop the microscope",
+      "what": "Stops the motors and any acquisition at once",
+      "how": {
+        "tool": "stop_scope",
+        "say": "stop"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-limits",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Your limits for the microscope",
+      "what": "Reads or changes your limits; loosening them asks first",
+      "how": {
+        "tool": "scope_limits",
+        "say": "what are the microscope's limits?"
+      },
+      "parts": [
+        "scope-bridge"
       ]
     },
     {
@@ -5476,6 +5621,13 @@
       "kind": "app",
       "purpose": "Measures where a thing is and what each move did, and keeps the lines short and timely",
       "source": "services/orchestrator/guide.py"
+    },
+    {
+      "id": "scope-bridge",
+      "title": "Scope bridge",
+      "kind": "app",
+      "purpose": "The one process that drives the microscope, inside your limits, with a receipt each time",
+      "source": "services/scope_bridge/bridge.py"
     },
     {
       "id": "bookmarks",

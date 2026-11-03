@@ -156,7 +156,8 @@ def add_scope_tools(registry: Registry, services) -> None:
             try:
                 plan = json.loads(plan)
             except ValueError:
-                raise ToolFailed("the plan is a JSON object (useq-schema's MDASequence)", argument=True) from None
+                raise ToolFailed("the plan is a JSON object (useq-schema's MDASequence)", next=None,  # no next: its own argument
+                                 argument=True) from None
         return await act(ctx, {"kind": "acquire", "plan": plan}, approval_of(ctx, args), yes="scope_acquire")
 
     registry.add(Tool("scope_acquire", "Run an acquisition on the microscope: a useq-schema MDASequence plan with "

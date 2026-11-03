@@ -186,6 +186,17 @@ Slide map (Where things are on the whole slide):
 - I: What it is guiding to: Says what it is guiding you to and the last line (say "what are you guiding me to?")
 - I: Bookmark a place: Keeps this place on the slide with your words (say "bookmark this, the nice stomata")
 - I: Which way to a bookmark: Says which way a bookmarked place is from here (say "which way is the stomata I marked?")
+The microscope's motors (Moving the stage and focus, pictures, light and acquisitions, inside your limits):
+- I: What the microscope is doing: Says where the stage is, its light, exposure and your limits (say "what is the microscope doing?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Move the stage: Moves the stage or the focus, inside your limits (say "move the stage 20 microns right"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: A picture with the microscope: Takes a picture with the microscope's own camera (say "take a picture with the microscope"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Autofocus the microscope: Sweeps the focus and stops at the sharpest, inside your limits (say "autofocus"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Set the exposure: Sets the microscope camera's exposure, inside your limits (say "set the exposure to 20 ms"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Switch the channel: Switches the microscope to one of its channels (say "switch to FITC"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Switch the light: Turns the light on after your yes, or off at once (say "turn the light off"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Run an acquisition: Runs a time, focus and position plan; a large one asks first (say "take three pictures a second apart"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Stop the microscope: Stops the motors and any acquisition at once (say "stop"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Your limits for the microscope: Reads or changes your limits; loosening them asks first (say "what are the microscope's limits?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 A clearer picture (Better pictures made from real frames):
 - I: A clearer picture: Averaged, sharpest or focus-stacked from real frames (say "clean up the picture")
 Snapshots (Saving the view with its outlines):
