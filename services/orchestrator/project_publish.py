@@ -122,8 +122,10 @@ def prepare(seal, staging: Path, *, include_transcripts=False, licence=DEFAULT_L
         'licenceName': LICENCES[licence], 'snapshotSha256': sha256(raw),
         'members': manifest['entries'], 'bytes': sum(e['bytes'] for e in manifest['entries']),
         'recordFiles': len(record), 'largeFiles': len(bulk),
-        'leftOut': {'conversations': f'{journals} journal(s) reduced to their identity line'
-                                     + (f" and {left_out['results']} line(s) that list results" if left_out['results'] else ''),
+        'leftOut': {'conversations': (f"left out; {journals} journal{'s keep' if journals != 1 else ' keeps'} only "
+                                      f"{'their' if journals != 1 else 'its'} identity line")
+                                     + (f" and the {left_out['results']} line{'s' if left_out['results'] != 1 else ''} "
+                                        "that list results" if left_out['results'] else ''),
                     'transcripts': left_out['transcripts'] if not include_transcripts else 0,
                     'otherFiles': sorted({e['path'] for e in full_manifest['entries']} - kept
                                          - {e['path'] for e in full_manifest['entries'] if e['path'].startswith('history/sessions/')})[:200]},

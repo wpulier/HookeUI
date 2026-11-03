@@ -16,7 +16,7 @@ const review: PublicationReview = {
   origin: 'a'.repeat(32), name: 'Research', licence: 'CC-BY-4.0', licenceName: 'Creative Commons Attribution 4.0',
   snapshotSha256: 'b'.repeat(64), reviewDigest: 'c'.repeat(64), staging: 'publication-0123456789ab', bytes: 2_000_000,
   recordFiles: 12, largeFiles: 2, memberCount: 14, members: [{path: 'project.json', bytes: 120, sha256: 'd'.repeat(64)}],
-  leftOut: {conversations: '1 journal(s) reduced to their identity line and 3 line(s) that list results', transcripts: 3, otherFiles: []},
+  leftOut: {conversations: 'left out; 1 journal keeps only its identity line and the 3 lines that list results', transcripts: 3, otherFiles: []},
   publishedText: [{session: '2026-11-02', id: 'a1', version: 1, title: 'Division', text: '<b>Looks like</b> a dividing cell'}],
   includeTranscripts: false, findings: [{path: 'artifacts/results/r.json', line: 4, kind: 'home-path', blocks: false}], blocked: false,
 };
@@ -45,7 +45,7 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   const view = projectPublish(a, () => true, 'Cells under stress');
   document.body.append(view.element);
   click(view.element, 'Review what will be published');
-  await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: 1 journal(s) reduced'));
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Conversations: left out; 1 journal keeps only its identity line'));
   expect(view.element.textContent).toContain('Research transcripts: 3 files left out');
   expect(view.element.textContent).toContain('Your notes, published as written');
   const note = Array.from(view.element.querySelectorAll('li')).find(li => li.textContent?.startsWith('Division'))!;
