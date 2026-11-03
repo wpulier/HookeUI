@@ -60,6 +60,11 @@ class GitHub:
     # --- transport ---
     def call(self, method, path, payload=None):
         self.calls.append((method, path))
+        if method == 'GET' and path == '/user':
+            return 200, {'login': 'ada', 'id': 1}
+        if method == 'GET' and path.count('/') == 3 and '/'.join(path.split('/')[2:4]) in self.repos:
+            full = '/'.join(path.split('/')[2:4])
+            return 200, {'full_name': full, 'owner': {'login': full.split('/')[0]}, 'private': False}
         if method == 'POST' and path == '/user/repos':
             full = f'ada/{payload["name"]}'
             if full in self.repos:
@@ -76,6 +81,13 @@ class GitHub:
         if rest == 'topics' and method == 'PUT':
             repo['topics'] = payload['names']
             return 200, {'names': payload['names']}
+        if rest.startswith('git/matching-refs/heads/') and method == 'GET':
+            prefix = rest[len('git/matching-refs/heads/'):]
+            return 200, [{'ref': f'refs/heads/{b}', 'object': {'sha': c}} for b, c in repo['refs'].items()
+                         if b.startswith(prefix)]
+        if rest.startswith('git/refs/heads/') and method == 'DELETE':
+            repo['refs'].pop(rest[len('git/refs/heads/'):], None)
+            return 204, {}
         if rest.startswith('git/ref/heads/') and method == 'GET':
             sha = repo['refs'].get(rest[len('git/ref/heads/'):])
             return (200, {'object': {'sha': sha}}) if sha else (404, {'message': 'Not Found'})
@@ -96,7 +108,8 @@ class GitHub:
             c = repo['commits'].get(rest[len('git/commits/'):])
             if not c:
                 return 404, {'message': 'Not Found'}
-            return 200, {'message': c['message'], 'tree': {'sha': c['tree']}, 'parents': [{'sha': p} for p in c['parents']]}
+            # As GitHub's API does: the message without its final newline.
+            return 200, {'message': c['message'].rstrip('\n'), 'tree': {'sha': c['tree']}, 'parents': [{'sha': p} for p in c['parents']]}
         if rest == 'git/commits' and method == 'POST':
             commit = self._id([payload['message'], payload['tree'], payload['parents']])
             repo['commits'][commit] = {'message': payload['message'], 'tree': payload['tree'], 'parents': payload['parents']}
@@ -280,3 +293,28 @@ def test_repository_addresses(value, expected):
 def test_bad_repository_addresses_are_refused(value):
     with pytest.raises(RemoteRefused):
         repository(value)
+
+
+def test_github_gives_a_message_without_its_final_newline_and_that_is_the_same_message():
+    """Live test, ticket 03: the first real publication was refused because GitHub's API drops the final newline."""
+    from orchestrator.project_remote_github import same_message
+    sent = 'Publish Leaf cells\n\nHooke-Snapshot: ' + 'a' * 64 + '\nHooke-Origin: ' + 'b' * 32 + '\nHooke-Format: 2\n'
+    assert same_message(sent.rstrip('\n'), sent) and same_message(sent, sent)
+    assert not same_message(sent.replace('Leaf', 'Root').rstrip('\n'), sent) and not same_message(None, sent)
+
+
+def test_a_first_publication_that_did_not_finish_is_tried_again_under_the_same_name():
+    from orchestrator.github_rest import Client
+    from orchestrator.project_remote_github import create_repository
+    github = GitHub()
+    client = Client(http=github)
+    repo, placeholder = create_repository(client, 'leaf-cells', private=False, description='x')
+    github.repos[repo]['refs']['hooke-pending-1553f979c45b'] = placeholder  # what the failed push left
+    again, same = create_repository(client, 'leaf-cells', private=False, description='x')
+    assert (again, same) == (repo, placeholder)
+    # A repository with any history of its own, or of the other visibility, is never taken over.
+    with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
+        create_repository(client, 'leaf-cells', private=True, description='x')
+    github.repos[repo]['refs']['notes'] = placeholder
+    with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
+        create_repository(client, 'leaf-cells', private=False, description='x')
