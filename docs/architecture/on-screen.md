@@ -145,6 +145,9 @@ other files.
   - `show_measurements` takes `show` too: with `show: false` and a `tab`, the table is put in that Tab's saved layout
     (`table_window.prepare`: the Tab found, or this request's, or made quietly; then `tabs add`), the screen staying
     put; on the Tab in front it is simply shown. Its receipt is the tool's "Prepared:" answer (`records.py`).
+  - `reopen` brings back a closed Tab where it stood, its arrangement as kept: the same reopen as the toast's Reopen,
+    ⌘⇧T and Tabs…. Shown, it comes to the front; quiet, it is back among the open Tabs while the screen stays put. It
+    is how a close is undone (Projects' tidy undo), so "undone" is said only once the Tab is open again.
   - Next: `present place` quiet (a photo, web page or video opens as a window on the Tab in front; one already open
     moves to another Tab quietly with `tabs move`), and Hooke's own off-screen desk, a second studio view whose front
     Tab is its own, for looking at a Tab's pixels while the user's screen stays put.

@@ -145,8 +145,10 @@ def intent_of(tool: str, args: dict, *, kind: str = "effect", produces: str | No
         action, tab = str(args.get("action") or ""), _target_of(args.get("tab"))
         if action in ("list", ""):
             return None
-        kind_ = {"switch": "focus", "create": "open", "compose": "open", "close": "close"}.get(action, "present")
+        kind_ = {"switch": "focus", "create": "open", "compose": "open", "close": "close", "reopen": "open"}.get(
+            action, "present")
         caption = {"switch": "Switching Tabs", "create": "Making a Tab", "close": "Closing the Tab",
+                   "reopen": "Reopening the Tab",
                    "rename": "Renaming the Tab", "add": "Adding it to the Tab", "compose": "Setting up a Tab",
                    "arrange": "Putting them side by side", "only": "Closing the rest",
                    "specimen": SPECIMEN_CAPTIONS.get(str(args.get("specimen") or ""), "Moving the specimen"),
@@ -354,6 +356,8 @@ def expected(intent: Intent, facts: dict, result: dict | None = None) -> bool | 
             return None if made is None else _tab_is(front, made)
         if action == "close" and ids:
             return not any(_tab_is(t, ids[0]) for t in facts["tabs"])
+        if action == "reopen" and ids:
+            return _tab_is(front, ids[0])  # shown: the Tab reopened is the one in front
         if action in ("create", "rename"):
             title = str(intent.args.get("title") or "").strip()
             if not title:

@@ -33,6 +33,8 @@ def add_tab_tools(registry, services):
         'show_measurements with tab: one action, confirmed on screen. Anything else put in a Tab (a photo, a '
         'researcher\'s picture, a window open in another Tab), as its main item or beside, is present do=place with '
         'tab: one action, wherever it is now. '
+        'reopen brings back a closed Tab (list shows it with open false) as it was kept, its arrangement and items '
+        'with it: how a close is undone. '
         'compose makes one new Tab holding saved items (items: up to 8, by id; a population with presentation table '
         'shows its measurements), its windows side by side: one action instead of create, add and arrange. '
         'show false prepares quietly, for looking or getting ready while the user keeps their own view: the Tab is '
@@ -40,7 +42,7 @@ def add_tab_tools(registry, services):
         'shown; switch to it when the user should see it, and it opens already arranged. Leave show out when the user '
         'asked to see it.',
         schema({'action': {'type': 'string', 'enum': ['list', 'create', 'rename', 'switch', 'add', 'move', 'close',
-                                                      'specimen', 'arrange', 'only', 'compose']},
+                                                      'reopen', 'specimen', 'arrange', 'only', 'compose']},
                 'show': {'type': 'boolean',
                          'description': 'false: prepare it quietly, not brought to the front (the user sees it when it '
                                         'is switched to); leave out to show it'},

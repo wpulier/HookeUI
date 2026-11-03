@@ -1303,6 +1303,22 @@ private revision=0;private generation=0;private revealSequence=0;
    }else if(args.action==='close'){
     if(this.isHome(target!.id))throw new Error('Main stays open; it holds the live input.');
     await this.closeTab(target!.id);check();if(this.openIds.includes(target!.id))throw new Error('The Tab could not close. Save or finish its work first.');
+   }else if(args.action==='reopen'){
+    // A closed Tab back where it stood, its arrangement as kept: the same reopen as the toast's Reopen, ⌘⇧T and Tabs….
+    // Quiet: back among the open Tabs, not put in front (how Hooke undoes a tidy without moving the person's screen).
+    const id=target!.id,open=this.openIds.includes(id);
+    if(quiet&&!open){
+     const closed=this.closedStack.find(c=>c.id===id);
+     this.openIds.splice(Math.min(closed?.at??this.openIds.length,this.openIds.length),0,id);
+     this.closedStack=this.closedStack.filter(c=>c.id!==id);if(this.closedId===id)this.clearReopen();this.navSave();this.render();
+     window.dispatchEvent(new CustomEvent('workspace-tab-reopened',{detail:{session:this.session,kind:'work',id}}));
+    }else if(!quiet){
+     if(this.opts.leaveResearch&&!this.opts.leaveResearch())throw new Error('Finish or discard the Study form first, then ask again.');
+     if(open){if(!await this.goTo(id,owner))throw new Error('The Tab did not come to the front. Switch to it.');}
+     else await this.reopenClosed(id);
+    }
+    check();if(!this.openIds.includes(id))throw new Error('The Tab could not reopen. Reopen it from Tabs….');
+    if(!quiet&&this.layout.active!==id)throw new Error('The Tab reopened but is not in front. Switch to it.');
    }else if(args.action==='move'){
     const source=this.layout.views.find(v=>v.id===args.from);
     loose=!!source&&!!this.looseRoot(source.id,args.placement);

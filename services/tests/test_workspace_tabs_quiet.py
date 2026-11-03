@@ -195,3 +195,41 @@ def test_a_quiet_table_has_no_hand_and_its_receipt_is_what_the_tool_prepared():
                                        'that Tab is shown. Facts: saved: in Data as e3'}
     receipt = asyncio.run(Records(None).check(intent, prepared, None, {}))
     assert receipt['result'] == 'verified' and 'Facts' not in receipt['said']
+
+
+def test_a_closed_tab_is_reopened_quietly_and_said_back_among_the_open_tabs():
+    """How Hooke undoes a close (Lane B's tidy) without moving the person's screen: reopen with show false."""
+    async def run():
+        rig = Rig()
+        task = asyncio.create_task(rig.broker.run(rig.ctx, {'action': 'reopen', 'tab': 'other', 'show': False}))
+        command = await next_command(rig)
+        assert command['action'] == {'action': 'reopen', 'tab': 'other', 'show': False}
+        answer(rig, command, {'ok': True, 'quiet': True,
+                              'tabs': tabs(('main', 'Main', True, []), ('other', 'Other', False, []))})
+        reply = await asyncio.wait_for(task, HANG_S)
+        assert reply['prepared'].startswith('back among the open Tabs') and 'shown' not in reply
+    asyncio.run(run())
+
+
+def test_a_quiet_reopen_the_studio_did_not_do_is_said_plainly():
+    async def run():
+        rig = Rig()
+        task = asyncio.create_task(rig.broker.run(rig.ctx, {'action': 'reopen', 'tab': 'other', 'show': False}))
+        command = await next_command(rig)
+        closed = tabs(('main', 'Main', True, []), ('other', 'Other', False, []))
+        closed[1]['open'] = False
+        answer(rig, command, {'ok': True, 'quiet': True, 'tabs': closed})
+        with pytest.raises(ToolFailed, match='not reopened'):
+            await asyncio.wait_for(task, HANG_S)
+    asyncio.run(run())
+
+
+def test_the_receipt_of_a_reopen():
+    quiet = intent_of('tabs', {'action': 'reopen', 'tab': 'other', 'show': False})
+    assert quiet.ui is False and quiet.caption == 'Reopening the Tab quietly'
+    assert intent_of('tabs', {'action': 'reopen', 'tab': 'other'}).ui is True
+    back = Records._tabbed(quiet, summary(tabs=tabs(('other', 'Other', False, []))))
+    assert back['result'] == 'verified' and back['said'].startswith('The Tab "Other" is open again')
+    still = tabs(('other', 'Other', False, []))
+    still[0]['open'] = False
+    assert Records._tabbed(quiet, summary(tabs=still))['result'] == 'uncertain'

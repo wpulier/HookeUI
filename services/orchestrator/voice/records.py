@@ -227,6 +227,9 @@ class Records:
             return unsure
         if action == "close":
             return unsure if target.get("open") else {"result": "verified", "said": "The Tab is closed; its Data stays."}
+        if action == "reopen":
+            return {"result": "verified", "said": f'The Tab "{target.get("title")}" is open again, as it was kept; not in '
+                                                  'front until it is switched to.'} if target.get("open") else unsure
         return unsure
 
     def _started(self, result: dict, run) -> dict:

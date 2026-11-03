@@ -14,8 +14,8 @@ from .workspace_observation import SPECIMEN_ASKED as SPECIMEN, front
 
 
 _PIN_FIELDS = ("id", "rootId", "kind", "lifetimeGeneration", "sourceGeneration")
-ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'specimen', 'arrange', 'only', 'reader',
-           'compose')
+ACTIONS = ('list', 'create', 'rename', 'switch', 'add', 'move', 'close', 'reopen', 'specimen', 'arrange', 'only',
+           'reader', 'compose')
 COMPOSE_ITEMS = 8  # saved items one compose puts in its new Tab
 SPECIMEN_WAIT_S = 4.0  # the studio's report showing the specimen as asked, after its save was acknowledged
 PLACED_WAIT_S = 4.0  # the studio's report showing a Tab arranged (beside) or holding only what was kept (only)
@@ -246,7 +246,7 @@ class WorkspaceTabs:
             current()
             if not reply.get('ok'):
                 raise ToolFailed(str(reply.get('error') or 'the Tab action was not confirmed'), next='check the workspace before retrying')
-            if action in ('create', 'switch', 'compose'):
+            if action in ('create', 'switch', 'compose', 'reopen'):
                 key = request_key(ctx)
                 selected = [str(t.get('id')) for t in reply.get('tabs') or () if t.get('selected')]
                 if key and selected:
@@ -287,6 +287,12 @@ class WorkspaceTabs:
             if action in ('arrange', 'only') and verify and not reply.get('deferred'):
                 placed = await self._placed(screen, ctx, args, current)
                 reply = {**reply, 'shown': placed}
+            if action == 'reopen' and quiet:
+                # Undoing a close without moving the person's screen: back among the open Tabs, as it was kept.
+                tab = next((t for t in reply.get('tabs') or () if t.get('id') == args['tab']), None)
+                if not (tab or {}).get('open'):
+                    raise ToolFailed('the Tab was not reopened', next='list the Tabs to see which are open')
+                reply = {**reply, 'prepared': 'back among the open Tabs, as it was kept; not in front until switched to'}
             if action == 'specimen' and quiet:
                 # Prepared quietly: what the studio saved for that Tab is the check (its reply), not the screen.
                 tab = next((t for t in reply.get('tabs') or () if args['tab'] in (t.get('id'), t.get('title'))), None)

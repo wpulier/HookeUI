@@ -81,3 +81,29 @@ test('compose refuses another Project\'s item, more than eight, or a specimen wo
   expect(result.ok).toBe(false);expect(current.addView).not.toHaveBeenCalled();
  }
 });
+
+test('reopen, quiet: a closed Tab is back where it stood among the open Tabs, the person\'s screen unmoved',async()=>{
+ const {current}=fixture();
+ const dispatched=vi.fn();vi.stubGlobal('window',{dispatchEvent:dispatched});vi.stubGlobal('CustomEvent',class{type:string;constructor(type:string){this.type=type;}});
+ Object.assign(current,{openIds:['main'],closedStack:[{id:'other',at:1}],navSave:vi.fn(),closedId:''});
+ const result=await current.agentCommand('p',{action:'reopen',tab:'other',show:false});
+ expect(result.ok).toBe(true);expect(current.openIds).toEqual(['main','other']);expect(current.closedStack).toEqual([]);
+ expect(current.layout.active).toBe('main');expect(current.goTo).not.toHaveBeenCalled();expect(current.navSave).toHaveBeenCalled();
+ expect(result.tabs.find((t:{id:string})=>t.id==='other')).toMatchObject({open:true,selected:false});
+ expect(dispatched).toHaveBeenCalledTimes(1);
+});
+
+test('reopen, shown: the closed Tab comes back in front, the same reopen as the person\'s',async()=>{
+ const {current}=fixture();
+ Object.assign(current,{openIds:['main'],closedStack:[{id:'other',at:1}],navSave:vi.fn()});
+ current.reopenClosed=vi.fn(async(id:string)=>{current.openIds.push(id);current.layout.active=id;});
+ const result=await current.agentCommand('p',{action:'reopen',tab:'other'});
+ expect(current.reopenClosed).toHaveBeenCalledWith('other');expect(result.tabs.find((t:{id:string})=>t.id==='other')).toMatchObject({open:true,selected:true});
+});
+
+test('reopen says so when the Tab did not come back',async()=>{
+ const {current}=fixture();
+ Object.assign(current,{openIds:['main'],closedStack:[{id:'other',at:1}],navSave:vi.fn()});
+ current.reopenClosed=vi.fn(async()=>{});
+ expect(await current.agentCommand('p',{action:'reopen',tab:'other'})).toMatchObject({ok:false,error:expect.stringMatching(/could not reopen/)});
+});
