@@ -289,6 +289,8 @@ def test_codex_session_answer_covers_plain_hooke_commands_only():
         # The next plain hooke command is the user's own answer for this session; one that writes a file still asks.
         await events.until(lambda: len(replay.sent) >= 2)
         assert replay.sent[1] == {"id": 1, "result": {"decision": "acceptForSession"}}
+        said = await events.until(lambda: [e for e in events.of("tool") if "allowed for this session" in (e["title"] or "")])
+        assert len(said) == 1  # said once, not after every hooke command
         asks = await events.until(lambda: [e for e in events.of("permission") if e["id"] == "codex:2"])
         assert "../caps.json" in asks[0]["detail"] and len(events.of("permission")) == 2
         assert adapter._plain_hooke(f"{hooke} --agent codex tools --json > tools.json")  # into its own folder: covered

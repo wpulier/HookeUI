@@ -48,11 +48,11 @@ describe('the Agents panel', () => {
     expect(entryWords({ n: 3, role: 'tool', text: 'Ran a command: ls -la', at: 3, state: 'done' }))
       .toEqual({ who: 'Ran', text: 'ls -la' });
     expect(entryWords({ n: 3, role: 'tool', text: 'Ran a command: hooke status --json', at: 3, state: 'done' }))
-      .toEqual({ who: '', text: 'Checked that Hooke is there' });
+      .toEqual({ who: '', text: 'Checked that Hooke is there', plain: true });
     expect(entryWords({ n: 5, role: 'tool', text: 'Changed files: its folder/report.md', at: 5, state: 'done' }))
       .toEqual({ who: 'Changed', text: 'its folder/report.md' });
     expect(entryWords({ n: 6, role: 'tool', text: "Ran a command: hooke run project.import '{\\\"file\\\":\\\"its folder/report.md\\\"}' --project p --key k", at: 6, state: 'done' }))
-      .toEqual({ who: '', text: 'Kept report.md in the Project' });
+      .toEqual({ who: '', text: 'Kept report.md in the Project', plain: true });
     expect(entryWords({ n: 4, role: 'note', text: 'You allowed it', at: 4 })).toEqual({ who: '', text: 'You allowed it' });
     vi.stubGlobal('document', syntheticDOM().document);
     expect(inline('Saved **report.md** as `artifact`').map((n) => (n as unknown as TestElement).tagName?.toLowerCase() ?? 'text'))
@@ -161,6 +161,9 @@ describe('the Agents panel', () => {
     expect(hookeWords("hooke run catalog:basic-bright-objects '{}' --project p --key k")).toBe('Ran basic-bright-objects in Hooke');
     expect(hookeWords('hooke status && rm -rf ~')).toBeNull();
     expect(hookeWords('ls -la')).toBeNull();
+    expect(hookeWords(`hooke api POST studies/p1/claims '{"session":"s"}'`, 'does')).toBe('Publish a claim for your review');
+    expect(entryWords({ n: 9, role: 'ask', text: `to run a command: hooke api POST studies/p1/claims '{"session":"s"}'`, at: 9 }))
+      .toEqual({ who: 'Asked', text: 'to publish a claim for your review', plain: true });
   });
 });
 

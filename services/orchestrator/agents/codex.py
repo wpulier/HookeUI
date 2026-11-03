@@ -37,6 +37,7 @@ class Codex(Adapter):
         self._asks: dict[str, tuple[object, str, dict]] = {}  # permission id -> (request id, kind, params)
         self.hooke: str | None = None  # Hooke's own command, as this launch was given it
         self._hooke_allowed = False  # the user allowed plain `hooke` commands for this session
+        self._said_allowed = False
         self._reader: asyncio.Task | None = None
 
     def argv(self) -> list[str]:
@@ -166,8 +167,10 @@ class Codex(Adapter):
         pid = f"codex:{rid}"
         if kind == "command" and self._hooke_allowed and self._plain_hooke(params.get("command")):
             await self.peer.reply(rid, {"decision": "acceptForSession"})  # the user's own answer for this session
-            self.emit("tool", item=f"{pid}:allowed", title="Allowed for this session, as you said",
-                      detail=short(params.get("command") or ""), state="done")
+            if not self._said_allowed:  # said once, not after every hooke command
+                self._said_allowed = True
+                self.emit("tool", item=f"{pid}:allowed", title="Hooke's commands allowed for this session, as you said",
+                          detail=None, state="done")
             return
         if kind in ("command", "legacy-command"):
             command = params.get("command")

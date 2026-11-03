@@ -70,3 +70,6 @@
 .agents-reply-note {grid-column:1 / -1;font:400 11px/14px var(--mm-sans,system-ui);color:var(--mm-text-3,#909099);}
 .agents-line.is-tool .agents-who:empty {display:none;}
 .agents-line.is-tool:has(.agents-who:empty) {grid-template-columns:1fr;}
+.agents-line.is-tool.is-plain .agents-text {font:400 12px/16px var(--mm-sans,system-ui);color:var(--mm-text-2,#a7a7b0);}
+.agents-ask-does {flex-basis:100%;color:var(--mm-text,#ededf0);}
+.agents-line.is-ask .agents-text {display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}

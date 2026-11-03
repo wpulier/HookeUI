@@ -72,7 +72,7 @@ export function agentTime(row: AgentRow, now = Date.now() / 1000): string {
 
 /** An entry of the transcript, in words: whose it is first. Hooke's own are marked as Hooke's, never as yours. A
  * command is said as itself ("Ran · hooke status"), not as "Ran a command: …". */
-export function entryWords(entry: AgentEntry): { who: string; text: string } {
+export function entryWords(entry: AgentEntry): { who: string; text: string; plain?: boolean } {
   const text = entry.text.replace(/^\[Hooke\]\s*/, '');
   if (entry.role === 'hooke') return { who: entry.how === 'steered' ? 'Hooke, while it worked' : 'Hooke', text };
   if (entry.role === 'tool') {
@@ -80,40 +80,47 @@ export function entryWords(entry: AgentEntry): { who: string; text: string } {
     const bare = text.replace(/^(Ran|Running) a command: /, '').replace(/^(Changed|Changing) files: /, '')
       .replace(/^Using (Bash|Read|Write|Edit): /, '$1 ');
     // A call to Hooke's own door, said as what it did ("Kept report.md in the Project"); the command is on hover.
-    const plain = hookeWords(bare.replace(/^Bash /, ''));
-    if (plain) return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? 'Running' : '', text: plain };
+    const plain = /^Hooke’?'?s commands allowed/.test(bare) ? bare : hookeWords(bare.replace(/^Bash /, ''));
+    if (plain) return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? 'Running' : '', text: plain, plain: true };
     const done = files ? 'Changed' : 'Ran';
     return { who: entry.state === 'failed' ? 'Failed' : entry.state === 'running' ? (files ? 'Changing' : 'Running') : done, text: bare };
   }
-  if (entry.role === 'ask') return { who: 'Asked', text };
+  if (entry.role === 'ask') {
+    const plain = hookeWords(text.replace(/^to run a command: /, ''), 'does');
+    return plain ? { who: 'Asked', text: `to ${plain.charAt(0).toLowerCase()}${plain.slice(1)}`, plain: true } : { who: 'Asked', text };
+  }
   if (entry.role === 'note') return { who: '', text };
   return { who: entry.final ? 'Answer' : 'Said', text };
 }
 
 /** What a `hooke` command did, in a person's words, when it is one of the door's own calls; null otherwise (a chain,
  * a pipe, or anything else is shown as itself). */
-export function hookeWords(command: string): string | null {
+export function hookeWords(command: string, tense: 'did' | 'does' = 'did'): string | null {
   const c = command.trim().replace(/\s+>\s*[\w.-]+$/, '');
   if (!/^hooke /.test(c) || /[;&|`]|\$\(/.test(c.replace(/'[^']*'/g, "''"))) return null;
+  const say = (did: string, does: string) => (tense === 'did' ? did : does);
   const field = (name: string) => c.match(new RegExp(`\\\\?"${name}\\\\?"\\s*:\\s*\\\\?"([^"\\\\]+)`))?.[1];
-  if (/^hooke status\b/.test(c)) return 'Checked that Hooke is there';
-  if (/^hooke tools\b/.test(c)) return 'Read what Hooke can do here';
-  if (/^hooke run project\.import\b/.test(c)) { const file = field('file'); return `Kept ${file ? file.split('/').pop() : 'a file'} in the Project`; }
-  if (/^hooke run project\.state\b/.test(c)) return 'Read the Project';
-  if (/^hooke run study\.coordination\b/.test(c)) return 'Read its Study';
+  if (/^hooke status\b/.test(c)) return say('Checked that Hooke is there', 'Check that Hooke is there');
+  if (/^hooke tools\b/.test(c)) return say('Read what Hooke can do here', 'Read what Hooke can do here');
+  if (/^hooke run project\.import\b/.test(c)) { const file = field('file')?.split('/').pop() ?? 'a file'; return say(`Kept ${file} in the Project`, `Keep ${file} in the Project`); }
+  if (/^hooke run project\.state\b/.test(c)) return say('Read the Project', 'Read the Project');
+  if (/^hooke run study\.coordination\b/.test(c)) return say('Read its Study', 'Read its Study');
   if (/^hooke run study\.coordinate\b/.test(c)) {
-    const action = field('action');
-    return { claim: 'Claimed its assignment', complete: 'Returned its assignment with its report', plan: 'Saved a plan in its Study',
-      propose: 'Proposed an assignment' }[action ?? ''] ?? 'Updated its Study';
+    const action = field('action') ?? '';
+    const words: Record<string, [string, string]> = { claim: ['Claimed its assignment', 'Claim its assignment'],
+      complete: ['Returned its assignment with its report', 'Return its assignment with its report'],
+      plan: ['Saved a plan in its Study', 'Save a plan in its Study'], propose: ['Proposed an assignment', 'Propose an assignment'] };
+    const [did, does] = words[action] ?? ['Updated its Study', 'Update its Study'];
+    return say(did, does);
   }
-  if (/^hooke api POST '?studies\/[^/\s']+\/claims/.test(c)) return 'Published a claim for your review';
-  if (/^hooke api GET '?studies/.test(c)) return 'Read its Study';
-  if (/^hooke api GET '?workflows/.test(c)) return 'Read Hooke’s workflows';
-  if (/^hooke operations?\b/.test(c)) return 'Followed its work in Hooke';
-  if (/^hooke open\b/.test(c)) return 'Opened a picture in Hooke';
-  if (/^hooke download\b/.test(c)) return 'Downloaded a file from the Project';
+  if (/^hooke api POST '?studies\/[^/\s']+\/claims/.test(c)) return say('Published a claim for your review', 'Publish a claim for your review');
+  if (/^hooke api GET '?studies/.test(c)) return say('Read its Study', 'Read its Study');
+  if (/^hooke api GET '?workflows/.test(c)) return say('Read Hooke’s workflows', 'Read Hooke’s workflows');
+  if (/^hooke operations?\b/.test(c)) return say('Followed its work in Hooke', 'Follow its work in Hooke');
+  if (/^hooke open\b/.test(c)) return say('Opened a picture in Hooke', 'Open a picture in Hooke');
+  if (/^hooke download\b/.test(c)) return say('Downloaded a file from the Project', 'Download a file from the Project');
   const ran = c.match(/^hooke run ([\w.:-]+)/);
-  if (ran) return `Ran ${ran[1].replace(/^catalog:/, '')} in Hooke`;
+  if (ran) { const name = ran[1].replace(/^catalog:/, ''); return say(`Ran ${name} in Hooke`, `Run ${name} in Hooke`); }
   return null;
 }
 
@@ -404,6 +411,8 @@ export class AgentsPanel {
 
   private ask(row: AgentRow, ask: AgentAsk, card = false): HTMLElement {
     const box = el('div', card ? 'agents-ask is-card' : 'mm-row-question agents-ask'); box.dataset.ask = ask.id;
+    const does = hookeWords(ask.detail, 'does');  // what it would do, in words; the exact command stays shown under it
+    if (does) box.append(el('span', 'agents-ask-does', `What it does: ${does}`));
     if (ask.detail) box.append(el('code', 'agents-ask-detail', ask.detail));
     if (ask.reason) box.append(el('span', 'agents-ask-reason', ask.reason));
     const sending = this.sending.has(ask.id);
@@ -426,10 +435,10 @@ export class AgentsPanel {
     const entries = (this.full.get(row.id) ?? row.transcript).slice(-60);
     for (const entry of entries) {
       const words = entryWords(entry);
-      const li = el('li', `agents-line is-${entry.role}`);
+      const li = el('li', `agents-line is-${entry.role}${words.plain ? ' is-plain' : ''}`);
       const body = el('span', 'agents-text');
       if (entry.role === 'agent') body.append(...inline(words.text)); else body.textContent = words.text;
-      if (entry.role === 'tool') body.title = entry.text;  // the command itself, all of it, on hover
+      if (entry.role === 'tool' || entry.role === 'ask') body.title = entry.text;  // the command itself, on hover
       li.append(el('span', 'agents-who', words.who), body);
       lines.append(li);
     }
