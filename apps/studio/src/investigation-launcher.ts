@@ -223,7 +223,7 @@ export class InvestigationLauncher {
           const start=button('Start Project', async ()=>{
             if (this.busy) return;
             this.busy=true; start.disabled=true;
-            const close=dialog.querySelector('header button') as HTMLButtonElement; close.disabled=true;
+            const close=dialog.querySelector('button')!; close.disabled=true;
             try { await this.actions.start('microscope'); dialog.close(); }
             catch (error) { status.textContent=error instanceof Error ? error.message : 'Could not open this Project.'; }
             finally { this.busy=false; start.disabled=false; close.disabled=false; }
