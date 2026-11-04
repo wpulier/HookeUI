@@ -18,6 +18,7 @@ export interface SessionMenuOptions {
   fetcher?: typeof fetch;
   /** Opens All sessions, the full page (sessions-page.ts); without it the menu has no link to it. */
   openAll?: () => void;
+  newProject?: () => boolean;
 }
 
 /** Whether a row matches the search: its name (the user's or the automatic one) or anything seen in it. */
@@ -50,6 +51,7 @@ export class SessionMenu implements Panel {
   readonly search = document.createElement('input');
   private readonly body = document.createElement('div');
   private renaming: HTMLInputElement | null = null;
+  private readonly newProject: () => boolean;
   private readonly openAll: (() => void) | undefined;
   private chipStamp = '';
   private panelStamp = '';
@@ -59,6 +61,7 @@ export class SessionMenu implements Panel {
     this.chip = chip;
     this.panel = panel;
     this.openAll = options.openAll;
+    this.newProject = options.newProject ?? (() => model.create());
     this.fetcher = options.fetcher;
     this.name.className = 'session-chip-name';
     this.chevron.className = 'session-chip-chevron';
@@ -76,7 +79,7 @@ export class SessionMenu implements Panel {
     this.createButton.type = 'button';
     this.createButton.className = 'session-new mm-primary';
     this.createButton.title = 'A fresh project: its own conversations and work. This one is kept, to come back to.';
-    this.createButton.addEventListener('click', () => { if (this.model.create()) this.close(); });
+    this.createButton.addEventListener('click', () => { if (this.newProject()) this.close(); });
     this.search.type = 'search';
     this.search.className = 'session-search';
     this.search.placeholder = 'Search projects';
@@ -242,7 +245,7 @@ export class SessionMenu implements Panel {
       const actions = document.createElement('div');
       actions.className = 'session-suggest-actions';
       const fresh = Object.assign(document.createElement('button'), { type: 'button', className: 'primary', textContent: 'New project' });
-      fresh.addEventListener('click', () => { if (model.create()) this.close(); });
+      fresh.addEventListener('click', () => { if (this.newProject()) this.close(); });
       const keep = Object.assign(document.createElement('button'), { type: 'button', textContent: 'Keep here' });
       keep.addEventListener('click', () => model.keep());
       actions.append(fresh, keep);

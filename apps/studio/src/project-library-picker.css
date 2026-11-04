@@ -1,0 +1,5 @@
+.project-library-picker { width: min(540px, 92vw); }
+.project-library-picker input { width: 100%; }
+.project-library-choices { max-height: 45vh; overflow: auto; display: grid; gap: 4px; }
+.project-library-choices button { display: flex; align-items: center; gap: 12px; text-align: left; }
+.project-library-choices img { width: 48px; height: 36px; object-fit: cover; border-radius: 4px; }

@@ -22,7 +22,7 @@ import { mountAppUpdates } from './app-updates';
 import { agentConnections } from './agent-connections';
 import { DISCONNECTED, readReadiness, researcherLines, runLines, studyLines, toolSessionLines, unsentLines } from './restart-readiness';
 import './capability-controls.css';
-import { daysAgo, monthDay, projectRowWords, inputCountWords, rowView, savedWhereWords, sessionName, sortSessions, type SessionRowView } from './sessions';
+import { daysAgo, monthDay, projectRowWords, inputCountWords, rowView, savedWhereWords, sessionName, sortSessions } from './sessions';
 import { ENTRY_DRAG, draggedEntry, WorkspaceViews } from './workspace-views';
 import { madeByWords } from './workspace-data-card';
 import { specimenName } from './camera-label';
@@ -62,10 +62,15 @@ import { StudySurfaces, sheetAlone } from './workspace-study-surfaces';
 import { bindResearchStageRoute, escapeIsPopups, openResearchersDrawer, researchListRoute } from './workspace-study-navigation';
 import { failureHelp, workspaceHelp } from './workspace-help';
 import { exampleProject } from './onboarding';
+import { InvestigationLauncher } from './investigation-launcher';
+import { LauncherAssistant } from './launcher-assistant';
+import { previewResearchStarter, ResearchStarterDashboard, type ResearchStarter } from './research-starter';
+import { chooseProjectAsset } from './project-library-picker';
+import './project-library-picker.css';
 import { starterOffer } from './starter-models';
 import { activateTab, closeTab, emptyTabs, moveTab, readTabs } from './workspace-study-tabs';
 import type { AssetMeta, ReaderRequestMessage, ResearchSession } from './protocol';
-import { sourceMeta } from './sources';
+import { sourceMeta, ADDABLE } from './sources';
 import { projectChipShown, runChipWords } from './run-chip-words';
 import { applyRailBadge, applyRailMark, railBadges, researchersMark } from './rail-badges';
 import { moreButton, popMenu, type MenuItem } from './drawer-menu';
@@ -138,6 +143,9 @@ const controlDeck:ControlDeck=configureControlDeck(profileReply.profile,{
 });
 const tabStorageKey = `${storageKey}:tabs`;
 let tabs = readTabs(sessionStorage.getItem(tabStorageKey)??localStorage.getItem(tabStorageKey));
+let choosingProject = false;
+let launcherVisit = 0;
+let launcherOpener: HTMLElement | null = null;
 let switching = false;
 const PROJECT_OPENING = 'A project is opening. Please wait.';
 let initialized = false;
@@ -225,7 +233,7 @@ const icon = (name: string): SVGSVGElement => {
 };
 const bar = el('div', 'study-bar');
 const tabStrip = el('div', 'study-tabs'); tabStrip.setAttribute('role', 'tablist'); tabStrip.setAttribute('aria-label', 'Open projects');
-const newTabButton = button('+', () => void changeSession(), 'study-new-tab'); newTabButton.setAttribute('aria-label', 'New project');
+const newTabButton = button('+', showProjectLauncher, 'study-new-tab'); newTabButton.setAttribute('aria-label', 'New project');
 const allSessionsButton = button('', () => toggleSessionMenu(), 'study-hooke-menu');
 const fixtureButton = button('Test scenarios', () => fixtureDialog.showModal(), 'study-quiet');
 const developer = el('details', 'study-developer'); developer.append(el('summary', '', 'Preview'), el('p', '', 'Local review profile · uncalibrated microscope example'), el('p', '', 'Persistent workspace · comparison evidence is in the review package'), fixtureButton);
@@ -471,6 +479,7 @@ const researcherBrowser=el('section','study-researcher-browser');
 let knownStudies:Effort[]=[];
 let projectActivity:Record<string,ActivitySnapshot>={};
 const overviewPage=el('section');overviewPage.id='project-overview-page';overviewPage.setAttribute('aria-label','Project overview');
+const starterDashboard = new ResearchStarterDashboard(overviewPage,()=>pickInputFiles(workspaceViews.tabOwner(),true));
 const projectResearchHome = new ProjectResearchHome(overviewPage, {
   startResearch: () => newStudy(),
   camera: () => {closeResearchStage();showSection('inputs');setDrawer(true);},
@@ -550,6 +559,9 @@ void agentsPanel.refresh();  // the rail mark is right from the start; later cha
 function renderBoard():void{
   if(drawerOpen&&section==='agents')agentsPanel.configure(agentsOptions());
   const material=resourceSession===snapshot.session?projectInputs(entries):[];
+  const media=snapshot.sources.filter(asset=>!asset.retained || !material.some(entry=>isRetainedMaterial(entry,asset)));
+  const inputTitles=[...media.map(asset=>asset.title),...material.map(entry=>entry.title)];
+  starterDashboard.update(snapshot.session,resourceSession===snapshot.session && !resultsFailed()?inputTitles.length:null,inputTitles.slice(0,6));
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
     {count:material.length,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
   const all=bridge.researchers();
@@ -1008,11 +1020,12 @@ find('workspace-tabs-strip').prepend(projectNavigation.root);
 function rememberProjectDestination(destination:string|null):void{
   try{if(destination)localStorage.setItem(`hooke:project-destination:${snapshot.session}`,destination);else localStorage.removeItem(`hooke:project-destination:${snapshot.session}`);}catch{/* Navigation stays available without browser storage. */}
 }
-function restoreProjectDestination(session:string):void{
+function restoreProjectDestination(session:string, openOverview = false):void{
   if(snapshot.session!==session)return;
   let destination:string|null=null;try{destination=localStorage.getItem(`hooke:project-destination:${session}`);}catch{return;}
   if(destination?.startsWith('study:')){void openStudy(destination.slice(6));return;}
   if(['overview','studies','inputs','results','activity'].includes(destination??''))openProjectDestination(destination as ProjectDestination);
+  else if(openOverview)openProjectDestination('overview');
 }
 function openProjectDestination(destination:ProjectDestination):void{
   if(!canLeaveStudy(()=>openProjectDestination(destination)))return;
@@ -1214,17 +1227,18 @@ async function rememberSession(): Promise<void> {
   try {localStorage.setItem(presentationKey,JSON.stringify(sessionUI));}catch{actionError('Browser storage is full. Workspace changes cannot be remembered.');}
 }
 function persistTabs(): void { if(tabs) sessionStorage.setItem(tabStorageKey,JSON.stringify(tabs)); renderTabs(); }
-async function changeSession(id?: string, restoring = false): Promise<boolean> {
-  if(!restoring && id===tabs?.active && id===snapshot.session) { surfaces.dismiss(); return true; }
+async function changeSession(id?: string, restoring = false, research?: {researchStarter:ResearchStarter; starterRequestId:string}): Promise<boolean> {
+  const fromLauncher = !launcher.hidden;
+  if(!restoring && id && id===tabs?.active && id===snapshot.session) { surfaces.dismiss(); if(fromLauncher) await finishLauncher(id); return true; }
   if(switching) { actionError(PROJECT_OPENING); return false; }
-  if(!canLeaveStudy(()=>void changeSession(id,restoring)))return false;
+  if(!canLeaveStudy(()=>void changeSession(id,restoring,research)))return false;
   clearStudyDraftMarkers();
   const blocked=studyArtifacts().blockReason(snapshot.session)||bridge.switchBlockReason(); if(blocked){actionError(blocked);return false;}
   switching=true;
   try {
     if(!restoring) { await workspaceViews.flush(); await rememberSession(); }
     workspaceViews.pause();
-    const target=await bridge.switchSession(id);
+    const target=await bridge.switchSession(id,research);
     tabs=activateTab(tabs??emptyTabs(),target); snapshot=bridge.state();
     // switchSession can publish the new Project before its promise resolves. A
     // conditional inventory read may already be in flight against that Project.
@@ -1237,7 +1251,9 @@ async function changeSession(id?: string, restoring = false): Promise<boolean> {
       if(!recovery.recovered) actionError(`Some evidence could not be restored: ${recovery.missing.join('; ')}`); }
     else {showSection('inputs');setDataOpen(false,false);}
     await workspaceViews.load(target);
-    if(!restoring)bridge.navigate('#'); persistTabs(); applyLayout();if(!id)openProjectDestination('overview');else restoreProjectDestination(target);return true;
+    if(!restoring)bridge.navigate('#');
+    if(fromLauncher) await finishLauncher(target);
+    persistTabs(); applyLayout();if(!id)openProjectDestination('overview');else restoreProjectDestination(target,fromLauncher);return true;
   } catch(error){workspaceViews.resume();actionError(error); return false;} finally {
     switching=false;
     // The wait was true only while that Project opened: once it has, the line is out of date and goes.
@@ -1254,8 +1270,9 @@ async function closeSessionTab(id:string): Promise<void> {
 let tabRenderKey='';
 function renderTabs(): void {
   if(!tabs||tabStrip.querySelector('input'))return;
-  if(tabs.active===null)renderLauncher();
-  const key=JSON.stringify([tabs,snapshot.projects.map(row=>[row.id,row.name,row.label]),run?.status,run?.input.session]);
+  const neutral = choosingProject || tabs.active === null;
+  if(neutral)renderLauncher();
+  const key=JSON.stringify([neutral,tabs,snapshot.projects.map(row=>[row.id,row.name,row.label]),run?.status,run?.input.session]);
   if(key===tabRenderKey)return;tabRenderKey=key;
   tabStrip.replaceChildren();
   for(const id of tabs.order){
@@ -1293,9 +1310,16 @@ function renderTabs(): void {
     holder.append(activate); if(run?.input.session===id&&projectChipShown(run,tabs.active===id)){const chip=runChipWords(run);const status=el('span','study-tab-status',chip.label);status.dataset.tone=chip.tone;if(chip.title)status.title=chip.title;holder.append(status);}holder.append(renameButton);if(tabs.active===id){const folder=button('',()=>openCurrentProjectFolder(),'study-tab-rename');folder.append(tabMark('folder'));folder.setAttribute('aria-label',`Project folder for ${title}`);folder.title='Project folder';holder.append(folder);}holder.append(close);tabStrip.append(holder);
   }
   requestAnimationFrame(()=>tabStrip.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({block:'nearest',inline:'nearest'}));
-  document.body.dataset.studyNeutral=String(tabs.active===null);
-  launcher.hidden=tabs.active!==null;
-  for(const node of [document.querySelector<HTMLElement>('.studio'),drawer,rightPanel]) if(node)node.inert=tabs.active===null;
+  document.body.dataset.studyNeutral=String(neutral);
+  launcher.hidden=!neutral;
+  if (neutral && !launcherSheet.open) {
+    launcherSheet.showModal();
+    launcher.scrollTop = 0;
+    launcherTitle.focus({preventScroll:true});
+  } else if (!neutral && launcherSheet.open) {
+    launcherSheet.close();
+  }
+  for(const node of [document.querySelector<HTMLElement>('.studio'),drawer,rightPanel]) if(node)node.inert=neutral;
 }
 const sessionBrowser=el('section','study-session-browser');
 const sessionSearch=el('input');sessionSearch.type='search';sessionSearch.placeholder='Search projects';sessionSearch.setAttribute('aria-label','Search projects');
@@ -1305,7 +1329,7 @@ sessionSearch.addEventListener('input',renderSessionBrowser);
 const sessionSaved=el('p','study-session-saved');const sessionSavedWords=el('span');
 const sessionReveal=button('Show in Finder',()=>void bridge.request('sessions-reveal',{}).catch((error:unknown)=>{sessionSavedWords.textContent=error instanceof Error?error.message:String(error);}),'mm-control');
 sessionSaved.append(sessionSavedWords,' · ',sessionReveal);sessionSaved.hidden=true;
-sessionBrowser.append(sessionSearch,button('+ New project',()=>void changeSession()),sessionSaved,sessionList);surfaces.pages.set('sessions',sessionBrowser);
+sessionBrowser.append(sessionSearch,button('+ New project',showProjectLauncher),sessionSaved,sessionList);surfaces.pages.set('sessions',sessionBrowser);
 function renderSessionBrowser():void {
   sessionSavedWords.textContent=savedWhereWords(snapshot.projectsRoot);sessionSaved.hidden=!snapshot.projectsRoot;
   sessionList.replaceChildren();
@@ -1391,23 +1415,12 @@ function projectPublishActions(session: string): PublishActions {
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
-  openProjectFolder: () => {
-    const owner = workspaceViews.tabOwner();
-    if (!owner.session || !inputOwnerCurrent(owner) || switching) return;
-    showOpenProject({current: () => inputOwnerCurrent(owner) && !switching,
-      open: async (path, useLocation) => {
-        const reply = await bridge.request('project-open-folder', {session: owner.session, path, useLocation});
-        if (!reply.project) throw new Error(reply.error ?? 'The Project folder could not be opened.');
-        return reply.project;
-      },
-      navigate: session => changeSession(session),
-    });
-  },
+  openProjectFolder: showProjectFolderPicker,
   projectFolder: openCurrentProjectFolder,
   startFrom: () => { if (switching) return; openStartFrom({start: async (source, name) => { const r = await bridge.request('project-start-from', {source, name}); if (!r.project) throw new Error(r.error ?? 'The project could not be started.'); return {project: r.project}; }}, session => void changeSession(session)); },
   restore: () => { if (switching) return; openRestore({restore: async (source, replaceMissing) => { const r = await bridge.request('project-restore', {source, replaceMissing}); if (r.missing) return {missing: r.error ?? 'This Mac knew this project at a folder that is not there now.'}; if (!r.project) throw new Error(r.error ?? 'The backup could not be restored.'); return {project: r.project}; }}, session => void changeSession(session)); },
   sessions: () => [...snapshot.projects].sort((a,b)=>Number(b.id===snapshot.session)-Number(a.id===snapshot.session)).map(p => ({id:p.id,title:sessionName(p, Date.now()/1000),current:p.id===snapshot.session,open:tabs?.order.includes(p.id) ?? false,note:projectNote(p)})),
-  newSession: () => void changeSession(), openSession: id => void changeSession(id), navigate: bridge.navigate,
+  newSession: showProjectLauncher, openSession: id => void changeSession(id), navigate: bridge.navigate,
 });
 function toggleSessionMenu():void { appMenu.toggle(); }
 const settings=el('section','study-settings');settings.append(...Array.from(find('gear-panel').children),find('behaviour'));surfaces.pages.set('settings',settings);
@@ -1514,74 +1527,154 @@ allSessionsButton.setAttribute('aria-haspopup','dialog');
 libraryButton.setAttribute('aria-haspopup','dialog');
 window.addEventListener('workspace-study-surface',event=>{const page=(event as CustomEvent).detail.page;workflowsButton.setAttribute('aria-current',page==='workflows'?'page':'false');libraryButton.setAttribute('aria-current',page==='assets'?'page':'false');modelsButton.setAttribute('aria-current',page==='models'?'page':'false');});
 // Library's Open in new Project: begin a Project, then open the recording or picture in it (it becomes its first input).
-window.addEventListener('hooke-open-in-new-project',event=>{const asset=(event as CustomEvent<{asset:AssetMeta}>).detail?.asset;if(!asset)return;void (async()=>{if(!(await changeSession()))return;surfaces.dismiss();await openSource(asset);})();});
+window.addEventListener('hooke-open-in-new-project',event=>{const asset=(event as CustomEvent<{asset:AssetMeta}>).detail?.asset;if(!asset)return;void (async()=>{if(!(await changeSession()))return;surfaces.dismiss();closeResearchStage();await openSource(asset);})();});
 // A setup sheet opened from Tools or Activity (#models/<id>/setup) closes back to the Project; opened inside Models, it closes to Models.
 window.addEventListener('hooke-setup-sheet-closed',()=>{if(sheetAlone(location.hash))surfaces.dismiss();});
-// With no Project open: the most recent one first, a few more beside it, and a new one (Will, 2026-10-23: the bare
-// two-button screen needed the concept's Your Projects, at the app's scale). Opening a card opens that Project.
-const launcher=el('section','study-session-launcher');launcher.hidden=true;launcher.setAttribute('aria-label','Your Projects');document.body.append(launcher);
-/** A first run: nothing stored for Tabs in this browser and no Project with an input or a result yet. The launcher is
- * then the first-launch overview (#440), and the server's fresh Project is not opened until the person chooses. */
-function firstRun(state:{projects:{counts?:{sources?:number;made:number}}[]}):boolean{
-  // Needs the Project list itself: before it has arrived, "every" of nothing would read as a first run.
-  // Needs each Project's counts too: a list without them yet says nothing about a first run.
-  return !sessionStorage.getItem(tabStorageKey)&&state.projects.length>0&&state.projects.every(row=>!!row.counts&&!(row.counts.sources||row.counts.made));
+// The host keeps a current session even before the researcher chooses a Project.
+const launcher=el('section','study-session-launcher');
+launcher.hidden=true;
+launcher.setAttribute('aria-label','Start or open a Project');
+const launcherAssistant = new LauncherAssistant();
+const starter = new InvestigationLauncher({
+  microscope: async () => {
+    const token=(window as Window & {hookeStudioToken?:string}).hookeStudioToken;
+    const response=await fetch('/api/launcher-microscope',{method:'POST',cache:'no-store',headers:{
+      'X-MicroscopeMind':'check-microscope',...(token?{'X-Hooke-Studio':token}:{})}});
+    if (!response.ok) throw new Error('Could not check the local microscope.');
+    return response.json();
+  },
+  start: async kind => {
+    const visit = launcherVisit, sourceSession=bridge.state().session;
+    const current = () => visit === launcherVisit && sourceSession===bridge.state().session && !launcher.hidden;
+    if (kind === 'files') {
+      const picker = el('input'); picker.type='file'; picker.multiple=true;
+      picker.onchange=()=>{if(current() && picker.files?.length) void startWithFiles(Array.from(picker.files)).catch(actionError);};
+      picker.click();
+    } else if (kind === 'library') {
+      const asset = await chooseProjectAsset();
+      if(asset && current() && await beginStarter()) {closeResearchStage();await openSource(asset,workspaceViews.tabOwner());}
+    } else if (kind === 'example') {
+      await bridge.example();
+      const session=exampleProject();
+      if(visit !== launcherVisit || launcher.hidden)return;
+      if(!session || bridge.state().session!==session)throw new Error('The guided example could not be opened. Try again.');
+      if(await changeSession(session))closeResearchStage();
+    } else if (await beginStarter()) {
+      if(kind==='feed') {closeResearchStage();await openLiveCamera();}
+      else {
+        openProjectDestination('overview');
+        if(kind==='microscope'){openRightTab('agent');composer.set('Which microscope controls are available in this Project?');question.focus();}
+      }
+    } else if(kind==='microscope') throw new Error('The microscope Project did not open. Try again.');
+  },
+  dropFiles:startWithFiles,
+  openProject:showProjectFolderPicker,
+  openRecent:async id=>{await changeSession(id);},
+  previewResearch:previewResearchStarter,
+  createResearch:async brief=>{
+    const content=JSON.stringify(brief);
+    if(researchRequest?.content!==content)researchRequest={content,id:crypto.randomUUID()};
+    if(!await changeSession(undefined,false,{researchStarter:brief,starterRequestId:researchRequest.id}))
+      throw new Error('The research Project did not finish opening. You can retry.');
+  },
+});
+let researchRequest:{content:string;id:string}|undefined;
+const starterModels=starterOffer('welcome');
+launcher.append(starter.root,starterModels);
+const launcherSheet = el('dialog', 'study-overlay project-launcher-sheet');
+const launcherHeader = el('header', 'study-overlay-header');
+const launcherTitle = el('h2', '', 'New Project');
+launcherTitle.id = 'new-project-sheet-title';
+launcherTitle.tabIndex = -1;
+launcherSheet.setAttribute('aria-labelledby', launcherTitle.id);
+const closeLauncher = button('×', cancelLauncher, 'study-close');
+closeLauncher.setAttribute('aria-label', 'Close New Project');
+launcherHeader.append(launcherTitle, closeLauncher);
+launcherSheet.append(launcherHeader, launcher);
+document.body.append(launcherSheet);
+launcherSheet.addEventListener('cancel', event => {
+  if (event.target !== launcherSheet) return;
+  event.preventDefault();
+  cancelLauncher();
+});
+launcherSheet.addEventListener('click', event => {
+  if (event.target !== launcherSheet) return;
+  const bounds = launcherSheet.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) cancelLauncher();
+});
+// Text entry and shortcuts belong to the front sheet while the Project is behind it.
+launcherSheet.addEventListener('keydown', event => event.stopPropagation());
+const conversationRecovery=el('div');
+rightHeader.after(conversationRecovery);
+launcherAssistant.mountRecovery(conversationRecovery,()=>snapshot.session);
+function recentProjects(){
+  return sortSessions(snapshot.projects).filter(row => {
+    const counts=row.counts;
+    // Before the catalog arrives the socket can supply an unnamed provisional row without a label.
+    const provisional=!row.label && row.id===snapshot.session;
+    return (!row.launcherBootstrap && !provisional) || row.name || !counts || counts.sourcesIncomplete ||
+      counts.sources || counts.made || counts.researchers || counts.conversations>1;
+  }).map(row=>rowView(row,'',Date.now()/1000));
 }
-/** The first screen (#440's overview): what Hooke is for and the three ways in, plus the guided example. Every way begins
- * the fresh Project the server already holds; nothing runs until a choice is made. Under the ways, the small-models
- * offer (starter-models.ts): not a modal, so any way in can start at once; asked once, its answer kept on the server. */
-function firstLaunch():HTMLElement{
-  const page=el('div','first-launch');
-  const head=el('header','first-launch-head');head.append(el('h1','','Welcome to Hooke'),el('p','','Look at a specimen, run models on it, and keep every result with its Project. Start with one of these.'));
-  const ways=el('div','first-launch-ways');
-  const way=(title:string,what:string,go:()=>void,primary=false)=>{const b=button('',go,`first-launch-way${primary?' primary':''}`);b.append(el('strong','',title),el('span','',what));return b;};
-  const begin=async(then:()=>void|Promise<void>)=>{const session=snapshot.projects[0]?.id;if(!(await changeSession(session)))return;await then();};
-  ways.append(
-    way('Open a picture or video','From this Mac. It becomes the first input of your first Project.',()=>void begin(()=>pickInputFiles(workspaceViews.tabOwner())),true),
-    way('Connect a camera','An iPhone, a Blackmagic or another camera on this Mac; the live view is the specimen.',()=>void begin(()=>openLiveCamera())),
-    way('Try the guided example','A real microscope picture and a short walkthrough. No account or key needed.',()=>bridge.example()));
-  const quiet=el('p','first-launch-quiet');quiet.append('Or ',button('start with an empty Project',()=>void begin(()=>{}),'draft-link'),'. Your work lives on this Mac; the Assistant and cloud models are set up in Models when you want them.');
-  page.append(head,ways,starterOffer('welcome'),quiet);return page;
-}
-let launcherKey='';
+launcherAssistant.mount(starter.assistantHost,{
+  activate:id=>{void starter.activate(id);},
+  choices:()=>starter.assistantChoices(),
+  recent:()=>recentProjects().map(row=>({id:row.id,name:row.name,when:row.lastUsed})),
+  context:()=>{const brief=starter.researchContext();return brief?JSON.stringify(brief):'';},
+  visible:()=>!launcher.hidden,
+});
 function renderLauncher():void {
-  const key=JSON.stringify(snapshot.projects);if(key===launcherKey)return;launcherKey=key;
-  const now=Date.now()/1000, rows=sortSessions(snapshot.projects).map(row=>rowView(row,'',now));
-  if(firstRun(snapshot)){launcher.replaceChildren(firstLaunch());return;}
-  const head=el('header','launcher-head'),words=el('div');
-  words.append(el('h1','',rows.length?'Pick up where you left off':'Start your first Project'),
-    el('p','',rows.length?'Each Project keeps its inputs, results, Tabs and conversation. Open one to continue.':'A Project holds the pictures and recordings you work on, what you make from them, and your conversation.'));
-  const actions=el('div','launcher-actions');
-  if(rows.length)actions.append(button(`All Projects (${rows.length})`,()=>bridge.navigate('#sessions'),'launcher-btn'));
-  actions.append(button('New Project',()=>void changeSession(),rows.length?'launcher-btn':'launcher-btn primary'));
-  head.append(words,actions);
-  const picture=(row:SessionRowView,className:string)=>{const frame=el('span',className);if(row.thumb){const img=el('img');img.src=row.thumb;img.alt='';img.loading='lazy';frame.append(img);}else{const empty=el('span','launcher-empty-pic'),mark=el('img');mark.src=hookeMark;mark.alt='';empty.append(mark,el('span','','No pictures yet'));frame.append(empty);}return frame;};
-  const meta=(row:SessionRowView)=>[`Last used ${row.lastUsed}`,row.counts].filter(Boolean).join(' · ');
-  const working=(row:SessionRowView)=>row.working?el('span','launcher-working',`${row.working} researcher${row.working===1?'':'s'} working`):null;
-  const parts:HTMLElement[]=[head];
-  const [first,...rest]=rows;
-  if(first){
-    const hero=button('',()=>void changeSession(first.id),'launcher-hero');hero.title=first.title;hero.setAttribute('aria-label',`Open ${first.name}. ${meta(first)}`);
-    const text=el('span','launcher-hero-text');text.append(el('span','launcher-kicker','Most recent'),el('strong','launcher-hero-name',first.name),el('span','launcher-meta',meta(first)));
-    const w=working(first);if(w)text.append(w);text.append(el('span','launcher-open','Open Project'));
-    hero.append(picture(first,'launcher-hero-pic'),text);parts.push(hero);
-  }
-  if(rest.length){
-    const section=el('section','launcher-recent'),grid=el('div','launcher-grid');
-    section.append(el('h2','',`Recent`));
-    for(const row of rest.slice(0,7)){
-      const card=button('',()=>void changeSession(row.id),'launcher-card');card.title=row.title;card.setAttribute('aria-label',`Open ${row.name}. ${meta(row)}`);
-      card.append(picture(row,'launcher-card-pic'),el('strong','launcher-card-name',row.name),el('span','launcher-meta',meta(row)));
-      const w=working(row);if(w)card.append(w);grid.append(card);
-    }
-    const fresh=button('',()=>void changeSession(),'launcher-card launcher-new');
-    const plus=el('span','launcher-card-pic launcher-new-pic','+');plus.setAttribute('aria-hidden','true');fresh.append(plus,el('strong','launcher-card-name','New Project'));grid.append(fresh);
-    section.append(grid);
-    if(rest.length>7)section.append(button(`See all ${rows.length} Projects`,()=>bridge.navigate('#sessions'),'launcher-more'));
-    parts.push(section);
-  }
-  launcher.replaceChildren(...parts);
+  closeLauncher.hidden = !tabs?.active;
+  starter.setRecent(recentProjects());
+  starterModels.hidden=Boolean(tabs?.order.length);
 }
+function showProjectLauncher():void {
+  if(switching || !initialized || !canLeaveStudy(showProjectLauncher))return;
+  const blocked=studyArtifacts().blockReason(snapshot.session)||bridge.switchBlockReason();
+  if(blocked){actionError(blocked);return;}
+  if(launcher.hidden) {
+    launcherOpener=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    launcherVisit++;researchRequest=undefined;starter.reset();
+    launcherAssistant.reset();
+  }
+  surfaces.dismiss(); choosingProject=true;
+  renderTabs();
+}
+function cancelLauncher():void{
+  if(!tabs?.active||switching)return;
+  choosingProject=false;launcherVisit++;researchRequest=undefined;
+  launcherAssistant.reset();starter.reset();renderTabs();
+  if(launcherOpener?.isConnected)launcherOpener.focus({preventScroll:true});
+}
+async function finishLauncher(session:string):Promise<void>{
+  choosingProject=false;launcherVisit++;researchRequest=undefined;
+  launcherAssistant.leave();renderTabs();
+  try{await launcherAssistant.adopt(session);}catch(error){actionError(`${error instanceof Error?error.message:'Could not save the conversation.'} Open Assistant to retry saving it.`);}
+}
+// Only an explicit action starts a Project; the host's idle bootstrap session stays available to the server.
+function beginStarter(){return changeSession();}
+async function startWithFiles(files:File[]):Promise<void>{
+  if(!files.length||!await beginStarter())return;
+  const owner=workspaceViews.tabOwner();
+  closeResearchStage();
+  if(files.every(file=>ADDABLE.test(file.name))) await bridge.upload(files,owner.session,()=>inputOwnerCurrent(owner));
+  else importScientificSource(files);
+}
+function showProjectFolderPicker():void{
+  if(switching || !snapshot.session)return;
+  const visit=launcherVisit, session=snapshot.session, owner=workspaceViews.tabOwner();
+  const fromLauncher=!launcher.hidden;
+  const current=()=> !switching && session===bridge.state().session &&
+    (fromLauncher ? visit===launcherVisit && !launcher.hidden : inputOwnerCurrent(owner));
+  showOpenProject({current,open:async(path,useLocation)=>{
+    const reply=await bridge.request('project-open-folder',{session,path,useLocation});
+    if(!reply.project)throw new Error(reply.error??'The Project folder could not be opened.');
+    return reply.project;
+  },navigate:id=>changeSession(id)});
+}
+window.addEventListener('hooke-new-project',showProjectLauncher);
+
 // Models' Use it here: back to the workspace, on the run page of the first task the model serves, with it chosen and
 // the current specimen as its input (actions-panel.ts useModel). Nothing runs. A model that serves no task here (one the
 // Assistant and researchers use) opens Tools By model at its row instead.
@@ -1620,7 +1713,7 @@ function importNativeBundle(): void {
     setDataOpen(true,false);
   }});
 }
-function importScientificSource(): void {
+function importScientificSource(files?: File[]): void {
   openScientificFileImport({session:snapshot.session,title:snapshot.title,
     saved:()=>{void refreshResults();},open:async source=>{
       if(source.session!==snapshot.session && !await changeSession(source.session))throw new Error('Return to the source’s Project before opening it.');
@@ -1630,7 +1723,7 @@ function importScientificSource(): void {
       return () => {
         if (snapshot.session === source.session && drawerPresentation === presentation && section === 'inputs' && drawerOpen) setDrawer(false);
       };
-    }});
+    }}, files);
 }
 /** Inputs (the drawer): the live camera and this Project's pictures and recordings as rows of the shared anatomy
  * (workspace-feel step 4), each opening its preview; ⋯ holds Open in Tab and its Results. The ways to bring an input in
@@ -1753,14 +1846,17 @@ function inputOwnerCurrent(owner:ReturnType<WorkspaceViews['tabOwner']>):boolean
  return workspaceViews.ownsTabChoice(owner)&&bridge.state().session===owner.session;
 }
 /** A file chooser belongs to its opening Project; an away-and-back switch does not renew it. */
-function pickInputFiles(owner:ReturnType<WorkspaceViews['tabOwner']>):void {
+function pickInputFiles(owner:ReturnType<WorkspaceViews['tabOwner']>, allowScientific=false):void {
  if(!inputOwnerCurrent(owner)){actionError(new Error('The Project changed. Choose your files again in the intended Project.'));return;}
  if(busy()){actionError(new Error('This run keeps its captured input. Wait before importing another input.'));return;}
- const upload=el('input');upload.type='file';upload.multiple=true;upload.accept='image/*,video/*,.tif,.tiff';
+ const upload=el('input');upload.type='file';upload.multiple=true;if(!allowScientific)upload.accept='image/*,video/*,.tif,.tiff';
  upload.addEventListener('change',()=>{
   if(!upload.files?.length)return;
   if(busy()){actionError(new Error('This run keeps its captured input. Wait before importing another input.'));return;}
-  void bridge.upload(Array.from(upload.files),owner.session,()=>inputOwnerCurrent(owner)).catch(actionError);
+  if(!inputOwnerCurrent(owner)){actionError('The Project changed. Choose the files again.');return;}
+  const files=Array.from(upload.files);
+  if(allowScientific && !files.every(file=>ADDABLE.test(file.name)))importScientificSource(files);
+  else void bridge.upload(files,owner.session,()=>inputOwnerCurrent(owner)).catch(actionError);
  });upload.click();
 }
 // The Specimen menu's ways to change the specimen: this Project's inputs (each opens in its own Tab, as from Inputs;
@@ -2556,11 +2652,17 @@ bridge.subscribe(next => {
   renderResearchStudy();
   researchTabs.update(next.session,bridge.researchers(),!researchStage.hidden&&location.hash.startsWith('#research/')?decodeURIComponent(location.hash.slice(10).split('?')[0]):'');renderBoard();
   adoptStartedResearcher();
-  if(next.session!==previous.session){draftStart=null;closeResearchStage();workspaceViews.pause();studyArtifacts().clearDocuments();} // a researcher's study belongs to its Project
-  // The server's current Project opens as before (its empty Stage is the first screen's own overview); the Welcome
-  // launcher stands in only while no Project Tab is open on a fresh profile. Counts arrive after the list, so a
-  // first run cannot be told at the first ready moment.
-  if(!initialized && next.ready && next.session){initialized=true;tabs=activateTab(tabs??emptyTabs(),next.session);persistTabs();void workspaceViews.load(next.session).then(()=>restoreProjectDestination(next.session));const saved=sessionUI[next.session];if(saved)bridge.restoreDraft(saved.presentation);}
+  if(next.session!==previous.session){launcherAssistant.refreshRecovery();draftStart=null;closeResearchStage();workspaceViews.pause();studyArtifacts().clearDocuments();} // a researcher's study belongs to its Project
+  if(!initialized && next.ready && next.session){
+    initialized=true;
+    const resume=Boolean(tabs?.active);
+    tabs=resume?activateTab(tabs!,next.session):(tabs??emptyTabs());
+    renderTabs();
+    if(resume){
+      void workspaceViews.load(next.session).then(()=>restoreProjectDestination(next.session));
+      const saved=sessionUI[next.session];if(saved)bridge.restoreDraft(saved.presentation);
+    }
+  }
   if(initialized && !switching && tabs?.active && next.session!==previous.session && next.session!==tabs.active){tabs=activateTab(tabs,next.session);persistTabs();void workspaceViews.load(next.session).then(()=>restoreProjectDestination(next.session));}
   if(next.title!==previous.title)renderTabs();
   if (next.source?.kind === 'still') {

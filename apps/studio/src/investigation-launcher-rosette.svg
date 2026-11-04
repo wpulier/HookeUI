@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 100" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="stars" width="79" height="43" patternUnits="userSpaceOnUse" patternTransform="rotate(4)">
+      <g fill="#e4e2e9"><circle cx="4" cy="6" r=".8"/><circle cx="29" cy="22" r=".7"/><circle cx="58" cy="5" r="1.2"/><circle cx="17" cy="37" r=".8"/><circle cx="74" cy="30" r=".6"/></g>
+    </pattern>
+    <radialGradient id="sky"><stop stop-color="#654653"/><stop offset="1" stop-color="#28283d"/></radialGradient>
+    <path id="nebula" d="M-70-5Q-72-25-54-30Q-40-43-21-34Q-5-50 14-38Q39-43 44-28Q72-23 64-5Q82 9 62 19Q61 36 38 37Q24 51 8 38Q-10 51-27 40Q-50 42-52 27Q-75 24-67 9Z"/>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h340v100H0z"/>
+  <g transform="translate(185 48) rotate(-14)" fill="none" stroke="#db9d9c" opacity=".65">
+    <use href="#nebula" transform="scale(1.5 1.4)"/><use href="#nebula" transform="scale(1.22 1.18) rotate(-6)"/>
+    <use href="#nebula"/><use href="#nebula" transform="scale(.8 .82) rotate(8)"/><use href="#nebula" transform="scale(.55 .58) rotate(18)"/>
+  </g><path fill="url(#stars)" d="M0 0h340v100H0z"/>
+</svg>
