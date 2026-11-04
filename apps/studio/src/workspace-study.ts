@@ -1312,6 +1312,13 @@ function renderTabs(): void {
   requestAnimationFrame(()=>tabStrip.querySelector<HTMLElement>('[aria-selected=true]')?.scrollIntoView({block:'nearest',inline:'nearest'}));
   document.body.dataset.studyNeutral=String(neutral);
   launcher.hidden=!neutral;
+  if (neutral && !launcherSheet.open) {
+    launcherSheet.showModal();
+    launcher.scrollTop = 0;
+    launcherTitle.focus({preventScroll:true});
+  } else if (!neutral && launcherSheet.open) {
+    launcherSheet.close();
+  }
   for(const node of [document.querySelector<HTMLElement>('.studio'),drawer,rightPanel]) if(node)node.inert=neutral;
 }
 const sessionBrowser=el('section','study-session-browser');
@@ -1570,12 +1577,34 @@ const starter = new InvestigationLauncher({
     if(!await changeSession(undefined,false,{researchStarter:brief,starterRequestId:researchRequest.id}))
       throw new Error('The research Project did not finish opening. You can retry.');
   },
-  cancel:cancelLauncher,
 });
 let researchRequest:{content:string;id:string}|undefined;
 const starterModels=starterOffer('welcome');
 launcher.append(starter.root,starterModels);
-document.body.append(launcher);
+const launcherSheet = el('dialog', 'study-overlay project-launcher-sheet');
+const launcherHeader = el('header', 'study-overlay-header');
+const launcherTitle = el('h2', '', 'New Project');
+launcherTitle.id = 'new-project-sheet-title';
+launcherTitle.tabIndex = -1;
+launcherSheet.setAttribute('aria-labelledby', launcherTitle.id);
+const closeLauncher = button('×', cancelLauncher, 'study-close');
+closeLauncher.setAttribute('aria-label', 'Close New Project');
+launcherHeader.append(launcherTitle, closeLauncher);
+launcherSheet.append(launcherHeader, launcher);
+document.body.append(launcherSheet);
+launcherSheet.addEventListener('cancel', event => {
+  if (event.target !== launcherSheet) return;
+  event.preventDefault();
+  cancelLauncher();
+});
+launcherSheet.addEventListener('click', event => {
+  if (event.target !== launcherSheet) return;
+  const bounds = launcherSheet.getBoundingClientRect();
+  if (event.clientX < bounds.left || event.clientX > bounds.right ||
+      event.clientY < bounds.top || event.clientY > bounds.bottom) cancelLauncher();
+});
+// Text entry and shortcuts belong to the front sheet while the Project is behind it.
+launcherSheet.addEventListener('keydown', event => event.stopPropagation());
 const conversationRecovery=el('div');
 rightHeader.after(conversationRecovery);
 launcherAssistant.mountRecovery(conversationRecovery,()=>snapshot.session);
@@ -1596,7 +1625,7 @@ launcherAssistant.mount(starter.assistantHost,{
   visible:()=>!launcher.hidden,
 });
 function renderLauncher():void {
-  starter.setCanCancel(Boolean(tabs?.active));
+  closeLauncher.hidden = !tabs?.active;
   starter.setRecent(recentProjects());
   starterModels.hidden=Boolean(tabs?.order.length);
 }
@@ -1611,8 +1640,6 @@ function showProjectLauncher():void {
   }
   surfaces.dismiss(); choosingProject=true;
   renderTabs();
-  const heading=launcher.querySelector('h1');
-  if(heading){heading.tabIndex=-1;heading.focus({preventScroll:true});}
 }
 function cancelLauncher():void{
   if(!tabs?.active||switching)return;

@@ -14,7 +14,6 @@ export interface LauncherActions {
   dropFiles(files: File[]): ActionResult;
   previewResearch(url: string, signal?: AbortSignal): Promise<ResearchStarter>;
   createResearch(brief: ResearchStarter): ActionResult;
-  cancel?(): void;
 }
 interface RecentProject {id: string; name: string; thumb?: string | null}
 
@@ -58,7 +57,6 @@ export class InvestigationLauncher {
   readonly root = element('section', '', 'investigation-launcher');
   readonly assistantHost = element('div', '', 'inv-assistant');
   private readonly recent = element('nav', '', 'inv-recent');
-  private readonly back: HTMLButtonElement;
   private readonly url = element('input');
   private readonly status = element('p', '', 'inv-status');
   private readonly cards = new Map<string, HTMLButtonElement>();
@@ -75,11 +73,9 @@ export class InvestigationLauncher {
     this.actions = actions;
     const header = element('header', '', 'inv-header');
     const identity = element('div');
-    identity.append(element('div', 'New Project', 'inv-eyebrow'), element('h1', 'What would you like to investigate?'));
+    identity.append(element('h1', 'What would you like to investigate?'));
     const controls = element('div', '', 'inv-controls');
-    this.back = button('Back', () => actions.cancel?.());
-    this.setCanCancel(!!actions.cancel);
-    controls.append(this.back, this.actionButton('open-project', 'Open Project…'));
+    controls.append(this.actionButton('open-project', 'Open Project…'));
     header.append(identity, controls);
 
     const practical = element('section', '', 'inv-practical');
@@ -160,8 +156,6 @@ export class InvestigationLauncher {
     this.cards.set(id, control);
     return control;
   }
-
-  setCanCancel(show: boolean) { this.back.hidden = !show; }
 
   setRecent(rows: readonly RecentProject[]) {
     const visible = rows.slice(0, 8);
