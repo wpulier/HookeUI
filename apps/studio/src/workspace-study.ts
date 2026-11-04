@@ -1529,6 +1529,13 @@ launcher.hidden=true;
 launcher.setAttribute('aria-label','Start or open a Project');
 const launcherAssistant = new LauncherAssistant();
 const starter = new InvestigationLauncher({
+  microscope: async () => {
+    const token=(window as Window & {hookeStudioToken?:string}).hookeStudioToken;
+    const response=await fetch('/api/launcher-microscope',{method:'POST',cache:'no-store',headers:{
+      'X-MicroscopeMind':'check-microscope',...(token?{'X-Hooke-Studio':token}:{})}});
+    if (!response.ok) throw new Error('Could not check the local microscope.');
+    return response.json();
+  },
   start: async kind => {
     const visit = launcherVisit, sourceSession=bridge.state().session;
     const current = () => visit === launcherVisit && sourceSession===bridge.state().session && !launcher.hidden;
@@ -1547,8 +1554,11 @@ const starter = new InvestigationLauncher({
       if(await changeSession(session))closeResearchStage();
     } else if (await beginStarter()) {
       if(kind==='feed') {closeResearchStage();await openLiveCamera();}
-      else openProjectDestination('overview');
-    }
+      else {
+        openProjectDestination('overview');
+        if(kind==='microscope'){openRightTab('agent');composer.set('Which microscope controls are available in this Project?');question.focus();}
+      }
+    } else if(kind==='microscope') throw new Error('The microscope Project did not open. Try again.');
   },
   dropFiles:startWithFiles,
   openProject:showProjectFolderPicker,

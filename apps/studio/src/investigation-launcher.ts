@@ -4,10 +4,11 @@ import onionDiagram from './investigation-launcher-onion.svg';
 import rosetteDiagram from './investigation-launcher-rosette.svg';
 import cellsDiagram from './investigation-launcher-cells.svg';
 
-export type ProjectStart = 'files' | 'library' | 'feed' | 'example' | 'blank';
+export type ProjectStart = 'files' | 'library' | 'feed' | 'example' | 'blank' | 'microscope';
 type ActionResult = Promise<unknown> | void;
 export interface LauncherActions {
   start(kind: ProjectStart): ActionResult;
+  microscope(): Promise<{status:'setup'|'unavailable'|'demo'|'connected'; name?:string; controls?:string[]}>;
   openProject(): ActionResult;
   openRecent(id: string): ActionResult;
   dropFiles(files: File[]): ActionResult;
@@ -127,7 +128,7 @@ export class InvestigationLauncher {
     const choices = element('div', '', 'inv-instruments');
     for (const instrument of instruments) {
       const choice = this.actionButton(instrument.id, instrument.title);
-      choice.append(element('span', 'Coming soon', 'inv-soon'));
+      choice.append(element('span', instrument.id === 'own-microscope' ? 'Check connection' : 'Coming soon', 'inv-soon'));
       choices.append(choice);
     }
     devices.append(choices);
@@ -194,7 +195,7 @@ export class InvestigationLauncher {
     const choices: Record<string, string> = {'research-link': 'Paste a challenge or research link'};
     for (const [id, control] of this.cards) choices[id] = control.textContent ?? id;
     for (const item of investigations) choices[item.id] = [item.title, item.kind, item.status, item.question].join(' · ');
-    for (const item of instruments) choices[item.id] = item.title + ' · Coming soon';
+    for (const item of instruments) choices[item.id] = item.title + (item.id === 'own-microscope' ? ' · Check connection' : ' · Coming soon');
     return choices;
   }
 
@@ -208,6 +209,39 @@ export class InvestigationLauncher {
     }
     if (id === 'research-link') { this.url.focus(); return; }
     if (id === 'light-my-cells-2') return this.readLink(LIGHT_MY_CELLS_URL, this.cards.get(id)!);
+    if (id === 'own-microscope') {
+      const dialog=this.dialog('Connect your microscope', 'Local instrument', this.cards.get(id)!);
+      const status=element('p', 'Checking the microscope bridge…');
+      status.setAttribute('role','status'); dialog.append(status);
+      const check = async () => {
+        status.textContent='Checking the microscope bridge…';
+        const instrument=await this.actions.microscope().catch(()=>({status:'unavailable' as const, name:'', controls:[]}));
+        if (!dialog.open) return;
+        if (instrument.status==='connected' || instrument.status==='demo') {
+          const label=instrument.status==='demo' ? 'Simulated microscope' : 'Connected microscope';
+          status.textContent=label+' · '+instrument.name+'. Reported controls: '+(instrument.controls?.join(', ')||'none')+'. Opening a Project does not move the instrument.';
+          const start=button('Start Project', async ()=>{
+            if (this.busy) return;
+            this.busy=true; start.disabled=true;
+            const close=dialog.querySelector('header button') as HTMLButtonElement; close.disabled=true;
+            try { await this.actions.start('microscope'); dialog.close(); }
+            catch (error) { status.textContent=error instanceof Error ? error.message : 'Could not open this Project.'; }
+            finally { this.busy=false; start.disabled=false; close.disabled=false; }
+          }); dialog.append(start);
+        } else {
+          status.textContent=instrument.status==='setup'
+            ? 'No microscope bridge is configured. Connect a calibrated OpenFlexure microscope or a Micro-Manager rig and enable its local bridge. For camera images alone, choose Start a live feed.'
+            : 'The configured microscope did not answer. Check its power, connection and local bridge.';
+          if (instrument.status==='setup' && !dialog.querySelector('details')) {
+            const setup=element('details'); setup.append(element('summary','Local bridge setup'),
+              element('p','For a source installation, run make scope-setup. Start Hooke with SCOPE_BACKEND=mm and SCOPE_CONFIG pointing to your rig configuration, or use SCOPE_BACKEND=openflexure with its server address and measured XY and Z calibration.'),
+              element('p','To explore the controls without hardware, start with make start SCOPE_BACKEND=mm-demo.'));
+            dialog.append(setup);
+          }
+          const retry=button('Check again',()=>{retry.remove();void check();});dialog.append(retry);
+        }
+      }; await check(); return;
+    }
     const instrument = instruments.find(item => item.id === id);
     if (instrument) { this.showComingSoon(id, instrument.title, [instrument.description]); return; }
     if (id === 'onion-root') {

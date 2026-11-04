@@ -130,6 +130,32 @@ def register(api, built, studio_origin, header):
         token = os.environ.get('HOOKE_STUDIO_TOKEN')
         return not token or secrets.compare_digest(token, request.headers.get('x-hooke-studio', ''))
 
+    @api.post('/api/launcher-microscope')
+    async def microscope(request: Request):
+        """Check the installed bridge on request. Return no device addresses and issue no instrument actions."""
+        if (not window_allowed(request) or request.headers.get(header) != 'check-microscope'
+                or not studio_origin(request.headers.get('origin'), request.url.port)):
+            return JSONResponse({'error': 'Check the microscope from the Studio.'}, status_code=403)
+        from .scope import from_environment
+        client = from_environment()
+        if client is None:
+            return {'status':'setup'}
+        try:
+            state = await asyncio.wait_for(client.state(), 4)
+            device = state['backend']
+            kind = device['backend']
+            if kind not in ('mm-demo', 'mm', 'openflexure'):
+                return {'status':'unavailable'}
+            return {'status': 'demo' if kind == 'mm-demo' else 'connected',
+                    'name': 'OpenFlexure' if kind == 'openflexure' else 'Micro-Manager',
+                    'controls': [name for name, supported in (
+                        ('stage position', kind == 'openflexure' or device.get('xyStage')),
+                        ('focus', kind == 'openflexure' or device.get('focus')),
+                        ('image capture', kind == 'openflexure' or device.get('camera')),
+                        ('illumination', device.get('shutter'))) if supported]}
+        except (httpx.HTTPError, TimeoutError, KeyError, ValueError, TypeError):
+            return {'status':'unavailable'}
+
     @api.post('/api/research-starter/preview')
     async def preview_route(request: Request):
         if (not window_allowed(request) or request.headers.get(header) != 'preview-research-link'

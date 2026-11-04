@@ -19,7 +19,7 @@ function setup(overrides: Partial<LauncherActions> = {}) {
     });
   };
   vi.stubGlobal('document', dom.document);
-  const actions = {start: vi.fn(), openProject: vi.fn(), openRecent: vi.fn(), dropFiles: vi.fn(),
+  const actions = {microscope:vi.fn().mockResolvedValue({status:"setup"}), start: vi.fn(), openProject: vi.fn(), openRecent: vi.fn(), dropFiles: vi.fn(),
     previewResearch: vi.fn(async () => brief), createResearch: vi.fn(), ...overrides};
   const launcher = new InvestigationLauncher(actions);
   document.body.append(launcher.root);
@@ -29,7 +29,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 test('each unavailable instrument or specimen has only a closable preview', async () => {
   const {actions, launcher} = setup();
-  for (const id of ['onion-root', 'rosette', 'own-microscope', 'own-telescope', 'remote-microscope', 'remote-telescope']) {
+  for (const id of ['onion-root', 'rosette', 'own-telescope', 'remote-microscope', 'remote-telescope']) {
     await launcher.activate(id);
     const dialog = launcher.root.querySelector('dialog')!;
     expect(dialog.textContent).toContain('Coming soon');
@@ -109,4 +109,14 @@ test('the assistant sees a generic page’s excerpt when it has no summary or kn
   expect(launcher.researchContext()).toMatchObject({original: source.original, context: 'Compare two wells.'});
   dialog.close();
   expect(launcher.researchContext()).toBe(null);
+});
+
+test('a local microscope reads its actual connection and requires an explicit Project start', async () => {
+  const {launcher,actions} = setup({microscope:async()=>({status:'demo',name:'Micro-Manager',controls:['focus']})});
+  await launcher.activate('own-microscope');
+  const dialog=launcher.root.querySelector('dialog')!;
+  expect(dialog.textContent).toContain('Simulated microscope');
+  expect(actions.start).not.toHaveBeenCalled();
+  Array.from(dialog.querySelectorAll('button')).find(b=>b.textContent==='Start Project')!.dispatchEvent(new Event('click'));
+  expect(actions.start).toHaveBeenCalledWith('microscope');
 });

@@ -121,3 +121,20 @@ def test_recent_projects_distinguish_background_activity_from_an_explicit_blank(
     assert row(initial)['launcherBootstrap']
     store.switch_session(initial)
     assert 'launcherBootstrap' not in row(initial)
+
+def test_local_scope_starter_only_reports_the_configured_bridge(tmp_path, monkeypatch):
+    from orchestrator import scope
+    app = create_app('http://127.0.0.1:1', False, Paths.under(tmp_path))
+    client = TestClient(app, base_url='http://localhost:8770')
+    old = app.state.app.day.sid
+    headers = {'Origin':'http://localhost:8770','X-MicroscopeMind':'check-microscope'}
+    def check(): return client.post('/api/launcher-microscope', headers=headers).json()
+    assert client.post('/api/launcher-microscope').status_code == 403
+    monkeypatch.setattr(scope,'from_environment',lambda: None)
+    assert check() == {'status':'setup'}
+    class ReadOnly:
+        async def state(self):
+            return {'backend':{'backend':'mm-demo','xyStage':'XY','focus':'Z','camera':'cam','config':'private.cfg'}}
+    monkeypatch.setattr(scope,'from_environment',ReadOnly)
+    assert check() == {'status':'demo','name':'Micro-Manager','controls':['stage position','focus','image capture']}
+    assert app.state.app.day.sid == old and len(app.state.app.day.catalogue.list()) == 1
