@@ -318,3 +318,40 @@ def test_a_first_publication_that_did_not_finish_is_tried_again_under_the_same_n
     github.repos[repo]['refs']['notes'] = placeholder
     with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
         create_repository(client, 'leaf-cells', private=False, description='x')
+
+
+def _served(monkeypatch, answers):
+    """Client.download against canned answers: (status, body) pairs, served in order; the pauses it took."""
+    import httpx
+
+    from orchestrator import github_rest
+    asked, paused = [], []
+
+    def answer(request):
+        asked.append(str(request.url))
+        status, body = answers[len(asked) - 1]
+        return httpx.Response(status, content=body)
+    real = httpx._client.Client  # the class itself, even when an earlier call here replaced httpx.Client
+    monkeypatch.setattr(httpx, 'Client', lambda **kw: real(transport=httpx.MockTransport(answer), **kw))
+    monkeypatch.setattr(github_rest, '_pause', paused.append)
+    return github_rest.Client(anonymous=True), asked, paused
+
+
+def test_a_download_asks_again_after_a_passing_server_error(monkeypatch):
+    # Seen live 2026-11-03: raw.githubusercontent.com answered one file of an Update with a 501, then served it.
+    client, asked, paused = _served(monkeypatch, [(501, b''), (503, b''), (200, b'cells')])
+    url = 'https://raw.githubusercontent.com/ada/research/' + 'a' * 40 + '/README.md'
+    assert client.download(url, 100) == b'cells'
+    assert asked == [url] * 3 and paused == [1.0, 3.0]
+
+
+def test_a_download_refuses_after_three_server_errors_and_at_once_when_missing(monkeypatch):
+    from orchestrator.project_remote_layers import RemoteRefused
+    client, asked, paused = _served(monkeypatch, [(502, b'')] * 3)
+    with pytest.raises(RemoteRefused, match=r'could not provide a file of this project \(502\)'):
+        client.download('https://raw.githubusercontent.com/ada/research/x', 100)
+    assert len(asked) == 3 and paused == [1.0, 3.0]
+    client, asked, paused = _served(monkeypatch, [(404, b'')])
+    with pytest.raises(RemoteRefused, match=r'\(404\)'):
+        client.download('https://raw.githubusercontent.com/ada/research/x', 100)
+    assert len(asked) == 1 and paused == []

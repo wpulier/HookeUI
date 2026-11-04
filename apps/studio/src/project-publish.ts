@@ -106,12 +106,23 @@ export function githubSignIn(github: PublishActions['github'], active: () => boo
   return element;
 }
 
+/** Where an earlier publication went, as the destination that adds a new version there. */
+export function publishedAt(entry: {destination: unknown}): {label: string; destination: Destination} | null {
+  const records = (entry.destination as {records?: {kind?: string; base?: string; location?: string}} | null)?.records ?? {};
+  if (records.kind === 'folder' && records.base) return {label: records.base, destination: {kind: 'folder', path: records.base}};
+  const repo = records.kind === 'github' ? (records.location ?? '').replace(/^https:\/\/github\.com\//, '') : '';
+  if (/^[\w.-]+\/[\w.-]+$/.test(repo)) return {label: `github.com/${repo}`, destination: {kind: 'github', repo}};
+  return null;
+}
+
 export function projectPublish(actions: PublishActions, current: () => boolean, title: string): {element: HTMLElement; dispose(): void} {
   const element = node('section', '', 'project-publish');
   const status = node('p', '', 'project-folder-status'); status.setAttribute('role', 'status');
   const content = node('div'), controls = node('div', '', 'project-export-actions');
   element.append(node('h3', 'Publish'), content, status, controls);
   let disposed = false, busy = false;
+  /** Where this Project was published before, the latest first: a new publication can add its version there. */
+  let places: {label: string; destination: Destination}[] = [];
   const active = () => !disposed && current();
   const button = (label: string, fn: () => Promise<void> | void, primary = false) => {
     const b = node('button', label, primary ? 'study-primary' : 'study-quiet'); b.type = 'button';
@@ -130,6 +141,9 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     try {
       const remote = await actions.status();
       if (!active()) return;
+      const seen = new Set<string>();
+      places = [...remote.published].reverse().map(publishedAt)
+        .filter((p): p is {label: string; destination: Destination} => p !== null && !seen.has(p.label) && !!seen.add(p.label));
       for (const request of (remote.publishRequests ?? []).slice(-3)) {
         if (!actions.requested) break;
         content.append(node('p', `${request.byLabel ?? 'An agent'} asked to publish this project. Nothing is sent until you review it and sign off.`));
@@ -215,22 +229,32 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     if (r.blocked) { button('Back', intro); return; }
     // Where it goes.
     const where = node('fieldset', '', 'project-publish-where'); where.append(node('legend', 'Publish to'));
-    const github = node('input'), folder = node('input');
-    github.type = 'radio'; github.name = `where-${r.reviewDigest}`; github.checked = true;
-    folder.type = 'radio'; folder.name = `where-${r.reviewDigest}`;
+    const radio = () => { const input = node('input'); input.type = 'radio'; input.name = `where-${r.reviewDigest}`; return input; };
+    const github = radio(), folder = radio();
     const repo = node('input'); repo.value = slug(title); repo.setAttribute('aria-label', 'New GitHub repository name');
     const path = node('input'); path.placeholder = '/Volumes/Shared/Hooke'; path.setAttribute('aria-label', 'Folder location');
     const githubRow = node('label'); githubRow.append(github, node('span', ' A new public GitHub repository named '), repo);
     const folderRow = node('label'); folderRow.append(folder, node('span', ' A folder (a drive or shared folder) at '), path);
+    type Choice = {input: HTMLInputElement; github: boolean; destination(): Destination; valid(): boolean};
+    const choices: Choice[] = places.map(place => {
+      const input = radio(), row = node('label');
+      row.append(input, node('span', ` A new version of ${place.label}`)); where.append(row);
+      return {input, github: place.destination.kind === 'github', destination: () => place.destination, valid: () => true};
+    });
     where.append(githubRow, folderRow); content.append(where);
+    choices.push({input: github, github: true, destination: () => ({kind: 'github', create: true, name: repo.value.trim()}),
+      valid: () => /^[A-Za-z0-9_.-]{1,100}$/.test(repo.value.trim())},
+    {input: folder, github: false, destination: () => ({kind: 'folder', path: path.value.trim(), create: true}),
+      valid: () => path.value.trim().startsWith('/')});
+    let picked = choices[0]; picked.input.checked = true;
     const signIn = node('div'); content.append(signIn);
     let signedIn = false;
     const refreshSignIn = () => {
       signIn.replaceChildren();
-      if (github.checked) signIn.append(githubSignIn(actions.github, active, () => { signedIn = true; ready(); }));
+      if (picked.github) signIn.append(githubSignIn(actions.github, active, () => { signedIn = true; ready(); }));
       ready();
     };
-    github.addEventListener('change', refreshSignIn); folder.addEventListener('change', refreshSignIn);
+    for (const choice of choices) choice.input.addEventListener('change', () => { if (choice.input.checked) picked = choice; refreshSignIn(); });
     // Sign-off.
     const rights = checkbox('I have the right to share every file listed');
     const human = checkbox('These files hold no identifiable human data, or release is permitted');
@@ -238,8 +262,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
     const author = node('input'); author.placeholder = 'Your name for the citation (optional)'; author.size = 40; author.setAttribute('aria-label', 'Author');
     content.append(rights.row, human.row, permanent.row, author);
     const send = button('Publish', async () => {
-      const destination: Destination = github.checked ? {kind: 'github', create: true, name: repo.value.trim()}
-        : {kind: 'folder', path: path.value.trim(), create: true};
+      const destination = picked.destination();
       busy = true; send.disabled = true; status.textContent = 'Sending and checking every file…';
       try {
         const result = await actions.publish(r, {rights: rights.box.checked, noIdentifiableHumanData: human.box.checked,
@@ -252,7 +275,7 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
       finally { busy = false; }
     }, true);
     const ready = () => {
-      const where = github.checked ? signedIn && /^[A-Za-z0-9_.-]{1,100}$/.test(repo.value.trim()) : path.value.trim().startsWith('/');
+      const where = (!picked.github || signedIn) && picked.valid();
       send.disabled = !(rights.box.checked && human.box.checked && permanent.box.checked && where);
     };
     for (const box of [rights.box, human.box, permanent.box]) box.addEventListener('change', ready);

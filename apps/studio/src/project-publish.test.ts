@@ -66,6 +66,41 @@ test('shows what is left out, waits for every sign-off, then sends the exact rev
   view.dispose();
 });
 
+test('a project published before adds its new version where it went, chosen first', async () => {
+  dom();
+  const github = {records: {kind: 'github', location: 'https://github.com/ada/research', branch: 'main'}, bulk: {kind: 'github-release'}};
+  const folder = {records: {kind: 'folder', base: '/Volumes/Share/Research'}, bulk: {kind: 'folder'}};
+  const entry = (destination: unknown) => ({destination, commit: 'e'.repeat(40), snapshotSha256: 'b'.repeat(64), licence: 'CC-BY-4.0'});
+  const a = actions({status: vi.fn(async () => ({published: [entry(github), entry(folder), entry(github)], startedFrom: null}))});
+  const view = projectPublish(a, () => true, 'Research');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Published 3 times'));
+  click(view.element, 'Review what will be published');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('A new version of github.com/ada/research'));
+  const radios = (Array.from(view.element.querySelectorAll('input')) as HTMLInputElement[]).filter(i => i.type === 'radio');
+  expect(radios.map(r => r.parentElement?.textContent?.trim().split('  ')[0])).toEqual([
+    'A new version of github.com/ada/research', 'A new version of /Volumes/Share/Research',
+    'A new public GitHub repository named', 'A folder (a drive or shared folder) at']);
+  expect(radios.map(r => r.checked === true)).toEqual([true, false, false, false]);
+  check(view.element, 'right to share'); check(view.element, 'identifiable human data'); check(view.element, 'not erased');
+  const send = Array.from(view.element.querySelectorAll('button')).find(b => b.textContent === 'Publish') as HTMLButtonElement;
+  await vi.waitFor(() => expect(send.disabled).toBe(false));
+  click(view.element, 'Publish');
+  await vi.waitFor(() => expect(a.publish).toHaveBeenCalled());
+  expect(a.publish).toHaveBeenLastCalledWith(review, expect.anything(), {kind: 'github', repo: 'ada/research'});
+  view.dispose();
+
+  const again = projectPublish(a, () => true, 'Research');
+  await vi.waitFor(() => expect(again.element.textContent).toContain('Published 3 times'));
+  click(again.element, 'Review what will be published');
+  await vi.waitFor(() => expect(again.element.textContent).toContain('A new version of /Volumes/Share/Research'));
+  const second = (Array.from(again.element.querySelectorAll('input')) as HTMLInputElement[]).filter(i => i.type === 'radio')[1];
+  second.checked = true; second.dispatchEvent(new Event('change'));
+  check(again.element, 'right to share'); check(again.element, 'identifiable human data'); check(again.element, 'not erased');
+  click(again.element, 'Publish');
+  await vi.waitFor(() => expect(a.publish).toHaveBeenLastCalledWith(review, expect.anything(), {kind: 'folder', path: '/Volumes/Share/Research'}));
+  again.dispose();
+});
+
 test('names what was removed from each photo and can review again without cleaning', async () => {
   dom();
   const cleaned = {...review, cleanMetadata: true, cleanedFiles: 1, findings: [{path: 'scan.czi (p1)', line: 0, kind: 'metadata-unchecked', blocks: false}],
