@@ -13,7 +13,8 @@ iPhone on the eyepiece and nothing downstream can tell (experiments/iphone-camer
   focus is from sharp. Nothing else of the app ever reads it.
 - **OpenFlexure's HTTP API, the part a client needs** (openflexure-microscope-server v2): `GET
   /api/v2/instrument/state/stage/position`, `POST /api/v2/actions/stage/move` ({x, y, z, absolute}, in steps), `GET
-  /api/v2/actions/<id>`, `GET /api/v2/streams/mjpeg`, `GET /api/v2/streams/snapshot`, and `POST
+  /api/v2/actions/<id>`, `GET /api/v2/streams/mjpeg`, `GET /api/v2/streams/snapshot`, `POST
+  /api/v2/actions/camera/ram-capture` (a picture taken now), and `POST
   /api/v2/extensions/org.openflexure.autofocus/fast_autofocus`. One step is one slide px across and 1/STEPS_PER_Z of z.
 
 Standard library and the services environment (numpy, OpenCV); one render thread, one thread per connection.
@@ -63,7 +64,9 @@ class VirtualScope:
     def __init__(self, slide: np.ndarray, *, size: tuple[int, int] = (1280, 720), disc: tuple[float, float, float] | None = None,
                  zoom: float = 1.6, start: tuple[float, float] | None = None, z: float = 0.0, blur_per_z: float = 1.6,
                  turn: int = 0, fps: float = 20.0, jpeg_quality: int = 85, noise: float = 2.0, seed: int = 7,
-                 limits: tuple[float, float, float, float] | None = None) -> None:
+                 limits: tuple[float, float, float, float] | None = None, motor_speed: float = MOTOR_SPEED,
+                 motor_z_speed: float = MOTOR_Z_SPEED) -> None:
+        self.motor_speed, self.motor_z_speed = motor_speed, motor_z_speed  # the motors' own pace (OpenFlexure API)
         self.slide = slide if slide.ndim == 3 else cv2.cvtColor(slide, cv2.COLOR_GRAY2BGR)
         self.width, self.height = size
         self.cx, self.cy, self.r = disc or (self.width / 2, self.height / 2, 0.47 * self.height)
@@ -137,12 +140,12 @@ class VirtualScope:
             self._base = (x, y, z)
 
     def move_to(self, x: float | None = None, y: float | None = None, z: float | None = None, *,
-                speed: float = MOTOR_SPEED, z_speed: float = MOTOR_Z_SPEED) -> float:
+                speed: float | None = None, z_speed: float | None = None) -> float:
         """The motors' move to a place (None: that axis stays). Returns when it ends."""
         cx, cy, cz = self.position()
         tx, ty = self._clamp(cx if x is None else x, cy if y is None else y)
         tz = cz if z is None else z
-        return self.hand(tx - cx, ty - cy, tz - cz, speed=speed, z_speed=z_speed)
+        return self.hand(tx - cx, ty - cy, tz - cz, speed=speed or self.motor_speed, z_speed=z_speed or self.motor_z_speed)
 
     def moving(self) -> bool:
         now = time.monotonic()
@@ -295,8 +298,19 @@ class VirtualScope:
                 else:
                     self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
+            def do_DELETE(self) -> None:
+                path = self.path.split("?", 1)[0].rstrip("/")
+                if path.startswith("/api/v2/actions/"):
+                    scope.halt()  # a cancelled move stops where it is
+                    record = scope._actions.get(path.rsplit("/", 1)[1])
+                    if record is not None and record["status"] == "running":
+                        record["status"] = "cancelled"
+                    self._json({"ok": True})
+                else:
+                    self._json({"error": "not found"}, HTTPStatus.NOT_FOUND)
+
             def do_POST(self) -> None:
-                path = self.path.split("?", 1)[0]
+                path = self.path.split("?", 1)[0].rstrip("/") or "/"  # OpenFlexure's actions end in a slash
                 body = self._body()
                 if path == "/api/v2/actions/stage/move":
                     try:
@@ -307,8 +321,15 @@ class VirtualScope:
                     if body.get("absolute"):
                         ends = scope.move_to(x, y, z / STEPS_PER_Z)
                     else:
-                        ends = scope.hand(x, y, z / STEPS_PER_Z, speed=MOTOR_SPEED, z_speed=MOTOR_Z_SPEED)
+                        ends = scope.hand(x, y, z / STEPS_PER_Z, speed=scope.motor_speed, z_speed=scope.motor_z_speed)
                     self._json(scope.action("move", ends), HTTPStatus.CREATED)
+                elif path == "/api/v2/actions/camera/ram-capture":  # a new picture, rendered now
+                    data = scope.jpeg()
+                    self.send_response(HTTPStatus.OK)
+                    self.send_header("Content-Type", "image/jpeg")
+                    self.send_header("Content-Length", str(len(data)))
+                    self.end_headers()
+                    self.wfile.write(data)
                 elif path == "/api/v2/extensions/org.openflexure.autofocus/fast_autofocus":
                     self._json(scope.action("autofocus", scope.autofocus()), HTTPStatus.CREATED)
                 elif path == "/hand":  # the harness's simulated person

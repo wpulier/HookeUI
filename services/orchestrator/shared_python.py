@@ -34,7 +34,8 @@ from .paths import SERVICES
 
 LOCK = SERVICES / "uv.lock"
 FIRST_PARTY = frozenset({"orchestrator", "gpu_worker", "research_worker", "scientific_compute", "env_worker", "fiji_worker", "bench", "sim",
-                         "noncommercial", "tests"})
+                         "noncommercial", "tests",
+                         "scope_bridge"})  # its core is the standard library; Micro-Manager only in its own env
 SOURCE_LIMIT = 4 << 20  # a pinned code file larger than this is not read for its imports (Molmo 2's largest: 72 KB)
 OPTIONAL = {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"}  # a try that handles one: optional
 AVAILABLE = re.compile(r"is_\w+_available")  # transformers' guards (`if is_flash_attn_2_available():`): optional

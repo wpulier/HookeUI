@@ -57,7 +57,12 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
                                "write_document",
                                # Guiding the user's hands (guide.py): its lines go to the voice word for word
-                               "guide", "stop_guiding", "guiding")
+                               "guide", "stop_guiding", "guiding",
+                               # Outside agents Hooke starts (ADR 0029).
+                               "start_agent", "agents", "agent_note", "stop_agent", "answer_agent",
+                               # Projects by voice (brain/toolbox/projects.py)
+                               "list_projects", "rename_project", "organize_project", "apply_organization",
+                               "archive_project", "undo_project_change")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
 # approval back.
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",

@@ -29,6 +29,11 @@ export function matchesSearch(row: SessionRow, query: string, now: number): bool
   return words.every((word) => text.includes(word));
 }
 
+/** Whether a row is listed: it matches the search, and an archived Project only when searched for or open now. */
+export function listedRow(row: SessionRow, query: string, current: string, now: number): boolean {
+  return matchesSearch(row, query, now) && (!row.archived || row.id === current || query.trim() !== '');
+}
+
 export class SessionMenu implements Panel {
   readonly id = 'session-menu';
   readonly whileTyping = true; // its search and rename fields are its own
@@ -258,7 +263,7 @@ export class SessionMenu implements Panel {
     const list = document.createElement('ol');
     list.className = 'session-rows';
     list.setAttribute('aria-label', 'Projects, newest first');
-    const shown = rows.filter((row) => matchesSearch(row, query, now));
+    const shown = rows.filter((row) => listedRow(row, query, current ?? '', now));
     const open = (id: string) => this.switchTo(id);
     const rename = (id: string) => this.renameRow(id);
     for (const group of groupByDay(shown, now, 'started')) {

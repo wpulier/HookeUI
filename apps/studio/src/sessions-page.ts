@@ -5,7 +5,7 @@
 // just goes back). The session title's menu stays the quick switcher; this is the full view.
 //
 // It only shows and asks: switching, starting and renaming are the sessions model's (sessions.ts).
-import { matchesSearch } from './session-menu';
+import { listedRow } from './session-menu';
 import { groupByDay, inlineRename, rowView, savedWhereWords, sessionName, type SessionsModel } from './sessions';
 
 function node<K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string): HTMLElementTagNameMap[K] {
@@ -100,7 +100,7 @@ export class SessionsPage {
     this.error.hidden = !model.error;
     this.savedWords.textContent = savedWhereWords(model.root());
     this.saved.hidden = !model.root();
-    const shown = rows.filter((row) => matchesSearch(row, query, now));
+    const shown = rows.filter((row) => listedRow(row, query, current, now));
     const groups: HTMLElement[] = [];
     for (const group of groupByDay(shown, now, 'started')) {
       const section = node('section', 'sessions-group');

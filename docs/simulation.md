@@ -75,3 +75,7 @@ stoma is, how far from sharp) is the virtual scope's, read only by the harness. 
 model call) and is in the gate; `guide-words` types "find me a stoma and centre it" to the brain with the default
 judge and needs `--cloud`. The virtual scope also answers the part of OpenFlexure's HTTP API a client needs (stage
 position and moves, actions, autofocus, the MJPEG stream and a snapshot), for the scope bridge's tests.
+
+The `scope-move` scenario (`sim/scoped.py`) drives that same virtual microscope through the scope bridge
+(services/scope_bridge, its OpenFlexure backend): each move must show in the live view as the orchestrator measures
+it, and a move the limits refuse must show nothing.

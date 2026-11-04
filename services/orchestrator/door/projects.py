@@ -109,7 +109,8 @@ class ProjectAccess:
 
     def grant(self, project, actor, role, *, authority, user_project=False):
         """Only the trusted owner transport calls this, never a door action."""
-        if authority not in ('native', 'development') or role not in (*_ROLES, None):
+        # 'launch': the conductor's grant to an agent the researcher asked Hooke to start (ADR 0029), never a route's.
+        if authority not in ('native', 'development', 'launch') or role not in (*_ROLES, None):
             raise ValueError('An owner-confirmed read/contribute grant or revocation is required')
         if not isinstance(project, str) or not is_sid(project) or not _actor(actor):
             raise ValueError('Select an exact Project and stable connection ID')

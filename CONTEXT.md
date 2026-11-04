@@ -121,6 +121,10 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
   the brain. The one-brain voice's is a job of its own (kind "hooke", Hooke's own work in progress), listed and
   numbered with think jobs and researchers, and stopped with `stop_work`.
 - **User leads**: the user finds things themselves; the app points and names only when asked.
+- **Scope bridge**: the one process that drives the microscope's motors, camera and light
+  (`services/scope_bridge/`), inside the **limits** the user set (the stage's box, the most one move may travel, the
+  exposure's range, the size of acquisition that asks first), with a **yes** before the light goes on or a large
+  acquisition starts, and a **receipt** for every action. ADR 0030.
 - **Guidance** (`guide`): the app directing the user's hands at the microscope, one short line at a time ("move the
   slide left a little", "stop", "focus up"), until a thing is centred (and sharp). The app measures where it is and
   what each move did; a model decides each line. The user's hands do the moving: the microscope has no motors here.

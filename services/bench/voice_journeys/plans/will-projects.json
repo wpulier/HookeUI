@@ -1,0 +1,101 @@
+{
+ "id": "will-projects",
+ "about": "Projects by voice (Lane B of Will's plan of 3 Nov 2026: \"Open the leaf one from last week.\" \"What Projects do I have on guard cells?\" \"Tidy this Project\" ... \"Archive the old test ones.\" \"Everything undoable.\"). The stack's fresh home is seeded with Will's kind of Projects (`projects`, stack.seed_projects, dated from the run's day): a leaf one last week, an older leaf one, a guard-cell one, an onion one whose conversation was about guard cells, and two test runs. Hooke lists the guard-cell ones best first and says why, opens the leaf one from last week without asking (one clear match), proposes a tidy of the open Project and applies it only on the yes, undoes it in one step, and archives the test ones on the request, said as kept and undoable. Played as the camera; no setup.",
+ "minMs": 6000,
+ "quietMs": 4000,
+ "voices": {
+  "user": "Samantha"
+ },
+ "projects": [
+  {"name": "Leaf epidermis", "lastWeek": 2, "specimens": ["leaf epidermis"], "tabs": ["Tab 2", "Tab 3"],
+   "conversations": [{"first": "what are these little openings?", "summary": "Outlined the stomata on the leaf epidermis and counted 12."}]},
+  {"name": "", "daysAgo": 30, "specimens": ["leaves"]},
+  {"name": "Stomata in light", "daysAgo": 20, "specimens": ["guard cells"],
+   "conversations": [{"title": "Aperture", "summary": "Measured guard cell aperture in light."}]},
+  {"name": "Onion skin", "daysAgo": 25, "specimens": ["onion epidermis"],
+   "conversations": [{"first": "how do these compare with a leaf?", "summary": "Compared onion cells with the guard cells of a leaf."}]},
+  {"name": "Test run", "daysAgo": 40},
+  {"name": "Test run 2", "daysAgo": 40},
+  {"name": "", "daysAgo": 0, "open": true}
+ ],
+ "steps": [
+  {
+   "id": "guard-cell-projects",
+   "kind": "ask",
+   "say": "What Projects do I have on guard cells?",
+   "from": "Will, 3 November: \"What Projects do I have on guard cells?\" (Lane B)",
+   "expect": {
+    "tools": ["do_in_hooke", "think", "list_projects"],
+    "judge": "names Stomata in light first (guard cells were seen in it) and Onion skin as one where guard cells were talked about, in a few plain words with when each was used; opens nothing; no ids or tool names are said"
+   },
+   "footage": "real/2026-06-14-leaf-epidermis-23s.mp4"
+  },
+  {
+   "id": "open-leaf-last-week",
+   "kind": "act",
+   "say": "Open the leaf one from last week.",
+   "from": "Will, 3 November: \"Open the leaf one from last week.\" (Lane B)",
+   "wait": 20,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "switch_session"],
+    "visible": "the Leaf epidermis Project open: its name in the title",
+    "judge": "opens Leaf epidermis without asking which (it is the only leaf Project from last week) and says it is open, once; never says it opened another"
+   }
+  },
+  {
+   "id": "tidy-propose",
+   "kind": "act",
+   "say": "Tidy this Project.",
+   "from": "Will, 3 November: \"Tidy this Project\" (it proposes groups, names and stale Tabs to close; one yes applies)",
+   "wait": 25,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "organize_project"],
+    "visible": "the tidy's card under the request: what it would change, with Do it and Not now",
+    "judge": "proposes a short tidy (closing the two empty Tabs, and any title or group worth changing) and asks once whether to do it; makes clear nothing is changed yet and never says it is done"
+   }
+  },
+  {
+   "id": "tidy-yes",
+   "kind": "act",
+   "say": "Yes, do it.",
+   "wait": 20,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "apply_organization"],
+    "visible": "the conversation's new title in the conversation menu",
+    "judge": "says what it changed, once, in plain words, and that it can be undone; says plainly any part it could not do"
+   }
+  },
+  {
+   "id": "tidy-undo",
+   "kind": "act",
+   "say": "Actually, undo that.",
+   "wait": 20,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "undo_project_change"],
+    "judge": "puts the tidy back in one step and says so once; never says something was undone that was not"
+   }
+  },
+  {
+   "id": "archive-tests",
+   "kind": "act",
+   "say": "Archive the old test ones.",
+   "from": "Will, 3 November: \"Archive the old test ones.\" (Lane B)",
+   "wait": 25,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "list_projects", "archive_project"],
+    "judge": "names Test run and Test run 2 and asks once whether to archive both, or archives them and says so; never archives Leaf epidermis or another real Project"
+   }
+  },
+  {
+   "id": "archive-yes",
+   "kind": "act",
+   "say": "Yes, both.",
+   "wait": 20,
+   "expect": {
+    "tools": ["do_in_hooke", "think", "archive_project"],
+    "toolRequired": false,
+    "judge": "archives Test run and Test run 2 (if not already), says they are kept with their work and out of the Projects list and can be undone, once; never archives Leaf epidermis or another real Project"
+   }
+  }
+ ]
+}

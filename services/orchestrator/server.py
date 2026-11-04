@@ -173,6 +173,8 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
     add_scientific_project_routes(app, built, studio_origin, ARCHIVE_HEADER)
     from .door.api import register as add_agent_door  # outside agents' one door (ADR 0026)
     add_agent_door(app, built, studio_origin, ARCHIVE_HEADER)
+    from .agents.api import register as add_agents_panel  # outside agents Hooke starts (ADR 0029)
+    add_agents_panel(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_import_transaction import ImportPending
 
     @app.exception_handler(ImportPending)
@@ -1224,6 +1226,9 @@ def main() -> None:
     parser.add_argument('--open-project', default=os.environ.get('HOOKE_OPEN_PROJECT'),
                         help='Explicit owner opening of a working Project folder; does not import agent access or replay work')
     args = parser.parse_args()
+    # Where a development `hooke` started for an outside agent finds this door (agents/hooke_side.py, ADR 0029); the
+    # Mac app's own `hooke` reads its app's state file instead.
+    os.environ.setdefault("HOOKE_DOOR_URL", f"http://127.0.0.1:{args.port}")
     from .project_launch import configured_locations
     paths = Paths.from_env()
     locations = configured_locations(paths, args.project_folders, reopen=args.reopen_project, opening=args.open_project)

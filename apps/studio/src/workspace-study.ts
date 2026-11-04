@@ -32,7 +32,8 @@ import { researchStageBar } from './research-tab';
 import { AssistantLayer } from './assistant-layer';
 import { clock } from './working-strip';
 import { tabMark } from './tab-marks';
-import { ResearchersBoard, type StudyRow } from './researchers-board';
+import { ResearchersBoard, boardGroup, type StudyRow } from './researchers-board';
+import { agentsPanel, type ResearcherWorker } from './agents-panel';
 import { litCell, type LitCellState } from './lit-cell';
 import { drawActivityCells } from './activity-render';
 import { asking, isReady, researcherCell, researcherWords, todaysResearch, workingElsewhere } from './shelf';
@@ -168,7 +169,7 @@ function readPreferences(): { layout: StudyLayout; inspector: boolean; width: nu
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) ?? '{}');
     return { layout: ['baseline', 'global', 'contextual'].includes(saved.layout) ? saved.layout : 'global',
-      rightTab: saved.rightTab === 'analyze' ? 'analyze' : 'agent', inspector: saved.rightTab ? saved.inspector !== false : true, width: saved.width ? panelWidth(saved.width) : 360, drawer: saved.drawer === true, section: ['inputs', 'projects', 'library', 'tools', 'results', 'history', 'research'].includes(saved.section) ? saved.section : 'inputs' };
+      rightTab: saved.rightTab === 'analyze' ? 'analyze' : 'agent', inspector: saved.rightTab ? saved.inspector !== false : true, width: saved.width ? panelWidth(saved.width) : 360, drawer: saved.drawer === true, section: ['inputs', 'projects', 'library', 'tools', 'results', 'history', 'research', 'agents'].includes(saved.section) ? saved.section : 'inputs' };
   } catch { return { layout: 'global', inspector: true, width: 360, drawer: false, section: 'inputs', rightTab: 'agent' }; }
 }
 const preferences = readPreferences(); preferences.layout='global';
@@ -221,6 +222,7 @@ const icon = (name: string): SVGSVGElement => {
     activity: 'M4 6h16 M4 12h16 M4 18h10',
     data: 'M4 4h16v16H4z M4 10h16 M10 4v16 M10 15h10',
     researchers: 'M9 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6 M3 20v-4a6 6 0 0 1 12 0v4 M17 4a3 3 0 0 1 0 6 M18 13a5 5 0 0 1 4 5v2',
+    agents: 'M4 5h16v11H8l-4 4z M8 9h8 M8 12h5',
     session: 'M4 3h16v18H4z M4 8h16 M8 12h8 M8 16h6',
     assets: 'M3 4h18v16H3z M3 16l5-5 4 4 3-3 6 6 M15 8h.01',
     tools: 'M14 5a5 5 0 0 0-6 6L3 16v5h5l5-5a5 5 0 0 0 6-6l-4 4-5-5z',
@@ -262,6 +264,9 @@ const toolsButton=railItem('tools','Tools',()=>press(openTools));railButtons.set
 const dataButton=button('',()=>press(()=>{if(dataOpen&&dataMode==='outputs'&&!resultsOnly)setDataOpen(false);else{surfaces.dismiss();bridge.navigate('#');resultsOnly=false;dataMode='outputs';setDataOpen(true);}}));dataButton.append(icon('data'),el('span','','Data'));dataButton.setAttribute('aria-label','Data');
 const activityButton=button('',()=>press(()=>showActivity(!dataOpen||dataMode!=='history')));activityButton.append(icon('activity'),el('span','','Activity'));activityButton.setAttribute('aria-label','Activity');
 const researchersButton=button('',()=>press(()=>{if(drawerOpen&&section==='research')setDrawer(false);else openResearchers();}));researchersButton.append(icon('researchers'),el('span','','Researchers'));researchersButton.setAttribute('aria-label','Researchers');
+// Agents (ADR 0029): the outside agents Hooke started on this Mac, with Hooke's researchers; their asks are answered there.
+const agentsButton=railItem('agents','Agents',()=>press(()=>{if(drawerOpen&&section==='agents')setDrawer(false);else{showSection('agents');setDrawer(true);}}));
+railButtons.set('agents',agentsButton);
 const hookeImage=el('img','hooke-dark-mark');hookeImage.src=hookeMark;hookeImage.alt='';
 const hookeLightImage=el('img','hooke-light-mark');hookeLightImage.src=hookeLightMark;hookeLightImage.alt='';
 const chevron=document.createElementNS('http://www.w3.org/2000/svg','svg');chevron.setAttribute('viewBox','0 0 12 12');chevron.setAttribute('aria-hidden','true');const chevronPath=document.createElementNS(chevron.namespaceURI,'path');chevronPath.setAttribute('d','M2 4l4 4 4-4');chevron.append(chevronPath);
@@ -274,7 +279,7 @@ libraryButton.append(icon('assets'),el('span','','Library'));libraryButton.setAt
 // Hairline groups (the mock's rail): where the Project's work is, what runs on it, the Library; Help, Shortcuts and
 // Settings at the foot.
 const workflowsButton=button('',()=>bridge.navigate('#workflows'));workflowsButton.append(icon('tools'),el('span','','Workflows'));workflowsButton.setAttribute('aria-label','Workflows');
-rail.append(dataButton,activityButton,researchersButton,inputsButton,railGap(),toolsButton,workflowsButton,modelsButton,railGap(),libraryButton);
+rail.append(dataButton,activityButton,researchersButton,agentsButton,inputsButton,railGap(),toolsButton,workflowsButton,modelsButton,railGap(),libraryButton);
 const drawer = el('aside', 'study-drawer'); drawer.setAttribute('aria-label', 'Project and tools');
 // One header for every place in the drawer (the mock's dhead): its title, at most one action, and ×.
 const drawerHeader = el('header', 'study-panel-header mm-dhead');
@@ -545,7 +550,14 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    const started=named?snapshot.sources.find(asset=>[asset.title,asset.specimen].some(words=>(words??'').trim().toLowerCase()===named)):undefined;
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
+/** The Agents drawer's view of this Project's researchers (agents-panel.ts), in the board's words and cells. */
+function agentsOptions(){return {project:()=>snapshot.session,openResearcher:(rid:string)=>openResearcher(rid),changed:()=>renderRailBadges(),openStudy:(id:string)=>{void openStudy(id);},
+  researchers:():ResearcherWorker[]=>todaysResearch(bridge.researchers(),snapshot.session).map(s=>{const group=boardGroup(s);
+    return {rid:s.rid,name:s.name,title:(s.result?.title||s.label||s.brief||s.name).trim(),group:group==='queued'?'working':group,cell:researcherCell(s),words:researcherWords(s)};})};}
+agentsPanel.configure(agentsOptions());
+void agentsPanel.refresh();  // the rail mark is right from the start; later changes come over the socket
 function renderBoard():void{
+  if(drawerOpen&&section==='agents')agentsPanel.configure(agentsOptions());
   const material=resourceSession===snapshot.session?projectInputs(entries):[];
   const media=snapshot.sources.filter(asset=>!asset.retained || !material.some(entry=>isRetainedMaterial(entry,asset)));
   const inputTitles=[...media.map(asset=>asset.title),...material.map(entry=>entry.title)];
@@ -1643,7 +1655,7 @@ function showSection(next: StudySection): void {
   section = next; preferences.section = next; applyLayout();
   sessionSections.hidden=true;
   sessionSections.querySelectorAll<HTMLButtonElement>('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.section===section)));
-  const title = { inputs: 'Inputs', projects: 'All projects', library: 'Library', tools: 'Tools', results: 'Project', history: 'Project', research: 'Researchers' }[section];
+  const title = { inputs: 'Inputs', projects: 'All projects', library: 'Library', tools: 'Tools', results: 'Project', history: 'Project', research: 'Researchers', agents: 'Agents' }[section];
   drawerTitle.textContent = title; closeLeft.setAttribute('aria-label', `Close ${title}`);
   // The header's one action: Add model or tool in Tools, + New in Researchers, ⋯ (the ways in) in Inputs.
   drawerAction.replaceChildren(...(section === 'tools' ? [addTool] : section === 'research' ? [researchNew] : section === 'inputs' ? [inputsMore] : []));
@@ -1652,6 +1664,7 @@ function showSection(next: StudySection): void {
   if (section === 'tools') drawerBody.append(inspector);
   if (section === 'research') {drawerBody.append(researcherBrowser);renderBoard();bridge.refreshResearch();void refreshStudies();}
   if (section === 'inputs') renderInputs();
+  if (section === 'agents') {drawerBody.append(agentsPanel.root);agentsPanel.configure(agentsOptions());void agentsPanel.refresh(true);}
 }
 function importNativeBundle(): void {
   openScientificBundleImport({saved:()=>{void refreshResults();},open:async target=>{
@@ -2468,6 +2481,10 @@ function renderRailBadges(): void {
   applyRailBadge(dataButton, 'Data', badges.data); applyRailBadge(activityButton, 'Activity', undefined);
   applyRailBadge(researchersButton, 'Researchers', badges.researchers); applyRailBadge(modelsButton, 'Models', badges.models);
   applyRailMark(researchersButton, researchersMark(counts), () => litCell('working', { size: 10, decorative: true }));
+  // Agents: a blue count of the outside agents asking you something, else the lit cell while any works (ADR 0029).
+  const agents=agentsPanel.counts();
+  applyRailBadge(agentsButton,'Agents',agents.needs?{text:String(agents.needs),label:`${agents.needs} waiting for you`,tone:'needs'}:undefined);
+  applyRailMark(agentsButton,!agents.needs&&agents.working?{kind:'cell',label:`${agents.working} working`}:null,()=>litCell('working',{size:10,decorative:true}));
 }
 function renderContext(): void {
   const input = busy() && run ? run.input : snapshot;

@@ -102,11 +102,13 @@ class DayLedger:
         self._held: dict[str, tuple[float, float]] = {}  # rid -> (reserved usd, its spend when reserved)
         self._held_day: dict[str, str] = {}  # the day each reservation is charged to (the day its run started)
         self._month_hold: dict[str, str] = {}  # rid -> its run's own row against the monthly cap (api_usage), released at its end
+        # Spend that is not a researcher's, by day: outside agents Hooke started (agents/conductor.py spent_on).
+        self.others: list[Callable[[str], float]] = []
 
     def spent(self, day: str | None = None) -> float:
         day = day or self.today()
         here, cached = self._day(day)
-        return cached[1] + sum(spend_of(s).get(day, 0.0) for s in here)
+        return cached[1] + sum(spend_of(s).get(day, 0.0) for s in here) + sum(other(day) for other in self.others)
 
     def estimated(self, day: str | None = None) -> float:
         """The part of `spent(day)` that is estimated, not billed as such yet: calls that returned no usage and

@@ -44,6 +44,7 @@ class Connection:
     at: float
     token_sha256: str = field(repr=False)
     revoked_at: float | None = None
+    launch: str | None = None  # the launch Hooke started it for (agents/conductor.py, ADR 0029); None when connected
 
     @property
     def actor(self) -> str:
@@ -113,7 +114,7 @@ class Connections:
             raise RuntimeError(f"agent connections at {self.path} are not format 1")
         for row in raw["connections"]:
             c = Connection(id=row["id"], label=row["label"], kind=row["kind"], at=row["at"],
-                           token_sha256=row["tokenSha256"], revoked_at=row.get("revokedAt"))
+                           token_sha256=row["tokenSha256"], revoked_at=row.get("revokedAt"), launch=row.get("launch"))
             self._by_id[c.id] = c
             remember(c.id, c.label)
             if c.revoked_at is None:
@@ -123,7 +124,7 @@ class Connections:
         self.folder.mkdir(parents=True, exist_ok=True)
         os.chmod(self.folder, 0o700)
         rows = [{"id": c.id, "label": c.label, "kind": c.kind, "at": c.at, "tokenSha256": c.token_sha256,
-                 "revokedAt": c.revoked_at} for c in self._by_id.values()]
+                 "revokedAt": c.revoked_at, **({"launch": c.launch} if c.launch else {})} for c in self._by_id.values()]
         temporary = self.path.with_suffix(".tmp")
         descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
         with os.fdopen(descriptor, "w") as stream:
@@ -228,6 +229,29 @@ class Connections:
             p.state, p.connection = "claimed", c.id
             del self._pending[pid]
             return p, c, token
+
+    def issue(self, label, kind, *, launch: str) -> tuple[Connection, str]:
+        """A connection Hooke makes for an agent it starts itself (ADR 0029): the researcher asked for that agent in
+        Hooke, so there is no request to confirm. Only the conductor calls this, in-process; no route reaches it. The
+        token goes to that agent alone and the connection is revoked when the agent ends."""
+        self._usable()
+        if not isinstance(launch, str) or not re.fullmatch(r"ag_[0-9a-f]{16}", launch):
+            raise ValueError("A launch id is required")
+        with self._lock:
+            token = "hk_local_" + secrets.token_urlsafe(32)
+            c = Connection(id="ac_" + secrets.token_hex(12), label=clean_label(label),
+                           kind=kind if kind in KINDS else "other", at=self.clock(), token_sha256=sha256(token),
+                           launch=launch)
+            self._by_id[c.id] = c
+            self._by_token[c.token_sha256] = c
+            remember(c.id, c.label)
+            try:
+                self._write()
+            except OSError:
+                del self._by_id[c.id], self._by_token[c.token_sha256]
+                raise Refused(503, "not-saved", "Hooke could not save the agent's connection.",
+                              next="check free disk space, then start the agent again") from None
+            return c, token
 
     # --- using and ending -----------------------------------------------------------------------------------------
     def authenticate(self, authorization: str | None) -> Connection:

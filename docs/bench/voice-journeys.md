@@ -92,6 +92,7 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 | `will-alive` | Alive and available (W3), on the real June 14 leaf recording: "Find a YouTube video about stomata" (the next words come 6-8 s later, while it runs: `"wait": 8`), "What's the thing in the middle?" meanwhile, then the Assistant closed (`"assistant": "close"`, the bench presses its toggle before the words) for "Outline every cell", then reopened (`"assistant": "open"`) for "Is the video search done?". Read with the Alive line. |
 | `will-experiment` | Will's experiment (W5) on the real June 14 leaf recording: "I want to run an experiment comparing Cellpose and micro-sam on this footage and have a researcher audit it" (the plan shown as a card, nothing run), "Yes, run it.", "How is the experiment going?" while it runs, then an `idle` step that waits for the experiment to end (`"waitFor": {"experiment": "done"}`) and judges the one outcome and its results Tab. Both models must be installed on this Mac; the audit is a quick researcher (at most $0.25). |
 | `will-drive` | Driving Hooke (Will, 3 Nov: "the main thing is DRIVING the Hooke app"), on the real June 14 leaf recording, every request handed to Hooke's brain and acted through Hands (`HANDOFF_ACTS` hands), so the Drive, Receipts and False "done" lines are measured. A Tab made ("Make a new tab called Stomata"), used by a later step and renamed (each step waits for the earlier one's receipt), every cell outlined, a capability turned on from its card ("Turn on Spot look-alikes"), a researcher started, asked about, steered and stopped, a request spoken 1.2 s into the voice's answer while that work still runs ("Meanwhile, zoom in on the biggest stoma": it must not drop the researcher or the earlier work), a multi-step request, and a mouse takeover. Compare acting models on the same commit and judge with `--settings '{"fast": "gpt-6.1-sol-ultrafast"}'` (or `claude-sonnet-5-5`, `gemini-3.5-flash`, `gpt-5.6-luna-priority`) beside today's default. |
+| `will-agents` | Hooke drives an outside agent on this Mac (Lane D, ADR 0029), with the bundled nuclei still as the camera and real Codex on the Mac's own sign-in (the run uses the user's Codex plan, not the bench's pot). "Ask Codex to find out which capabilities Hooke can run on this Mac, and write me a short report", an `idle` step until Codex asks (`"waitFor": {"agent": "asks"}`), the ask said once and answered by voice ("Yes, let it do that for the rest of this session"), "What's everyone doing?", a steer, "Yes, go ahead" only while another ask waits (`"when"`), its report back for review ("What did Codex find?") and a stop. Codex must be installed and signed in. |
 | `smoke` | Two steps, no setup. |
 | `demo-2026-10-11` | The 11 Oct demo journey plus the 28 Oct log's failures on test footage. It is scored by `score.py`, the experience contract of the GPT-Live era. |
 
@@ -113,8 +114,11 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 - **Kinds.**
   - `act`, `view`, `ask`, `status`: spoken requests.
   - `idle`: no words. It waits for the newest researcher to finish, or what its `waitFor` names: `{"researcher":
-    "done"}` (a researcher new to the step finished), `{"researcher": "latest-done"}`, `{"frames": true}`, or
-    `{"experiment": "done"}` (an experiment's card, new to the step, ended: done, failed or stopped).
+    "done"}` (a researcher new to the step finished), `{"researcher": "latest-done"}`, `{"frames": true}`,
+    `{"experiment": "done"}` (an experiment's card, new to the step, ended: done, failed or stopped), or
+    `{"agent": "asks" | "done" | "asks-or-done"}` (an outside agent's approval card shown, or every agent finished).
+  - Any step may carry `when` (the same forms as `waitFor`): it is said only if that holds when its turn comes, and
+    left out otherwise ("yes, go ahead" only while an ask waits). A left-out step is not scored.
   - `restart`: quit and reopen Hooke.
   - `typed`: a request typed in the chat.
   - `stage`: the specimen put on the stage (setup).

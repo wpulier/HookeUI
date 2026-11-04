@@ -2,7 +2,7 @@ import type { AssetMeta, FrameHeader, SessionRow } from './protocol';
 import type { ResourceEntry } from './madetoday';
 
 export type StudyLayout = 'baseline' | 'global' | 'contextual';
-export type StudySection = 'inputs' | 'projects' | 'library' | 'tools' | 'results' | 'history' | 'research';
+export type StudySection = 'inputs' | 'projects' | 'library' | 'tools' | 'results' | 'history' | 'research' | 'agents';
 export interface StudySnapshot {
   operationInput?: import('./workspace-views-model').WorkspaceInput;
   connected: boolean;
