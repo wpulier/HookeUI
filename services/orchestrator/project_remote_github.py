@@ -297,14 +297,16 @@ class GitHubRecords:
             raise Diverged('This project changed in two places: GitHub has a version this Mac did not send. '
                            'Nothing was changed.')
         if old is None:
-            status, _ = self.client.ok('POST', f'/repos/{self.repo}/git/refs',
-                                       {'ref': f'refs/heads/{self.branch}', 'sha': new},
-                                       what='publishing the version', allow=(422,))
+            status, data = self.client.ok('POST', f'/repos/{self.repo}/git/refs',
+                                          {'ref': f'refs/heads/{self.branch}', 'sha': new},
+                                          what='publishing the version', allow=(422,))
         else:
-            status, _ = self.client.ok('PATCH', f'/repos/{self.repo}/git/refs/heads/{quote(self.branch)}',
-                                       {'sha': new, 'force': old == self.placeholder},
-                                       what='publishing the version', allow=(422,))
+            status, data = self.client.ok('PATCH', f'/repos/{self.repo}/git/refs/heads/{quote(self.branch)}',
+                                          {'sha': new, 'force': old == self.placeholder},
+                                          what='publishing the version', allow=(422,))
         if status == 422 or self.head() != new:
+            if self.head() == old:  # nothing arrived: GitHub itself kept the branch still (a ruleset, say)
+                raise GitHubRefused('publishing the version', status, data)
             raise Diverged('This project changed in two places: another version arrived first. Nothing was changed.')
 
 

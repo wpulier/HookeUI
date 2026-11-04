@@ -100,6 +100,8 @@ class GitHub:
         if rest.startswith('git/refs/heads/') and method == 'PATCH':
             branch = rest[len('git/refs/heads/'):]
             current = repo['refs'].get(branch)
+            if branch in repo.get('protected', ()):  # a ruleset: only an allowed actor may move it
+                return 422, {'message': 'Repository rule violations found\n\nCannot update this protected ref.\n\n'}
             if not payload.get('force') and not self._descends(repo, payload['sha'], current):
                 return 422, {'message': 'Update is not a fast forward'}
             repo['refs'][branch] = payload['sha']
@@ -252,6 +254,24 @@ def test_an_edit_on_github_is_reported_and_a_stale_publication_refused(tmp_path)
         publish(review2['staging'], review_digest=review2['reviewDigest'], signoff=SIGNOFF, remote=remote,
                 parent=first['commit'])
     assert r['refs']['main'] == web
+
+
+def test_a_rule_that_keeps_the_branch_still_is_said_as_github_said_it(tmp_path):
+    # Live 2026-11-03: a ruleset on main refused Hooke's own update (the app acts as the person), and Hooke said
+    # 'another version arrived first' although nothing had arrived.
+    root, repo, _, _, note, source, _, review = published(tmp_path)
+    hub = GitHub()
+    full, placeholder = create_repository(signed_in(hub), 'ruled', private=False, description='')
+    remote = github_remote(signed_in(hub), full, placeholder=placeholder)
+    first = publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote,
+                    replaces=placeholder)
+    hub.repos[full]['protected'] = {'main'}
+    review2 = prepare(seal(root), tmp_path / 'Review 2')
+    with pytest.raises(GitHubRefused, match=r'publishing the version \(422: Repository rule violations found') as refused:
+        publish(review2['staging'], review_digest=review2['reviewDigest'], signoff=SIGNOFF, remote=remote,
+                parent=first['commit'])
+    assert not isinstance(refused.value, Diverged)
+    assert hub.repos[full]['refs']['main'] == first['commit']
 
 
 def test_links_and_submodules_in_a_repository_are_refused(tmp_path):
