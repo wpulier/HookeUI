@@ -203,12 +203,13 @@ typecheck:
 
 # The Python tests run on every core (pytest-xdist): JOBS=8 sets how many workers, SERIAL=1 runs them in one process.
 # What a loaded Mac breaks rather than the code is left out (tests/conftest.py: the `wall_clock` fixture's bounds and the
-# tests marked `timing`): make test-timing runs those, one test at a time.
+# tests marked `timing`): make test-timing runs those, one test at a time. A test still running after 15 minutes prints
+# every thread's stack and ends its worker, so a hang fails naming the test rather than running into CI's hour.
 test:
 	cd services && if [ "$(SERIAL)" = 1 ]; then jobs="-p no:xdist"; \
 		elif .venv/bin/python -c "import xdist" 2>/dev/null; then jobs="-n $(or $(JOBS),auto)"; \
 		else echo "pytest-xdist is not in services/.venv (make setup adds it): the tests run in one process"; jobs=""; fi; \
-		.venv/bin/python -m pytest -q -m "not timing" $$jobs
+		.venv/bin/python -m pytest -q -m "not timing" -o faulthandler_timeout=900 -o faulthandler_exit_on_timeout=true $$jobs
 	cd apps/studio && npx tsc --noEmit -p . && npx vitest run
 	@if [ "$$(uname)" = Darwin ] && command -v swiftc >/dev/null 2>&1; then $(MAKE) --no-print-directory native-test; \
 		else echo "native checks skipped: they need macOS and swiftc"; fi
