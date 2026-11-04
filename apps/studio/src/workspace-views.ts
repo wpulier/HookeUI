@@ -54,6 +54,8 @@ interface Options {
 export interface MenuTab {id:string;name:string;title?:string;mark?:Element|null;act:()=>void}
 /** A researcher's or Study's Tab as the Assistant's Tab report lists it beside the work Tabs. */
 export interface ResearchTabReport {id:string;title:string;open:boolean;selected:boolean;kind:'researcher'|'study'|'draft';shows?:import('./workspace-model').ResearchShows[]}
+// Display-only: old layouts and agent references keep the same tab identity.
+const viewLabel=(view:WorkspaceView)=>view.id==='main'&&view.title==='Main'?'Specimen stage':view.title;
 const el=<K extends keyof HTMLElementTagNameMap>(tag:K,cls='',text='')=>{const n=document.createElement(tag);n.className=cls;n.textContent=text;return n;};
 /** The drag type a Data card carries: its Project and resource, re-checked on drop. */
 export const ENTRY_DRAG='application/x-hooke-entry';
@@ -206,11 +208,11 @@ private revision=0;private generation=0;private revealSequence=0;
   const size=button('Float',float);
   // Main is home: its specimen can float but never leaves it. Other Tabs may hide theirs, and keep a way back (below).
   const hideSpecimen=()=>{const v=this.active();if(v&&!this.isHome(v.id))this.setSpecimen(v,'hide');};
-  const hide=button('×',hideSpecimen);hide.setAttribute('aria-label','Hide specimen from this Tab');hide.title='Hide the specimen from this Tab (Main always keeps it)';
+  const hide=button('×',hideSpecimen);hide.setAttribute('aria-label','Hide specimen from this Tab');hide.title='Hide the specimen from this Tab (The specimen stage always keeps it)';
   this.specimenSize=size;this.specimenHide=hide;
   // The Stage bar names the specimen with the same Float or Fill and Hide (the floating window keeps its own bar).
   this.stageSize=button('Float',float);this.stageSize.className='workspace-stage-button';this.stageHide=button('Hide',hideSpecimen);this.stageHide.className='workspace-stage-button';
-  this.stageHide.setAttribute('aria-label','Hide specimen from this Tab');this.stageHide.title='Hide the specimen from this Tab (Main always keeps it)';
+  this.stageHide.setAttribute('aria-label','Hide specimen from this Tab');this.stageHide.title='Hide the specimen from this Tab (The specimen stage always keeps it)';
   this.stageThumb.setAttribute('aria-hidden','true');this.stageThumb.hidden=true;this.stageCredit.hidden=true;this.stageName.textContent='Specimen';
   this.stageWork.append(this.stageThumb,this.stageName,this.stageCredit,this.stageSize,this.stageHide,this.specimenReturn);this.stageWork.dataset.heard='false';
   const synced=el('span','workspace-specimen-synced','Tab input');synced.title='The specimen: this Tab remembers which input it shows. Previewing Data leaves it unchanged.';this.specimenBar.append(document.querySelector('.study-source-bar')??el('span','','Specimen'),synced,size,hide);this.specimenBar.tabIndex=0;
@@ -254,7 +256,7 @@ private revision=0;private generation=0;private revealSequence=0;
   window.addEventListener('workspace-origin-request',e=>{const detail=(e as CustomEvent).detail;detail.origin=this.origin(detail.run);});
   setInterval(()=>void this.refresh(),5000);this.render();
  }
- tabTitle(project:string,tab:string):string|null {return project===this.session?this.layout.views.find(v=>v.id===tab)?.title??null:null;}
+ tabTitle(project:string,tab:string):string|null {const view=project===this.session&&this.layout.views.find(v=>v.id===tab);return view?viewLabel(view):null;}
  rememberedView(project:string,placement:string,resource:StudyRetainedView['resource']):ScientificViewPreferences|null {
   if(project!==this.session||!this.lastSaved)return null;
   const accepted=JSON.parse(this.lastSaved) as WorkspaceLayout;
@@ -639,10 +641,10 @@ private revision=0;private generation=0;private revealSequence=0;
  private showSpecimen(){if(!this.active())return;this.pips().delete(this.active()!.id);const s=this.active()!.specimen;if(!s.visible)s.rect=null;s.visible=true;this.applySpecimen();this.changed();}
  /** The one way a Tab's specimen changes, for its Float or Fill and Hide and for the Assistant (tabs specimen): filling
   * the Stage behind the Tab's windows, floating as a small window (where it last floated, else the corner), or hidden.
-  * Main always keeps it: it floats, never hides. */
+  * The specimen stage always keeps it: it floats, never hides. */
  private setSpecimen(v:WorkspaceView,want:'fill'|'float'|'hide'){
   this.pips().delete(v.id); // asked for there: it stays as asked when something is placed in the Tab
-  if(want==='hide'){if(this.isHome(v.id))throw new Error('Main always keeps the specimen: it can float, never hide.');v.specimen.visible=false;}
+  if(want==='hide'){if(this.isHome(v.id))throw new Error('The specimen stage always keeps the specimen: it can float, never hide.');v.specimen.visible=false;}
   else{v.specimen.visible=true;v.specimen.rect=want==='fill'?null:v.specimen.rect??this.floatingRect();}
   if(v.id===this.layout.active){if(want==='float')this.specimen.dataset.front='true';this.applySpecimen();}
   this.changed();
@@ -656,7 +658,7 @@ private revision=0;private generation=0;private revealSequence=0;
  private floatingRect():Rect{return floatingSpecimen(this.stage?.clientWidth??0,this.stage?.clientHeight??0);}
  /** Something was placed in Tab `v`: when its specimen is an empty new Tab's minimized feed, the feed goes away, so what
   * the Tab is now for fills it (Will, 30 Oct: "a new tab that isn't empty, made for or from something, doesn't need
-  * that there"). A specimen asked for there (tabs specimen, Float or Fill, Show specimen) stays; Main always keeps it. */
+  * that there"). A specimen asked for there (tabs specimen, Float or Fill, Show specimen) stays; The specimen stage always keeps it. */
  private feedAway(v:WorkspaceView|undefined){
   if(!v||!this.pips().delete(v.id)||this.isHome(v.id))return;
   v.specimen.visible=false;v.specimen.rect=null;if(v.id===this.layout.active)this.applySpecimen();this.changed();
@@ -681,7 +683,7 @@ private revision=0;private generation=0;private revealSequence=0;
  }
  /** Only these on the Tab in front (`keep`: placement or window ids): every other window there closed through its
   * own ×, as a person's click closes it (a document's Data is kept; a native window's close goes to the server as
-  * theirs), the specimen hidden, or on Main floated small in its corner (Main always keeps it), and the kept window
+  * theirs), the specimen hidden, or on Main floated small in its corner (The specimen stage always keeps it), and the kept window
   * fitted to the room left. Done is the report showing it (workspace_tabs.py). */
  private only(v:WorkspaceView,keep:string[]){
   const kept=new Set(keep),roots=this.visibleRoots(),stay=roots.filter(root=>kept.has(root.dataset.placementId??'')||kept.has(root.dataset.presentationId??''));
@@ -720,7 +722,7 @@ private revision=0;private generation=0;private revealSequence=0;
   // Main is always first, whatever order a saved layout or an older browser kept.
   const open=this.layout.views.filter(v=>this.openIds.includes(v.id)),home=open.find(v=>this.isHome(v.id));
   this.tabs.replaceChildren();for(const v of home?[home,...open.filter(v=>v!==home)]:open)this.tabs.append(this.workTab(v));
-  this.stage.setAttribute('role','tabpanel');this.stage.setAttribute('aria-label',this.active()?.title??'No open tab');this.stage.id='stage';
+  this.stage.setAttribute('role','tabpanel');this.stage.setAttribute('aria-label',this.active()?viewLabel(this.active()!):'No open tab');this.stage.id='stage';
   // A distinct panel anchor avoids changing the established stage identity.
   studyArtifacts().root.id='study-artifacts';studyArtifacts().root.setAttribute('role','tabpanel');studyArtifacts().root.setAttribute('aria-labelledby',`work-tab-${this.layout.active}`);
   for(const root of this.roots())this.updateTransfer(root);
@@ -738,11 +740,11 @@ private revision=0;private generation=0;private revealSequence=0;
   // image loads only when shown (it is not displayed until then).
   const thumb=(kind==='picture'||kind==='recording')&&v.input?this.opts.inputThumb?.(v.input.source):null;
   if(thumb){const picture=el('img','workspace-tab-thumb');picture.src=thumb;picture.alt='';picture.loading='lazy';picture.decoding='async';tab.append(picture);}
-  tab.append(el('span','workspace-tab-label',v.title));
+  tab.append(el('span','workspace-tab-label',viewLabel(v)));
   // A recording's label shortens before any Tab folds away (its whole title stays the Tab's tooltip).
   if(kind==='recording'&&shortLabel(v.title)!==v.title){wrap.dataset.short='true';tab.append(el('span','workspace-tab-short',shortLabel(v.title)));}
-  tab.title=home?`${v.title} · home: always open, with the specimen`:v.title;tab.dataset.workspaceViewTab=v.id;tab.id=`work-tab-${v.id}`;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(selected));tab.setAttribute('aria-controls','study-artifacts');tab.tabIndex=selected?0:-1;
-  const rename=()=>{const field=el('input');field.value=v.title;field.maxLength=80;field.setAttribute('aria-label','Tab name');tab.replaceWith(field);field.focus();field.select();let done=false;const finish=(save:boolean)=>{if(done)return;done=true;if(save&&field.value.trim()){v.title=field.value.trim();this.changed();}this.render();document.getElementById(`work-tab-${v.id}`)?.focus();};field.onkeydown=e=>{if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);};field.onblur=()=>finish(true);};tab.ondblclick=rename;
+  tab.title=home?`${viewLabel(v)} · Work with a camera, picture or video`:v.title;tab.dataset.workspaceViewTab=v.id;tab.id=`work-tab-${v.id}`;tab.setAttribute('role','tab');tab.setAttribute('aria-selected',String(selected));tab.setAttribute('aria-controls','study-artifacts');tab.tabIndex=selected?0:-1;
+  const rename=()=>{const field=el('input');field.value=viewLabel(v);field.maxLength=80;field.setAttribute('aria-label','Tab name');tab.replaceWith(field);field.focus();field.select();let done=false;const finish=(save:boolean)=>{if(done)return;done=true;if(save&&field.value.trim()&&field.value.trim()!==viewLabel(v)){v.title=field.value.trim();this.changed();}this.render();document.getElementById(`work-tab-${v.id}`)?.focus();};field.onkeydown=e=>{if(e.key==='Enter')finish(true);if(e.key==='Escape')finish(false);};field.onblur=()=>finish(true);};tab.ondblclick=rename;
   tab.onkeydown=e=>{
    // Only the Tabs in sight: one folded into ⌄ is hidden and cannot take focus.
    const all=[...this.tabs.querySelectorAll<HTMLButtonElement>('[data-workspace-view-tab]')].filter(t=>!t.closest<HTMLElement>('.workspace-view-tab')?.hidden);const i=all.indexOf(tab);
@@ -967,7 +969,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(name==='new'){void this.addView();return;}
   if(name==='duplicate'){void this.duplicateTab();return;}
   if(name==='close'){
-   if(this.isHome(this.layout.active)){this.flash('Main stays open: it holds the specimen');return;}
+   if(this.isHome(this.layout.active)){this.flash('The specimen stage stays open');return;}
    void this.closeTab(this.layout.active);return;
   }
   if(name==='reopen'){
@@ -1069,7 +1071,7 @@ private revision=0;private generation=0;private revealSequence=0;
   if(this.undo)d.append(button('Undo arrange',()=>{this.capture();this.layout=undoArrange(this.layout,this.undo!.before,this.undo!.arranged);this.undo=null;this.changing=true;studyArtifacts().clearDocuments();this.loaded.clear();this.changing=false;void this.activate(this.layout.active,true).then(()=>this.changed());d.close();}));
   // Open Tabs first; the closed ones under their own heading, each with Reopen.
   const closedViews=this.layout.views.filter(v=>!this.openIds.includes(v.id)),extraClosed=this.opts.extraClosed?.()??[];
-  for(const v of [...this.layout.views.filter(v=>this.openIds.includes(v.id)),...closedViews]){if(v===closedViews[0])d.append(el('h3','',`Closed Tabs · ${closedViews.length+extraClosed.length}`));const row=el('div','workspace-management-row');row.append(el('strong','',v.title));row.append(button(this.openIds.includes(v.id)?'Go to Tab':'Reopen',()=>{d.close();if(this.opts.leaveResearch&&!this.opts.leaveResearch())return;if(!this.openIds.includes(v.id))this.openIds.push(v.id);void this.activate(v.id);}));row.append(button('Rename',()=>{d.close();if(!this.openIds.includes(v.id))this.openIds.push(v.id);void this.activate(v.id).then(()=>this.tabs.querySelector<HTMLElement>(`[data-workspace-view-tab="${v.id}"]`)?.dispatchEvent(new MouseEvent('dblclick')));}));row.append(button('Duplicate',()=>{d.close();void this.goTo(v.id).then(ok=>{if(ok)void this.duplicateTab();});}));if(!this.isHome(v.id))row.append(button('Remove Tab',()=>{const confirm=this.dialog('Remove this Tab?');confirm.append(el('p','','Removes this Tab from the Project. Its Data and notes stay. Restore it under Removed Tabs.'),button('Remove Tab',()=>{confirm.close();d.close();void this.arrangement('remove',v.id);}));}));d.append(row);}
+  for(const v of [...this.layout.views.filter(v=>this.openIds.includes(v.id)),...closedViews]){if(v===closedViews[0])d.append(el('h3','',`Closed Tabs · ${closedViews.length+extraClosed.length}`));const row=el('div','workspace-management-row');row.append(el('strong','',viewLabel(v)));row.append(button(this.openIds.includes(v.id)?'Go to Tab':'Reopen',()=>{d.close();if(this.opts.leaveResearch&&!this.opts.leaveResearch())return;if(!this.openIds.includes(v.id))this.openIds.push(v.id);void this.activate(v.id);}));row.append(button('Rename',()=>{d.close();if(!this.openIds.includes(v.id))this.openIds.push(v.id);void this.activate(v.id).then(()=>this.tabs.querySelector<HTMLElement>(`[data-workspace-view-tab="${v.id}"]`)?.dispatchEvent(new MouseEvent('dblclick')));}));row.append(button('Duplicate',()=>{d.close();void this.goTo(v.id).then(ok=>{if(ok)void this.duplicateTab();});}));if(!this.isHome(v.id))row.append(button('Remove Tab',()=>{const confirm=this.dialog('Remove this Tab?');confirm.append(el('p','','Removes this Tab from the Project. Its Data and notes stay. Restore it under Removed Tabs.'),button('Remove Tab',()=>{confirm.close();d.close();void this.arrangement('remove',v.id);}));}));d.append(row);}
   if(extraClosed.length){if(!closedViews.length)d.append(el('h3','',`Closed Tabs · ${extraClosed.length}`));
    for(const item of extraClosed){const row=el('div','workspace-management-row');row.append(el('strong','',item.name),button('Reopen',()=>{d.close();item.reopen();}));d.append(row);}
    d.append(el('p','workspace-management-note','Researcher and study Tabs are remembered in this browser only; the researchers and studies themselves are in this Project.'));}
@@ -1437,7 +1439,7 @@ private revision=0;private generation=0;private revealSequence=0;
   window.dispatchEvent(new CustomEvent('workspace-tab-context'));
  }
  /** Every Tab of this Project, for choosing where a Data result opens (Data's Open in Tab…). */
- tabChoices(){return this.layout.views.map(v=>({id:v.id,title:v.title,kind:v.kind??'work',current:v.id===this.layout.active&&this.openIds.includes(v.id)}));}
+ tabChoices(){return this.layout.views.map(v=>({id:v.id,title:viewLabel(v),kind:v.kind??'work',current:v.id===this.layout.active&&this.openIds.includes(v.id)}));}
  /** Puts the captured Project's Tab in view; interrupted navigation never becomes another Project's success. */
  async goTo(id:string,owner=this.tabOwner()):Promise<boolean>{
   if(!this.ownsTabChoice(owner)||this.navigating||this.changing||this.openingInput||!this.layout.views.some(v=>v.id===id))return false;

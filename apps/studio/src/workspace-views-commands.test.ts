@@ -43,7 +43,7 @@ test('Go to, next and previous move among the open Tabs in their row order; 9 is
 });
 
 test('Close never closes Main; it says why',()=>{
- const t=tabs('main');t.command('close');expect(t.closeTab).not.toHaveBeenCalled();expect(t.flash).toHaveBeenCalledWith('Main stays open: it holds the specimen');
+ const t=tabs('main');t.command('close');expect(t.closeTab).not.toHaveBeenCalled();expect(t.flash).toHaveBeenCalledWith('The specimen stage stays open');
  const u=tabs('b');u.command('close');expect(u.closeTab).toHaveBeenCalledWith('b');
 });
 

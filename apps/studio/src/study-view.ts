@@ -9,6 +9,7 @@ import { researchIcon } from './research-workspace';
 /** A saved Study is never an instruction to launch. Only its explicit Start action dispatches work. */
 export interface StudyActions {
   localWorkflows?: boolean;
+  loadLocalInputs?:()=>Promise<StudyInput[]>;
   conversation?: HTMLElement;
   control(action: 'pause' | 'continue' | 'stop'): void | Promise<unknown>;
   start?(fields: StudyStart): Promise<unknown>;
@@ -546,7 +547,8 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   if (actions.localWorkflows) showOne('art');
   centreHead.append(filesToggle, tabs);
   const question = node('div', 'm-you'); question.append(node('div', 'm-user', study.objective), criterion);
-  log.append(question, notice);
+  if (!study.researchPlan?.comparison) log.append(question);
+  log.append(notice);
   for (const problem of study.controlProblems ?? []) log.append(node('p', 'study-warn', `Stop needs checking: ${problem}`));
   if (over > 0) log.append(node('p', 'study-warn', `Spent and held are ${dollars(over)} more than the allowance. Nothing new can start until holds are released.`));
   log.append(...steps);
@@ -571,7 +573,7 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   if (!tasks.length && !Object.keys(study.experiments ?? {}).length) log.append(node('p', 'm-note study-view-empty', study.status === 'stopped' ? 'None were run.' : providers.length ? 'None yet. Prepare the inputs, choose a researcher, then Start research.' : 'None yet.'));
   if (anyMove) log.append(moves);
   // Where Start would be, rather than a Study that can't run without a word.
-  if (!providers.length && study.status === 'active') log.append(node('p', 'm-note study-view-unavailable', STUDY_UNAVAILABLE));
+  if (!providers.length && study.status === 'active' && !study.researchPlan?.comparison) log.append(node('p', 'm-note study-view-unavailable', STUDY_UNAVAILABLE));
   if (composer && !tasks.length) log.append(composer);
   else if (composer) { const next = launchSlot(); if (next) log.append(next); log.append(composer); }
   const centreBody = node('div', 'rconv-body'); centreBody.append(log);
@@ -623,15 +625,34 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   const pages = node('div', 'desk-pages'), paper = node('article', 'page'), inside = node('div', 'page-in');
   paper.dataset.theme = 'paper';
   const initiation = node('div');
-  inside.append(node('h3', 'study-writeup-title', study.objective), node('p', 'byline', `Judged by ${study.criteria}`), initiation, findings);
+  inside.append(node('h3', 'study-writeup-title', study.objective));
+  if (study.researchPlan?.comparison) {
+    const protocol=node('details','study-protocol'), label=node('summary','','Evaluation criteria');
+    protocol.append(label,node('p','byline',study.criteria));inside.append(initiation,protocol,findings);
+  } else inside.append(node('p', 'byline', `Judged by ${study.criteria}`), initiation, findings);
   paper.append(inside); pages.append(paper); desk.append(pages);
   right.append(rightHead, desk);
   grid.append(left, centre, right);
   const wrap = node('div', 'rwrap'); wrap.append(grid);
   root.append(wrap, scrim, sheet);
   if (actions.localWorkflows) {
-    mountStudyInitiation(initiation, study, availableInputs, fetch, actions.openFile);
-    mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log);
+    const discussion = actions.conversation?.querySelector('textarea');
+    // Reading retained results does not require rebuilding the Project-wide experiment input picker.
+    const loadChoices=actions.loadLocalInputs?async()=>{
+      const rows=await actions.loadLocalInputs!();
+      if(!root.contains(rail))throw new Error('This Study page has changed.');
+      Array.from(list.children).forEach((item,index)=>{
+        const ref=study.inputs[index],row=rows.find(i=>i.id===ref.id&&i.revision===ref.revision&&i.digest===ref.digest);
+        if(row&&item.firstElementChild){item.firstElementChild.textContent=row.title;(item as HTMLElement).title=studyInputDescription(row);}
+      });
+      return rows;
+    }:undefined;
+    mountStudyInitiation(initiation, study, availableInputs, fetch, actions.openFile, discussion ? () => {
+      showOne('conv');
+      discussion.scrollIntoView({block: 'nearest'});
+      discussion.focus();
+    } : undefined, loadChoices);
+    mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log, loadChoices);
     mountLocalStudyResearcher(rail, study);
   }
 

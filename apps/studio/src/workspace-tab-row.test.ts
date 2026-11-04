@@ -169,7 +169,7 @@ test('one Tab anatomy: Main first whatever the saved order, its mark, its whole 
  const current=views();Reflect.get(WorkspaceViews.prototype,'render').call(current);
  const wraps=current.tabs.children as TestElement[];
  expect(wraps.map(w=>w.dataset.tabKind)).toEqual(['home','picture','recording']);expect(wraps[0].dataset.home).toBe('true');
- expect(wraps.map(w=>w.querySelector('.workspace-tab-label')!.textContent)).toEqual(['Main','Tab 2','Oct 22, 3:40 pm']);
+ expect(wraps.map(w=>w.querySelector('.workspace-tab-label')!.textContent)).toEqual(['Specimen stage','Tab 2','Oct 22, 3:40 pm']);
  expect(wraps.map(w=>!!w.querySelector('.workspace-tab-x'))).toEqual([false,true,true]);
  expect(wraps[2].dataset.short).toBe('true');expect(wraps[2].querySelector('.workspace-tab-short')!.textContent).toBe('Oct 22');
  expect(wraps[1].children[0].getAttribute('aria-selected')).toBe('true');expect(current.refit).toHaveBeenCalled();

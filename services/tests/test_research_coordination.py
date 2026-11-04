@@ -300,3 +300,49 @@ def test_recovery_cannot_declare_missing_history_absent(context, tmp_path):
         c.recover(s.id,s.session,assignment=a['id'],actor='studio',label='You')
     kept=c.read(s.id,s.session)['assignments'][0]
     assert kept['pendingAdmissions'] and kept['claimedBy']['by']=='agent:a'
+
+
+def test_comparison_plan_requires_distinct_exact_methods_and_two_runs(context):
+    c, s = context
+    ref = identity(s)
+    plan = {'desiredOutput': 'Measured comparison', 'evaluation': 'Mean error, lower is better',
+            'materials': [ref], 'methodNotes': 'Change one method', 'actorMode': 'manual',
+            'limits': {'experiments': 2, 'modelMinutes': 5, 'tokens': 1000},
+            'comparison': {'baseline': ref, 'challenger': ref, 'input': ref, 'bindings': {}}}
+    with pytest.raises(ValueError, match='distinct'):
+        c.save_plan(s.id, s.session, basis=ref, plan=plan, actor='studio', label='You')
+    plan['limits']['experiments'] = 3
+    with pytest.raises(ValueError, match='two'):
+        c.save_plan(s.id, s.session, basis=ref, plan=plan, actor='studio', label='You')
+
+
+def test_two_method_admission_rejects_input_substitution_and_unreviewed_repeat(context):
+    from orchestrator.research.method_pair import candidate_role
+    _, s = context
+    ref = identity(s)
+    spec = {'baseline': ref, 'challenger': {**ref, 'revision': 2}, 'input': ref, 'bindings': {}}
+    params = {'workflow': ref['id'], 'revision': 1, 'inputs': [ref], 'bindings': {}}
+    assert candidate_role(spec, params) == 'baseline'
+    assert candidate_role(spec, {**params, 'revision': 2}) == 'challenger'
+    for changed in ({'inputs': []}, {'bindings': {'replacement': ref}}, {'revision': 3}, {'repeat': {'id': 'new'}}):
+        with pytest.raises(InvalidProject):
+            candidate_role(spec, {**params, **changed})
+
+
+def test_report_numbers_must_match_both_frozen_score_files():
+    from orchestrator.research.method_pair import verify_score_pair
+    with pytest.raises(InvalidProject):
+        verify_score_pair({'metrics': []}, {}, {})
+
+
+def test_same_method_with_renamed_or_reordered_nodes_is_not_a_challenger():
+    from orchestrator.research.method_pair import method_signature
+    def graph(key, setting):
+        prepare = {'id': key, 'name': key, 'kind': 'tool', 'needs': ['input'],
+                   'settings': {'parameters': {'value': setting}}}
+        fit = {'id': 'fit', 'name': 'Fit', 'kind': 'tool', 'needs': [key], 'settings': {'bindings': {'matrix': key}}}
+        return {'input': {'kind': 'source-file'}, 'nodes': [prepare, fit]}
+    original, renamed = graph('prepare', 1), graph('renamed', 1)
+    renamed['nodes'].reverse()
+    assert method_signature(original) == method_signature(renamed)
+    assert method_signature(original) != method_signature(graph('prepare', 2))

@@ -109,3 +109,11 @@ body[data-workspace-study='true'] .study-home .study-research-home .page .study-
   body[data-workspace-study='true'] .study-home .study-research-home .page { width: calc(100cqw - 16px); }
   body[data-workspace-study='true'] .study-home .study-research-home .page-in { padding: 16px; }
 }
+.study-comparison-result { padding: 10px 0; overflow-x: auto; }
+.study-comparison-result table { width: 100%; border-collapse: collapse; margin-block: 12px; font-variant-numeric: tabular-nums; }
+.study-comparison-result th, .study-comparison-result td { text-align: start; padding: 6px; border-bottom: 1px solid var(--mm-line); }
+.study-comparison-result td button { color: var(--mm-accent); font: inherit; }
+.study-initiation[data-result] { padding: 0; background: transparent; border: 0; }
+.study-initiation[data-result] > [role=status]:empty { display: none; }
+.study-comparison-result > small:first-child { letter-spacing: .09em; color: var(--mm-accent-on-soft); }
+.study-comparison-result td button { background: transparent; border: 0; color: var(--mm-link, var(--mm-accent-on-soft)); margin: 0; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; }

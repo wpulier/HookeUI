@@ -598,6 +598,7 @@ const home = new SessionHome(element<HTMLElement>('session-home'), {
   addFiles: (files) => void addFromMac(files).catch(error => showHint(error instanceof Error ? error.message : String(error), true)),
   library: () => navigateStudio('#assets'),
   projects: () => navigateStudio('#sessions'),
+  overview: () => window.dispatchEvent(new Event('workspace-project-overview')),
   // Or a question: the Assistant opens and the request is sent in the user's words, admitted there as any request to
   // start a researcher (nothing needs to be on the Stage).
   research: (question) => { window.dispatchEvent(new CustomEvent('workspace-study-assistant')); return ask(`Start a researcher on this question: ${question}`); },

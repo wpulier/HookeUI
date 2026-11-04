@@ -90,6 +90,34 @@
           "pattern": "^[a-f0-9]{64}$"
         }
       }
+    },
+    "comparison": {
+      "description": "Two frozen workflow methods on the same exact input and named dependencies. The evaluation rule and resource ceilings belong to the reviewed plan.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "baseline",
+        "challenger",
+        "input",
+        "bindings"
+      ],
+      "properties": {
+        "baseline": {
+          "$ref": "artifact-reference.schema.json"
+        },
+        "challenger": {
+          "$ref": "artifact-reference.schema.json"
+        },
+        "input": {
+          "$ref": "artifact-reference.schema.json"
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "artifact-reference.schema.json"
+          }
+        }
+      }
     }
   }
 }

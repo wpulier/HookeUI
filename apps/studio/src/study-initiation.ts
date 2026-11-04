@@ -1,29 +1,49 @@
 /** Retained research plan and handoff; scientific execution stays in WorkflowService. */
 import type {Effort, StudyInput} from './research-efforts';
+import {pairEditor,scoreFields,comparisonResult,type MethodReport,type MethodPair} from './study-method-pair';
 import {mergePlanDraft,type PlanFields} from './research-plan-draft';
 
 type Ref={id:string;session:string;revision:number;digest:string};
-type Plan={desiredOutput:string;evaluation:string;materials:Ref[];methodNotes:string;actorMode:'connected-agent'|'local-researcher'|'manual';limits:{experiments:number;modelMinutes:number;tokens:number};status?:string;instructionPackage?:{id:string;version:number;digest:string}};
-type Assignment={id:string;objective:string;observedState:string;deliverable?:string;dependsOn?:string[];parent?:string;approach?:string;claimedAt?:number;leaseUntil?:number;completedAt?:number;operations?:string[];claimedBy?:{byLabel:string};report?:{statement:string;limitations:string;evidence?:Ref[]}};
-type State={basis:Ref;plan:Plan|null;assignments:Assignment[];capabilityProposals?:{id:string;byLabel:string;proposal:{title:string;gap:string;package:Ref;licence:string;dependencies:string;permissions:string;resources:string;proofPlan:string}}[];materials?:{title?:string;available:boolean;reason?:string;material?:{kind:string;format?:string}}[]};
+type Plan={comparison?:MethodPair;desiredOutput:string;evaluation:string;materials:Ref[];methodNotes:string;actorMode:'connected-agent'|'local-researcher'|'manual';limits:{experiments:number;modelMinutes:number;tokens:number};status?:string;instructionPackage?:{id:string;version:number;digest:string}};
+type Assignment={id:string;objective:string;observedState:string;deliverable?:string;dependsOn?:string[];parent?:string;approach?:string;claimedAt?:number;leaseUntil?:number;completedAt?:number;operations?:string[];claimedBy?:{byLabel:string};report?:{comparisonPlan?:MethodPair;comparison?:MethodReport;statement:string;limitations:string;evidence?:Ref[]}};
+type State={experiments?:unknown[];basis:Ref;plan:Plan|null;assignments:Assignment[];capabilityProposals?:{id:string;byLabel:string;proposal:{title:string;gap:string;package:Ref;licence:string;dependencies:string;permissions:string;resources:string;proofPlan:string}}[];materials?:{title?:string;available:boolean;reason?:string;material?:{kind:string;format?:string}}[]};
 const n=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',cls='')=>{const e=document.createElement(tag);e.textContent=text;e.className=cls;return e;};
 async function result(r:Response){const body=await r.json();if(!r.ok||body.ok===false)throw new Error([body.says||body.error||'Research setup could not be saved.',typeof body.next==='string'?body.next:''].filter(Boolean).join(' '));return body;}
 
-export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyInput[],fetcher:typeof fetch=fetch,openFile?:(ref:Ref,name:string)=>Promise<unknown>):void{
+export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyInput[],fetcher:typeof fetch=fetch,openFile?:(ref:Ref,name:string)=>Promise<unknown>,discuss?:()=>void,loadChoices? :()=>Promise<StudyInput[]>):void{
   const box=n('section','','study-initiation');box.setAttribute('aria-label','Research plan and collaborators');
   const heading=n('header');heading.append(n('span','RESEARCH PLAN','study-initiation-eyebrow'),n('h3','From question to experiment'));
   const status=n('p','Loading your saved plan…','study-note');status.setAttribute('role','status');
-  const content=n('div');box.append(heading,status,content);host.prepend(box);
+  const content=n('div'),outcome=n('div'),setup=n('details'),setupTitle=n('summary','Plan and run history');box.append(outcome,heading,status,content);host.prepend(box);
   const current=()=>host.contains(box),base=`/api/research-efforts/${encodeURIComponent(study.id)}/coordination`;
   let state:State|null=null,pending=false,amending=false,assignmentLimit=12;
+  let choicesReady=!loadChoices,choicesError='';
   const draftKey=`hooke:research-plan:${study.session}:${study.id}`;
   const clearDraft=()=>{try{localStorage.removeItem(draftKey);}catch{/* Storage may be unavailable. */}};
   const call=async(action:string,fields:object)=>result(await fetcher(`${base}/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'research-effort'},body:JSON.stringify({session:study.session,...fields})}));
   const button=(label:string,run:()=>Promise<void>,primary=false,busy='Saving…')=>{const b=n('button',label,primary?'study-primary':'study-quiet');b.type='button';b.onclick=()=>{if(pending||!current())return;pending=true;box.dataset.pending='true';b.disabled=true;const previous=status.textContent;status.textContent=busy;void run().then(()=>{if(current()&&status.textContent===busy)status.textContent=previous;}).catch(e=>{if(current())status.textContent=String(e.message||e);}).finally(()=>{pending=false;delete box.dataset.pending;if(current())b.disabled=false;});};return b;};
   function draw(){
-    if(!current()||!state)return;content.replaceChildren();delete box.dataset.draft;
-    status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Next, hand the work to your agent or run the tools yourself.':'Save your approach, then review it before handing work to an agent.';
+    if(!current()||!state)return;content.replaceChildren();outcome.replaceChildren();delete box.dataset.draft;
     try{if(localStorage.getItem(draftKey))amending=true;}catch{/* In-memory editing remains available. */}
+    const reported=state.assignments.filter(a=>a.report?.comparison).sort((a,b)=>(b.completedAt||0)-(a.completedAt||0));
+    if (reported.length && !amending) {
+      const latest=reported[0],r=latest.report!;
+      const savedPair=r.comparisonPlan;
+      const sources=savedPair?[savedPair.input,...Object.values(savedPair.bindings)]:[];
+      outcome.append(comparisonResult(r.comparison!,latest.claimedBy?.byLabel||'Contributor',r.statement,r.limitations,sources,openFile,discuss));
+      heading.hidden=true;status.hidden=false;
+      setup.replaceChildren(setupTitle,content);box.append(setup);
+      box.dataset.result='true';
+    } else {
+      heading.hidden=false;setup.remove();box.append(content);delete box.dataset.result;
+    }
+    status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Next, hand the work to your agent or run the tools yourself.':'Save your approach, then review it before handing work to an agent.';
+    if(box.dataset.result)status.textContent='';
+    if(!choicesReady){
+      status.textContent=choicesError||'Loading experiment setup…';
+      if(choicesError)content.append(button('Retry loading inputs',loadInputs));
+      return;
+    }
     if(!state.plan||state.plan.status==='draft'||amending){
       const form=n('form'),output=n('textarea'),evaluation=n('textarea'),method=n('textarea'),mode=n('select');
       output.value=state.plan?.desiredOutput||'';evaluation.value=state.plan?.evaluation||study.criteria;method.value=state.plan?.methodNotes||'';
@@ -47,29 +67,43 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       if(pinnedPackage){const kept=n('option',`Retained instructions · v${pinnedPackage.version}`);kept.value=pinnedPackage.id;packages.append(kept);packages.value=pinnedPackage.id;}
       void fetcher('/api/research-instructions').then(result).then(reply=>{if(!current()||!form.contains(packages))return;packageRows=reply.packages;for(const row of packageRows){if(row.id===pinnedPackage?.id)continue;const option=n('option',`${row.content.title} · v${row.version}`);option.value=row.id;packages.append(option);}packages.value=packageId;}).catch(()=>{if(current())packages.title='Instruction packages could not be loaded; the plan can still be saved.';});
       let review:HTMLButtonElement|null=null,editVersion=0;
-      const fields={output,evaluation,method,mode,...limits};
+      const comparison=n('input');comparison.value=state.plan?.comparison?JSON.stringify(state.plan.comparison):'';
+      const fields={output,evaluation,method,mode,...limits,comparison};
+      const editor=pairEditor(comparison,selectedMaterials.map(ref=>{
+        const found=inputs.find(i=>i.id===ref.id&&i.revision===ref.revision&&i.digest===ref.digest);
+        return {reference:{id:ref.id,revision:ref.revision,digest:ref.digest,session:study.session},title:found?.title||'Retained input'};
+      }),fetcher,()=>{
+        if(comparison.value){
+          limits.experiments.value='2';
+          if (!packageId && packageRows.some(row=>row.id==='bounded-predictive-comparison')){
+            packageId='bounded-predictive-comparison';packages.value=packageId;
+          }
+        }
+        remember();
+      });
+      form.prepend(editor.section);
       const values=():PlanFields=>({...Object.fromEntries(Object.entries(fields).map(([key,input])=>[key,input.value])),packageId});
       let savedValues=values();const conflicts=new Set<string>(),conflictMine:PlanFields={},conflictBase:PlanFields={};
-      const apply=(data:PlanFields)=>{for(const [key,input] of Object.entries(fields))input.value=data[key]??input.value;packageId=data.packageId||'';packages.value=packageId;};
+      const apply=(data:PlanFields)=>{for(const [key,input] of Object.entries(fields))input.value=data[key]??input.value;packageId=data.packageId||'';packages.value=packageId;editor.render();};
       const remember=()=>{
         editVersion++;if(packages.value||packageRows.length)packageId=packages.value;
         box.dataset.draft='true';if(review)review.disabled=true;
         status.textContent='Draft saved on this device. Save the research plan before reviewing it.';
         const kept={...values()},base={...savedValues};
         for(const key of conflicts){kept[key]=conflictMine[key];base[key]=conflictBase[key];}
-        try{localStorage.setItem(draftKey,JSON.stringify({basis:conflicts.size?'unresolved-field-conflicts':state!.basis.digest,output:kept.output,evaluation:kept.evaluation,method:kept.method,mode:kept.mode,limits:Object.fromEntries(Object.keys(limits).map(k=>[k,kept[k]])),packageId:kept.packageId,base}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
+        try{localStorage.setItem(draftKey,JSON.stringify({basis:conflicts.size?'unresolved-field-conflicts':state!.basis.digest,output:kept.output,evaluation:kept.evaluation,method:kept.method,mode:kept.mode,limits:Object.fromEntries(Object.keys(limits).map(k=>[k,kept[k]])),packageId:kept.packageId,comparison:kept.comparison,base}));}catch{status.textContent='Unsaved draft. Save the research plan before leaving.';}
       };
       form.oninput=e=>{e.stopPropagation();remember();};
       form.onchange=e=>{e.stopPropagation();if(e.target===packages)packageId=packages.value;remember();};
       try{
         const draft=JSON.parse(localStorage.getItem(draftKey)||'null');
         if(draft&&draft.basis===state.basis.digest){
-          output.value=draft.output;evaluation.value=draft.evaluation;method.value=draft.method;mode.value=draft.mode;
+          comparison.value=draft.comparison??comparison.value;output.value=draft.output;evaluation.value=draft.evaluation;method.value=draft.method;mode.value=draft.mode;
           packageId=draft.packageId||'';
           for(const key of Object.keys(limits) as (keyof typeof limits)[])limits[key].value=draft.limits[key];
           box.dataset.draft='true';status.textContent='Your unfinished draft is restored. Save it before reviewing.';
         }else if(draft){
-          const mine={output:draft.output,evaluation:draft.evaluation,method:draft.method,mode:draft.mode,...draft.limits,packageId:draft.packageId||''};
+          const mine={output:draft.output,evaluation:draft.evaluation,method:draft.method,mode:draft.mode,...draft.limits,comparison:draft.comparison,packageId:draft.packageId||''};
           const merged=mergePlanDraft(draft.base,mine,savedValues);apply(merged.values);
           for(const key of merged.conflicts){conflicts.add(key);conflictMine[key]=mine[key as keyof typeof mine];conflictBase[key]=draft.base?.[key];}
           remember();
@@ -81,10 +115,17 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
           }
         }
       }catch{/* An unavailable browser store cannot change the retained plan. */}
+      editor.render();
       const save=button('Save research plan',async()=>{
         if(conflicts.size){status.textContent='Resolve each conflicting field before saving.';return;}
         if(!form.checkValidity()||!output.value.trim()||!evaluation.value.trim()||!method.value.trim()){status.textContent='Describe the output, evaluation and proposed approach.';return;}
         const plan:Plan={desiredOutput:output.value.trim(),evaluation:evaluation.value.trim(),methodNotes:method.value.trim(),actorMode:mode.value as Plan['actorMode'],materials:state!.plan?.materials??study.inputs.map(r=>({...r,session:study.session})),limits:{experiments:Number(limits.experiments.value),modelMinutes:Number(limits.modelMinutes.value),tokens:Number(limits.tokens.value)}};
+        if(comparison.value){
+          const pair=JSON.parse(comparison.value) as Partial<MethodPair>;
+          if(!pair.baseline||!pair.challenger||!pair.input){status.textContent='Choose both workflows and a shared input.';return;}
+          if(plan.limits.experiments!==2){status.textContent='Set the experiment limit to two for this comparison.';return;}
+          plan.comparison=pair as MethodPair;
+        }
         if(packageId){
           const pack=packageId===pinnedPackage?.id?pinnedPackage:packageRows.find(row=>row.id===packageId);
           if(!pack){status.textContent='The selected instruction package is unavailable. Choose a ready package or explicitly choose no instructions.';return;}
@@ -93,30 +134,82 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
         const savingVersion=editVersion;
         const response=await call('plan',{basis:state!.basis,plan});
         if(current()){
-          state=response.coordination;savedValues={output:plan.desiredOutput,evaluation:plan.evaluation,method:plan.methodNotes,mode:plan.actorMode,...Object.fromEntries(Object.entries(plan.limits).map(([k,v])=>[k,String(v)])),packageId:plan.instructionPackage?.id||''};
+          state=response.coordination;savedValues={comparison:comparison.value,output:plan.desiredOutput,evaluation:plan.evaluation,method:plan.methodNotes,mode:plan.actorMode,...Object.fromEntries(Object.entries(plan.limits).map(([k,v])=>[k,String(v)])),packageId:plan.instructionPackage?.id||''};
           if(editVersion===savingVersion){amending=false;clearDraft();draw();}
           else{remember();status.textContent='Earlier edits saved. Your newer draft is kept here; save again when ready.';}
         }
       },true);form.onsubmit=e=>{e.preventDefault();save.click();};form.append(save);content.append(form);
       if(state.plan?.status==='draft'&&!amending){review=button('Review this saved plan',async()=>{if(box.dataset.draft){status.textContent='Save your edited plan before reviewing it.';return;}const response=await call('review',{basis:state!.basis});if(current()){clearDraft();state=response.coordination;draw();}},true);review.disabled=!!box.dataset.draft;content.append(review);}
     }else{
-      if(state.plan.actorMode==='manual')content.append(n('p','Open Tools or Workflows, choose the exact Study inputs, and run your first experiment. Keep its outputs with this Study.','study-note'));
+      if(state.plan.actorMode==='manual'&&!state.plan.comparison)content.append(n('p','Open Tools or Workflows, choose the exact Study inputs, and run your first experiment. Keep its outputs with this Study.','study-note'));
       if(state.plan.actorMode==='local-researcher')content.append(n('p','Use the Hooke researcher controls in this Study. Its model must be configured before Start research can run it; saving this plan has not started it.','study-note'));
       const summary=n('div','','study-initiation-summary');summary.append(n('h4',state.plan.desiredOutput),n('p',state.plan.methodNotes));
       const evaluation=n('details');evaluation.append(n('summary','Evaluation and limits'),n('p',state.plan.evaluation));
       const bounds=n('div','','study-plan-limits');
       for(const [value,label]of [[state.plan.limits.experiments,'Experiments'],[state.plan.limits.modelMinutes,'Model minutes'],[state.plan.limits.tokens.toLocaleString(),'Model tokens']]){const item=n('div');item.append(n('strong',String(value)),n('span',String(label)));bounds.append(item);}
       evaluation.append(bounds,n('p','Model limits must be enforced by the connected harness. Hooke checks the scientific experiment allowance.','study-note'));summary.append(evaluation);content.append(summary);
+      let checked=Promise.resolve(true);
+      if(state.plan.comparison){
+        const plan=state.plan, pair=state.plan.comparison, basis=state.basis;
+        const readiness=n('p','Checking the two frozen workflows and their inputs…','study-note');
+        content.append(n('h4','Compare two methods'),readiness);
+        checked=call('check-comparison',{basis}).then(reply=>{
+          if(!current()||!content.contains(readiness))return false;
+          const candidates=reply.coordination.candidates as Record<'baseline'|'challenger',{name:string;status:string;outputs:{step:string;reference:Ref}[]}>;
+          readiness.textContent=`Baseline: ${candidates.baseline.name} · ${candidates.baseline.status}. Challenger: ${candidates.challenger.name} · ${candidates.challenger.status}.`;
+          const admit=async(role:'baseline'|'challenger',assignment:string|null)=>{
+            const response=await fetcher('/api/research-efforts/'+encodeURIComponent(study.id)+'/workflows',{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'research-effort'},body:JSON.stringify({
+              session:study.session,reviewedPlan:reply.coordination.reviewedPlan,request:'comparison-'+role+'-'+reply.coordination.reviewedPlan,workflow:pair[role].id,revision:pair[role].revision,inputs:[pair.input],bindings:pair.bindings,assignment,repeat:null})});
+            await result(response);await load();status.textContent='Experiment admitted. Open its workflow experiment to inspect progress.';
+          };
+          if(plan.actorMode==='manual' && candidates.baseline.status==='planned')
+            content.append(button('Start comparison',()=>admit('baseline',null),true,'Starting baseline…'));
+          if(plan.actorMode==='manual' && candidates.baseline.status==='completed' && candidates.challenger.status==='planned'){
+            const cite=n('select');cite.setAttribute('aria-label','Baseline evidence for the change');
+            for(const item of candidates.baseline.outputs){const opt=n('option',item.step+' · v'+item.reference.revision);opt.value=item.reference.digest;cite.append(opt);}
+            const why=n('textarea'),decision=n('textarea');
+            why.setAttribute('aria-label','What uncertainty does this change test?');why.placeholder='What uncertainty does this change test?';
+            decision.setAttribute('aria-label','What result would change your decision?');decision.placeholder='What result would change your decision?';
+            const request='followup-'+reply.coordination.reviewedPlan;
+            content.append(cite,why,decision,button('Run justified change',async()=>{
+              const selected=candidates.baseline.outputs.find(item=>item.reference.digest===cite.value);
+              if(!selected||!why.value.trim()||!decision.value.trim())throw new Error('Choose baseline evidence and describe the uncertainty and decision.');
+              const proposed=await call('propose',{request,assignment:{objective:plan.methodNotes,deliverable:plan.desiredOutput,uncertainty:why.value.trim(),decisionImpact:decision.value.trim(),whyNewWork:why.value.trim(),evidence:[selected.reference],dependsOn:[]}});
+              const assignment=proposed.coordination.id;
+              await call('claim',{assignment,harness:'Hooke Studio',model:'Manual'});
+              await admit('challenger',assignment);
+            },true,'Starting challenger…'));
+          }
+          if(!reported.length && candidates.baseline.status==='completed' && candidates.challenger.status==='completed'){
+            const entry=scoreFields(candidates,inputs.map(i=>({title:i.title,reference:{id:i.id,session:study.session,revision:i.revision,digest:i.digest}})));
+            entry.section.append(button('Save measured comparison',async()=>{
+              const {baseline,challenger,coverage,statement,limitations}=entry.read();
+              const scores=await call('read-pair-scores',{baseline,challenger});
+              const evidence=[baseline.prediction,baseline.score,challenger.prediction,challenger.score];
+              const request='review-'+reply.coordination.reviewedPlan;
+              const proposed=await call('propose',{request,assignment:{objective:'Review the measured difference',deliverable:plan.desiredOutput,uncertainty:plan.evaluation,decisionImpact:statement,whyNewWork:'Compare the two frozen outputs.',evidence,dependsOn:[]}});
+              const assignment=proposed.coordination.id;
+              await call('claim',{assignment,harness:'Hooke Studio',model:'Manual'});
+              await call('complete',{assignment,evidence,statement,limitations,comparison:{baseline,challenger,coverage,metrics:scores.coordination.metrics}});
+              await load();
+            },true));
+            content.prepend(entry.section);
+          }
+          return true;
+        }).catch(e=>{if(current()&&content.contains(readiness))readiness.textContent=String(e.message||e);return false;});
+      }
       content.append(button('Revise plan',async()=>{amending=true;draw();status.textContent='Propose a revised plan. Existing experiments keep their original methods and inputs.';}));
       const actors=n('p','Checking Project contributors…','study-note');content.append(actors);
-      void fetcher(`/api/research-efforts/${study.id}/questions?session=${encodeURIComponent(study.session)}`,{headers:{'X-MicroscopeMind':'research-effort'},cache:'no-store'}).then(result).then(reply=>{
+      void fetcher(`/api/research-efforts/${study.id}/questions?session=${encodeURIComponent(study.session)}`,{headers:{'X-MicroscopeMind':'research-effort'},cache:'no-store'}).then(result).then(async reply=>{
+        const ready=await checked;
         if(!current()||!content.contains(actors))return;
         const recipients=reply.recipients as {actor:string;label:string}[];
         actors.textContent=recipients.length?`Authorized contributors: ${recipients.map(r=>r.label).join(', ')}. Connection does not mean an agent is running.`:'No connected agent has contribute access. Open Settings → Connected agents → Project access to authorize one.';
-        if(state?.plan?.actorMode==='connected-agent'&&recipients.length&&!state.assignments.length){
-          content.append(button('Prepare handoff for my agent',async()=>{
+        if(ready&&state?.plan?.actorMode==='connected-agent'&&recipients.length&&!state.assignments.length){
+          content.append(button(state.plan.comparison?'Send to connected agent':'Prepare handoff for my agent',async()=>{
             const plan=state!.plan!;
-            await call('propose',{request:`initial:${study.id}`,assignment:{objective:study.objective,deliverable:plan.desiredOutput,uncertainty:plan.evaluation,decisionImpact:'Choose the next experiment from measured results',whyNewWork:'Begin the reviewed research plan; inspect existing evidence before admitting work',evidence:plan.materials,dependsOn:[]}});
+            if(plan.comparison)await call('queue-comparison',{basis:state!.basis});
+            else await call('propose',{request:`initial:${study.id}`,assignment:{objective:study.objective,deliverable:plan.desiredOutput,uncertainty:plan.evaluation,decisionImpact:'Choose the next experiment from measured results',whyNewWork:'Begin the reviewed research plan; inspect existing evidence before admitting work',evidence:plan.materials,dependsOn:[]}});
             await load();
           },true));
         }
@@ -189,5 +282,8 @@ Read the retained plan, exact material, prior failures and decisions through the
     },true);form.append(submit);form.onsubmit=e=>{e.preventDefault();submit.click();};
   }
   async function load(){const response=await result(await fetcher(`${base}?session=${encodeURIComponent(study.session)}`,{cache:'no-store'}));if(current()){state=response;draw();}}
+  async function loadInputs(){try{inputs=await loadChoices!();choicesReady=true;choicesError='';}
+    catch{choicesError='Experiment inputs could not be loaded.';}if(current())draw();}
+  if(loadChoices)void loadInputs();
   void load().catch(e=>{if(current()){status.textContent=String(e.message||e);content.append(button('Retry',load));}});
 }

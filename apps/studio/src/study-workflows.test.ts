@@ -18,7 +18,11 @@ it('binds each workflow port to an exact Project revision and preserves the requ
    {id:'predict',kind:'tool',name:'Predict',needs:['input:effects','input:controls'],settings:{}}]}}]}:
    {ok:true,operations:[{byLabel:'Researcher A',state:'interrupted',workflow:{id:'run1',status:'running',executionObservation:{state:'interrupted',reason:'No execution owner; reconcile before continuing.'},attempts:[]}}]}));
  });
- mountStudyWorkflows(root as unknown as HTMLElement,study,inputs,undefined,fetcher as unknown as typeof fetch,progress as unknown as HTMLElement);
+ let release!:(rows:StudyInput[])=>void;
+ const choices=new Promise<StudyInput[]>(resolve=>{release=resolve;});
+ mountStudyWorkflows(root as unknown as HTMLElement,study,[],undefined,fetcher as unknown as typeof fetch,progress as unknown as HTMLElement,()=>choices);
+ await vi.waitFor(()=>expect(progress.textContent).toContain('No execution owner; reconcile before continuing.'));
+ expect(root.querySelector('form')).toBeNull();expect(posted).toHaveLength(0);release(inputs);
  await vi.waitFor(()=>expect(root.querySelector('form')).not.toBeNull());
  const selection=root.querySelectorAll('select').find(n=>n.getAttribute('aria-label')==='Saved workflow')!;
  selection.value='recipe';(selection as unknown as HTMLSelectElement).onchange!(new Event('change'));

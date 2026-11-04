@@ -77,6 +77,9 @@ class Coordination:
         saved = exact(self.studies.store, basis, session)
         for ref in plan['materials']:
             exact(self.studies.store, ref, session)
+        if 'comparison' in plan:
+            from .method_pair import validate_spec
+            validate_spec(self.studies, plan, session)
         basis_plan = saved.document['state'][KEY].get('researchPlan')
         proposed = {**plan, 'status': 'draft', 'updatedAt': self.clock(), **self.studies.attribution(actor, label)}
         if 'instructionPackage' in plan:
@@ -135,12 +138,12 @@ class Coordination:
         self.efforts._change(study, session, change)
         return self.read(study, session)
 
-    def propose(self, study, session, *, request, assignment, actor, label):
+    def propose(self, study, session, *, request, assignment, actor, label, shared_request=False):
         text(request, 'Assignment request', 128)
         check(assignment, 'research-assignment')
         for ref in assignment['evidence']:
             exact(self.studies.store, ref, session)
-        key = 'assignment:' + fingerprint({'actor': actor, 'request': request})[:32]
+        key = 'assignment:' + fingerprint({'actor': 'reviewed-comparison' if shared_request else actor, 'request': request})[:32]
         specification = {'provider': 'collaboration', 'assignment': assignment}
         binding = fingerprint(specification)
         attribution = self.studies.attribution(actor, label)
@@ -261,7 +264,7 @@ class Coordination:
         self.efforts._change(study, session, change)
         return self.read(study, session)
 
-    def complete(self, study, session, *, assignment, statement, evidence, limitations, actor, label):
+    def complete(self, study, session, *, assignment, statement, evidence, limitations, actor, label, comparison=None):
         text(statement, 'Assignment report')
         text(limitations, 'Limitations')
         if type(evidence) is not list or len(evidence) > 32:
@@ -271,7 +274,23 @@ class Coordination:
             exact(self.studies.store, ref, session)
         result = {'statement': statement, 'evidence': evidence, 'limitations': limitations,
                   **self.studies.attribution(actor, label)}
+        if comparison is not None:
+            from .method_pair import check_report, verify_report_files
+            check_report(comparison, evidence)
+            verify_report_files(self.studies.store, session, comparison)
+            current_plan = self.efforts.read(study, session).document['state'][KEY].get('researchPlan')
+            if not current_plan or current_plan.get('status') != 'reviewed' or not current_plan.get('comparison'):
+                raise InvalidProject('Select a reviewed two-method Study')
+            from .method_pair import describe_methods
+            observed = describe_methods(self.studies, current_plan, study, session)['candidates']
+            for role, candidate in observed.items():
+                if candidate['status'] != 'completed' or not any(
+                        item['reference'] == comparison[role]['prediction'] for item in candidate['outputs']):
+                    raise InvalidProject(f'Link the exact {role} output from its completed experiment')
+            result.update(comparison=comparison, comparisonPlan=current_plan['comparison'])
         def change(state):
+            if comparison is not None and state.get('researchPlan') != current_plan:
+                raise InvalidProject('Select a Study with a two-method plan')
             task = self.efforts._task(state, assignment)
             meta = task.get('collaboration', {})
             if meta.get('claimedBy', {}).get('by') != actor:

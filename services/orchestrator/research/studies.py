@@ -69,7 +69,7 @@ class Studies:
         return self.efforts.list(session)
 
     async def start_workflow(self, study, session, *, request, workflow, revision, inputs,
-                             actor, label, bindings=None, assignment=None, repeat=None):
+                             actor, label, bindings=None, assignment=None, repeat=None, reviewedPlan=None):
         from ..workflows import run_identity
         self.workflows.owner(session)
         self.attribution(actor, label)
@@ -107,6 +107,10 @@ class Studies:
                     raise InvalidProject('Review the retained research plan before admitting experiments')
                 # Scientific identity excludes actor and assignment. Explicit repeat
                 # identity/reason distinguishes a justified repeat, not request retries.
+                role = None
+                if 'comparison' in plan:
+                    from .method_pair import candidate_role
+                    role = candidate_role(plan['comparison'], params)
                 intent = {k: v for k, v in params.items() if k != 'assignment'}
                 for previous in state.get('experiments', {}).values():
                     if {k: v for k, v in previous['specification'].items() if k != 'assignment'} == intent:
@@ -122,6 +126,30 @@ class Studies:
                                 return True
                             await asyncio.to_thread(self.efforts._change, study, session, reuse)
                         return await self.operation(original), False
+                if role:
+                    if reviewedPlan != fingerprint(plan):
+                        raise Conflict('This comparison needs its current reviewed plan. Check the comparison again before starting.')
+                    from .method_pair import preflight
+                    await preflight(self, study, session, identity(saved), actor)
+                    if any(task.get('collaboration', {}).get('pendingAdmissions') for task in state['tasks'].values()):
+                        raise Conflict('Reconcile the original pending comparison admission before starting another')
+                    if role == 'challenger':
+                        baseline = plan['comparison']['baseline']
+                        first = next((row for row in state.get('experiments', {}).values()
+                                      if row['specification']['workflow'] == baseline['id']
+                                      and row['specification']['revision'] == baseline['revision']
+                                      and row['specification']['inputs'] == inputs
+                                      and row['specification'].get('bindings', {}) == (bindings or {})), None)
+                        if first is None:
+                            raise InvalidProject('Run the reviewed baseline before its challenger')
+                        observed = await asyncio.to_thread(self.workflows.observed_status, first['execution']['id'], session)
+                        if observed['status'] != 'completed':
+                            raise Conflict('Inspect the original baseline operation before trying the challenger')
+                        outputs = {(ref['id'], ref['revision'], ref['digest']) for attempt in observed['attempts']
+                                   if (ref := attempt.get('output')) and ref.get('digest')}
+                        evidence = assigned['specification']['assignment']['evidence'] if assigned else []
+                        if not any((ref['id'], ref['revision'], ref['digest']) in outputs for ref in evidence):
+                            raise InvalidProject('Claim a follow-up assignment citing an exact baseline output and explaining what the change tests')
                 if len(set(state.get('experiments', {})) - set(plan.get('priorExperiments', []))) >= plan['limits']['experiments']:
                     raise InvalidProject('The reviewed plan experiment allowance is exhausted')
                 if actor != 'studio' and assigned is None:

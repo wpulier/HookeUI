@@ -169,7 +169,7 @@ test('a closed Tab says so with Reopen, where its content lives, which reopens t
 test('Open in Tab… reaches a Tab only when it really comes into view, reopening a closed one', async () => {
  const {current}=workspace();
  await current.openInput({source:'a7',position:0},'Recording');const recording=current.layout.views[1];
- expect(current.tabChoices().map((t:{title:string;current:boolean})=>`${t.title}${t.current?'*':''}`)).toEqual(['Main','Recording*']);
+ expect(current.tabChoices().map((t:{title:string;current:boolean})=>`${t.title}${t.current?'*':''}`)).toEqual(['Specimen stage','Recording*']);
  expect(await current.goTo('missing')).toBe(false);
  expect(await current.goTo(recording.id)).toBe(true); // already in view
  current.openIds=['main'];current.layout.active='main';

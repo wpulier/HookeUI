@@ -166,7 +166,7 @@ test('the Assistant floats, fills and hides a Tab\'s specimen through the code i
 test('Main never hides its specimen, for the Assistant either: it floats or fills',async()=>{
  const t=agent(undefined,'main');
  const refused=await t.current.agentCommand('p',{action:'specimen',tab:'main',specimen:'hide'});
- expect(refused).toEqual({ok:false,error:'Main always keeps the specimen: it can float, never hide.'});
+ expect(refused).toEqual({ok:false,error:'The specimen stage always keeps the specimen: it can float, never hide.'});
  expect(t.view('main').specimen).toEqual({visible:true,rect:null});expect(t.current.specimen.hidden).toBe(false);
  const floated=await t.current.agentCommand('p',{action:'specimen',tab:'main',specimen:'float'});
  expect(floated.ok).toBe(true);expect(t.view('main').specimen.rect).toEqual(floatingSpecimen(1200,800));

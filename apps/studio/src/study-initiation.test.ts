@@ -110,3 +110,29 @@ it('keeps exact plan materials and instruction pin when package discovery fails'
  const body=JSON.parse(String(fetcher.mock.calls.find(([,init])=>!!init?.body)![1]!.body));
  expect(body.plan.materials).toEqual([material]);expect(body.plan.instructionPackage).toEqual(pin);
 });
+
+it('offers a bounded comparison in the ordinary Study plan', async()=>{
+  const {root}=setup();
+  await vi.waitFor(()=>expect(root.textContent).toContain('Compare two methods'));
+  expect(root.textContent).not.toContain('Start comparison');
+});
+
+it('leads with the measured result on reopen and opens the exact scoring revision',async()=>{
+ const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
+ const root=new TestElement('section'),open=vi.fn(async()=>undefined);
+ const ref=(id:string)=>({id,session:'s1',revision:3,digest:id+'-digest'});
+ const arm=(id:string)=>({prediction:ref(id),score:ref(id+'-score')});
+ const comparison={baseline:arm('baseline'),challenger:arm('challenger'),coverage:'Complete test panel',
+  metrics:[{name:'Error',direction:'lower',baseline:2,challenger:1},{name:'Overlap',direction:'higher',baseline:0,challenger:0}]};
+ const assignment={id:'a',objective:'Compare',observedState:'completed',claimedBy:{byLabel:'Researcher'},report:{comparison,statement:'Repeat with another seed.',limitations:'One seed.'}};
+ const fetcher=vi.fn(async()=>new Response(JSON.stringify({basis:ref('study'),plan:{...plan,status:'reviewed'},assignments:[assignment]})));
+ mountStudyInitiation(root as unknown as HTMLElement,study,[],fetcher as unknown as typeof fetch,open);
+ await vi.waitFor(()=>expect(root.textContent).toContain('Error decreased by 50%'));
+ expect(root.textContent).toContain('Unchanged: Overlap (0)');
+ expect(root.textContent).not.toContain('Next, hand the work');
+ const history=root.querySelectorAll('details').find(d=>d.querySelector('summary')?.textContent==='Plan and run history');
+ expect(history).toBeDefined();expect((history as unknown as HTMLDetailsElement).open).toBeFalsy();
+ const score=root.querySelectorAll('button').find(b=>b.textContent==='1') as unknown as HTMLButtonElement;
+ score.onclick!(new Event('click') as PointerEvent);
+ expect(open).toHaveBeenCalledWith(comparison.challenger.score,'Open challenger scoring report');
+});
