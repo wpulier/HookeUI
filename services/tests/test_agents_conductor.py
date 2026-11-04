@@ -224,6 +224,7 @@ def test_refusals_say_what_to_do(made, tmp_path):
 
 
 def test_claude_is_held_to_the_allowance_and_its_spend_counts(tmp_path):
+    Scripted.made = []  # not the `made` fixture: an earlier test's adapter would otherwise answer the settle below
     side = Side(left=1.2)
     conductor = Conductor(tmp_path, side, make_adapter=lambda p, path: Scripted(), find=lambda p: "/opt/bin/claude")
 
