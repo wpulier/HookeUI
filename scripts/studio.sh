@@ -45,6 +45,13 @@ ORCH_PORT="${ORCH_PORT:-8770}"
 DEV_PORT="${DEV_PORT:-5180}"
 CV_PORT="${CV_PORT:-8766}"
 CAMERA_URL="http://127.0.0.1:$CAMERA_PORT"
+# The scope bridge (services/scope_bridge/AGENTS.md): the microscope's motors, camera and light, only when asked for
+# (make start SCOPE_BACKEND=mm-demo, or openflexure with SCOPE_SERVER=http://... SCOPE_UM_PER_STEP= SCOPE_UM_PER_Z_STEP=)
+# and once make scope-setup made its
+# environment. Nothing else touches the microscope.
+SCOPE_PORT="${SCOPE_PORT:-8780}"
+SCOPE_URL="http://127.0.0.1:$SCOPE_PORT"
+SCOPE_PY="$ROOT/services/scope_bridge/.venv/bin/python"
 BRIDGE_SCRIPT="iphone_bridge_server.py"
 ORCH_URL="http://127.0.0.1:$ORCH_PORT"
 # Which licences this copy may use (services/orchestrator/licences.py, ADR 0005). Research is
@@ -104,6 +111,7 @@ feed_footage() { health "$CAMERA_URL/feed" | sed -n 's/.*"footage": "\(.*\)",*$/
 is_orchestrator() { health "$ORCH_URL/api/health" | grep -q '"microscope-mind-orchestrator"'; }
 is_dev_studio() { health "http://127.0.0.1:$DEV_PORT/" | grep -Eq '<title>(HookeUI|ObservationUI|MicroscopeMind) Studio</title>'; }
 is_cv() { health "http://127.0.0.1:$CV_PORT/api/health" | grep -q '"iphone-cv-consumer"'; }
+is_scope() { health "$SCOPE_URL/api/state" | grep -q '"limits"'; }
 pids_on() { lsof -tiTCP:"$1" -sTCP:LISTEN 2>/dev/null || true; }
 
 # Another program on one of our ports: say so and stop (it is never killed).
@@ -139,7 +147,7 @@ in_checkout() { # command cwd
 # nothing outside this checkout is ever touched.
 ours() {
   local pid cmd cwd
-  for pid in $(pgrep -f "studio\.sh start|iphone_bridge_server|capture-app/run\.sh|MicroscopeMind Camera\.app|orchestrator\.server|multiprocessing|research_worker|gpu_worker|ffmpeg -nostdin|vite|sim\.harness|serve-cv|iphone-cv-consumer|cv_server" 2>/dev/null); do
+  for pid in $(pgrep -f "studio\.sh start|scope_bridge|iphone_bridge_server|capture-app/run\.sh|MicroscopeMind Camera\.app|orchestrator\.server|multiprocessing|research_worker|gpu_worker|ffmpeg -nostdin|vite|sim\.harness|serve-cv|iphone-cv-consumer|cv_server" 2>/dev/null); do
     is_self "$pid" && continue
     cmd="$(ps -o command= -p "$pid" 2>/dev/null)" || continue
     cwd="$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')"
@@ -201,6 +209,7 @@ cmd_status() {
   else line "orchestrator" "down" ""; fi
   if is_dev_studio; then line "dev studio" "up" "http://127.0.0.1:$DEV_PORT/  (hot reload)"; else line "dev studio" "down" "(only with make dev)"; fi
   if is_cv; then line "edge dashboard" "up" "http://127.0.0.1:$CV_PORT/  (original pipeline)"; fi
+  if is_scope; then line "scope bridge" "up" "$SCOPE_URL  (the microscope's motors, camera and light)"; fi
   local n; n="$(ours | wc -l | tr -d ' ')"
   if [ "$n" -gt 0 ]; then echo "  $n HookeUI process(es) running in all (servers and workers; make stop stops every one)"
   else echo "  nothing of HookeUI is running"; fi
@@ -317,6 +326,24 @@ cmd_start() {
     --source-file "$CAMERA_SOURCE_FILE" --default-source none --trials-dir "$LOG_DIR/camera-trials" "${bridge_options[@]}"
   wait_until 20 "the camera bridge" is_bridge
 
+  if [ -n "${SCOPE_BACKEND:-}" ]; then
+    if [ ! -x "$SCOPE_PY" ]; then
+      echo "The scope bridge's environment is missing (run make scope-setup); starting without it" >&2
+    else
+      echo "Starting the scope bridge ($SCOPE_BACKEND)"
+      [ -n "$(pids_on "$SCOPE_PORT")" ] && foreign "$SCOPE_PORT" "the scope bridge" SCOPE_PORT
+      local scope_options=(--backend "$SCOPE_BACKEND" --port "$SCOPE_PORT" --folder "$(dirname "$LOG_DIR")/scope")
+      [ -n "${SCOPE_SERVER:-}" ] && scope_options+=(--url "$SCOPE_SERVER")
+      [ -n "${SCOPE_UM_PER_STEP:-}" ] && scope_options+=(--um-per-step "$SCOPE_UM_PER_STEP")  # an OpenFlexure's calibration
+      [ -n "${SCOPE_UM_PER_Z_STEP:-}" ] && scope_options+=(--um-per-z-step "$SCOPE_UM_PER_Z_STEP")
+      [ -n "${SCOPE_CONFIG:-}" ] && scope_options+=(--config "$SCOPE_CONFIG")
+      spawn "scope bridge" "$LOG_DIR/scope-bridge.log" \
+        bash -c "cd '$ROOT/services' && exec '$SCOPE_PY' -m scope_bridge $(printf "'%s' " "${scope_options[@]}")"
+      wait_until 30 "the scope bridge" is_scope
+      export MICROMIND_SCOPE_URL="$SCOPE_URL"  # the orchestrator's microscope tools ask it (orchestrator/scope.py)
+    fi
+  fi
+
   echo "Starting the orchestrator"
   spawn "orchestrator" "$ORCH_LOG" \
     bash -c "cd '$ROOT/services' && exec '$PY' -m orchestrator.server --port '$ORCH_PORT' --bridge-url '$CAMERA_URL'"
@@ -358,6 +385,7 @@ cmd_start() {
           "camera bridge") tail -n 15 "$BRIDGE_LOG" >&2 ;;
           orchestrator) tail -n 15 "$ORCH_LOG" >&2 ;;
           "dev studio") tail -n 15 "$DEV_LOG" >&2 ;;
+          "scope bridge") tail -n 15 "$LOG_DIR/scope-bridge.log" >&2 ;;
         esac
         exit 1
       fi

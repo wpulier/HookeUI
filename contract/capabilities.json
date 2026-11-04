@@ -57,6 +57,11 @@
       "what": "Where things are on the whole slide"
     },
     {
+      "id": "scope",
+      "title": "The microscope's motors",
+      "what": "Moving the stage and focus, pictures, light and acquisitions, inside your limits"
+    },
+    {
       "id": "seeing",
       "title": "A clearer picture",
       "what": "Better pictures made from real frames"
@@ -2108,6 +2113,146 @@
       ]
     },
     {
+      "id": "microscope",
+      "family": "scope",
+      "actor": "agent",
+      "title": "What the microscope is doing",
+      "what": "Says where the stage is, its light, exposure and your limits",
+      "how": {
+        "tool": "microscope",
+        "say": "what is the microscope doing?"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "move-stage",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Move the stage",
+      "what": "Moves the stage or the focus, inside your limits",
+      "how": {
+        "tool": "move_stage",
+        "say": "move the stage 20 microns right"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-snap",
+      "family": "scope",
+      "actor": "agent",
+      "title": "A picture with the microscope",
+      "what": "Takes a picture with the microscope's own camera",
+      "how": {
+        "tool": "scope_snap",
+        "say": "take a picture with the microscope"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-focus",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Autofocus the microscope",
+      "what": "Sweeps the focus and stops at the sharpest, inside your limits",
+      "how": {
+        "tool": "scope_focus",
+        "say": "autofocus"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-exposure",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Set the exposure",
+      "what": "Sets the microscope camera's exposure, inside your limits",
+      "how": {
+        "tool": "scope_exposure",
+        "say": "set the exposure to 20 ms"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-channel",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Switch the channel",
+      "what": "Switches the microscope to one of its channels",
+      "how": {
+        "tool": "scope_channel",
+        "say": "switch to FITC"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-light",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Switch the light",
+      "what": "Turns the light on after your yes, or off at once",
+      "how": {
+        "tool": "scope_light",
+        "say": "turn the light off"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-acquire",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Run an acquisition",
+      "what": "Runs a time, focus and position plan; a large one asks first",
+      "how": {
+        "tool": "scope_acquire",
+        "say": "take three pictures a second apart"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "stop-scope",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Stop the microscope",
+      "what": "Stops the motors and any acquisition at once",
+      "how": {
+        "tool": "stop_scope",
+        "say": "stop"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
+      "id": "scope-limits",
+      "family": "scope",
+      "actor": "agent",
+      "title": "Your limits for the microscope",
+      "what": "Reads or changes your limits; loosening them asks first",
+      "how": {
+        "tool": "scope_limits",
+        "say": "what are the microscope's limits?"
+      },
+      "parts": [
+        "scope-bridge"
+      ]
+    },
+    {
       "id": "bookmark",
       "family": "map",
       "actor": "agent",
@@ -2661,6 +2806,103 @@
       ]
     },
     {
+      "id": "list-projects",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Find your Projects",
+      "what": "Lists your Projects, or finds those you describe, best first",
+      "how": {
+        "tool": "list_projects",
+        "say": "what Projects do I have on guard cells?"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "rename-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Rename a Project",
+      "what": "Renames this Project or another you name, undoably",
+      "how": {
+        "tool": "rename_project",
+        "say": "call this Project Stomata in light"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "organize-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Tidy a Project",
+      "what": "Proposes names, groups and Tabs to close, as a card",
+      "how": {
+        "tool": "organize_project",
+        "say": "tidy this Project"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "apply-organization",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Do the tidy",
+      "what": "Applies the tidy it proposed, on your yes, undoably",
+      "how": {
+        "tool": "apply_organization",
+        "say": "yes, do it"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "archive-project",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Archive Projects",
+      "what": "Puts Projects away with all their work kept, or brings them back",
+      "how": {
+        "tool": "archive_project",
+        "say": "archive the old test ones"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "undo-project-change",
+      "family": "conversation",
+      "actor": "agent",
+      "title": "Undo a Project change",
+      "what": "Puts back the last rename, archive or tidy Hooke made",
+      "how": {
+        "tool": "undo_project_change",
+        "say": "undo that"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
+      "id": "project-card",
+      "family": "conversation",
+      "actor": "you",
+      "title": "Tidy or choose a Project",
+      "what": "Do it, Not now or Undo on a Project card",
+      "how": {
+        "command": "project-card"
+      },
+      "parts": [
+        "day"
+      ]
+    },
+    {
       "id": "you-lead",
       "family": "conversation",
       "actor": "agent",
@@ -3045,6 +3287,77 @@
       "pair": "cancel-research",
       "parts": [
         "research-worker"
+      ]
+    },
+    {
+      "id": "start-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Start an outside agent",
+      "what": "Starts Codex, Claude Code or Grok on a task",
+      "how": {
+        "tool": "start_agent",
+        "say": "ask Codex to write a stomata-tracking capability"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "agents-status",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "What everyone is doing",
+      "what": "Says what researchers and outside agents are doing",
+      "how": {
+        "tool": "agents",
+        "say": "what's everyone doing?"
+      },
+      "parts": [
+        "outside-agents",
+        "research-worker"
+      ]
+    },
+    {
+      "id": "agent-note",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Tell an outside agent",
+      "what": "Passes an outside agent a note, marked as Hooke's",
+      "how": {
+        "tool": "agent_note",
+        "say": "tell Codex to use micro-sam"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "stop-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Stop an outside agent",
+      "what": "Stops an outside agent and revokes its connection",
+      "how": {
+        "tool": "stop_agent",
+        "say": "stop Grok"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "answer-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Answer an agent's ask",
+      "what": "Gives your yes or no to what an agent asked",
+      "how": {
+        "tool": "answer_agent",
+        "say": "yes, allow it"
+      },
+      "parts": [
+        "outside-agents"
       ]
     },
     {
@@ -5478,6 +5791,13 @@
       "source": "services/orchestrator/guide.py"
     },
     {
+      "id": "scope-bridge",
+      "title": "Scope bridge",
+      "kind": "app",
+      "purpose": "The one process that drives the microscope, inside your limits, with a receipt each time",
+      "source": "services/scope_bridge/bridge.py"
+    },
+    {
       "id": "bookmarks",
       "title": "Bookmarks",
       "kind": "app",
@@ -5560,6 +5880,13 @@
       "kind": "app",
       "purpose": "Background work in its own process: web, pictures, video, lessons",
       "source": "services/research_worker/researcher.py"
+    },
+    {
+      "id": "outside-agents",
+      "title": "Outside agents",
+      "kind": "app",
+      "purpose": "Codex, Claude Code and Grok Build, started by Hooke with your sign-in",
+      "source": "services/orchestrator/agents/conductor.py"
     },
     {
       "id": "ledger",

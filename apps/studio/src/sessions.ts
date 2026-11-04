@@ -129,7 +129,7 @@ export function rowView(row: SessionRow, current: string, now: number): SessionR
   const working = Math.max(0, row.working || 0);
   return {
     id: row.id, name, unnamed: !(row.name ?? '').trim(), stats, lastUsed: lastUsedWords(row.lastActive || row.started, now),
-    counts: countWords(row.counts).join(' · '), working, current: row.id === current, thumb: row.thumb || null,
+    counts: [row.archived ? 'Archived' : '', ...countWords(row.counts)].filter(Boolean).join(' · '), working, current: row.id === current, thumb: row.thumb || null,
     title: [name, stats, working ? `${plural(working, 'researcher')} working` : ''].filter(Boolean).join(' · '),
   };
 }

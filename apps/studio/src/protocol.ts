@@ -6,6 +6,7 @@ import type { WorkspaceViewport } from './workspace-runtime';
 import type { MotionTracksWire, TracksLayerWire } from './motiontracks';
 import type { ResearchCapture } from './research-captures';
 import type { AgentConnectionsMessage } from './agent-connections';
+import type { AgentsMessage } from './agents-panel';
 // Wire protocol shared with services/orchestrator (hub.py, scene.py, server.py), both ways:
 // ServerMessage is what the server sends, ClientCommand what the studio sends
 // (services/orchestrator/commands.py has one handler per kind).
@@ -257,6 +258,7 @@ export interface SessionRow {
   specimens: string[];
   working: number; // researchers working in it now
   thumb?: string; // a picture of it (an image URL), optional
+  archived?: boolean; // put away (by asking Hooke: archive_project): listed only when searched for or open
 }
 
 /** Every session, newest first by `lastActive`: sent on connect, after every session change or rename, and when its
@@ -784,6 +786,7 @@ export type ServerMessage =
   | import('./web-window').WebWindowRequest
   // Outside agents waiting to connect and those connected (ADR 0026; agent-connections.ts draws the confirm and the list).
   | AgentConnectionsMessage
+  | AgentsMessage
   // The walkthrough's state changed outside this window (an agent ran the example through the door): reread it.
   | { type: 'onboarding-changed' }
   // The Assistant opens a Data item in the reader on the Tab you are on, or closes it there (ticket 66, D6;
@@ -847,6 +850,9 @@ export type ServerMessage =
   // An experiment's card, as its server record says it (experiments.py), and the open Project's experiments.
   | { type: 'experiment'; experiment: import('./experiment-card').ExperimentWire }
   | { type: 'experiments'; session: string; experiments: import('./experiment-card').ExperimentWire[] }
+  // A Project card (project-card.ts; brain/toolbox/projects.py): a tidy proposed, or the Projects a request may mean.
+  | { type: 'project-card'; card: import('./project-card').ProjectCardWire }
+  | { type: 'project-cards'; session: string; cards: import('./project-card').ProjectCardWire[] }
   | PresentMessage // a change of something on screen, done once a screen report shows it (screen.ts)
   | { type: 'screen-look'; id: string; schema?: never } // legacy approximate composition only
   | WorkspaceCaptureRequest
@@ -1760,6 +1766,8 @@ export type ClientCommand =
   | { type: 'research-cancel'; rid: string }
   // An experiment's card (experiment-card.ts; experiments.py): Run it (exactly the plan's version shown), Stop, Open results.
   | { type: 'experiment'; action: 'run' | 'stop' | 'open' | 'continue'; id: string; version?: number }
+  // A Project card's button (project-card.ts): Do it, Not now, Undo.
+  | { type: 'project-card'; action: string; id: string }
   | { type: 'research-evidence'; rid: string; day: string; questionId: string; run: number; choice: 'hold' | 'decline'; requestId: string }
   | { type: 'research-presentation'; action: 'produce'; rid: string; requestId: string; findingVersion: number;
       findingDigest: string; expectedBase: string | null; model?: string; change?: string; contentKind?: 'report' | 'lesson' }

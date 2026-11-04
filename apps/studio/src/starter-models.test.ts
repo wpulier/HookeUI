@@ -248,7 +248,7 @@ describe('where it is mounted', () => {
     expect(read('./workspace-study.ts')).toContain("page.append(head,ways,starterOffer('welcome'),quiet)");
   });
   it('the empty Stage, where a fresh profile lands, puts it under its ways in and the example', () => {
-    expect(read('./session-home.ts')).toContain("root.replaceChildren(this.title, lead, pair, research, example, starterOffer('stage'), this.recent");
+    expect(read('./session-home.ts')).toContain("root.replaceChildren(this.title, lead, back, pair, research, example, starterOffer('stage'), this.recent");
   });
   it('Models puts it at the top of the page, one element kept across redraws', () => {
     const page = read('./modelspage.ts');

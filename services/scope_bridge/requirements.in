@@ -1,0 +1,8 @@
+# The scope bridge's own environment (make scope-setup): Micro-Manager through pymmcore-plus, its test adapters
+# (DemoCamera and the demo configuration) as a wheel, and Pillow to read an OpenFlexure's JPEGs. Not in the app's
+# runtime: only someone who drives a microscope from Hooke sets it up. Compiled to requirements.txt with
+#   uv pip compile requirements.in -o requirements.txt --python-version 3.13
+pymmcore-plus==0.18.1
+useq-schema==0.9.2
+mm-test-adapters
+Pillow>=11

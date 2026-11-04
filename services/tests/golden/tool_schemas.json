@@ -161,7 +161,7 @@
   "params": {
    "properties": {
     "session": {
-     "description": "its name, a day (yesterday, Oct 11, Tuesday), a specimen, or previous",
+     "description": "the user's own words for it, as they said them (\"the leaf one from last week\", \"yesterday's\", \"previous\"); an exact name or id only when they said or chose it",
      "type": "string"
     }
    },
@@ -190,6 +190,217 @@
    "required": [
     "query"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "List the user's Projects, or find those they describe (\"what Projects do I have on guard cells?\", \"the leaf ones from last week\"): about takes their words and times as said; best first, with why each matched. Opens nothing. Archived ones when archived is true or the words find one.",
+  "inline_ms": 500,
+  "kind": "query",
+  "name": "list_projects",
+  "params": {
+   "properties": {
+    "about": {
+     "description": "the user's words and time for the Projects meant (optional: all of them)",
+     "type": "string"
+    },
+    "archived": {
+     "description": "include archived Projects",
+     "type": "boolean"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Rename a Project when the user asks (\"call this Project Stomata in light\"): this one, or the one they describe (project). Undoable.",
+  "inline_ms": 500,
+  "kind": "effect",
+  "name": "rename_project",
+  "params": {
+   "properties": {
+    "name": {
+     "description": "the new name, as the user said it",
+     "type": "string"
+    },
+    "project": {
+     "description": "which Project: its id, or the user's words for it (optional: this one)",
+     "type": "string"
+    }
+   },
+   "required": [
+    "name"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Archive Projects when the user asks (\"archive the old test ones\"): out of the Projects list, all work kept; restore brings them back. Name each by its id from list_projects, saying them first when only described. Quote the user in asked_with.",
+  "inline_ms": 800,
+  "kind": "effect",
+  "name": "archive_project",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "the user's words asking for it, quoted",
+     "type": "string"
+    },
+    "projects": {
+     "description": "the Projects' ids (or exact names)",
+     "items": {
+      "type": "string"
+     },
+     "maxItems": 40,
+     "type": "array"
+    },
+    "restore": {
+     "description": "bring archived Projects back instead",
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "projects",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Tidy this Project when the user asks (\"tidy this Project\"): with no plan, the facts to propose from; then call with your plan, kept as a proposal on a card, nothing changed. Ask; their reply is apply_organization.",
+  "inline_ms": 800,
+  "kind": "query",
+  "name": "organize_project",
+  "params": {
+   "properties": {
+    "plan": {
+     "description": "your proposal from the facts",
+     "properties": {
+      "closeTabs": {
+       "description": "the ids of Tabs to close",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 12,
+       "type": "array"
+      },
+      "conversations": {
+       "items": {
+        "properties": {
+         "id": {
+          "type": "string"
+         },
+         "title": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "id",
+         "title"
+        ],
+        "type": "object"
+       },
+       "maxItems": 20,
+       "type": "array"
+      },
+      "groups": {
+       "items": {
+        "properties": {
+         "group": {
+          "type": "string"
+         },
+         "input": {
+          "type": "boolean"
+         },
+         "item": {
+          "type": "string"
+         }
+        },
+        "required": [
+         "item",
+         "group"
+        ],
+        "type": "object"
+       },
+       "maxItems": 40,
+       "type": "array"
+      },
+      "name": {
+       "description": "a name for the Project",
+       "type": "string"
+      },
+      "why": {
+       "description": "one line on why, for the user",
+       "type": "string"
+      }
+     },
+     "type": "object"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "The user's reply to a tidy organize_project proposed, said after it and quoted in asked_with, as you judge it: a yes applies (skip the parts turned down), a no declines.",
+  "inline_ms": 1500,
+  "kind": "effect",
+  "name": "apply_organization",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "the user's reply, quoted",
+     "type": "string"
+    },
+    "confirms": {
+     "description": "the proposal's id (o1)",
+     "type": "string"
+    },
+    "decline": {
+     "description": "they said no: drop the proposal",
+     "type": "boolean"
+    },
+    "skip": {
+     "description": "numbers of the parts they turned down",
+     "items": {
+      "type": "string"
+     },
+     "type": "array"
+    }
+   },
+   "required": [
+    "confirms",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Undo a change Hooke made to Projects (\"undo that\", \"put the name back\"): by its change id from its result, or kind or Project; else the newest from this conversation. Unarchiving is archive_project with restore.",
+  "inline_ms": 800,
+  "kind": "effect",
+  "name": "undo_project_change",
+  "params": {
+   "properties": {
+    "change": {
+     "description": "the change's id from its result (pc\u2026)",
+     "type": "string"
+    },
+    "kind": {
+     "description": "the newest change of this kind",
+     "enum": [
+      "rename",
+      "archive",
+      "tidy"
+     ],
+     "type": "string"
+    },
+    "project": {
+     "description": "the newest change to this Project: its id or the user's words for it",
+     "type": "string"
+    }
+   },
+   "required": [],
    "type": "object"
   }
  },
@@ -1357,6 +1568,123 @@
     "dollars",
     "asked_with"
    ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review. Only when the user asked for that agent. Say you are getting that agent on it, not that you will do it yourself.",
+  "inline_ms": 4000,
+  "kind": "effect",
+  "name": "start_agent",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "the user's own words asking for the agent",
+     "type": "string"
+    },
+    "program": {
+     "description": "which agent: codex (OpenAI Codex), claude-code (Claude Code), grok (Grok Build), gemini (Gemini CLI)",
+     "enum": [
+      "codex",
+      "claude-code",
+      "grok",
+      "gemini"
+     ],
+     "type": "string"
+    },
+    "task": {
+     "description": "what the agent should do, in the user's words",
+     "type": "string"
+    }
+   },
+   "required": [
+    "program",
+    "task",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "What every worker is doing, and what a finished one found: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed), with a finished agent's own last words. For \"what's everyone doing?\" and \"what did Codex find?\"; say it in one or two sentences, an agent's report as back for the user's review, never as an accepted finding.",
+  "inline_ms": 300,
+  "kind": "query",
+  "name": "agents",
+  "params": {
+   "properties": {},
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Give the user's own answer to what an outside agent asked to do (allow or decline), after they said it; never on Hooke's own judgement.",
+  "inline_ms": 2000,
+  "kind": "effect",
+  "name": "answer_agent",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    },
+    "always": {
+     "description": "the user said yes for the rest of this session",
+     "type": "boolean"
+    },
+    "answer": {
+     "enum": [
+      "allow",
+      "decline"
+     ],
+     "type": "string"
+    },
+    "asked_with": {
+     "description": "the user's own answer, quoted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "answer",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Pass an outside agent a note from the user (\"tell Codex to use micro-sam\"); it is marked as Hooke's relay, never as the user's approval of anything.",
+  "inline_ms": 2000,
+  "kind": "effect",
+  "name": "agent_note",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    },
+    "text": {
+     "description": "what to tell it",
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Stop an outside agent Hooke started (its access to the Project ends with it); say only that it stopped.",
+  "inline_ms": 3000,
+  "kind": "effect",
+  "name": "stop_agent",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    }
+   },
+   "required": [],
    "type": "object"
   }
  },

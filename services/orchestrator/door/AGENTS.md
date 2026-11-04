@@ -291,7 +291,7 @@ records `requestedBy`. Signing off, choosing a destination, deleting or restorin
 
 `actor.maker` can use a display label retained with accepted provenance. This is a per-record projection; it never changes `_LABELS` or connection/grant stores. Current host labels are only the fallback when a record has no label, so relocation and later label changes cannot rewrite captured import attribution.
 
-Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding.
+Research coordination is explicitly declared in agent_runnable: `study.coordination`, `study.coordinate` and `research.instructions`, with matching resource routes. Read grants inspect; contribute grants propose, review, claim and return work. The authenticated connection supplies authorship. Exact action fields are validated by the shared service. Review of a plan never installs a capability, launches a subscribed CLI or accepts a scientific finding (agents Hooke starts are the user's own request, in the Agents panel or by voice: below).
 
 Detached Project creation and material/coordination contributions notify the existing sessions projection. Open Studio choosers refresh without changing the active Project or stage; request retries do not emit another creation.
 
@@ -304,3 +304,26 @@ uninstalled/unproven/disabled/untrusted generations and other imported execution
 routes remain default-no. Admission rechecks after queueing; trusted dispatch binds
 `capability_identity.admitted_entry` through the toolbox to the adapter's generation
 check. No caller-supplied parameter can override this pin or activate a package.
+
+## Agents Hooke starts (ADR 0029)
+
+The user can ask Hooke to start an outside agent on this Mac (Codex, Claude Code, Grok Build) in the Agents panel or by
+voice; the conductor is `services/orchestrator/agents/` (its AGENTS.md). Such an agent uses this door exactly as a
+connected one does, as itself:
+- **Its connection** is made by `Connections.issue(label, kind, launch=…)`, in-process only (no route reaches it):
+  there is no pending request or confirm dialog, because the user asked Hooke for that agent. It is labelled
+  "… (started by Hooke)", records its `launch`, and is listed in Settings → Connected agents like any other; the shared
+  connection contract (`wire()`) is unchanged. The token goes only to that program, in a mode-0600 file named by
+  `HOOKE_CONNECTION_FILE`; the `hooke` command reads it instead of the Keychain and refuses `hooke connect`.
+- **Its Project access** is one owner-side grant, `ProjectAccess.grant(..., "contribute", authority="launch")`, in the
+  Project the user started it in. Contribute admits its work and claims; it never grants membership, keys, settings or
+  spending.
+- **Its work** is one Study and one assignment proposed by the user ("You"); it claims it with `study.coordinate`,
+  keeps its report with `project.import`, returns it with `complete` and publishes a claim. Reports and claims await
+  the researcher's review.
+- **Its end** revokes the connection and withdraws the grant (Stop, failure, Hooke quitting, or the next start after a
+  crash). A revoked launch connection is final, as every disconnect is.
+- **Nothing on the door starts, steers, answers for or stops an agent.** The Agents panel's routes are the studio's
+  (`/api/agents`, window only), and `start_agent`, `agents`, `agent_note` and `stop_agent` are declared not runnable for
+  agents in `agent_runnable.py`, as is `answer_agent`.
+
