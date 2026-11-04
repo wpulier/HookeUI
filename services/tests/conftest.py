@@ -29,6 +29,9 @@ os.environ["MICROMIND_KEYCHAIN"] = "off"
 # The library's looks (library_looks.py) never run on their own here: a test of them calls `step` itself.
 os.environ["MICROMIND_LIBRARY_LOOKS"] = "0"
 os.environ["MICROMIND_CATALOG_AUTO"] = "0"  # never checked online from a test (catalog_news.py)
+# No outside agent's program is found from a test (agents/programs.py): nothing ever starts this Mac's own Codex, Claude
+# Code or Grok. A test of the conductor names its own stand-in program.
+os.environ["MICROMIND_AGENT_PROGRAMS"] = "none"
 # The stand-in environments' Python wraps this one: inside macOS's sandbox (sandbox.py) it may read this Python's install.
 os.environ["MICROMIND_SANDBOX_READ"] = os.pathsep.join([sys.prefix, str(Path(sys.executable).resolve().parents[1])])
 

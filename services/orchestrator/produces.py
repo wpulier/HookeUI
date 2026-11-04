@@ -137,6 +137,12 @@ TOOLS = {
     "new_project": "none: starts a Project (its journal is the Project itself, listed from the journals)",
     "new_session": "none: new_project's earlier name; starts a Project the same way",
     "switch_session": "none: opens an earlier session",
+    "list_projects": "none: reads the Projects list (day/catalogue.py)",
+    "rename_project": "none: names a Project in its own journal, with an undo record",
+    "organize_project": "none: reads what tidying the Project can act on, and keeps a proposal in memory",
+    "apply_organization": "none: names, material groups and Tab closes the user agreed to, each with an undo record",
+    "archive_project": "none: puts Projects away in their own journals (nothing moved or deleted), with an undo record",
+    "undo_project_change": "none: puts back a Project change from its undo record",
     "show_measurements": "none: opens the measurements table of what was already measured (tables.py reads it)",
     "assets": "none: reads the library (All assets)",
     "add_asset": "none: puts an asset on stage; the session's journal keeps it as one of its sources",
@@ -235,6 +241,11 @@ TOOLS = {
     "research_status": "none: reads the researchers",
     "summarize_research": "none: reads the researchers' work",
     "cancel_researcher": "none: stops a researcher",
+    "start_agent": "none: starts an outside agent; what it keeps is its own (agents/conductor.py)",
+    "agents": "none: reads the workers",
+    "agent_note": "none: a note to an outside agent",
+    "stop_agent": "none: stops an outside agent",
+    "answer_agent": "none: the user's answer to an outside agent's ask",
     "researcher_note": "clip",  # a note to a working researcher; with hold_seconds, the footage it asked for (held.py)
     "set_research_cap": "none: changes a preference",
     "propose_correction": "temporary: a proposal until the user accepts it; accepting relabels the outline",
@@ -270,6 +281,9 @@ COMMANDS = {
     # An experiment's card (experiments.py): Run it makes what the experiment tool's run makes; Stop and Open results
     # make nothing new.
     "experiment": "project, population, result",
+    # A Project card's button (brain/toolbox/projects.py): Do it renames and groups as apply_organization does; Not now
+    # and Undo make nothing new.
+    "project-card": "none: applies, drops or undoes a tidy the user agreed to, in the Project's own journal",
     "dataset": "dataset",
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",

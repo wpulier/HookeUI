@@ -161,6 +161,60 @@ def publish(checkout: Path, build: bool) -> Path:
     return test
 
 
+def seed_projects(plan: dict, sessions: Path, now: float | None = None) -> list[str]:
+    """The plan's `projects`, written as journals into the stack's fresh home before its app starts, dated from the day
+    the run is (Projects by voice: "the leaf one from last week" needs a Project from last week). Each is {"name",
+    "daysAgo" or "lastWeek" (0 Monday of the calendar week before this one), "specimens", "conversations": [{"title",
+    "first" (its first request), "summary"}], "tabs" (titles of empty Tabs beside Main), "archived", "open" (the app starts in it)}. Returns the session ids written; a home that already holds one is left as it is."""
+    import datetime
+
+    today = datetime.date.fromtimestamp(now if now is not None else time.time())
+    written: list[str] = []
+    for spec in plan.get("projects") or []:
+        if "lastWeek" in spec:
+            date = today - datetime.timedelta(days=today.weekday() + 7 - int(spec["lastWeek"]))
+        else:
+            date = today - datetime.timedelta(days=int(spec.get("daysAgo", 1)))
+        sid, n = date.isoformat(), 1
+        while sid in written or (sessions / sid).exists():
+            n += 1
+            sid = f"{date.isoformat()}.{n}"
+        at = time.mktime((date.year, date.month, date.day, 9 + n, 0, 0, 0, 0, -1))
+        events = [{"type": "session-started", "session": sid, "name": spec.get("name") or "", "created": at,
+                   "by": "user", "at": at}]
+        for i, conversation in enumerate(spec.get("conversations") or [{}], 1):
+            events.append({"type": "thread-opened", "thread": f"t{i}", "n": i, "title": conversation.get("title") or "",
+                           "at": at + i})
+            if conversation.get("first"):  # its first request, and the title the app gave it from that (store.py)
+                events.append({"type": "turn", "thread": f"t{i}", "id": i, "role": "user", "channel": "chat",
+                               "text": conversation["first"], "at": at + 30 + i})
+                if not conversation.get("title"):
+                    from orchestrator.day.store import auto_title
+                    events.append({"type": "thread-renamed", "thread": f"t{i}", "title": auto_title(conversation["first"]),
+                                   "auto": True, "at": at + 30 + i})
+            if conversation.get("summary"):
+                events.append({"type": "summary", "thread": f"t{i}", "text": conversation["summary"], "upto": 2,
+                               "at": at + 600 + i})
+        events += [{"type": "subject", "thread": "t1", "name": name, "named_by": "look", "at": at + 60 + i}
+                   for i, name in enumerate(spec.get("specimens") or [])]
+        if spec.get("tabs"):  # Tabs beside Main, as a saved arrangement (workspace_views.py's own event), each empty
+            views = [{"id": "main", "title": "Main", "specimen": {"visible": True, "rect": None}, "items": [], "notes": []}]
+            views += [{"id": f"tab-{i}", "title": str(title), "specimen": {"visible": False, "rect": None}, "items": [],
+                       "notes": []} for i, title in enumerate(spec["tabs"], 2)]
+            events.append({"type": "workspace-layout", "revision": 1, "at": at + 700,
+                           "layout": {"schema": 2, "coordinates": "stage", "views": views}})
+        if spec.get("archived"):
+            events.append({"type": "session-archived", "archived": True, "by": "user", "at": at + 900})
+        folder = sessions / sid
+        folder.mkdir(parents=True, exist_ok=True)
+        (folder / "journal.jsonl").write_text("".join(json.dumps(e) + "\n" for e in events))
+        written.append(sid)
+        if spec.get("open"):  # the Project the app starts in (prefs.py's pointer), as if the user was last in it
+            with (sessions / "preferences.jsonl").open("a") as f:
+                f.write(json.dumps({"type": "current-session", "session": sid, "at": at}) + "\n")
+    return written
+
+
 def start_app(stack: dict, out: Path) -> int:
     """The orchestrator, from the stack's record (its checkout, ports and settings); returns its pid."""
     env = {**os.environ, **stack["env"]}
@@ -209,6 +263,8 @@ def up(args: argparse.Namespace) -> dict:
     plan = load_plan(args.plan)
     for sub in ("home", "recordings", "datasets", "footage"):
         (out / sub).mkdir(parents=True, exist_ok=True)
+    if plan.get("projects") and not (out / "home" / "sessions").exists():  # a fresh home only, never one run in
+        seed_projects(plan, out / "home" / "sessions")
     publish(checkout, args.build)
     camera = plan.get("camera") or {}
     if camera.get("still"):  # a still image as the camera (the bundled example), with sensor-like noise: no store needed

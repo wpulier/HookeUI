@@ -236,6 +236,17 @@ PLANS: dict[str, Plan] = {
                       expect="refused: there is no asset a999999"),
     "switch-session": Plan("go back to the previous session", [("switch_session", {"session": "previous"})],
                            before=[("new_session", {"name": "kidney section"})]),
+    # Projects by voice (brain/toolbox/projects.py): find, rename, tidy (proposed, then applied on the yes), archive, undo.
+    "list-projects": Plan("what Projects do I have on guard cells?", [("list_projects", {"about": "guard cells"})]),
+    "rename-project": Plan("call this Project Stomata in light", [("rename_project", {"name": "Stomata in light"})]),
+    "organize-project": Plan("tidy this Project", [("organize_project", {})]),
+    "apply-organization": Plan("yes, do it", [("apply_organization", {"confirms": "o1", "asked_with": "yes, do it"})],
+                               before=[("organize_project", {"plan": {"name": "Leaf epidermis"}})]),
+    "archive-project": Plan("archive the previous one", [("archive_project", {
+        "projects": ["previous"], "asked_with": "archive the previous one"})],
+                            before=[("new_session", {"name": "kidney section"})]),
+    "undo-project-change": Plan("undo that", [("undo_project_change", {})],
+                                before=[("rename_project", {"name": "Stomata in light"})]),
     "you-lead": Plan("let me find it myself", [("set_lead", {"user_leads": True})]),
     "level": Plan("explain it more simply", [("set_level", {"level": "simple"})]),
     "suggest-next": Plan("what should I look at next?", [("suggest_next", {"text": "look at the guard cells next"})]),
@@ -247,6 +258,17 @@ PLANS: dict[str, Plan] = {
     "research-status": Plan("how is the researcher doing?", [("research_status", {})], ("lesson",)),
     "summarize-research": Plan("what have they found?", [("summarize_research", {"label": "guard cells"})], ("lesson",)),
     "cancel-research": Plan("stop the researcher", [("cancel_researcher", {"researcher": "r2"})], ("working",)),
+    # Outside agents (ADR 0029): the tests' world has no agent program installed (conftest), so starting one says so and
+    # nothing is launched; the conductor's own tests drive recorded streams of the real programs (test_agents_*.py).
+    "start-agent": Plan("ask Codex to write a stomata-tracking capability", [("start_agent", {
+        "program": "codex", "task": "write a stomata-tracking capability",
+        "asked_with": "ask Codex to write a stomata-tracking capability"})], expect="refused: Codex isn't installed on this Mac"),
+    "agents-status": Plan("what's everyone doing?", [("agents", {})]),
+    "agent-note": Plan("tell Codex to use micro-sam", [("agent_note", {"agent": "Codex", "text": "use micro-sam"})],
+                       expect="refused: No agent called Codex"),
+    "stop-agent": Plan("stop Grok", [("stop_agent", {"agent": "Grok"})], expect="refused: No agent called Grok"),
+    "answer-agent": Plan("yes, allow it", [("answer_agent", {"answer": "allow", "asked_with": "yes, allow it"})],
+                         expect="refused: No outside agent is asking for anything now"),
     "followup": Plan("ask the researcher why", [("researcher_followup", {"researcher": "r1", "question": "why do they close?"})],
                      ("lesson",), not_on_path={"research": ENGINE_KEPT}),
     "revise": Plan("make question 2 easier", [("revise_work", {"researcher": "r1", "change": "make question 2 easier",

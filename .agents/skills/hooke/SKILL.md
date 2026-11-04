@@ -37,6 +37,8 @@ Never retry a refused named connection using another connection's credentials.
 
 1. `hooke status --wait --json` opens Hooke if needed and says whether you're connected.
    - A first launch asks the researcher to click **Download and Open** in the Hooke window. Tell them, and wait.
+   - If Hooke started you itself (`HOOKE_CONNECTION_FILE` is set), you are already connected, to one Project, with
+     one Study assignment its first message names: never run `hooke connect`, and work only there.
 2. If you aren't connected, run `hooke connect`.
    - It prints a code. Tell the researcher that Hooke shows a dialog with the same code, and to click **Connect** if it
      matches.

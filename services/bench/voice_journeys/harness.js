@@ -444,6 +444,11 @@
       return state.events.some((e) => e.e === 'guide' && e.t >= since && e.m && e.m.active === false);
     }
     if (waitFor.frames) { const last = [...state.events].reverse().find((e) => e.e === 'frames'); return !!last && last.n > 0 && last.stage !== 'empty'; }
+    // An outside agent Hooke started (agents-panel.ts's approval card): one asks the user, or all have finished.
+    const asks = document.querySelector('.agents-asks');
+    if (waitFor.agent === 'asks') return !!document.querySelector('.agents-asks:not([hidden]) .agents-asks-card');
+    if (waitFor.agent === 'done') return !!asks && asks.hidden && Number(asks.dataset.done || 0) > 0 && asks.dataset.working === '0';
+    if (waitFor.agent === 'asks-or-done') return satisfied({ agent: 'asks' }, before) || satisfied({ agent: 'done' }, before);
     return false;
   }
 
@@ -526,6 +531,9 @@
         if (spokenAhead) { await connect(true); await sleep(3000); await quiet(2500, 20000, 0); }
         for (let i = from; i < steps.length; i++) {
           const step = steps[i], next = steps[i + 1];
+          // Said only while it fits: "yes, go ahead" while an agent's ask waits. With nothing to answer a person
+          // would not say it (will-agents run 3: Codex no longer asked again), so the step is left out, not failed.
+          if (step.when && !satisfied(step.when, known())) { ev({ e: 'skipped', step: step.id, when: step.when }); continue; }
           if (step.footage) {
             await bridge(base, `/feed?source=footage&footage=${encodeURIComponent(step.footage)}`);
             await sleep(2500);

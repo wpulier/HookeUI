@@ -152,7 +152,9 @@ above remain historical; each extension is exposed only once implemented and qua
   WorkflowService executions; they do not create another execution/attempt ledger. Actor kind,
   stable connection/researcher/person identity and assignment identity remain distinguishable.
 - External agents are the first research entrance. Launching subscribed agent CLIs from Hooke is
-  deferred pending separate supported-use, consent and resource-control qualification.
+  deferred pending separate supported-use, consent and resource-control qualification. (Superseded for
+  launches on this Mac by ADR 0029, 2026-11-03: Hooke may start the user's own installed agents, each through
+  this door as itself.)
 - A shell-capable program acting as this Mac's user can read that user's files. Project permissions
   cannot establish a sealed local scientific holdout; labels must be outside candidate agents'
   actual reach before claiming isolation.

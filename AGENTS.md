@@ -53,6 +53,7 @@ Component contracts (read the relevant file before editing):
 - `services/gpu_worker/AGENTS.md`
 - `services/orchestrator/AGENTS.md`
 - `services/orchestrator/door/AGENTS.md` (outside agents' one door, ADR 0026)
+- `services/orchestrator/agents/AGENTS.md` (outside agents Hooke starts on this Mac: the conductor, ADR 0029)
 - `services/orchestrator/brain/AGENTS.md` (the voice's live partner: its builders' contract `docs/architecture/live-partner-contract.md`)
 - `services/orchestrator/datasets/AGENTS.md`
 - `services/orchestrator/day/AGENTS.md`

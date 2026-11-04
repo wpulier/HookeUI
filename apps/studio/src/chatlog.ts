@@ -16,6 +16,7 @@ import { arrive, cardGroups, ResearchCard, type ResearchCardSource } from './cha
 import { ChatFollow, type ObserverClass, type ScrollBox } from './chat-scroll';
 import { HandoffRow, handoffView, handoffsInFlight, type FlightEntry } from './handoffs';
 import { ExperimentCard, experimentGroups, type ExperimentView, type ExperimentWire } from './experiment-card';
+import { ProjectCard, type ProjectCardPress, type ProjectCardWire } from './project-card';
 import type { LitCellState } from './lit-cell';
 
 /** How long the answer's slot waits for its answer after the server says the request stopped thinking (its answer is
@@ -45,6 +46,9 @@ export interface ChatHooks {
   /** The experiments a request of this conversation planned, as cards under it (experiment-card.ts), and what their
    * buttons do; none, no cards. */
   experimentCards?: { list(): Iterable<ExperimentWire>; act(action: ExperimentView['actions'][number], x: ExperimentWire): Promise<void> | void };
+  /** The Project cards a request of this conversation made (project-card.ts): a tidy proposed, the Projects it may
+   * mean; what their buttons do, and the Project open now. */
+  projectCards?: { list(): Iterable<ProjectCardWire>; press(press: ProjectCardPress, x: ProjectCardWire): Promise<void> | void; current(): string };
   /** The voice's hand-offs to Hooke's brain still working in this conversation, after every change, for the strip over
    * the composer (handoffs.ts FlightStrip); each entry jumps to its row. */
   flight?(entries: FlightEntry[]): void;
@@ -80,6 +84,10 @@ export class ChatLog {
   private readonly experimentItems = new Map<string, HTMLLIElement>();
   private readonly experimentCards = new Map<string, ExperimentCard>();
   private readonly experimentAnchors = new Map<string, number>();
+  /** Project cards, placed as experiment cards are (project-card.ts). */
+  private readonly projectItems = new Map<string, HTMLLIElement>();
+  private readonly projectCards = new Map<string, ProjectCard>();
+  private readonly projectAnchors = new Map<string, number>();
   /** The voice's hand-offs, one row each by the line's key (handoffs.ts); their clocks tick while one works. */
   private readonly handoffRows = new Map<number, HandoffRow>();
   private handoffClock: ReturnType<typeof setInterval> | null = null;
@@ -143,6 +151,13 @@ export class ChatLog {
   }
 
   /** The server's experiments changed (an `experiment` or `experiments` message): their cards follow. */
+  /** The server's Project cards changed (a `project-card` or `project-cards` message): their cards follow. */
+  projectCardsChanged(): void {
+    const added = this.placeProjectCards(true);
+    if (added) this.hooks.unread();
+    this.scroller.changed({ news: added });
+  }
+
   experimentsChanged(): void {
     const added = this.placeExperiments(true);
     if (added) this.hooks.unread();
@@ -321,7 +336,8 @@ export class ChatLog {
   /** The researcher cards, each group right after its request's answer (or the slot while it is written). Returns
    * whether a card arrived. `settle`: a card that arrives now lights with its one settle (not one redrawn by a replay). */
   private placeCards(settle: boolean): boolean {
-    const experiments = this.placeExperiments(settle);
+    const placed = this.placeExperiments(settle);
+    const experiments = this.placeProjectCards(settle) || placed; // both placed, always
     const source = this.hooks.researchCards;
     if (!source) return experiments;
     const sessions = [...source.list()];
@@ -367,6 +383,49 @@ export class ChatLog {
     }
     this.tickCards(counting);
     return added || experiments;
+  }
+
+  /** The Project cards, each group right after its request's answer (or the slot while it is written), as the
+   * experiment cards are placed. Returns whether a card arrived. */
+  private placeProjectCards(settle: boolean): boolean {
+    const source = this.hooks.projectCards;
+    if (!source) return false;
+    const all = [...source.list()].filter((x) => !this.model.activeDay || x.session === this.model.activeDay);
+    const groups = experimentGroups(this.model.lines, all, { day: this.model.activeDay, thread: this.model.active },
+      (line) => { const item = this.items.get(line.key); return !!item && !item.hidden; }, this.projectAnchors);
+    const keep = new Set(groups.map((group) => group.key)), listed = new Set(groups.flatMap((group) => group.ids));
+    for (const [key, item] of this.projectItems) if (!keep.has(key)) { this.scroller.unwatch(item); item.remove(); this.projectItems.delete(key); }
+    for (const id of [...this.projectCards.keys()]) if (!listed.has(id)) this.projectCards.delete(id);
+    const current = source.current();
+    let added = false;
+    for (const group of groups) {
+      let item = this.projectItems.get(group.key);
+      if (!item) {
+        item = document.createElement('li');
+        item.className = 'chat-cards chat-xcards chat-pcards';
+        item.dataset.role = 'cards';
+        this.projectItems.set(group.key, item);
+      }
+      const wanted = group.ids.map((id) => {
+        const x = all.find((c) => c.id === id)!;
+        let card = this.projectCards.get(id);
+        const fresh = !card;
+        if (!card) { card = new ProjectCard(id, (press, wire) => source.press(press, wire)); this.projectCards.set(id, card); added = true; }
+        card.update(x, fresh && settle, current);
+        return card.root;
+      });
+      const have = Array.from(item.children);
+      if (have.length <= wanted.length && have.every((card, i) => wanted[i] === card)) item.append(...wanted.slice(have.length));
+      else item.replaceChildren(...wanted);
+      const anchor = group.after === null ? this.thinkingItem : this.items.get(group.after) ?? null;
+      const kids = Array.from(this.root.children);
+      if (anchor && kids.includes(anchor)) {
+        const next = kids[kids.indexOf(anchor) + 1] ?? null;
+        if (next !== item) this.root.insertBefore(item, next);
+      } else if (!item.parentElement) this.root.append(item);
+      this.scroller.watch(item);
+    }
+    return added;
   }
 
   /** The experiment cards, each group right after its request's answer (or the slot while it is written). */

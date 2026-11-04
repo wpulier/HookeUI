@@ -294,8 +294,8 @@ def test_switch_session_lists_several_and_opens_nothing(tmp_path):
     here = built.day.sid
     done = asyncio.run(run_tool(built, "switch_session", {"session": "leaf epidermis"}))
     assert done["ok"] and built.day.sid == here  # nothing was opened
-    assert done["summary"].startswith("nothing was opened") and f"id {morning}" in done["summary"]
-    assert f"id {evening}" in done["summary"] and f"id {here}" not in done["summary"]
+    assert done["summary"].startswith("nothing was opened") and f"id for tools {morning}" in done["summary"]
+    assert f"id for tools {evening}" in done["summary"] and f"id for tools {here}" not in done["summary"]
 
 
 def test_switch_session_with_no_match_says_so_with_the_most_recent(tmp_path):

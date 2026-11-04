@@ -46,6 +46,9 @@ def _said_failed(result: dict) -> str:
     return ("It did not work" + (f": {why}" if why else "") + "." + (f" Next: {nxt}." if nxt else ""))
 
 
+# Project changes (brain/toolbox/projects.py): their record is the change each journals (`_project_changed`).
+PROJECT_CHANGES = frozenset({"rename_project", "archive_project", "apply_organization", "undo_project_change"})
+
 class Records:
     """Hooke's records for one partner: the research manager and desk, the settings, the Project and the studio's report
     of it, the session index and the table stores."""
@@ -147,6 +150,8 @@ class Records:
             return self._cancelled(result, before)
         if tool in ("researcher_note", "researcher_followup", "revise_work"):
             return self._steered(tool, result, before)
+        if tool in ("start_agent", "agent_note", "stop_agent", "answer_agent"):
+            return self._agent(tool, run)
         if tool == "run_capability":
             return self._capability(result, run)
         if tool == "workflow":
@@ -177,6 +182,8 @@ class Records:
             return self._webbed(result, facts)
         if tool == "tabs":
             return self._tabbed(intent, result)
+        if tool in PROJECT_CHANGES:
+            return await self._project_changed(result, run)
         if tool == "show_measurements" and (intent.args or {}).get("show") is False:
             # Prepared quietly: the table's Tab acknowledged its save (tabs add) before the tool answered. The screen did
             # not change, unless the Tab named was the one in front, where it was shown and checked as usual.
@@ -185,6 +192,30 @@ class Records:
                 return {"result": "verified", "said": said.split(" Facts:")[0]}
             return None
         return self._saved(result, run)
+
+    async def _project_changed(self, result: dict, run) -> dict:
+        """A Project change (brain/toolbox/projects.py): its record is the change it journaled in each Project it
+        touched (`project-change`, read back through the catalogue), and for an undo that change marked undone. A no to
+        a tidy, or an undo asked about first, changes nothing, and says so."""
+        values = (getattr(run, "values", None) or {}) if run is not None else {}
+        change = values.get("projectChange") if isinstance(values.get("projectChange"), dict) else {}
+        if change.get("declined") or change.get("asked"):
+            return {"result": "verified", "said": "Nothing was changed." if change.get("declined")
+                    else "Nothing was undone yet: the user is asked first."}
+        catalogue = getattr(getattr(self._index(), "day", None), "catalogue", None)
+        cid = change.get("id")
+        rows = []
+        if cid and catalogue is not None:
+            rows = [info.changes[cid] for info in await asyncio.to_thread(catalogue.list) if cid in info.changes]
+        if not rows or (change.get("undo") and not all(r.get("undone") for r in rows)):
+            return {"result": "uncertain", "error": "Hooke has no record of the change",
+                    "said": "Not sure it was done: Hooke has no record of the change."}
+        says = str(rows[0].get("says") or "")[:240]
+        if change.get("undo"):
+            short = [str(x)[:120] for x in change.get("short") or []][:4]
+            return {"result": "verified", "said": (f"Partly undone ({says}); not put back: {'; '.join(short)}." if short
+                                                   else f"Undone: {says}.")}
+        return {"result": "verified", "said": f"Done: {says}; it can be undone."}
 
     @staticmethod
     def _tabbed(intent, result: dict) -> dict:
@@ -366,6 +397,33 @@ class Records:
                 seen.add(ref["id"])
                 out.append(ref)
         return out
+
+    def _agent(self, tool: str, run) -> dict:
+        """An outside agent's launch as the conductor records it (agents/conductor.py), never as the tool said it."""
+        lid = ((getattr(run, "values", None) or {}) if run is not None else {}).get("agentLaunch")
+        found = getattr(self.services, "agents", None)
+        conductor = found() if callable(found) else None
+        launch = conductor.launches.get(lid) if conductor is not None and lid else None
+        if launch is None:
+            return {"result": "uncertain", "error": "Hooke has no record of that agent",
+                    "said": "Not sure it was done: Hooke has no record of that agent."}
+        if tool == "answer_agent":
+            ask = ((getattr(run, "values", None) or {}) if run is not None else {}).get("agentAsk")
+            return ({"result": "verified", "said": f"{launch.label} has your answer and carries on."}
+                    if not any(a["id"] == ask for a in launch.asks) else
+                    {"result": "uncertain", "said": f"{launch.label} still shows the ask as waiting."})
+        if tool == "stop_agent":
+            return ({"result": "verified", "said": f"{launch.label} is stopped and disconnected."}
+                    if launch.state == "stopped" else
+                    {"result": "uncertain", "said": f"{launch.label} is not recorded as stopped yet."})
+        if launch.state == "failed":
+            return {"result": "failed", "error": launch.why, "said": f"{launch.label} failed: {launch.why}"}
+        if tool == "agent_note":
+            sent = any(e["role"] == "hooke" for e in launch.transcript[1:])
+            return ({"result": "verified", "said": f"Passed to {launch.label} as Hooke's note."} if sent else
+                    {"result": "uncertain", "said": f"Not sure {launch.label} got it."})
+        return {"result": "running", "said": f"{launch.label} is {launch.status.replace('-', ' ')}: it reports back "
+                                             f"in the Agents panel."}
 
     def _saved(self, result: dict, run) -> dict:
         """What a call saved resolves in Hooke's stores: verified, naming it; running while it saves or works in the
