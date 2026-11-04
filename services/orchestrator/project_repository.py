@@ -55,7 +55,7 @@ def verify_owner(root: ProjectRoot):
 
 
 def create(parent: Path, name: str, *, session: str, host_preferences: Prefs,
-           actor: str = 'user', clock=time.time, local_only=True, started_from=None, guide=None) -> ProjectRoot:
+           actor: str = 'user', clock=time.time, local_only=True, started_from=None, guide=None, research_starter=None) -> ProjectRoot:
     """Create a fresh journal-owned Project, without changing host selection or grants.
 
     The host allocates its compatible session handle. A temporary journal mints
@@ -74,7 +74,8 @@ def create(parent: Path, name: str, *, session: str, host_preferences: Prefs,
         staging = Path(temporary)
         store = SessionStore(staging, clock=clock, session=session, prefs=host_preferences,
             _header={'type': 'session-started', 'session': session, 'name': name.strip(),
-                     'created': round(clock(), 3), 'from': started_from, 'by': actor, 'localOnly': local_only, 'guide': guide})
+                     'created': round(clock(), 3), 'from': started_from, 'by': actor, 'localOnly': local_only, 'guide': guide,
+                     **({'researchStarter': research_starter} if research_starter else {})})
         owner = retained_owner(staging, session)
         if owner is None:
             raise ProjectLocationError('Project journal creation did not retain its identity')

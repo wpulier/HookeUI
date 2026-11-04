@@ -271,9 +271,8 @@ def page_words(body: str) -> str:
     return " ".join(html_lib.unescape(text).split())[:MAX_TEXT_CHARS]
 
 
-async def fetch_text(url: str, client: httpx.AsyncClient | None = None) -> str:
-    """The words of a web page (public addresses, re-checked redirects, 8 MB cap, as for pictures).
-    Raises FetchRefused for anything that is not a readable page (a PDF, an image, an error)."""
+async def _text_source(url: str, client: httpx.AsyncClient | None) -> tuple[str, str]:
+    """The response type and decoded source of one bounded public text page."""
     own = client is None
     client = client or httpx.AsyncClient(timeout=TIMEOUT_S, follow_redirects=False, headers={"User-Agent": USER_AGENT})
     try:
@@ -282,9 +281,62 @@ async def fetch_text(url: str, client: httpx.AsyncClient | None = None) -> str:
         kind = response.headers.get("content-type", "").split(";")[0].strip().lower()
         if kind not in TEXT_TYPES:
             raise FetchRefused(f"not a text page ({kind or 'no type'})")
-        return page_words(body.decode(response.encoding or "utf-8", errors="replace"))
+        try:
+            return kind, body.decode(response.encoding or "utf-8", errors="replace")
+        except LookupError as exc:
+            raise FetchRefused("Unsupported page encoding") from exc
     except (httpx.HTTPError, TimeoutError) as exc:
         raise _failed(exc) from exc
     finally:
         if own:
             await client.aclose()
+
+
+class _PageMetadata(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.title = ''
+        self.description = ''
+        self.in_title = False
+        self.sign_in = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == 'title':
+            self.in_title = True
+        elif tag == 'meta' and (attrs.get('name') or '').lower() == 'description':
+            self.description = attrs.get('content') or ''
+        elif tag == 'input' and (attrs.get('type') or '').lower() == 'password':
+            self.sign_in = True
+
+    def handle_endtag(self, tag):
+        if tag == 'title':
+            self.in_title = False
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.title += data
+
+
+def _preview(kind, body):
+    text = page_words(body)
+    if kind == 'text/plain':
+        return {'title': text.split('. ')[0][:80], 'description': '', 'text': text}
+    metadata = _PageMetadata()
+    metadata.feed(body)
+    if metadata.sign_in:
+        raise FetchRefused('Sign-in required')
+    return {'title': ' '.join(metadata.title.split()), 'description': ' '.join(metadata.description.split()),
+            'text': text}
+
+
+async def fetch_page_preview(url: str, client: httpx.AsyncClient | None = None) -> dict[str, str]:
+    """A public text page with its own title and description; no scripts or subresources are run."""
+    kind, body = await _text_source(url, client)
+    return await asyncio.to_thread(_preview, kind, body)
+
+
+async def fetch_text(url: str, client: httpx.AsyncClient | None = None) -> str:
+    """Plain words for citation checking through the same guarded text fetch."""
+    _kind, body = await _text_source(url, client)
+    return page_words(body)

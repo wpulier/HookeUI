@@ -316,7 +316,10 @@ body[data-workspace-study='true'] .study-new-study-footer .study-quiet { backgro
 
 /* No Project open (thumbnails are 192 px wide, so pictures stay near that size): the most recent Project first, recent ones beside it, and a new one. Calm, at the app's own scale:
  * one hero picture, cards with the Project's own thumbnail, one primary action (New project). */
-body[data-workspace-study='true'] .study-session-launcher { display: block; overflow: auto; padding: clamp(28px, 4vw, 56px) clamp(20px, 4vw, 56px) 48px; background: var(--mm-page, var(--mm-bar)); text-align: left; }
+body[data-workspace-study='true'] .study-session-launcher {
+  position: static; flex: 1; min-height: 0; display: block; overflow: auto; overscroll-behavior: contain;
+  padding: clamp(18px, 3vw, 36px); background: var(--mm-bar); text-align: left;
+}
 body[data-workspace-study='true'] .study-session-launcher[hidden] { display: none; }
 body[data-workspace-study='true'] .study-session-launcher > * { width: 100%; max-width: 1040px; margin-inline: auto; }
 .study-session-launcher .launcher-head { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 28px; }
@@ -501,3 +504,11 @@ body[data-workspace-study='true'] .study-overlay[data-surface='settings'], body[
 
 /* Sans-serif only (#440 decision): the start page's headline and lead in the shell's own face. */
 body[data-workspace-study='true'] .session-home :is(.home-title, .home-lead, .home-add-title), body[data-workspace-study='true'] .home-add .home-add-title { font-family: var(--mm-sans) !important; font-style: normal !important; font-weight: 600; letter-spacing: -0.01em; }
+
+body[data-workspace-study='true'] .project-launcher-sheet {
+  width: min(1140px, calc(100vw - clamp(16px, 9vw, 120px)));
+  height: min(920px, calc(100dvh - clamp(16px, 9vh, 96px)));
+}
+.project-launcher-sheet > header { flex: none; }
+.project-launcher-sheet > header button[hidden] { display: none; }
+.project-launcher-sheet > header h2:focus { outline: none; }

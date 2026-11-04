@@ -207,7 +207,7 @@ def test_fast_records_raw_slots_and_actual_filtered_plan_without_changing_it(int
             return sdk_response("openai", text=json.dumps(reply))
 
         moment = NS(user_leads=False, view=None, seen="", outlined=(), selected=None,
-                    screen="", awareness={}, researchers="", history="", digest="", learner="", held="", stage="",
+                    screen="", awareness={}, researchers="", history="", digest="", research_brief="Compare these cell images.", learner="", held="", stage="",
                     conversation_id="t4", conversation_day="2026-10-09")
         request, log = issue(Hub(), "turn"), execution.ExecutionLog(enabled=True)
         try:
@@ -215,6 +215,7 @@ def test_fast_records_raw_slots_and_actual_filtered_plan_without_changing_it(int
                 with using(request), answer_phase("fast"):
                     result = await decide(moment, PROMPT, vision("openai", create), "original tools", "gemini-3.5-flash")
             assert result.answer == ANSWER and len(result.actions) == retained
+            assert moment.research_brief in json.dumps(seen[0]["input"])
             if retained:
                 assert action_number(result.actions[0], 1) == 2
                 assert result.actions[0].after_steps == [1]

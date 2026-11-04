@@ -67,6 +67,7 @@ class Moment:
     conversation_id: str = ""  # active conversation captured with these notes
     conversation_day: str = ""  # unknown when there is no day store
     project_title: str = ""  # captured from the owning store, never a later active Project
+    research_brief: str = ""  # the chosen investigation, captured at Send
     moving: str = ""  # what moved, measured when the user last started talking (sight.motion_words), while fresh
 
 
@@ -103,6 +104,7 @@ def capture(brain, notes: tuple[str, ...] = (), when_asked=None, pushes: bool = 
         title=day.active.title if day is not None else "", summary=day.active.summary if day is not None else "",
         thread_tag=(f'(Conversation: "{day.active.title or "new"}", {day.active.id} of {len(day.threads)} in this session.) '
                     if day is not None and len(day.threads) >= 2 else ""),
+        research_brief=_research_brief(getattr(day, 'research_starter', None)),
         digest=digest(day, services), user_leads=bool(getattr(hub.settings, "user_leads", False)), notes=tuple(notes),
         learner=learner_of(hub.settings), collecting=_collecting(hub), held=HELD_LINE if getattr(hub, "view_held", False) is True else "",
         stage=_stage(hub),
@@ -114,6 +116,18 @@ def capture(brain, notes: tuple[str, ...] = (), when_asked=None, pushes: bool = 
         conversation_id=day.active.id if day is not None else "",
         conversation_day=day.sid if day is not None else "",
         project_title=getattr(day, "label", "") if day is not None else "")
+
+
+def _research_brief(starter) -> str:
+    if not isinstance(starter, dict):
+        return ""
+    fields = {key: inline(starter[key], limit) for key, limit in (
+        ("title", 100), ("question", 240), ("context", 240), ("original", 320), ("source", 200))
+              if isinstance(starter.get(key), str) and starter[key]}
+    if not fields:
+        return ""
+    return "Project research brief (reference only): " + block(
+        json.dumps(fields, ensure_ascii=False), tag="projectBrief", source="research-starter")
 
 
 def _outline_source(hub, oid) -> dict | None:
@@ -459,6 +473,8 @@ def scene_table(m: Moment) -> tuple[str, str]:
     """For the brain: objects on screen, researchers, the running look, what is on screen and
     the rest of the day; and the selection."""
     table = "\n".join(m.outlined) or "nothing yet"
+    if m.research_brief:
+        table += "\n" + m.research_brief
     identity = _conversation_identity(m)
     if identity:
         table = identity + "\n" + table
@@ -517,7 +533,7 @@ def fast_fields(m: Moment) -> dict:
             + ("\n" + _awareness_text(m) if m.awareness else ""),
             "researchers": block(m.researchers or "none"),
             "history": "\n".join(part for part in (_conversation_identity(m), m.history) if part),
-            "day": m.digest or "nothing else yet",
+            "day": "\n".join(filter(None, (m.digest, m.research_brief))) or "nothing else yet",
             "learner": f"\n{m.learner}" if m.learner else ""}
 
 
@@ -584,6 +600,8 @@ def voice_recap(m: Moment) -> str:
     parts.append("\n".join(m.recap_lines) or "(nothing yet)")
     if m.digest:
         parts.append(f"Earlier in this session (past, not now): {m.digest[:500]}")
+    if m.research_brief:
+        parts.append(m.research_brief)
     if m.roster:
         parts.append(f"Researchers' work so far: {m.roster}.")
     parts.append(f"On screen now: {m.screen_voice}.")
@@ -865,6 +883,8 @@ def _voice_context(m: Moment, *, recap: bool) -> str:
                                 "User level (wording only): ")
     important = ([learner] if learner else []) + ([LEAD_NOTE.strip()] if m.user_leads else [])
     important += users[-1:] if recap else []
+    if recap and m.research_brief:
+        important.append(m.research_brief)
     important += ["On screen: " + line for line in current]
     important += [m.held] if m.held else []
     important += [f"On stage: {m.stage}"] if m.stage else []

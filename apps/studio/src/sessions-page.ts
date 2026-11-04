@@ -44,7 +44,7 @@ export class SessionsPage {
   private readonly go: (hash: string) => void;
 
   /** `go` leaves the page for the workspace ("#"). */
-  constructor(root: HTMLElement, model: SessionsModel, go: (hash: string) => void) {
+  constructor(root: HTMLElement, model: SessionsModel, go: (hash: string) => void, newProject = () => model.create()) {
     this.model = model;
     this.go = go;
     root.classList?.add('library-page', 'sessions-page');
@@ -59,7 +59,7 @@ export class SessionsPage {
     this.saved.hidden = true;
     const right = node('div', 'lib-head-right');
     this.newButton.type = 'button';
-    this.newButton.addEventListener('click', () => { if (model.create()) go('#'); });
+    this.newButton.addEventListener('click', () => { if (newProject()) go('#'); });
     right.append(this.newButton);
     head.append(words, right);
     const tools = node('div', 'lib-tools');

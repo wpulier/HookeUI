@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 340 100" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <pattern id="cells" width="99" height="55" patternUnits="userSpaceOnUse" patternTransform="rotate(-12)">
+      <g fill="#5d7971" stroke="#b1cca3" stroke-width="1.1">
+        <path d="M-1 0Q18-2 32 2L33 24Q13 28-1 24Z"/><path d="M35 2Q63-2 79 1L78 24Q58 29 35 24Z"/>
+        <path d="M81 1L102 0V24L81 24Z"/><path d="M-1 28Q21 24 48 28L46 54H-1Z"/>
+        <path d="M50 28Q72 24 96 28L99 54H50Z"/>
+      </g><g fill="#bacb9f" opacity=".8"><ellipse cx="16" cy="10" rx="4" ry="3"/><ellipse cx="58" cy="14" rx="5" ry="3"/><ellipse cx="92" cy="12" rx="3" ry="4"/><ellipse cx="24" cy="39" rx="5" ry="3"/><ellipse cx="72" cy="41" rx="4" ry="3"/></g>
+    </pattern>
+  </defs>
+  <path fill="#263e3a" d="M0 0h340v100H0z"/><path fill="url(#cells)" d="M0 0h340v100H0z"/>
+  <g fill="none" stroke="#f2ecd2" stroke-width="1.5"><path d="M131 26v-7h8m27 0h8v7m0 21v7h-8m-27 0h-8v-7"/></g>
+</svg>
