@@ -2062,6 +2062,52 @@
       ]
     },
     {
+      "id": "guide",
+      "family": "map",
+      "actor": "agent",
+      "title": "Guide my hands",
+      "what": "Says how to move the slide and focus until it is centred",
+      "how": {
+        "tool": "guide",
+        "say": "find me a stoma and centre it"
+      },
+      "roles": [
+        "guide"
+      ],
+      "parts": [
+        "guide",
+        "slidemap"
+      ]
+    },
+    {
+      "id": "stop-guiding",
+      "family": "map",
+      "actor": "agent",
+      "title": "Stop guiding",
+      "what": "Stops guiding your hands",
+      "how": {
+        "tool": "stop_guiding",
+        "say": "stop guiding"
+      },
+      "parts": [
+        "guide"
+      ]
+    },
+    {
+      "id": "guiding",
+      "family": "map",
+      "actor": "agent",
+      "title": "What it is guiding to",
+      "what": "Says what it is guiding you to and the last line",
+      "how": {
+        "tool": "guiding",
+        "say": "what are you guiding me to?"
+      },
+      "parts": [
+        "guide"
+      ]
+    },
+    {
       "id": "bookmark",
       "family": "map",
       "actor": "agent",
@@ -4999,6 +5045,13 @@
       "hint": "quiet: focus and counted cells; chatty: the slide's moves too; or off"
     },
     {
+      "id": "guide",
+      "kind": "policy",
+      "title": "Guiding your hands",
+      "purpose": "Decides each line that guides your hands to a thing",
+      "hint": "which model says which way to move the slide and the focus"
+    },
+    {
       "id": "fixed:voice-words",
       "kind": "model",
       "title": "Your spoken words",
@@ -5513,6 +5566,13 @@
       "kind": "algorithm",
       "purpose": "Pastes each steady view where it is on the slide",
       "source": "services/orchestrator/slidemap.py"
+    },
+    {
+      "id": "guide",
+      "title": "Guide",
+      "kind": "app",
+      "purpose": "Measures where a thing is and what each move did, and keeps the lines short and timely",
+      "source": "services/orchestrator/guide.py"
     },
     {
       "id": "bookmarks",

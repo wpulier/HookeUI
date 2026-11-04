@@ -56,6 +56,8 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                # experiments and writing up, each with its receipt (records.py).
                                "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
                                "write_document",
+                               # Guiding the user's hands (guide.py): its lines go to the voice word for word
+                               "guide", "stop_guiding", "guiding",
                                # Projects by voice (brain/toolbox/projects.py)
                                "list_projects", "rename_project", "organize_project", "apply_organization",
                                "archive_project", "undo_project_change")

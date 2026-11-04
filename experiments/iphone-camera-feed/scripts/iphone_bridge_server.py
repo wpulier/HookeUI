@@ -1199,7 +1199,8 @@ def file_probe(args: argparse.Namespace):
 
 def switch_feed(args: argparse.Namespace, bridge: "CameraBridge", footage: str | None,
                 recording: tuple[str, object] | None = None, paused: bool = False,
-                at: float | None = None, asset: tuple[str, str] | None = None) -> dict[str, object]:
+                at: float | None = None, asset: tuple[str, str] | None = None,
+                stage: str | None = None) -> dict[str, object]:
     """Play a test recording, a session's own recording (`recording`: a dataset's id and part) or any recording or
     picture under a media root (`asset`: its absolute path and title) into the live feed, or go back to the camera.
     `at`: where in the recording to start (seconds); `paused`: held there from its first frame, so a session opened on
@@ -1216,6 +1217,8 @@ def switch_feed(args: argparse.Namespace, bridge: "CameraBridge", footage: str |
     elif asset is not None:
         video, title = asset_file(args, *asset)
         name = f"asset:{asset[0]}"  # the path as asked, so the orchestrator knows its own asset in /feed
+    elif stage is not None:
+        video, title, name = None, "Virtual stage (test)", "virtual-stage"  # sim/virtual_scope.py, from /sim/stage only
     elif footage:
         titles = {str(item["name"]): str(item["title"]) for item in footage_library(folder)}
         path = (folder / footage).resolve()
@@ -1228,7 +1231,8 @@ def switch_feed(args: argparse.Namespace, bridge: "CameraBridge", footage: str |
 
         # A file that does not open (a picture that isn't one, a video with no frames) is refused before the running
         # capture is touched.
-        camera = SimulatedCamera(str(video), args.target_device, still_fps=args.fps, probe=file_probe(args))
+        camera = SimulatedCamera(str(video), args.target_device, still_fps=args.fps, probe=file_probe(args),
+                                 stage=stage)
         camera.footage_name = name
         camera.footage_title = title
         camera.bridge = bridge
@@ -1236,7 +1240,8 @@ def switch_feed(args: argparse.Namespace, bridge: "CameraBridge", footage: str |
             camera.pause()  # before the capture starts: its first frame is the one held
         if at is not None:
             camera.seek(int(max(0.0, at) * camera.fps) % max(1, camera.total_frames))
-    source = "recording" if recording is not None else "asset" if asset is not None else "footage" if name else "camera"
+    source = ("recording" if recording is not None else "asset" if asset is not None else "stage" if stage is not None
+              else "footage" if name else "camera")
     if camera is not None and camera.still:
         held: dict[str, object] = {"still": True}  # one held frame: no place in it, nothing to pause
     else:
@@ -1250,7 +1255,7 @@ def switch_feed(args: argparse.Namespace, bridge: "CameraBridge", footage: str |
         steps.mark("stop")
         SIMULATED_CAMERA = camera
         said = {"recording": f"the session recording {name}", "asset": f"the file {asset[0] if asset else ''}",
-                "footage": f"test footage {name}"}.get(source, "the camera")
+                "footage": f"test footage {name}", "stage": "a virtual stage"}.get(source, "the camera")
         # A file's first frames come at once; the camera's may never (an app not open, a phone asleep), and its state is
         # what /feed and the health say as it comes: the switch answers within a second instead of waiting for it (live
         # 2026-10-12: going live with Blackmagic Camera closed held the studio's session switch 6 s).

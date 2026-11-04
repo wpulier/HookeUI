@@ -181,6 +181,9 @@ Slide map (Where things are on the whole slide):
 - I: Show the slide map: Opens the map of the slide so far (say "show me the map")
 - You: Show the slide map: The map button opens the slide map
 - I: Where was it: Finds where something was on the slide (say "where was the white cell?")
+- I: Guide my hands: Says how to move the slide and focus until it is centred (say "find me a stoma and centre it"); models: Guiding your hands: Gemini 3.5 Flash decides, a behaviour setting, uses Google Gemini API
+- I: Stop guiding: Stops guiding your hands (say "stop guiding")
+- I: What it is guiding to: Says what it is guiding you to and the last line (say "what are you guiding me to?")
 - I: Bookmark a place: Keeps this place on the slide with your words (say "bookmark this, the nice stomata")
 - I: Which way to a bookmark: Says which way a bookmarked place is from here (say "which way is the stomata I marked?")
 A clearer picture (Better pictures made from real frames):

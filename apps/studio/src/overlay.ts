@@ -155,3 +155,22 @@ export function sizeWords(size: { lengthUm: number; widthUm: number; measured: b
     ? `${approx}${round(size.lengthUm)} µm`
     : `${approx}${round(size.lengthUm)} × ${round(size.widthUm)} µm`;
 }
+
+/** Guiding the user's hands (view.ts drawGuide): the arrow from a ringed target to the zone at the eyepiece's centre,
+ * on screen px, or null when the target is already inside the zone (nothing to show but the zone). It starts just off the
+ * ring and stops just short of the zone, and its head is two strokes `head` px long. */
+export function guideArrow(target: Point, centre: Point, ring: number, zone: number, head = 10):
+    { from: Point; to: Point; wings: [Point, Point] } | null {
+  const dx = centre[0] - target[0], dy = centre[1] - target[1];
+  const d = Math.hypot(dx, dy);
+  if (d <= zone + ring * 0.5 || d - ring - zone - 8 < 6) return null;
+  const ux = dx / d, uy = dy / d;
+  const from: Point = [target[0] + ux * (ring + 4), target[1] + uy * (ring + 4)];
+  const to: Point = [centre[0] - ux * (zone + 4), centre[1] - uy * (zone + 4)];
+  const wing = (a: number): Point => {
+    const c = Math.cos(a), s = Math.sin(a);
+    return [to[0] - head * (ux * c - uy * s), to[1] - head * (uy * c + ux * s)];
+  };
+  return { from, to, wings: [wing(0.45), wing(-0.45)] };
+}
+

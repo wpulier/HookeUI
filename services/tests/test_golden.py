@@ -188,6 +188,7 @@ def build(tmp_path, monkeypatch):
         things=[Seen("s1", "stoma", "centre", (600, 300, 640, 340), 0.8), Seen("s2", "guard cell", "left", (560, 300, 590, 340), 0.7)],
         focus="sharp", at=NOON + 30))  # explicit fixture time; Sight's production factory stays unpatched
     from orchestrator.bookmarks import Bookmarks
+    from orchestrator.guide import Guide
 
     services = Services(hub=hub, agent=agent, magnifier=magnifier, dissector=object(), research=research,
                         desk=Desk(research, shown=lambda: presenter.rid if presenter.open else None), presenter=presenter,
@@ -195,6 +196,7 @@ def build(tmp_path, monkeypatch):
                         sight=sight, narrator=SimpleNamespace(offer=lambda line: None), scale=Scale(),
                         slidemap=SlideMap(lambda fid: None, background=False),
                         bookmarks=Bookmarks(None, today=lambda: "2026-10-07"),
+                        guide=Guide(hub),  # guiding the user's hands (guide.py): its tools are in the prompt
                         outline_seen=partial(outline_seen, hub, lambda: sight.view), log=agent.log,
                         # Production builds Brain before these stores are attached. Render the same
                         # declared tools with its lazy resolver; this fixture never executes a table action.

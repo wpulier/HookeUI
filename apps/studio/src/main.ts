@@ -1441,6 +1441,9 @@ function handleMessage(message: ServerMessage): void {
       appObjective = message.objective;
       renderStatus();
       break;
+    case 'guide':
+      view.guide = { ...message, at: performance.now() };
+      break;
     case 'coach':
       view.coach = message;
       if (message.advice && message.advice !== lastAdvice) showHint(message.advice);

@@ -30,6 +30,67 @@ other files.
   measured from how far the slide has moved since, as `where_is` is; across a lost epoch or from another
   run of the app it says it can't tell, and the picture shows what to look for. Bookmarks are in the
   index (kind "bookmark"); opening one shows its picture in the magnifier, said to be the camera's view.
+- Guiding the user's hands (`orchestrator/guide.py`, tools `guide`, `stop_guiding`, `guiding`, family "map", option
+  GUIDE; Lane E of the 3 Nov plan): "find me a stoma and centre it" finds one (`find`, when nothing like it is outlined
+  in this view) and then says one short line at a time until it is centred and, by default, sharp. Hooke has no motors
+  here, so the user's hands move the slide and the focus.
+  - **Facts, measured on the frame path from numbers the hub already has** (`Guide.frame`, nothing decoded; well under a
+    millisecond a frame, `tests/test_guide.py`): where the target is from the eyepiece's centre (`slidemap.place`, in
+    eyepiece radii), which way to move the slide to centre it (`moveSlide`), whether the slide is moving, what followed
+    each line (how far the picture moved and which way, how much closer the target came, whether sharpness rose or
+    fell), the sharpness against the best found at this place (over the contrast squared, as the watcher's), and the
+    focus turns made here with what each did (`turnsHere`, `peakFound`). Why a place is unknown is said (the outline
+    gone, the slide's movement lost since it was outlined, a frame not registered).
+  - **The slide and the picture** (`Relation`): a compound microscope turns the picture round, so the picture moves
+    opposite to the slide, and a phone may sit turned on the eyepiece. Opposite is assumed until two of the user's own
+    moves agree on what it is (each counted only when the slide was still as its line was said and still again after),
+    then measured: a quarter-turned phone is learned in two moves, a mirror once two directions were moved. Directions
+    are said in the hands' terms (right, left, away, toward you), never worked out from where the target is seen.
+  - **The judge** (option GUIDE): a model, Gemini 3.5 Flash by default (16/16 on the guide bench at 0.45 s a line;
+    Gemini 3.8 Flash is the other model choice), reads the facts and answers the line, what it asks of the hands and
+    whether it is done; "rule" is code (move by the relation, then climb the sharpness: a probe,
+    keep going while it rises, reverse when the first turn made it worse, back a little once past the sharpest), a
+    non-default option measured beside it (`bench/guide_bench.py`, `docs/bench/guide.md`). A model that cannot answer
+    or answers out of shape leaves the rule's line said, logged as an `override`.
+  - **Code checks what the judge claims**: "done" needs the target within 0.15 of the radius of the centre and, when
+    sharp was asked, sharpness at least 85% of the best found here, the sharpest bracketed (it got sharper and then
+    less sharp, or less sharp each way) and the last turn not one that made it less sharp. A refused "done" is not
+    said; the judge is asked again with why (`doneRefused`). A line the view outran while it was decided (the target
+    moved 0.12 of the radius, or reached the centre) is not said.
+  - **One reflex is the app's own**: when the target comes into the centre while the slide is moving, "Stop." is said
+    at once, as the focus meter's "past the sharpest" is. A hand crosses the centre in a fraction of a second, faster
+    than a judgment (0.45 s median, up to 4 s); the judge decides what follows once the slide is still. A judgment not
+    back within 4 s is the rule's line instead (an override), so a stalled model never holds the guidance.
+  - **On the live view** (`apps/studio/src/view.ts` `drawGuide`, a `guide` message per line): a small circle at the
+    eyepiece's centre where the target goes, the target ringed where the slide has moved it (placed as its outline is),
+    a dashed arrow from it to the circle (the way the picture has to move), and the line said now under the eyepiece;
+    ring and arrow fade with the outlines while the slide moves fast; on done the circle closes and "centred" stays a
+    moment, then all of it goes.
+  - **A loss is said once**: the target's place unknown (the slide's movement lost, the outline gone) is one line, then
+    quiet until it is found again or the guidance gives up; a guidance replaced by a new one says nothing more.
+  - **When a line is due** (moments, raised on the frame path): the slide stopped after a move (`SETTLE_S`), the target
+    came into the centre or left the view while moving, its place was lost, the sharpness changed and held, the
+    sharpness held 2 s after a focus line, or nothing happened for 7 s after a line. One guidance at a time; a new one
+    ends the last. It gives up after 5 minutes, 40 lines, or 25 s without knowing where the target is, and says so.
+  - **The first line at once**: the target is ringed and the arrow drawn as soon as the guidance starts, and its first
+    line is the app's own reading (the rule's, logged `how: "first"`), not a judgment: a model's answer would delay it
+    by up to 4 s while the hand waits. The judge decides every line after it, from the next moment on. The tool starts
+    at once from an outline already on the board (`object`); only `what` alone runs a find first.
+  - **Said once, by whoever is listening**: in chat the tool's own answer carries the first line (`hold_first`); asked
+    by voice, every line goes to the one-brain voice as events of kind "guide", the first included (a hand-off's
+    answer is reworded seconds later: will-guide, 3 Nov, lost the direction that way, and the answer now tells the brain
+    it was said). They are said **word for word** as the voice's own words (`Kind.says`: never "the guidance said"),
+    as soon as no key is held, even while the user's turn waits only on its tools with nothing playing; the newest
+    replaces one not yet said, never owed, dropped after 6 s (a line the view moved past is no help;
+    `voice/events.py`). Lines go to GPT-Live through the narrator ("interrupt") and are filed in the chat as app
+    notices (producer "guide"), the conversation's record. The done line names the thing ("That's it, the stoma is
+    centred and sharp."), never a bare "Done.".
+  - **"Stop." and the end are never dropped**: they go as kind "guide-stop" (owed, never replaced by a newer line,
+    each its own event; a waiting "guide" line is withdrawn for them) and cut in over the voice's own words, even an
+    answer to the user (`Kind.cuts`, the one exception to "never cut by its own next one"): the hand on the slide
+    cannot wait for a sentence to end. The voice's own line is cut at any time; an answer to the user only when no
+    tool call is under way; never while the user holds the key.
+    Every judgment is logged (`guide-judge`, with its facts and answer), and every guidance's end (`guide`).
 - A first guess, then the measurement (M2): "which is the biggest cell?" with nothing measured is
   answered by eye at once, the guess outlined and called a first guess, and every cell is segmented and
   the measured one highlighted in the same answer (`highlight` `checks: "target 1"`). The guess is made

@@ -392,3 +392,119 @@ def test_a_result_retired_after_two_cuts_is_one_activity_line(monkeypatch):
         assert "a task's result" in lines[0][1] and lines[0][2]["details"]["ids"]["ref"] == "t9"
         assert any(r.get("kind") == "partner-retired" for r in t.logged)
     asyncio.run(go())
+
+
+def test_a_guidance_stop_is_never_replaced_by_a_newer_line():
+    """Lane E, 3 Nov: "Stop." and a guidance's end are owed and never folded into a newer guidance line; ordinary lines
+    give way to newer ones."""
+    bus = Bus(clock=lambda: 100.0)
+    first, how = bus.publish("guide", '{"line": "Move the slide left"}', ref="g1")
+    second, how2 = bus.publish("guide", '{"line": "Move the slide left a touch"}', ref="g1")
+    assert how2 == "merged" and second is first  # an ordinary line gives way to the newer one
+    stop, how3 = bus.publish("guide-stop", '{"line": "Stop."}', ref="g1:line:3")
+    later, how4 = bus.publish("guide", '{"line": "Now focus up"}', ref="g1")
+    end, how5 = bus.publish("guide-stop", '{"line": "That is it"}', ref="g1:done:7")
+    assert how3 == how5 == "new" and stop is not end and stop is not later
+    assert stop.owed and end.owed and stop.route == end.route == "interrupt"
+    assert stop.due and end.due
+
+
+def test_a_guidance_stop_cuts_in_over_the_voices_own_line(monkeypatch):
+    """The one exception to "never cut by our own next one": a guidance's "Stop." stops the voice's line playing now and
+    is said at once; what it was saying stays owed."""
+    monkeypatch.setattr(openai_realtime, "IDLE_S", 5.0)
+
+    async def go():
+        session, sb, logged = await session_on()
+        await session.proactive('{"tool": "count", "status": "done"}', event="tool-done", ref="a1")
+        await until_async(lambda: sb.responses == 1)
+        await audio(sb, "resp_1", "started")  # the voice is saying it
+        await session.proactive('{"guiding": "stoma", "line": "Stop."}', event="guide-stop", ref="g1:line:3")
+        await until_async(lambda: "response.cancel" in sb.types() and "output_audio_buffer.clear" in sb.types(), 3)
+        sb.emit({"type": "response.done", "response": {"id": "resp_1", "status": "cancelled"}})  # as the API answers
+        await audio(sb, "resp_1", "cleared")
+        await until_async(lambda: sb.responses == 2, 3)
+        assert given(creates(sb)[1]).endswith("\nStop.") and openai_realtime.SAYS_RULE in creates(sb)[1]["instructions"]
+        assert session.bus.result_for("a1").state != "heard", "what it was saying was cut, and stays owed"
+    asyncio.run(go())
+
+
+def test_a_guidance_line_is_said_word_for_word_while_the_turn_waits_on_its_tools(monkeypatch):
+    """will-guide, 3 Nov: the voice reported the lines ("The guidance changed: it said 'Stop'...") and said nothing of
+    them while the hand-off that started the guidance was still running. A guidance line is the direction itself, said
+    word for word, at once when the turn waits only on its tools; the turn's answer follows it."""
+    from tests.test_voice_partner import partner_session, press, release
+
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 30.0)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "guiding you to the stoma"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(0.3)
+        n = t.sb.responses
+        line = "Move the slide right and away, a fair way."
+        await t.session.proactive(json.dumps({"guiding": "stoma", "line": line, "state": "guiding"}), event="guide",
+                                  ref="g1")
+        await until_async(lambda: t.sb.responses == n + 1, 3)
+        said = creates(t.sb)[-1]
+        assert said["metadata"]["cause"] == "proactive" and given(said).endswith("\n" + line)
+        assert openai_realtime.SAYS_RULE in said["instructions"]
+        await done(t.sb, f"resp_{n + 1}")
+        gate.set()
+        await until_async(lambda: t.sb.responses == n + 2, 3)  # then the turn's own answer
+        assert any(i["type"] == "function_call_output" for i in t.sb.items())
+    asyncio.run(go())
+
+
+def test_a_guidance_stop_cuts_its_own_line_even_while_the_hand_off_runs(monkeypatch):
+    """The coordinator's bar, 3 Nov: "Stop." spoken within about a second of the guide deciding it. While the hand-off
+    that started the guidance is still running, the voice's own guidance line playing is cut for it (its own line at
+    any time; an answer to the user only when no tool call is under way)."""
+    from tests.test_voice_partner import partner_session, press, release
+
+    monkeypatch.setattr("orchestrator.voice.partner_tools.TOOL_WAIT_S", 30.0)
+    monkeypatch.setattr(openai_realtime, "PROGRESS_AFTER_S", 60.0)
+    gate = None
+
+    async def slow(ctx, args):
+        await gate.wait()
+        return "guiding you to the stoma"
+
+    async def go():
+        nonlocal gate
+        gate = asyncio.Event()
+        t = await partner_session(monkeypatch, tools={"resources": slow})
+        await press(t, 1)
+        await release(t, 1)
+        t.sb.emit({"type": "response.function_call_arguments.done", "response_id": "resp_1", "call_id": "c1",
+                   "name": "resources", "arguments": "{}"})
+        await done(t.sb, "resp_1")
+        await asyncio.sleep(0.3)
+        n = t.sb.responses
+        await t.session.proactive(json.dumps({"line": "Move the slide right and away, a fair way."}), event="guide",
+                                  ref="g1")
+        await until_async(lambda: t.sb.responses == n + 1, 3)
+        rid = f"resp_{n + 1}"
+        await audio(t.sb, rid, "started")  # the first line playing, the hand-off still running
+        before = len(t.sb.sent)
+        await t.session.proactive(json.dumps({"line": "Stop."}), event="guide-stop", ref="g1:line:2")
+        await until_async(lambda: "response.cancel" in t.sb.types()[before:], 3)
+        t.sb.emit({"type": "response.done", "response": {"id": rid, "status": "cancelled"}})
+        await audio(t.sb, rid, "cleared")
+        await until_async(lambda: t.sb.responses == n + 2, 3)
+        assert given(creates(t.sb)[-1]).endswith("\nStop.")
+        gate.set()
+    asyncio.run(go())
+

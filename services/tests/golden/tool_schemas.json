@@ -2000,6 +2000,56 @@
   }
  },
  {
+  "description": "Guide the user's hands to a thing on the slide until it is centred (and sharp, by default): \"find me a stoma and centre it\", \"help me get that cell in the middle\", \"bring it into focus\". When the thing is among what the look sees (an s-id) or on the board, pass it as object: that starts at once; with only what, the app looks for one first. The app measures where it is and what each move did, and says one short line at a time (\"move the slide left a little\", \"stop, it's centred\", \"focus up\") until it gets there. The microscope has no motors: the user moves the slide and the focus.",
+  "inline_ms": 6000,
+  "kind": "effect",
+  "name": "guide",
+  "params": {
+   "properties": {
+    "object": {
+     "description": "object id, \"target N\", or a label",
+     "type": "string"
+    },
+    "until": {
+     "description": "sharp (the default, also for \"centre it\": a thing centred to look at should be in focus); centred: only when the user says the focus does not matter",
+     "enum": [
+      "sharp",
+      "centred"
+     ],
+     "type": "string"
+    },
+    "what": {
+     "description": "the thing in the user's words (\"stoma\"); empty with object",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Stop guiding the user's hands (\"stop guiding\", \"never mind, I've got it\").",
+  "inline_ms": 200,
+  "kind": "effect",
+  "name": "stop_guiding",
+  "params": {
+   "properties": {},
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "What the app is guiding the user to now: the thing, how far from the centre, the last line said.",
+  "inline_ms": 100,
+  "kind": "query",
+  "name": "guiding",
+  "params": {
+   "properties": {},
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
   "description": "Keep an eye on chosen cells over time (\"keep an eye on the odd ones\").",
   "inline_ms": 2500,
   "kind": "effect",
