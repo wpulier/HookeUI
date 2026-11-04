@@ -8,11 +8,26 @@ import sys
 
 
 def has_own_proof(m) -> bool:
-    return m.runner in ("fiji", "python-env")
+    return m.runner in ("fiji", "python-env") or (m.runner == "builtin-cpu" and m.id == "response-predict")
 
 
 def prove(m) -> tuple[bool, str]:
     from orchestrator import env_runner, fiji_generations, jobs
+
+    if m.runner == "builtin-cpu" and m.id == "response-predict":
+        import subprocess
+        from scientific_compute import catalog
+
+        ready = catalog.runtime(m.id)
+        if not ready["prepared"]:
+            return False, ready["reason"]
+        python, _ = catalog.execution_runtime(ready)
+        params = catalog.parameters(m.id, {"cells_per_target": 16})
+        result = subprocess.run([python, "-m", "bench.prediction_proof", json.dumps(params)],
+                                capture_output=True, text=True, timeout=120)
+        if result.returncode:
+            return False, f"Prediction proof failed: {result.stderr[-1000:]}"
+        return True, result.stdout.strip()
 
     if m.runner == "fiji":
         try:
