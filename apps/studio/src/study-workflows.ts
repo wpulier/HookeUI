@@ -63,7 +63,7 @@ export function mountStudyWorkflows(root:HTMLElement,study:Effort,inputs:StudyIn
       for(const [key,select] of bindings){const input=inputs.find(i=>i.id===select.value);if(!input){notice.textContent=`Choose the ${key} input.`;return;}chosen[key]=exact(input);}
       request ||= crypto.randomUUID();selection.disabled=source.disabled=run.disabled=true;for(const select of bindings.values())select.disabled=true;notice.textContent='Admitting workflow…';
       try{await reply(await fetcher(url,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'research-effort'},body:JSON.stringify({
-        session:study.session,request,workflow:w.id,revision:w.revision,inputs:[exact(i)],bindings:chosen})}));
+        session:study.session,request,workflow:w.id,revision:w.revision,inputs:[exact(i)],bindings:chosen,assignment:null,repeat:null})}));
         request=null;if(current()){selection.disabled=source.disabled=false;for(const select of bindings.values())select.disabled=false;notice.textContent='Workflow admitted. Read its retained results in the Study.';await refresh();}
       }catch(e){if(current())notice.textContent=`${String(e)}. Retry preserves this request.`;}
       finally{if(current())run.disabled=false;}

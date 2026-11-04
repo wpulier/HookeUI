@@ -17,12 +17,66 @@ def execute(built, study, session, action, fields, actor, label):
                'recover': ('recover', {'assignment'}),
                'claim': ('claim', {'assignment', 'harness', 'model'}),
                'complete': ('complete', {'assignment', 'statement', 'evidence', 'limitations'})}
-    if action not in methods or set(fields) != methods[action][1]:
+    expected = methods.get(action, (None, set()))[1]
+    if action == 'complete' and 'comparison' in fields:
+        expected = expected | {'comparison'}
+    if action not in methods or set(fields) != expected:
         raise InvalidProject('Use the declared research coordination action and fields')
     return getattr(coordination, methods[action][0])(study, session, actor=actor, label=label, **fields)
 
 
 async def execute_command(built, study, session, action, fields, actor, label):
+    if actor.startswith('agent:') and action == 'plan':
+        from ..door.projects import access
+        plan = fields.get('plan')
+        pair = plan.get('comparison') if isinstance(plan, dict) else None
+        if isinstance(pair, dict):
+            for role in ('baseline', 'challenger'):
+                ref = pair.get(role)
+                if isinstance(ref, dict) and isinstance(ref.get('id'), str):
+                    await _owned(access(built).require_workflow, session, ref['id'])
+    if action == 'read-pair-scores':
+        from .method_pair import verify_report_files
+        from ..door.schema import check
+        if set(fields) != {'baseline','challenger'}:
+            raise InvalidProject('Select both predictions and their scores')
+        for arm in fields.values():
+            if type(arm) is not dict or set(arm) != {'prediction','score'}:
+                raise InvalidProject('Select one prediction and one scoring report per method')
+            for ref in arm.values():
+                check(ref,'artifact-reference')
+        return {'metrics': await _owned(verify_report_files, service(built).store, session, fields)}
+    if action in ('check-comparison', 'queue-comparison'):
+        if set(fields) != {'basis'}:
+            raise InvalidProject('Choose the reviewed comparison')
+        from .method_pair import preflight
+        from .efforts import fingerprint
+        studies = service(built)
+        async with studies._locks.setdefault((session, study), asyncio.Lock()):
+            plan = await preflight(studies, study, session, fields['basis'], actor)
+            if plan['actorMode'] == 'connected-agent':
+                from ..door.projects import access
+                for role in ('baseline', 'challenger'):
+                    from ..door.connections import Refused
+                    try:
+                        await _owned(access(built).require_workflow, session, plan['comparison'][role]['id'])
+                    except Refused as error:
+                        raise InvalidProject('The connected agent needs a Project-associated ' + role +
+                                             ' workflow. Select one created through this Project’s connector.') from error
+            if action == 'check-comparison':
+                from .method_pair import describe_methods
+                return await _owned(describe_methods, studies, plan, study, session)
+            if plan['actorMode'] != 'connected-agent':
+                raise InvalidProject('This plan does not designate a connected agent')
+            coordination = Coordination(studies)
+            key = 'comparison:' + fingerprint(plan)[:32]
+            assignment = {'objective': plan['methodNotes'], 'deliverable': plan['desiredOutput'],
+                          'uncertainty': plan['evaluation'], 'whyNewWork': 'Establish the reviewed baseline.',
+                          'decisionImpact': 'Inspect the baseline diagnostics before justifying one change.',
+                          'evidence': plan['materials'], 'dependsOn': []}
+            await _owned(coordination.propose, study, session, request=key, assignment=assignment,
+                         actor=actor, label=label, shared_request=True)
+            return await _owned(coordination.read, study, session)
     # Recovery and scientific admission use the same owner lock, so an absent
     # receipt cannot be declared absent while its validation/admission is in flight.
     if action in ('recover', 'plan', 'review', 'claim', 'complete'):

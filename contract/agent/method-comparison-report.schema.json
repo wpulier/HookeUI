@@ -1,0 +1,85 @@
+{
+  "$id": "hooke:agent/method-comparison-report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "baseline",
+    "challenger",
+    "coverage",
+    "metrics"
+  ],
+  "properties": {
+    "baseline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prediction",
+        "score"
+      ],
+      "properties": {
+        "prediction": {
+          "$ref": "artifact-reference.schema.json"
+        },
+        "score": {
+          "$ref": "artifact-reference.schema.json"
+        }
+      }
+    },
+    "challenger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prediction",
+        "score"
+      ],
+      "properties": {
+        "prediction": {
+          "$ref": "artifact-reference.schema.json"
+        },
+        "score": {
+          "$ref": "artifact-reference.schema.json"
+        }
+      }
+    },
+    "coverage": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "direction",
+          "baseline",
+          "challenger"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "lower",
+              "higher"
+            ]
+          },
+          "baseline": {
+            "type": "number"
+          },
+          "challenger": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

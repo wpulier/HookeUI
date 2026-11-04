@@ -397,6 +397,14 @@ def _prediction_panel(value, uniform_count):
                             'minimumPerTarget': min(counts), 'maximumPerTarget': max(counts)}
 
 
+def _unseen_effect(fitted_effects, prior):
+    if prior == 'zero-effect':
+        return np.zeros(fitted_effects.shape[1])
+    if prior == 'mean-fitted-target-effect':
+        return np.mean(fitted_effects, axis=0, dtype=np.float64)
+    raise Refused('Choose a declared unseen-target prior')
+
+
 def predict(inputs, params, output, check):
     import anndata
     import pandas as pd
@@ -414,6 +422,8 @@ def predict(inputs, params, output, check):
     else:
         from count_emission import proportions as convert_effect
     model_meaning = json.loads(model['metadata'].item())
+    prior_method = params.get('unseen_target_prior', 'zero-effect')
+    unseen_effect = _unseen_effect(model['effects'], prior_method)
     parts = []; missing = []; projected_genes = 0
     with _adata(inputs['controls']) as data:
         contexts, labels = _columns(data, params)
@@ -440,6 +450,7 @@ def predict(inputs, params, output, check):
                     effect[covered] = model['effects'][model_targets[target], gene_indices[covered]]
                 else:
                     missing.append(str(target))
+                    effect[covered] = unseen_effect[gene_indices[covered]]
                 exponent = effect * params['response_strength']
                 if np.any(np.abs(exponent) > 50):
                     raise Refused('Fitted effects are outside the emitter numerical range; calibrate explicitly')
@@ -467,7 +478,7 @@ def predict(inputs, params, output, check):
                     parts.append(part)
         result = {'format': 'annotated-count-predictions-v1', 'shape': [nout, data.n_vars], 'dtype': 'float32',
                   'sparse': True, 'rawCounts': True, 'seed': params['seed'], 'responseStrength': params['response_strength'],
-                  'unseenTargets': sorted(set(missing)), 'unmeasuredGenes': data.var_names[~covered].tolist(),
+                  'unseenTargetPrior': prior_method, 'unseenTargets': sorted(set(missing)), 'unmeasuredGenes': data.var_names[~covered].tolist(),
                   'generator': 'control-conditioned-negative-binomial-v1', 'seedScope': 'context-target-cell',
                   'targetCounts': count_meaning,
                   'dispersionEstimator': params['dispersion_estimator'],

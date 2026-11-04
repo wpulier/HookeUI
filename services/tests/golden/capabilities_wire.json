@@ -7866,6 +7866,21 @@
      "numeric": false,
      "required": false,
      "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [
+      "zero-effect",
+      "mean-fitted-target-effect"
+     ],
+     "hint": "Use zero effect or apply the same mean fitted response to every unseen target, weighting each fitted target equally.",
+     "initial": "zero-effect",
+     "key": "unseen_target_prior",
+     "kind": "choice",
+     "label": "Response for unseen targets",
+     "numeric": false,
+     "required": false,
+     "said": {}
     }
    ],
    "generated": true,
@@ -8030,6 +8045,21 @@
      "numeric": false,
      "required": false,
      "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [
+      "zero-effect",
+      "mean-fitted-target-effect"
+     ],
+     "hint": "Use zero effect or apply the same mean fitted response to every unseen target, weighting each fitted target equally.",
+     "initial": "zero-effect",
+     "key": "unseen_target_prior",
+     "kind": "choice",
+     "label": "Response for unseen targets",
+     "numeric": false,
+     "required": false,
+     "said": {}
     }
    ],
    "generated": true,
@@ -8186,6 +8216,21 @@
      "key": "effect_interpretation",
      "kind": "choice",
      "label": "Effect interpretation",
+     "numeric": false,
+     "required": false,
+     "said": {}
+    },
+    {
+     "advanced": false,
+     "choices": [
+      "zero-effect",
+      "mean-fitted-target-effect"
+     ],
+     "hint": "Use zero effect or apply the same mean fitted response to every unseen target, weighting each fitted target equally.",
+     "initial": "zero-effect",
+     "key": "unseen_target_prior",
+     "kind": "choice",
+     "label": "Response for unseen targets",
      "numeric": false,
      "required": false,
      "said": {}

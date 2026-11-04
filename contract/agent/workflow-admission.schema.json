@@ -63,6 +63,11 @@
           "maxLength": 2000
         }
       }
+    },
+    "reviewedPlan": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "For a two-method Study, use the reviewedPlan digest returned by check-comparison."
     }
   }
 }

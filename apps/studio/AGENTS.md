@@ -2211,3 +2211,5 @@ bursts while it is hidden. One pending pair may queue one follow-up; later event
 cannot starve the useful reply or flood browser connections. Project changes abort
 the old pair and exclude late replies; a 30-second deadline preserves readable
 failure and retry. This is read-only refresh, never scientific execution.
+
+Compare two methods in the Study plan selects two saved workflow revisions and their shared inputs. The reviewed plan can prepare a connected-agent handoff; manual baseline admission uses ordinary Study workflows. Keep the unchanged inputs and experiment limit visible during review.

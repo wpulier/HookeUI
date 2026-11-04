@@ -16,6 +16,8 @@ def readiness(built, study, session):
     reason = None
     if built.day.sid != session:
         reason = 'Open the original Project before starting its researcher.'
+    elif (saved.document['state'][KEY].get('researchPlan') or {}).get('comparison'):
+        reason = 'Use the reviewed comparison controls to run the two methods within their allowance.'
     elif built.day.local_only:
         reason = 'This Project is local only; a model researcher cannot receive its context.'
     elif saved.document['state'][KEY]['status'] != 'active':

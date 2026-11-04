@@ -77,3 +77,13 @@ def test_emission_obeys_counts_and_keeps_prefixes_across_panel_order_and_blocks(
         outputs.append(data)
     first, second = outputs
     np.testing.assert_array_equal(first.X.toarray(), second[first.obs_names].X.toarray())
+
+
+def test_unseen_target_prior_uses_one_vote_per_fitted_target():
+    effects = np.array([[1., 3.], [5., -1.]])
+    assert parameters('response-predict', {})['unseen_target_prior'] == 'zero-effect'
+    shared = parameters('response-predict', {'unseen_target_prior': 'mean-fitted-target-effect'})
+    np.testing.assert_array_equal(engine._unseen_effect(effects, shared['unseen_target_prior']), [3., 1.])
+    np.testing.assert_array_equal(engine._unseen_effect(effects, 'zero-effect'), [0., 0.])
+    with pytest.raises(ValueError):
+        parameters('response-predict', {'unseen_target_prior': 'unspecified'})

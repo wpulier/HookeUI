@@ -45,12 +45,12 @@ def register(app, built, studio_origin, header):
     app.state.research_lifecycle = LocalLifecycle()
     service = Efforts(built.hub.resources.projects)
 
-    async def admitted(request, fields):
+    async def admitted(request, fields, optional=()):
         if (request.headers.get(header) != 'research-effort'
                 or not studio_origin(request.headers.get('origin'), request.url.port)):
             raise Refused('Manage research from its Project.', 403, next='return to the Project research controls')
         body = await _body(request)
-        if set(body) != fields:
+        if not fields <= set(body) or set(body) - fields - set(optional):
             raise InvalidProject('Use the declared research fields')
         if body['session'] != built.day.sid:
             raise Refused('The active Project changed.', 409, next='return to the original Project')
@@ -165,7 +165,7 @@ def register(app, built, studio_origin, header):
     @app.post('/api/research-efforts/{effort}/workflows')
     async def workflow_start(effort: str, request: Request):
         try:
-            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'})
+            body = await admitted(request, {'session', 'request', 'workflow', 'revision', 'inputs', 'bindings', 'assignment', 'repeat'}, optional=('reviewedPlan',))
             from .studies import service as studies
             record, made = await studies(built).start_workflow(effort, actor='studio', label='You', **body)
             return JSONResponse({'ok': True, 'operation': record, 'made': made}, headers=HEADERS)

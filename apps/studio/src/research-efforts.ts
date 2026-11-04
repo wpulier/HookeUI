@@ -26,7 +26,7 @@ export interface Effort {
   id: string; session: string; revision: number; digest: string;
   createdAt?:number; updatedAt?:number; createdBy?:{by:string;byLabel:string};
   questions?:{id:string;question:string;by?:string;byLabel:string;at?:number;recipient:{actor:string;label:string};answer:null|{by:string;byLabel:string;at?:number;statement:string}}[];
-  researchPlan?:{status:string;updatedAt?:number;reviewedAt?:number;byLabel?:string;reviewedBy?:{byLabel:string};desiredOutput:string};
+  researchPlan?:{comparison?:unknown;status:string;updatedAt?:number;reviewedAt?:number;byLabel?:string;reviewedBy?:{byLabel:string};desiredOutput:string};
   researchPlanHistory?:Effort['researchPlan'][];
   coordination?:{waiting:number;claimed:number;reports:number;stopped:number;unresolvedAdmissions:number};
   stopPending?: boolean; title?: string; objective: string; criteria: string; status: EffortStatus | string;

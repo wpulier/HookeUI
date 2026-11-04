@@ -599,3 +599,5 @@ Capability proposals are bounded retained Study records with exact package refer
 Scientific admission first reserves the assignment in the same revision boundary as completion. A pending admission blocks completion; a lost host keeps it for explicit reconciliation rather than replay. Linked reused operations remain dependencies of every requesting assignment without rewriting execution authorship. Explicit repeats carry an identity and scientific reason, count against the experiment allowance, and remain idempotent on request retry.
 
 Assignment recovery and owner-reviewed plan amendments follow `docs/architecture/research-navigation.md`: reconcile original receipts before releasing ownership; never replay uncertain admissions. Collaboration counts are separate from scientific/provider execution and charges.
+
+A two-method Study pins two distinct local workflow revisions and identical material references in its reviewed research plan. Each candidate is one ordinary Study workflow admission. The challenger requires an assignment citing an output of the completed baseline. Connected-agent handoff creates a shared assignment without launching a model session.
