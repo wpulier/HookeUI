@@ -2062,6 +2062,52 @@
       ]
     },
     {
+      "id": "guide",
+      "family": "map",
+      "actor": "agent",
+      "title": "Guide my hands",
+      "what": "Says how to move the slide and focus until it is centred",
+      "how": {
+        "tool": "guide",
+        "say": "find me a stoma and centre it"
+      },
+      "roles": [
+        "guide"
+      ],
+      "parts": [
+        "guide",
+        "slidemap"
+      ]
+    },
+    {
+      "id": "stop-guiding",
+      "family": "map",
+      "actor": "agent",
+      "title": "Stop guiding",
+      "what": "Stops guiding your hands",
+      "how": {
+        "tool": "stop_guiding",
+        "say": "stop guiding"
+      },
+      "parts": [
+        "guide"
+      ]
+    },
+    {
+      "id": "guiding",
+      "family": "map",
+      "actor": "agent",
+      "title": "What it is guiding to",
+      "what": "Says what it is guiding you to and the last line",
+      "how": {
+        "tool": "guiding",
+        "say": "what are you guiding me to?"
+      },
+      "parts": [
+        "guide"
+      ]
+    },
+    {
       "id": "bookmark",
       "family": "map",
       "actor": "agent",
@@ -4539,7 +4585,7 @@
       "family": "researchers",
       "actor": "agent",
       "title": "Plan and run experiments",
-      "what": "Plans a model comparison on footage, runs it on your yes",
+      "what": "Plans model comparisons or a design's plan; runs on your yes",
       "how": {
         "tool": "experiment",
         "say": "compare Cellpose and micro-sam on this footage and have a researcher audit it"
@@ -4549,6 +4595,7 @@
         "research"
       ],
       "evidence": [
+        "services/tests/test_experiment_design.py",
         "services/tests/test_experiments.py"
       ],
       "parts": [
@@ -4580,11 +4627,75 @@
       ]
     },
     {
+      "id": "propose-experiments",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Design experiments with you",
+      "what": "Drafts two or three experiment designs from the Project, as plan cards",
+      "how": {
+        "tool": "propose_experiments",
+        "say": "help me design an experiment on whether light opens these stomata"
+      },
+      "roles": [
+        "vision"
+      ],
+      "evidence": [
+        "services/tests/test_experiment_design.py"
+      ],
+      "parts": [
+        "brain",
+        "resources",
+        "workspace-tabs",
+        "scientific-workflows"
+      ]
+    },
+    {
+      "id": "revise-design",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Change a design",
+      "what": "Makes your change to one design as its next version",
+      "how": {
+        "tool": "revise_design",
+        "say": "three replicates, add a dark control"
+      },
+      "roles": [
+        "vision"
+      ],
+      "evidence": [
+        "services/tests/test_experiment_design.py"
+      ],
+      "parts": [
+        "brain",
+        "resources",
+        "workspace-tabs"
+      ]
+    },
+    {
+      "id": "study-plan",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Keep a Study plan",
+      "what": "Saves a design as a Study plan, approves it, or proposes assignments",
+      "how": {
+        "tool": "study_plan",
+        "say": "save the second design as a plan"
+      },
+      "roles": [],
+      "evidence": [
+        "services/tests/test_experiment_design.py"
+      ],
+      "parts": [
+        "scientific-workflows",
+        "research-worker"
+      ]
+    },
+    {
       "id": "experiment-card",
       "family": "researchers",
       "actor": "you",
       "title": "Run an experiment's plan",
-      "what": "Run it, Stop or Open results on an experiment's card",
+      "what": "Run it, Stop, Continue or Open results on an experiment's card",
       "how": {
         "command": "experiment"
       },
@@ -4906,6 +5017,13 @@
       "title": "Speaking up",
       "purpose": "What it says unasked when the view changes",
       "hint": "quiet: focus and counted cells; chatty: the slide's moves too; or off"
+    },
+    {
+      "id": "guide",
+      "kind": "policy",
+      "title": "Guiding your hands",
+      "purpose": "Decides each line that guides your hands to a thing",
+      "hint": "which model says which way to move the slide and the focus"
     },
     {
       "id": "fixed:voice-words",
@@ -5422,6 +5540,13 @@
       "kind": "algorithm",
       "purpose": "Pastes each steady view where it is on the slide",
       "source": "services/orchestrator/slidemap.py"
+    },
+    {
+      "id": "guide",
+      "title": "Guide",
+      "kind": "app",
+      "purpose": "Measures where a thing is and what each move did, and keeps the lines short and timely",
+      "source": "services/orchestrator/guide.py"
     },
     {
       "id": "bookmarks",

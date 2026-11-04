@@ -125,6 +125,32 @@ other files.
     `Workspace front`, the chat's display inventory and Hands' facts.
   - `project.state` does not carry it yet: its schema is Codex's (`contract/agent/project-state.schema.json`); the
     addition it needs is each Tab's `kind`, `specimen` and `items` ({placement, kind, title, resource}).
+- **Quiet and shown: Hooke prepares, then shows** (Will, 3 Nov: "navigate tabs without users to see things, navigate
+  with the show user things"). Every `tabs` action takes `show`; `show: false` is Hooke preparing while the user keeps
+  their own view (`workspace_tabs.py`, `workspace-views.ts` `agentCommand`):
+  - `create` makes the Tab without bringing it to the front (`addView(title, false)`); `add`, `move`, `rename` and
+    `specimen` change a Tab not in view as they always could; `arrange` and `only` on a Tab not in view are prepared
+    (`preparedArrangements`, per viewer, never saved) and applied when that Tab is next shown, by Hooke's `switch` or the
+    person's click, so it opens already arranged. A `switch` is always shown: it is how a prepared Tab is revealed.
+  - `compose` makes one Tab holding up to 8 saved items, its specimen as asked (hidden when it holds something), arranged
+    side by side: one studio message and one reply instead of create, add and arrange round trips. Shown, it comes to
+    the front and opens arranged (done once the report shows its windows beside each other); quiet, it waits.
+  - A quiet action has no hand and no lease (`hands.intent_of`: `ui=False`, `check="record"`), and a takeover never stops
+    it. Its receipt is the studio's saved layout, its reply after the save was accepted (`records.Records._tabbed`):
+    "prepared", never "shown", since nothing on screen changed (ADR 0006). The tool's reply says `prepared`.
+  - Every Tab action logs `tab-action` with `studioMs` (the studio's round trip), `verifyMs` (the wait for the report
+    to show it), `listMs` (a create's naming list) and `totalMs`. `make tab-speed` (`bench/tab_speed.py`) gives each
+    action's p50 and p95, shown and quiet, against the targets: a switch within 150 ms and any Tab action done and
+    checked within 1 s, at the median.
+  - `show_measurements` takes `show` too: with `show: false` and a `tab`, the table is put in that Tab's saved layout
+    (`table_window.prepare`: the Tab found, or this request's, or made quietly; then `tabs add`), the screen staying
+    put; on the Tab in front it is simply shown. Its receipt is the tool's "Prepared:" answer (`records.py`).
+  - `reopen` brings back a closed Tab where it stood, its arrangement as kept: the same reopen as the toast's Reopen,
+    ⌘⇧T and Tabs…. Shown, it comes to the front; quiet, it is back among the open Tabs while the screen stays put. It
+    is how a close is undone (Projects' tidy undo), so "undone" is said only once the Tab is open again.
+  - Next: `present place` quiet (a photo, web page or video opens as a window on the Tab in front; one already open
+    moves to another Tab quietly with `tabs move`), and Hooke's own off-screen desk, a second studio view whose front
+    Tab is its own, for looking at a Tab's pixels while the user's screen stays put.
 - **Placing things: one vocabulary** (`orchestrator/placement.py`). Every tool that puts something on screen takes the
   same words, each done only when the studio's report shows it, with what the report shows when not:
   - `new-tab`: a Tab of its own, with no live feed. One thing fills it: the table asked for in a new Tab

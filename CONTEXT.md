@@ -7,6 +7,11 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 
 - **Project**: the complete ongoing body of research: its material, conversations, Studies, contributors, methods, results and decisions. People, Hooke researchers and connected agents work in the same Project.
 - **Study**: a question, protocol and research effort within a Project, rather than a researcher or only its final report.
+- **Experiment design** ("Design 2", `d2`): one way to answer a question at the microscope that Hooke drafted with the
+  user: conditions, controls, replicates, measures, duration and steps (what the user does by hand, what Hooke captures
+  and analyses). Changed by the user's words into a new version; nothing runs from a design.
+- **Study plan**: a Study's reviewed intent: its desired output, evaluation, method and limits. Saved as a draft; the
+  owner reviews it in the Study, or by their yes to its run. Raising its limits stays the owner's, in the Study.
 - **Researcher**: a person or agent contributing attributed work to a Project.
 - **Artifact**: a retained input, model, measurement, report or other output with exact revisions and provenance.
 - **Material**: an artifact used by a Project or Study. Origin and use differ: a generated model stays generated when used as a later input.
@@ -116,6 +121,9 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
   the brain. The one-brain voice's is a job of its own (kind "hooke", Hooke's own work in progress), listed and
   numbered with think jobs and researchers, and stopped with `stop_work`.
 - **User leads**: the user finds things themselves; the app points and names only when asked.
+- **Guidance** (`guide`): the app directing the user's hands at the microscope, one short line at a time ("move the
+  slide left a little", "stop", "focus up"), until a thing is centred (and sharp). The app measures where it is and
+  what each move did; a model decides each line. The user's hands do the moving: the microscope has no motors here.
 - **Level**: how the user wants things explained, *simple* (the default) or *technical*,
   and whether a hint comes before the answer (*hints first*). A preference the user sets
   (settings, or `set_level` by voice or chat); every model writing for the user is told it in

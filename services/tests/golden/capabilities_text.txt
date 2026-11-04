@@ -181,6 +181,9 @@ Slide map (Where things are on the whole slide):
 - I: Show the slide map: Opens the map of the slide so far (say "show me the map")
 - You: Show the slide map: The map button opens the slide map
 - I: Where was it: Finds where something was on the slide (say "where was the white cell?")
+- I: Guide my hands: Says how to move the slide and focus until it is centred (say "find me a stoma and centre it"); models: Guiding your hands: Gemini 3.5 Flash decides, a behaviour setting, uses Google Gemini API
+- I: Stop guiding: Stops guiding your hands (say "stop guiding")
+- I: What it is guiding to: Says what it is guiding you to and the last line (say "what are you guiding me to?")
 - I: Bookmark a place: Keeps this place on the slide with your words (say "bookmark this, the nice stomata")
 - I: Which way to a bookmark: Says which way a bookmarked place is from here (say "which way is the stomata I marked?")
 A clearer picture (Better pictures made from real frames):
@@ -264,9 +267,12 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - You: Produce or stop a presentation: Arranges retained findings independently, or stops its presentation job; models: Presentation model: off; NOT AVAILABLE here: off in the settings (Presentation model)
 - I: Find saved workflows: Reads personal methods and retained workflow runs (say "find my saved workflows"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 - I: Run a saved workflow: Runs a frozen method on explicitly selected Project inputs (say "run this workflow on these images"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
-- I: Plan and run experiments: Plans a model comparison on footage, runs it on your yes (say "compare Cellpose and micro-sam on this footage and have a researcher audit it"); models: Cells: EdgeTAM automatic masks (on this Mac), a setting; Researching: GPT-6.1 Sol + web search (cloud), a setting
+- I: Plan and run experiments: Plans model comparisons or a design's plan; runs on your yes (say "compare Cellpose and micro-sam on this footage and have a researcher audit it"); models: Cells: EdgeTAM automatic masks (on this Mac), a setting; Researching: GPT-6.1 Sol + web search (cloud), a setting
 - I: How an experiment goes: Says how an experiment is going, from its records (say "how is the experiment going?")
-- You: Run an experiment's plan: Run it, Stop or Open results on an experiment's card
+- I: Design experiments with you: Drafts two or three experiment designs from the Project, as plan cards (say "help me design an experiment on whether light opens these stomata"); models: Seeing: Claude Opus 5.5 (fast mode) in the cloud, a setting; Needs setup: Needs your Anthropic API key (needs ANTHROPIC_API_KEY)
+- I: Change a design: Makes your change to one design as its next version (say "three replicates, add a dark control"); models: Seeing: Claude Opus 5.5 (fast mode) in the cloud, a setting; Needs setup: Needs your Anthropic API key (needs ANTHROPIC_API_KEY)
+- I: Keep a Study plan: Saves a design as a Study plan, approves it, or proposes assignments (say "save the second design as a plan")
+- You: Run an experiment's plan: Run it, Stop, Continue or Open results on an experiment's card
 Researchers' work (Showing, reading and going through what they made):
 - I: Show their work: Opens a researcher's work beside the view (say "show me the lesson")
 - You: Open their work: A researcher in Researchers, or Show beside the view

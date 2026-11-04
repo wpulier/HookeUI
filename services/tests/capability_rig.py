@@ -117,6 +117,22 @@ class Rig:
             cited = re.findall(r"^\[([^\]]+)\]", prompt, re.M)[:1]
             return {"title": "Findings", "sections": [{"heading": "What was found", "paragraphs": [
                 {"text": "What the newest record says.", "cites": cited}]}]}
+        if prompt.startswith(("You help a scientist design experiments", "You revise one experiment design")):
+            # experiment_design.py: designs a scientist can run here (a step by hand, then a researcher's analysis)
+            def design(title, conditions, replicates):
+                return {"title": title, "question": "Does light open these stomata?", "hypothesis": "Light opens them",
+                        "material": "this leaf", "conditions": [{"name": c, "what": ""} for c in conditions],
+                        "controls": [{"name": "Dark", "what": ""}], "replicates": replicates,
+                        "measures": [{"what": "stomatal aperture", "how": "outlined guard cells", "capability": ""}],
+                        "duration": "about 1 h", "steps": [
+                            {"kind": "manual", "says": "Put the slide under the lamp"},
+                            {"kind": "researcher", "says": "Measure the apertures", "brief": "Measure apertures",
+                             "effort": "quick", "purpose": "analysis"}],
+                        "rationale": "Light is the variable", "limitations": "One leaf"}
+            if prompt.startswith("You revise"):
+                return design("Light against dark", ["Lamp on"], 3)
+            return {"designs": [design("Light against dark", ["Lamp on"], 2),
+                                design("Intensity series", ["Low light", "High light"], 2)]}
         tiles = re.search(r"contact sheet of \d+ numbered tiles.*?\(tiles (\d+) to (\d+)\)", prompt, re.S)
         if tiles:  # classify (classify.py): each numbered tile named, the first as one class, the rest as the other
             first, last = int(tiles.group(1)), int(tiles.group(2))

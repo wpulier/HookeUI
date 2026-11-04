@@ -93,6 +93,11 @@ beside the steps above; none of them changes.
 - **The experiment** is two frozen runs: the models' (a frame per item: each model, its measurement, the comparison)
   and, when audited, the audit's (one item: the run's record as a JSON source file, then the researcher step). The
   comparison table is built from the attempts' outputs only (`Experiments._comparison`); the results are one document.
+- **A design's Study plan run step by step** (`orchestrator/plan_runs.py`, experiments.py kind "steps"; Lane C): a
+  workflow step holds the view now as a retained frame and admits the saved workflow through `Studies.start_workflow`
+  under an assignment the run proposes and claims, so the reviewed plan's experiment count holds; its other steps are
+  Study researchers, missions and the user's own steps (`services/orchestrator/research/AGENTS.md`, "Experiment designs,
+  their Study plans and their runs").
 
 ## File capabilities and named inputs
 

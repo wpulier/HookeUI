@@ -45,7 +45,9 @@ other files.
   actions as `user-action`, chat notes). The text is facts as JSON (what was measured, when it happened, the ids to
   point at), never words to read out: the voice model decides how to say them, in one sentence. Each kind has one
   route in `events.KINDS`; the publisher may give its own (`delivery`: the watcher's per WATCH choice,
-  `view_watch.DELIVERY`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
+  `view_watch.DELIVERY`; a guidance's lines, kind "guide": said at once, the newest replacing one not yet said, never
+  owed, and its "Stop." and end, kind "guide-stop": owed, never replaced, cutting in over the voice's own words; both
+  said word for word, `Kind.says`, even while the user's turn waits only on its tools, `orchestrator/guide.py`): "context" (a silent system item; a burst coalesced), "idle" (said in a pause: no key held,
   nothing said or pending, nobody spoke for 1.5 s; results within 120 ms said together) or "interrupt" (said as soon
   as the line playing now ends, without waiting for a pause: a line the voice starts is finished or yielded to the
   user, never cut by its own next one, Will 29 Oct; never over the user's answer); the user's quieter or "let me find things"
@@ -151,6 +153,13 @@ other files.
   card saying how it goes; `experiment_status` answers "how is it going?" from its records. Its results land in a Tab of
   their own and its outcome is told once (`job-result` on the voice's bus, a note in the conversation). One model on
   the view now stays `compare_models`.
+- **Designing experiments with the user** (`propose_experiments`, `revise_design`, `study_plan`, and `experiment`
+  design=...; `brain/toolbox/experiment_design.py`, `orchestrator/experiment_design.py`, `orchestrator/plan_runs.py`;
+  Lane C): "help me design an experiment on whether light opens these stomata" drafts two or three designs (the brain's
+  model judges; code checks every step's facts) shown as plan cards in a Tab; "three replicates, add a dark control" is
+  the design's next version; a picked design is saved as a Study plan (a draft); `experiment` do=plan design=d2 shows
+  its run's card, and only the user's yes (quoted, or Run it) approves the Study plan and runs its steps. In full:
+  `services/orchestrator/research/AGENTS.md`, "Experiment designs, their Study plans and their runs".
 - Keep memory lean: each request carries the eyepiece crop, a compact scene table and the
   conversation window. No long-term store or retrieval step; the common "what's that?" is
   one model call.

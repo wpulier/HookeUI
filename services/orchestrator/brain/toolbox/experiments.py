@@ -1,17 +1,20 @@
 """Experiments (orchestrator/experiments.py; Part 2.5, W5): "compare Cellpose and micro-sam on this footage and have a
-researcher audit it".
+researcher audit it", and a design's Study plan run step by step (orchestrator/plan_runs.py; Lane C: "help me design an
+experiment on whether light opens these stomata", then "run it").
 
-`experiment` plans one (do=plan: the brain chooses the models, the input and the audit from the user's words; code
-checks every fact and draws the plan's card), changes the plan (do=change), runs it on the user's own yes (do=run: the
-card's Run it, or their words quoted in asked_with) and stops it (do=stop). `experiment_status` reads how one is going
-from its records. Nothing runs before a yes, and what runs is exactly the plan approved.
+`experiment` plans one (do=plan: the brain chooses the models, the input and the audit from the user's words, or names
+a design whose Study plan it runs; code checks every fact and draws the plan's card), changes the plan (do=change; a
+design's run is planned again from the design's newest version), runs it on the user's own yes (do=run: the card's Run
+it, or their words quoted in asked_with; for a design's plan the yes is also the owner review of its Study plan), goes
+on after a step the user does by hand (do=continue, their words quoted) and stops it (do=stop). `experiment_status`
+reads how one is going from its records. Nothing runs before a yes, and what runs is exactly the plan approved.
 """
 from __future__ import annotations
 
 from ..registry import Registry, Tool, ToolContext, ToolFailed, attach, schema
 from .resources import require_current
 
-ACTIONS = ("plan", "change", "run", "stop")
+ACTIONS = ("plan", "change", "run", "continue", "stop")
 
 
 def add_experiment_tools(registry: Registry, services) -> None:
@@ -37,12 +40,41 @@ def add_experiment_tools(registry: Registry, services) -> None:
         return (getattr(occurrence, "request_id", None) or getattr(getattr(ctx, "admission", None), "request_id", None)
                 or ctx.request_id)
 
+    async def design_plan(ctx: ToolContext, session: str, ref) -> dict:
+        """A design's Study plan (saved now when it is not, or saved again after a revision) as an experiment's plan."""
+        from ... import experiment_design, plan_runs
+
+        actor = {"chat": "agent:chat", "voice": "agent:voice"}.get(ctx.channel, "agent:system")
+        proposal, d, _plan = await experiment_design.designs_of(hub, services.day).save_plan(
+            session=session, ref=ref, actor=actor, label=f"Hooke {actor[6:]}")
+        return plan_runs.plan_of_design(proposal, d, d["study"]["id"])
+
+    def yes_of(ctx: ToolContext, args: dict, refusal: str, next_step: str) -> tuple[bool, str]:
+        card = args.get("by") == "card" and ctx.actor == "you" and ctx.channel in ("system", "studio")
+        if card:
+            return True, ""
+        from ...research.policy import quoted
+        from .research import recent_request
+
+        words = str(args.get("asked_with") or "")
+        if not quoted(words, recent_request(services, ctx), least=1):
+            raise ToolFailed(refusal, next=next_step)
+        return False, words
+
     async def experiment(ctx: ToolContext, args: dict) -> str:
         do = str(args.get("do") or "plan")
         if do not in ACTIONS:
             raise ToolFailed(f"do is one of {', '.join(ACTIONS)}", next="plan it first, then run it on the user's yes")
         session, thread = where(ctx)
         xs = service()
+        if do == "plan" and args.get("design"):
+            plan = await design_plan(ctx, session, args["design"])
+            x = xs.draft_steps(session=session, thread=thread, plan=plan, asked=ctx.question or "",
+                               request_id=request_of(ctx), turn_id=ctx.turn_id or None, asked_in=ctx.asked)
+            attach(values={"experiment": x.wire()})
+            return (X.plan_words(x) + ". Say the plan in two sentences (its steps: what they do by hand, what Hooke "
+                    "captures and analyses; the time and the cost), the second ending in the one question whether to "
+                    "run it; nothing has run")
         if do == "plan":
             x = xs.draft(session=session, thread=thread, models=args.get("models"), on=str(args.get("on") or "footage"),
                          frames=args.get("frames"), every=args.get("every"), audit=args.get("audit", True) is not False,
@@ -54,6 +86,17 @@ def add_experiment_tools(registry: Registry, services) -> None:
                     "frames, the comparison, the audit, the time and the cost), the second ending in the one question "
                     "whether to run it (\"…; shall I run it?\"), two sentences in all; nothing has run")
         x = xs.get(args.get("experiment"), session)
+        if do == "change" and x.steps_kind:
+            x = xs.replan(x, await design_plan(ctx, session, args.get("design") or x.plan["design"]["id"]))
+            attach(values={"experiment": x.wire()})
+            return ("Changed: " + X.plan_words(x) + ". Say the plan as it is now in two sentences, the second ending in "
+                    "the one question whether to run it; nothing has run")
+        if do == "continue":
+            _card, words = yes_of(ctx, args, f"{x.name} goes on after a step of the user's only on their own word that it "
+                                  "is done", "ask whether their step is done, then quote their reply in asked_with")
+            said = xs.resume(x, words or "pressed Done on its card")
+            attach(values={"experiment": x.wire()})
+            return said
         if do == "change":
             x = xs.change(x, models=args.get("models"), on=args.get("on"), frames=args.get("frames"),
                           every=args.get("every"), audit=args.get("audit"), question=args.get("question"),
@@ -66,21 +109,20 @@ def add_experiment_tools(registry: Registry, services) -> None:
             attach(values={"experiment": x.wire()})
             return said
         # do == "run": exactly the plan, on the user's own yes.
-        card = args.get("by") == "card" and ctx.actor == "you" and ctx.channel in ("system", "studio")
-        words = ""
-        if not card:
-            from ...research.policy import quoted
-            from .research import recent_request
-
-            words = str(args.get("asked_with") or "")
-            if not quoted(words, recent_request(services, ctx), least=1):
-                raise ToolFailed(f"{x.name} runs only on the user's own yes to its plan",
-                                 next="ask whether to run it, then quote their yes in asked_with")
+        card, words = yes_of(ctx, args, f"{x.name} runs only on the user's own yes to its plan",
+                             "ask whether to run it, then quote their yes in asked_with")
         actor = "user" if card else {"chat": "agent:chat", "voice": "agent:voice"}.get(ctx.channel, "agent:system")
         version = args.get("version") if type(args.get("version")) is int else None
         x = xs.approve(x, version=version, by="card" if card else "words", actor=actor, words=words,
                        client=ctx.client)
         attach(values={"experiment": x.wire()})
+        if x.steps_kind:
+            from ... import plan_runs
+
+            return (f"Started {x.name} ({x.title}) exactly as planned; your yes approved its Study plan. "
+                    f"{plan_runs.first_words(x.plan)[:1].upper()}{plan_runs.first_words(x.plan)[1:]}. Its "
+                    f"{len(x.plan['steps'])} steps go in order in the background; its card shows how it goes, and its "
+                    "outcome is said when it ends. Say that it started and what happens first, in one sentence")
         return (f"Started {x.name} ({x.title}), exactly as planned: {x.plan['input']['says']}, then each model on every "
                 f"frame{', then the audit' if x.plan['audit'] else ''}. It works in the background; its card shows how it "
                 "goes, and its results open in a Tab of their own when it finishes, said then")
@@ -95,13 +137,18 @@ def add_experiment_tools(registry: Registry, services) -> None:
         "experiment", "Plan, change, run or stop an experiment the user asks for: models compared on this footage (frames "
         "of the live view over time) or on the view now, each through the app's runner, compared frame by frame and "
         "measured, optionally audited by a researcher who checks the run's records (\"compare Cellpose and micro-sam on "
-        "this footage and have a researcher audit it\"). do=plan first: it shows the plan as a card and runs nothing; "
-        "say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); "
-        "do=change when they change it. Long work: it runs in the background and its results land in a Tab of their own "
-        "when it finishes. One model on one view now is compare_models.",
+        "this footage and have a researcher audit it\"); or a design's Study plan run step by step (design: its id, "
+        "from propose_experiments): the user's own steps, Hooke's schedules of clips or of an operation on the live "
+        "view, researchers and saved workflows. do=plan first: it shows the plan as a card and runs nothing; "
+        "say the plan and ask once. do=run only on the user's own yes to that plan (asked_with: their words); for a "
+        "design their yes also approves its Study plan. do=change when they change it (a design: revise_design first). "
+        "do=continue when they say a step of theirs is done (asked_with: their words). Long work: it runs in the "
+        "background, its outcome said when it ends. One model on one view now is compare_models.",
         schema({"do": {"type": "string", "enum": list(ACTIONS)},
-                "experiment": {"type": "string", "description": "change/run/stop: its id (x1) or number; default the "
-                                                                "latest"},
+                "experiment": {"type": "string", "description": "change/run/continue/stop: its id (x1) or number; "
+                                                                "default the latest"},
+                "design": {"type": "string", "description": "plan: a design's id (d2) whose Study plan it runs, in "
+                                                            "place of models"},
                 "models": {"type": "array", "minItems": 2, "maxItems": model_comparison.MAX_MODELS,
                            "items": {"type": "string", "enum": ids},
                            "description": "the models the user named, by their ids as listed under use"},
@@ -116,7 +163,7 @@ def add_experiment_tools(registry: Registry, services) -> None:
                              "description": "what the researcher should check, in the user's words"},
                 "effort": {"type": "string", "enum": list(X.EFFORTS), "description": "the audit's effort (quick)"},
                 "measure": {"type": "boolean", "description": "measure each model's cells (default true)"},
-                "asked_with": {"type": "string", "description": "run: the user's own yes, quoted"},
+                "asked_with": {"type": "string", "description": "run/continue: the user's own words, quoted"},
                 "version": {"type": "integer", "description": "run: the plan's version the user said yes to"},
                 "by": {"type": "string", "enum": ["card"], "description": "run from the plan card's Run it (the studio)"}},
                ["do"]),

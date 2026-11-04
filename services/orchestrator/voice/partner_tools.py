@@ -56,6 +56,8 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                # experiments and writing up, each with its receipt (records.py).
                                "models", "turn_on", "get_model", "open_models", "experiment", "experiment_status",
                                "write_document",
+                               # Guiding the user's hands (guide.py): its lines go to the voice word for word
+                               "guide", "stop_guiding", "guiding",
                                # Outside agents Hooke starts (ADR 0029).
                                "start_agent", "agents", "agent_note", "stop_agent", "answer_agent")
 # The tools whose call may come back asking permission (Hands: a paid model, a long researcher run): they take the
@@ -63,6 +65,9 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
 PERMISSION_TOOLS = frozenset({"present", "tabs", "show_measurements", "highlight", "select", "zoom", "clear",
                               "outline_cells", "find", "start_researcher", "run_capability"})
 HANDS_TOOLS = PERMISSION_TOOLS  # the name the tests knew
+# Designing experiments with the user, their Study plans and their runs (Lane C; brain/toolbox/experiment_design.py).
+THINK_TOOLS += tuple(name for name in ("propose_experiments", "revise_design", "study_plan", "experiment",
+                                       "experiment_status") if name not in THINK_TOOLS)
 # The one tool the voice acts with when Hooke's brain does the work (PARTNER_ACTS "brain").
 DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Project, in the user's own words: outline, "
                "segment or find a thing, magnify it or move the magnifier, Tabs, windows and what is in them, reference "
@@ -72,7 +77,9 @@ DO_IN_HOOKE = ("Ask Hooke to do anything in Hooke or read anything from its Proj
                "what the user clicked and what \"that\" is, does it with its own tools, checks it on screen and returns "
                "its answer and what it did; say the outcome from that answer, once, a failure with its reason. Call it "
                "without speaking first: its row on screen shows Hooke working. Only for long work (every cell, a web "
-               "search, a researcher, several models) say a few words first.")
+               "search, a researcher, several models) say a few words first. The user's answer to something Hooke "
+               "proposed and is waiting on (a yes, a no, \"both\", which ones) goes to Hooke too, in their words: "
+               "Hooke holds the proposal, so pointing or answering it yourself does nothing.")
 # The hand-off's title on Hooke's screen: its row in the chat and its entry in the "in progress" strip (handoffs.py).
 HANDOFF_LABEL = ("a short title for this request on Hooke's screen, 2 to 6 plain words the user would use, never a tool "
                  "name (\"Reference photo of a stoma\", \"A new Tab\", \"Stop the highlight\")")
@@ -194,7 +201,8 @@ JOB_ID = {"type": "string", "description": "the job's id from jobs (a think job'
 STOP_WORK = ("Stop Hooke's own work in progress, only when the user says stop or cancel for something Hooke is doing "
              "now (\"actually, stop that\"): a request you handed to Hooke, by its id from the brief's jobs, else the "
              "newest one still running. It returns once the work has stopped (or says it is still being stopped): say "
-             "it stopped only then. A researcher is stopped by asking Hooke with do_in_hooke.")
+             "it stopped only then. A researcher or an experiment (it runs on its own, never one of these jobs) is "
+             "stopped by asking Hooke with do_in_hooke.")
 STOP_WAIT_S = 3.0  # stop_work waits this long for the work it cancelled to end before saying it is still being stopped
 # stop_work with nothing running: nothing to stop, checked (no work of Hooke's runs now), never a failed stop.
 NOTHING_TO_STOP = {"ok": True, "result": "verified", "stopped": False}

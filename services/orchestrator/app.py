@@ -509,6 +509,66 @@ class App:
 
         watcher = Watcher(motion_share(hub), look_question(hub, agent), watched, log=agent.log)
         hub.on_still_change.append(watcher.appeared)
+        # Guiding the user's hands (guide.py, tool `guide`): one short line at a time until a thing is centred and sharp,
+        # decided by the fast model (option GUIDE) from what the hub measures on every frame; said by the voice when one is
+        # on (an event of its own kind, newest first), and filed in the chat as the conversation's record.
+        from .guide import Guide
+
+        async def ask_guide(prompt: str) -> dict | None:
+            from .options import VISION
+
+            option = hub.settings.guide if hub.settings.guide in VISION else hub.settings.fast  # GUIDE's own model
+            result = await agent.vision(option).ask([], prompt, max_output_tokens=300)
+            return result.data if isinstance(result.data, dict) else None
+
+        def guide_said(g, line: dict) -> None:
+            import json
+
+            origin = g.origin
+            final = line.get("event") != "line"
+            with contextlib.suppress(Exception):
+                dialogue.notice(producer={"kind": "guide", "id": g.id}, event=line.get("event") or "line",
+                                summary=line.get("say") or "", facts={"guide": line}, asked=origin.get("asked"),
+                                origin={"day": origin.get("day"), "thread": origin.get("thread"),
+                                        "delegationId": origin.get("delegation_id"), "turnId": origin.get("turn_id"),
+                                        "requestId": origin.get("request_id"), "actionId": origin.get("action_id")},
+                                tone="error" if line.get("event") == "failed" else "info",
+                                refs={"objectIds": [g.target]})
+            with contextlib.suppress(Exception):  # the line on the live view: the target ringed, an arrow, the words
+                hub.broadcast({"type": "guide", "id": g.id, "active": line.get("event") == "line",
+                               "event": line.get("event") or "line", "target": g.target, "say": line.get("say") or "",
+                               "slide": line.get("slide"), "focus": line.get("focus"), "state": line.get("state") or ""})
+            if line.get("told"):
+                return  # the tool's answer says it: filed, not said twice
+            voice = getattr(brain, "voice", None) if brain is not None else None
+            happened = getattr(voice, "happened", None)
+            facts = json.dumps({"guiding": g.name, "line": line.get("say"), "state": line.get("state"),
+                                "slide": line.get("slide"), "focus": line.get("focus"), "fromCentre": line.get("fromCentre"),
+                                "ended": line.get("event") if final else None}, ensure_ascii=False)
+            if callable(happened):  # the one brain: its own words for the line, at once
+                marks = [{"target": f"outline:{g.target}", "style": "box"}] if line.get("n") == 1 or final else None
+                kind, ref = "guide", g.id
+                if line.get("critical"):  # "Stop." or the end: cuts in, never replaced; a waiting line is moot now
+                    from .voice.events import bus_of
+
+                    with contextlib.suppress(Exception):
+                        bus_of(brain).withdraw("guide")
+                    kind, ref = "guide-stop", f"{g.id}:{line.get('event')}:{line.get('n')}"
+                task = asyncio.get_running_loop().create_task(happened(kind, facts, ref=ref, marks=marks))
+                task.add_done_callback(lambda t: t.cancelled() or t.exception())
+                return
+            owner = origin.get("voice_owner")
+            if owner is not None and not getattr(owner, "closed", True) and voice is owner:
+                narrator.offer(Line(facts, "requested", delegation_id=origin.get("delegation_id"),
+                                    asked=origin.get("asked"), delivery="interrupt", provenance="data",
+                                    turn_id=origin.get("turn_id"), request_id=origin.get("request_id"),
+                                    action_id=origin.get("action_id"), voice_owner=owner))
+
+        guide = Guide(hub, judge=lambda: hub.settings.guide, ask_model=ask_guide, say=guide_said,
+                      sweep=lambda: None if coach.sweeping_since is None else ("phone" if coach.phone else "knob"),
+                      um_per_px=um_per_px, log=agent.log)
+        hub.on_frame.append(guide.frame)  # after the coach's: its sweep for this frame is known
+        hub.guide = guide
 
         async def ask_quietly(prompt: str) -> dict:
             """The day's memory asks the fast model (summaries, settled facts); never on a reply's path."""
@@ -531,7 +591,7 @@ class App:
                             presenter=presenter, day=day, memory=memory, subjects=subjects, sight=sight, narrator=narrator,
                             outline_seen=partial(outline_seen, hub, lambda: sight.view),
                             publish_settings=lambda: app.publish_settings(), sweep=sweep,
-                            clip=clip, watcher=watcher, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
+                            clip=clip, watcher=watcher, guide=guide, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
                             agents=lambda: app.conductor,  # outside agents Hooke starts (ADR 0029), made with the App below
                             capabilities=lambda: app.capabilities_wire(counts=False),  # the agent reads what the Capabilities page shows
                             capability_status=lambda: app.capability_status(),  # its awareness: the rows alone, fresh

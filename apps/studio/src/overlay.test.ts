@@ -5,7 +5,7 @@
 // the result viewer shows the server's items.
 import { describe, expect, test } from 'vitest';
 import contract from '../../../contract/overlay.json';
-import { fitWindow, fitWords, hitObject, isFresh, isVisible, maxLevel, overlayOpacity, scaleBar, sizeWords, statusWords, taughtWords } from './overlay';
+import { fitWindow, fitWords, guideArrow, hitObject, isFresh, isVisible, maxLevel, overlayOpacity, scaleBar, sizeWords, statusWords, taughtWords } from './overlay';
 import type { FrameHeader, ResearchSession, SceneObject } from './protocol';
 import { outputOf } from './viewer';
 
@@ -167,3 +167,18 @@ describe('the labels the user taught, apart from the model name', () => {
     expect(hitObject([stoma, pore], h, [640, 360], 1)?.id).toBe('o1'); // the part is newer, and never caught
   });
 });
+
+describe('the guide arrow', () => {
+  test('runs from just off the ring to just short of the zone, its head pointing at the centre', () => {
+    const a = guideArrow([100, 300], [400, 300], 20, 30)!;
+    expect(a.from).toEqual([124, 300]);
+    expect(a.to).toEqual([366, 300]);
+    for (const w of a.wings) expect(w[0]).toBeLessThan(366); // the head's strokes trail back from the tip
+    expect(a.wings[0][1]).toBeCloseTo(600 - a.wings[1][1]); // symmetric about the shaft
+  });
+  test('is not drawn once the target is in the zone, or too close for an arrow', () => {
+    expect(guideArrow([395, 305], [400, 300], 20, 30)).toBeNull();
+    expect(guideArrow([340, 300], [400, 300], 20, 30)).toBeNull();
+  });
+});
+

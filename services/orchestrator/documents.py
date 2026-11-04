@@ -384,10 +384,11 @@ def _unsupported(exc: ToolFailed) -> bool:
     return "not supported" in str(exc) or "unsupported" in str(exc)
 
 
-async def show(services, ctx, studio, entry, *, placement: str, title: str, guard) -> str:
+async def show(services, ctx, studio, entry, *, placement: str, title: str, guard, replaces: str | None = None) -> str:
     """Opens the saved document `entry` where asked and says what the studio's report showed: in a Tab of its own (a
     reader Tab, made or brought forward) or in the reader beside, on the right of the Tab in front. Refuses (saying
-    where it is saved) when the report never shows it there."""
+    where it is saved) when the report never shows it there. `replaces`: the saved item it is a new version of (a
+    revised design's cards): the Tab showing that one shows this one instead, in place."""
     from .data_reader import open_in_reader, ref_of
 
     saved = f"it is saved in Data as {entry.id}, under Write-ups"
@@ -404,7 +405,7 @@ async def show(services, ctx, studio, entry, *, placement: str, title: str, guar
     if broker is not None:
         try:
             await broker(ctx, {"action": "reader", "resource": {"id": entry.id, "version": entry.version},
-                               "title": title})
+                               "title": title, **({"replaces": replaces} if replaces else {})})
         except ToolFailed as exc:
             if not _unsupported(exc):
                 raise ToolFailed(f"the document is not shown in {TAB}: {exc}; {saved}",

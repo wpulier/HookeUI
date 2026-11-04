@@ -46,6 +46,19 @@ def load_plan(name: str) -> dict:
     return plan
 
 
+SAY_S = 60  # a line takes about a second; `say` has hung for hours while another stack was saying its own lines
+
+
+def say(voice: str, aiff: Path, text: str, tries: int = 3) -> None:
+    for left in range(tries - 1, -1, -1):
+        try:
+            subprocess.run(["say", "-v", voice, "-o", str(aiff), text], check=True, timeout=SAY_S)
+            return
+        except subprocess.TimeoutExpired:
+            if not left:
+                raise RuntimeError(f"macOS `say` hung {tries} times ({SAY_S} s each) making {aiff.name}") from None
+
+
 def words(plan: dict, folder: Path) -> None:
     """Each step's words as 24 kHz mono WAV, said by macOS's own voices (the user's, or the audience's); "[[slnc N]]"
     in the words is a pause of N ms. Kept when the words and voice are unchanged."""
@@ -58,7 +71,7 @@ def words(plan: dict, folder: Path) -> None:
         key = f"{voice}\n{step['say']}"
         if wav.exists() and said.exists() and said.read_text() == key:
             continue
-        subprocess.run(["say", "-v", voice, "-o", str(aiff), step["say"]], check=True)
+        say(voice, aiff, step["say"])
         subprocess.run(["afconvert", "-f", "WAVE", "-d", "LEI16@24000", "-c", "1", str(aiff), str(wav)], check=True)
         aiff.unlink()
         said.write_text(key)

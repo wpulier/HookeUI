@@ -104,6 +104,8 @@ METHOD_PROBES = {
     # The pointing reflex's model (brain/loop.py Brain.reflex): "lean" is the fast model's default, the others named.
     ("reflex", "lean"): ("vision", "gemini-3.8-flash"), ("reflex", "lean-3.5-flash"): ("vision", "gemini-3.5-flash"),
     ("reflex", "lean-lite"): ("vision", "gemini-3.5-flash-lite"),
+    # Guiding the user's hands (guide.py): the named model judging each line, asked as Agent.vision asks it, text only.
+    ("guide", "gemini-3.5-flash"): ("vision", "gemini-3.5-flash"), ("guide", "gemini-3.8-flash"): ("vision", "gemini-3.8-flash"),
     # Photo search: both run the grounded lookup and its pixel check (research_worker.retrieval: LOOKUP_MODEL); Commons'
     # catalogue beside it is a web service with no model of its own.
     ("reference_search", "web"): ("text", "gemini:gemini-3.8-flash"),

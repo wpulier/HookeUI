@@ -62,6 +62,9 @@ other files.
   studio's camera menu and footage badge talk to the bridge's `/feed` directly. Ground
   truth for tests lives only on the bridge's `/sim/*` endpoints. Run `make sim-test`
   after changing the bridge, orchestrator, scene or studio drawing.
+  - **A virtual stage** (`POST /sim/stage?url=`, the harness's `sim/virtual_scope.py`): a slide a simulated person or
+    motors move, its view an MJPEG stream on this Mac (http, loopback only) that the simulated camera reads live in place
+    of a file. Only while simulating, only from the harness; downstream it is the camera, as all test footage is.
   - **Its titles and optics** (`footage_media.Library`): a recording listed in a manifest is titled and grouped by it
     ("Real microscope", "Camera, not on the microscope") with its optics, which the player's "Use its optics" sets. The
     manifests are the repository's `assets/manifest.json` (public: it lists no one's own recordings) and the assets

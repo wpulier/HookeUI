@@ -1742,8 +1742,10 @@ class ResearchManager:
     def start_mission(self, rid: str, operation: str, every_s: float, window_s: float,
                       checkpoint_every: int = 3, *, acquisition: dict | None = None,
                       origin: dict | None = None) -> Mission:
-        """The app's side of a mission (P2c-1): the field pinned now, the plan checked, its slots started. Starting
-        one from a request (ADMIT, the day's money, checkpoints) is P2c-2's."""
+        """A mission: the field pinned now, the plan checked against its researcher's retained admission (ADMIT) and its
+        whole cost against the day's cap, its slots started. Started from a request by `schedule_acquisition` (clips)
+        and by a design's plan run (plan_runs.py: clips, or one operation on the live view), as the researcher's own;
+        carrying an interrupted one on is not offered yet."""
         from .hands import OPERATIONS
 
         session = self.sessions.get(rid)

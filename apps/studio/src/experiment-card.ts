@@ -20,12 +20,20 @@ export interface ExperimentWire {
   estimate?: string;
   outcome: { words?: string; document?: string; tab?: string; shown?: string };
   canRun: boolean; canStop: boolean; created: number; ended: number | null;
+  /** "steps": a design's Study plan run step by step (plan_runs.py); else a comparison of models. */
+  kind?: string;
+  /** The user's own step it waits on, and whether Done may be pressed for it (plan_runs.py `_wait_for_user`). */
+  waiting?: { step: number; says: string } | null; canContinue?: boolean;
+  /** Each step's state as its run recorded it (experiments.py `step_states`). */
+  stepStates?: ('done' | 'now' | 'next')[];
 }
 
 /** What a card shows: its cell, its head and status line, its steps (while it is a plan), its cost, and its actions. */
 export interface ExperimentView {
   cell: LitCellState; title: string; status: string; steps: string[]; cost: string;
-  actions: ('run' | 'change' | 'stop' | 'open')[];
+  /** While a design's plan runs: each step's mark, and the user's own step it is waiting on (with Done). */
+  stepStates: ('done' | 'now' | 'next')[]; yours: string;
+  actions: ('run' | 'change' | 'continue' | 'stop' | 'open')[];
 }
 
 const STATUS_WORDS: Record<string, string> = {
@@ -45,9 +53,17 @@ export function experimentView(x: ExperimentWire): ExperimentView {
       : x.status === 'failed' || x.status === 'stopped' ? `${head}${x.why ? ` · ${x.why}` : ''}` : head;
   const actions: ExperimentView['actions'] = [];
   if (x.status === 'proposed' && x.canRun) actions.push('run', 'change');
+  // A design's plan waiting on the user's own step: Done goes on (as "done" said to the voice does), beside Stop.
+  const yours = live && x.canContinue && x.waiting ? x.waiting.says : '';
+  if (yours) actions.push('continue');
   if (x.canStop) actions.push('stop');
   if (x.status === 'done' && x.outcome.document) actions.push('open');
-  return { cell, title: `${x.name} · ${x.title}`, status, steps: x.status === 'proposed' ? x.steps : [],
+  const plan = x.kind === 'steps';
+  const marks = plan && x.status !== 'proposed' ? (x.stepStates ?? []) : [];
+  const counted = marks.length ? ` · step ${Math.min(marks.filter((m) => m === 'done').length + 1, marks.length)} of ${marks.length}` : '';
+  const said = plan && live ? `${head}${counted}${yours ? ' · waiting for you' : x.progress ? ` · ${x.progress}` : ''}` : status;
+  return { cell: yours ? 'needs' : cell, title: `${x.name} · ${x.title}`, status: said,
+           steps: x.status === 'proposed' || marks.length ? x.steps : [], stepStates: marks, yours,
            cost: x.status === 'proposed' ? [x.estimate, x.cost].filter(Boolean).join(' · ') : '', actions };
 }
 
@@ -101,7 +117,7 @@ const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = '', tex
   const node = document.createElement(tag); if (className) node.className = className; if (text) node.textContent = text; return node;
 };
 
-const LABELS: Record<ExperimentView['actions'][number], string> = { run: 'Run it', change: 'Change…', stop: 'Stop', open: 'Open results' };
+const LABELS: Record<ExperimentView['actions'][number], string> = { run: 'Run it', change: 'Change…', continue: 'Done', stop: 'Stop', open: 'Open results' };
 
 /** One card, updated in place (its cell is never rebuilt, so its breathing never restarts). */
 export class ExperimentCard {
@@ -112,6 +128,7 @@ export class ExperimentCard {
   private readonly status: HTMLElement;
   private readonly steps: HTMLOListElement;
   private readonly cost: HTMLElement;
+  private readonly yours: HTMLElement;
   private readonly bar: HTMLElement;
   private state: LitCellState | null = null;
   private drawn = '';
@@ -128,8 +145,9 @@ export class ExperimentCard {
     this.title = make('span', 'chat-xcard-title'); this.status = make('span', 'chat-xcard-status mm-num');
     this.status.setAttribute('aria-live', 'polite');
     this.steps = make('ol', 'chat-xcard-steps'); this.cost = make('p', 'chat-xcard-cost');
+    this.yours = make('p', 'chat-xcard-yours');
     this.bar = make('div', 'chat-xcard-bar');
-    words.append(this.title, this.status, this.steps, this.cost, this.bar);
+    words.append(this.title, this.status, this.steps, this.yours, this.cost, this.bar);
     this.root.append(this.cell, words);
   }
 
@@ -146,11 +164,18 @@ export class ExperimentCard {
     this.status.textContent = view.status;
     this.root.dataset.state = x.status;
     this.root.setAttribute('aria-label', `${view.title}: ${view.status}`);
-    this.steps.replaceChildren(...view.steps.map((step) => make('li', '', step)));
+    this.steps.replaceChildren(...view.steps.map((step, i) => {
+      const mark = view.stepStates[i];
+      const li = make('li', mark ? `is-${mark}` : '', step);
+      if (mark) li.setAttribute('aria-label', `${mark === 'done' ? 'Done' : mark === 'now' ? 'Now' : 'Next'}: ${step}`);
+      return li;
+    }));
     this.steps.hidden = !view.steps.length;
+    this.yours.replaceChildren(...(view.yours ? [make('strong', '', 'Your step: '), make('span', '', view.yours)] : []));
+    this.yours.hidden = !view.yours;
     this.cost.textContent = view.cost; this.cost.hidden = !view.cost;
     this.bar.replaceChildren(...view.actions.map((action) => {
-      const button = make('button', `chat-xcard-act${action === 'run' ? ' is-primary' : ''}`, LABELS[action]);
+      const button = make('button', `chat-xcard-act${action === 'run' || action === 'continue' ? ' is-primary' : ''}`, LABELS[action]);
       button.type = 'button'; button.disabled = this.busy; button.dataset.action = action;
       button.addEventListener('click', () => {
         if (this.busy || !this.wire) return;

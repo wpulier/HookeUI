@@ -211,6 +211,8 @@ body[data-workspace-study='true'] .data-reader .page .rd-doc-table th { text-ali
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table :is(th, td) { padding: .5cqw 1cqw .5cqw 0; border-bottom: 1px solid var(--s-line); vertical-align: bottom; }
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table td { white-space: nowrap; }
 body[data-workspace-study='true'] .data-reader .page .rd-doc-table td.mm-num { font-variant-numeric: tabular-nums; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-card td { white-space: normal; vertical-align: top; }
+body[data-workspace-study='true'] .data-reader .page .rd-doc-card td:first-child { white-space: nowrap; width: 1%; padding-right: 2cqw; color: var(--s-title); font-weight: 500; }
 /* Its versions in How it was made: each a press that shows it on the page. */
 body[data-workspace-study='true'] .rd-ver-pick { margin: 0 0 0 -6px; padding: 2px 6px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; }
 body[data-workspace-study='true'] .rd-ver-pick:hover { background: var(--mm-hover); color: var(--mm-text); }

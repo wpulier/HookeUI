@@ -30,7 +30,7 @@ SIM_MANIFEST ?=
 CAMERA_SOURCE ?=
 STUDIO := CAMERA_PORT=$(CAMERA_PORT) CAMERA_TARGET="$(CAMERA_TARGET)" $(if $(CAMERA_SOURCE),MICROMIND_CAMERA_SOURCE="$(CAMERA_SOURCE)") ./scripts/studio.sh
 
-.PHONY: release app-build doctor catalog-install catalog-update channel-add catalog-ci fiji-inventory model-add catalog-check catalog-pr catalog-download catalog-adopt catalog-pin catalog-proof capability-check capability-check-cloud object-tracking-bench tracking-bench demo-start demo-stop demo-status licences export-corrections bundle replay-bench finetune-cells naming-fetch naming-bench acting-bench corpus corpus-tours assets assets-fetch assets-add assets-adopt assets-set assets-backup assets-migrate dataset-import dataset-check saves saves-move logs-prune voice-report day-report help setup start dev stop status save-logs new-session clear-session test test-timing check sim-test keys-check sam3-setup trackastra-setup arena-report \
+.PHONY: release app-build doctor catalog-install catalog-update channel-add catalog-ci fiji-inventory model-add catalog-check catalog-pr catalog-download catalog-adopt catalog-pin catalog-proof capability-check capability-check-cloud object-tracking-bench tracking-bench demo-start demo-stop demo-status licences export-corrections bundle replay-bench finetune-cells naming-fetch naming-bench acting-bench corpus corpus-tours assets assets-fetch assets-add assets-adopt assets-set assets-backup assets-migrate dataset-import dataset-check saves saves-move logs-prune voice-report day-report tab-speed help setup start dev stop status save-logs new-session clear-session test test-timing check sim-test keys-check sam3-setup trackastra-setup arena-report \
 	camera camera-page camera-sim camera-open camera-stop camera-health camera-preflight camera-reconnect camera-source \
 	camera-controls camera-record-start camera-record-status camera-record-stop \
 	cv-setup cv cv-open cv-stop cv-health cv-smoke camera-cv camera-cv-stop
@@ -183,6 +183,10 @@ voice-report:
 
 day-report:
 	cd services && .venv/bin/python -m bench.day_report
+
+# How fast Tab actions are, shown and prepared quietly, from the `tab-action` lines Hooke logs (bench/tab_speed.py).
+tab-speed:
+	cd services && .venv/bin/python -m bench.tab_speed $(if $(LOG),--log "$(LOG)") $(if $(SINCE),--since "$(SINCE)")
 
 # Iteration checks require explicit test paths; an omitted selector must never start the full suite.
 .PHONY: test-python test-studio typecheck
