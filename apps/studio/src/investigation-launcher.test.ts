@@ -46,7 +46,7 @@ test('both challenge entrances review the same source; editing keeps the origina
   const createResearch = vi.fn(() => new Promise<void>(resolve => {finish = resolve;}));
   const {launcher, actions} = setup({createResearch});
   await launcher.activate('light-my-cells-2');
-  expect(launcher.researchContext()?.title).toBe(brief.title);
+  expect(launcher.researchContext()).toMatchObject({title: brief.title, original: brief.original, status: 'featured'});
   launcher.root.querySelector('dialog')!.close();
   const linkForm = launcher.root.querySelector('form')!;
   linkForm.querySelector('input')!.value = LIGHT_MY_CELLS_URL;
@@ -93,4 +93,20 @@ test('an unreadable reference can retain the URL alone or a pasted working brief
     review.dispatchEvent(new Event('submit', {cancelable: true}));
     expect(actions.createResearch).toHaveBeenCalledExactlyOnceWith({...blocked, context: userText});
   }
+});
+
+
+test('the assistant sees a generic page’s excerpt when it has no summary or known question', async () => {
+  const source = {source: 'https://example.org/study', title: 'Example study', question: '', context: '',
+    original: 'Paired microscopy measurements are described in the source.', status: 'read' as const};
+  const {launcher} = setup({previewResearch: async () => source});
+  const link = launcher.root.querySelector('form')!;
+  link.querySelector('input')!.value = source.source;
+  link.dispatchEvent(new Event('submit', {cancelable: true}));
+  await vi.waitFor(() => expect(launcher.researchContext()).toMatchObject({source: source.source, original: source.original, status: 'read'}));
+  const dialog = launcher.root.querySelector('dialog')!;
+  dialog.querySelectorAll('textarea')[1].value = 'Compare two wells.';
+  expect(launcher.researchContext()).toMatchObject({original: source.original, context: 'Compare two wells.'});
+  dialog.close();
+  expect(launcher.researchContext()).toBe(null);
 });

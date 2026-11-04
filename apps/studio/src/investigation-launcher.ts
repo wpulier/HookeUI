@@ -64,7 +64,7 @@ export class InvestigationLauncher {
   private recentRows: readonly RecentProject[] = [];
   private preview?: HTMLDialogElement;
   private reader?: AbortController;
-  private workingBrief?: () => Pick<ResearchStarter, 'source' | 'title' | 'question' | 'context'>;
+  private workingBrief?: () => Omit<ResearchStarter, 'receipt' | 'status'> & {status: ResearchStarter['status'] | 'loading'};
   private opening = 0;
   private busy = false;
 
@@ -293,7 +293,7 @@ export class InvestigationLauncher {
     const status = element('p', 'Reading the source…', 'inv-secondary');
     status.setAttribute('role', 'status');
     body.append(status);
-    this.workingBrief = () => ({source: url.href, title: '', question: '', context: ''});
+    this.workingBrief = () => ({source: url.href, title: '', question: '', context: '', original: '', status: 'loading'});
     dialog.append(body, this.assistantHost);
     const reader = new AbortController(); this.reader = reader;
     try {
@@ -313,7 +313,10 @@ export class InvestigationLauncher {
     const question = element('textarea'); question.value = brief.question; question.rows = 2;
     const context = element('textarea'); context.value = brief.context; context.rows = 3;
     context.placeholder = 'Add what you want to investigate.';
-    this.workingBrief = () => ({source: brief.source, title: title.value, question: question.value, context: context.value});
+    this.workingBrief = () => ({
+      status: brief.status, title: title.value, original: brief.original, source: brief.source,
+      question: question.value, context: context.value,
+    });
     form.append(source, labeled('Project title', title), labeled('Research question', question));
     if (brief.original) {
       const details = element('details', '', 'inv-original');
