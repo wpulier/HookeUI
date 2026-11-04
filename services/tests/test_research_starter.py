@@ -113,6 +113,9 @@ def test_recent_projects_distinguish_background_activity_from_an_explicit_blank(
     store._record({'type':'line', 'thread':'t1', 'line':{
         'type':'activity', 'kind':'model', 'id':'catalog-peek:1', 'text':'Nothing new.'}})
     assert row(initial)['launcherBootstrap']
+    store._record({'type':'line', 'thread':'t1', 'line':{
+        'type':'app-notice', 'producer':{'kind':'session','id':initial}, 'event':'resumed'}})
+    assert row(initial)['launcherBootstrap']
     blank = store.new()
     assert blank != initial and 'launcherBootstrap' not in row(blank)
     assert row(initial)['launcherBootstrap']

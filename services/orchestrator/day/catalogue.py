@@ -273,7 +273,9 @@ class Catalogue:
         automatic = (kind == "session-origin" or
                      (kind == "thread-opened" and e.get("thread") == "t1" and not e.get("title")) or
                      (kind == "line" and line.get("type") == "activity" and
-                      str(line.get("id", "")).startswith("catalog-peek:")))
+                      str(line.get("id", "")).startswith("catalog-peek:")) or
+                     (kind == "line" and line.get("type") == "app-notice" and line.get("event") == "resumed"
+                      and line.get("producer") == {"kind":"session", "id":info.id}))
         if not automatic:
             info.bootstrap_only = False
         at = float(e.get("at") or 0.0)
