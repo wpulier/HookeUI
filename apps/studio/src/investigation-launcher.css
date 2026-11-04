@@ -18,7 +18,7 @@
 .inv-secondary, .inv-status { color: var(--mm-text-2); font-size: 13px; }
 .inv-status:not(:empty) { padding: 8px 0; }
 .inv-practical {
-  display: grid; grid-template-columns: minmax(0,1.45fr) minmax(230px,1fr); gap: 20px;
+  display: grid; grid-template-columns: minmax(0,1.75fr) minmax(230px,1fr); gap: 20px;
   border: 1px solid var(--mm-line); border-radius: 12px; padding: 19px 20px;
   background: var(--mm-card); align-items: center;
 }
@@ -56,8 +56,8 @@
 .inv-soon { color: var(--mm-text-2); background: var(--mm-hover); border: 1px solid var(--mm-line); }
 .inv-live { color: var(--mm-text); background: var(--mm-selected,var(--mm-hover)); border: 1px solid var(--mm-line-strong); }
 .inv-devices { padding-block: 17px; border-top: 1px solid var(--mm-line); }
-.inv-instruments { margin-top: 8px; }
-.inv-instruments .inv-button { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.inv-instruments { margin-top: 8px; display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); align-items: stretch; }
+.inv-instruments .inv-button { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; }
 .inv-dialog {
   box-sizing: border-box; margin: auto; width: min(500px, calc(100vw - 32px)); max-height: calc(100dvh - 32px);
   padding: 22px; overflow-y: auto; text-align: left; font: 14px/1.55 var(--mm-sans,system-ui);
@@ -75,6 +75,9 @@
 .inv-original p { padding: 8px 0; white-space: pre-wrap; max-height: 180px; overflow-y: auto; }
 .inv-dialog button.inv-primary { justify-self: end; color: var(--mm-page); background: var(--mm-text); padding-inline: 15px; }
 .inv-dialog button.inv-primary:hover { opacity: .9; background: var(--mm-text); }
+@container (max-width: 760px) {
+  .inv-instruments { grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
 @container (max-width: 690px) {
   .inv-practical { grid-template-columns: 1fr; gap: 12px; }
   .inv-link { border-left: 0; padding-left: 0; padding-top: 10px; border-top: 1px solid var(--mm-line); }
