@@ -580,6 +580,7 @@ const libraryPage = new LibraryPage(element<HTMLElement>('assets'), {
 let sourcesBefore: SourcesState | null = null;
 sourcesModel.onChange(() => {
   renderSources(); libraryPage.refresh();
+  window.dispatchEvent(new Event('hooke-project-library-changed'));
   const after = sourcesModel.state;
   const joined = joinedSince(sourcesBefore, after);
   sourcesBefore = after ? { ...after, sources: [...after.sources] } : null;

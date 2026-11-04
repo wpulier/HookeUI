@@ -42,8 +42,8 @@ export function chooseProjectAsset(): Promise<AssetMeta | null> {
       }
       const total = offset + page.assets.length;
       status.textContent = total ? `${total} of ${page.count} inputs` : 'No matching pictures or recordings.';
-      more.hidden = !page.assets.length || total >= page.count;
-      more.textContent = 'Show more';
+      more.hidden = total > 0 && (!page.assets.length || total >= page.count);
+      more.textContent = total ? 'Show more' : 'Refresh Library';
       more.onclick = () => void load(total);
     } catch {
       if (!dialog.open || generation !== read) return;
@@ -59,8 +59,11 @@ export function chooseProjectAsset(): Promise<AssetMeta | null> {
   dialog.append(heading, search, status, rows, more, cancel);
   document.body.append(dialog);
   dialog.showModal();
+  const refreshEmpty = () => { if (dialog.open && !rows.childElementCount) void load(0); };
+  window.addEventListener('hooke-project-library-changed', refreshEmpty);
   void load(0);
   return new Promise(resolve => dialog.addEventListener('close', () => {
+    window.removeEventListener('hooke-project-library-changed', refreshEmpty);
     dialog.remove(); resolve(selected);
   }, {once:true}));
 }
