@@ -112,6 +112,7 @@ def withdrawn_of(event: dict) -> tuple[str, str] | None:
 class Info:
     """One session as the list shows it and as `find` matches it."""
     id: str
+    starter_request: str | None = None
     name: str = ""  # its name; "" until it has one
     named: bool = False  # the user named it (not the app, from its first specimen or request)
     created: float = 0.0
@@ -278,6 +279,9 @@ class Catalogue:
             meta = validate(e.get("owner"), info.id)["metadata"]
             info.name, info.named, info.created = meta["name"], meta["named"], meta["created"]
         elif kind == "session-started":
+            starter = e.get("researchStarter")
+            if isinstance(starter, dict):
+                info.starter_request = starter.get("requestId")
             info.name = str(e.get("name") or "")[:80]
             info.named = bool(info.name) and e.get("by") == "user"
             info.started_from = e.get("from")

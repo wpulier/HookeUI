@@ -150,6 +150,7 @@ class SessionStore:
         self.journal = journal if journal is not None else Journal(sid, self.root_for(sid))
         self.name = ""  # its name ("" until it has one: an old day journal has none, sid.label says its date)
         self.guide = None
+        self.research_starter = None
         self.local_only = False  # provider admission belongs to the session, never global preferences
         self.named = False  # the user named it (the app's own name, from its first specimen or request, is not)
         self.created = 0.0
@@ -320,24 +321,27 @@ class SessionStore:
             except Exception:
                 pass
 
-    def new(self, name: str = "", by: str = "user", *, local_only: bool = False, guide: str | None = None) -> str:
+    def new(self, name: str = "", by: str = "user", *, local_only: bool = False, guide: str | None = None,
+            research_starter: dict | None = None) -> str:
         """A new session (only when the user asks: ADR 0017), begun today, with one empty conversation; it is the one
         the app is in now. Returns its id."""
         from .ownership import namespace
         if self.locations is not None:
             with self._switching:
                 root = self.locations.create(name, date=self.date, preferences=self.user_prefs,
-                    actor=by, clock=self.clock, local_only=local_only, started_from=self.sid, guide=guide)
+                    actor=by, clock=self.clock, local_only=local_only, started_from=self.sid, guide=guide,
+                    research_starter=research_starter)
                 self.open(root.session, "new")
                 return root.session
         with namespace(self.journal.root):
-            return self._new(name, by, local_only=local_only, guide=guide)
+            return self._new(name, by, local_only=local_only, guide=guide, research_starter=research_starter)
 
-    def _new(self, name, by, *, local_only, guide):
+    def _new(self, name, by, *, local_only, guide, research_starter):
         sid = sids.next_sid(self.journal.root, self.date)
         name = " ".join(str(name or "").split())[:80]
         self.open(sid, "new", header={"type": "session-started", "session": sid, "name": name,
-                                      "created": round(self.clock(), 3), "from": self.sid, "by": by, "localOnly": local_only, "guide": guide})
+                                      "created": round(self.clock(), 3), "from": self.sid, "by": by, "localOnly": local_only, "guide": guide,
+                                      **({"researchStarter": research_starter} if research_starter else {})})
         return sid
 
     def create_retained(self, name: str, *, actor: str) -> "SessionStore":
@@ -441,6 +445,7 @@ class SessionStore:
         elif kind == "session-started":
             self.local_only = e.get("localOnly") is True
             self.guide = e.get("guide")
+            self.research_starter = e.get("researchStarter")
             self.name = " ".join(str(e.get("name") or "").split())[:80]
             self.named = bool(self.name) and e.get("by") == "user"
             self.started_from = e.get("from")

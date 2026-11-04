@@ -1,0 +1,16 @@
+.research-starter-dashboard {
+  border: 1px solid var(--line, #b9c1bd);
+  border-radius: 14px;
+  padding: clamp(16px, 3vw, 34px);
+  margin: 0 0 20px;
+  color: inherit;
+  overflow-wrap: anywhere;
+}
+.research-starter-dashboard > span {font: 600 10px/1.4 system-ui; letter-spacing: .15em; opacity: .7}
+.research-starter-dashboard h2 {font-size: clamp(22px, 3vw, 34px); margin: .25em 0}
+.research-starter-dashboard h3 {font-size: 14px; margin: 0 0 .5em}
+.research-starter-dashboard p {line-height: 1.55; white-space: pre-line; margin: .55em 0}
+.research-starter-dashboard .starter-question {font-size: 17px}
+.research-starter-dashboard .starter-sources, .research-starter-dashboard .starter-next-actions {display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; margin: 12px 0}
+.research-starter-dashboard a {color: inherit; text-decoration: underline; text-underline-offset: 3px}
+.research-starter-dashboard .starter-briefs {display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 18px; margin: 18px 0; border-block: 1px solid var(--line, #b9c1bd); padding: 16px 0}

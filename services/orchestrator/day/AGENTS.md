@@ -409,3 +409,8 @@ journal is created for it. Explicit location recovery and ordinary opening resto
 that Project. A profile with no available Project still needs startup recovery.
 
 When every registered Project is unavailable at startup, the portable host uses normal allocation for one separate Project recovery workspace. Offline locators stay visible and their handles are never reused; no original bytes or grants change. Restart reuses that workspace. This bootstrap does not reconnect the missing Project or admit scientific work.
+
+A Project begun with a research link records the accepted title, question, original source excerpt,
+working brief, URL and request ID together in its session-started event. Reopening restores them.
+Repeating the same creation after a lost acknowledgement returns the same Project. Distinct
+creations may use the same URL. Previewing a link never opens a session.

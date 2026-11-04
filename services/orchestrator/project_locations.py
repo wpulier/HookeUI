@@ -138,7 +138,7 @@ class ProjectLocations:
                 raise ProjectLocationError('This host no longer owns the captured Project writer')
 
     def create(self, name, *, date, preferences, actor, clock, local_only=True, started_from=None, guide=None,
-               avoid=()):
+               avoid=(), research_starter=None):
         """Allocate a compatible handle over legacy and portable Projects together, and none of `avoid` (the owners a
         Project started from a publication will hold beside its own)."""
         with self._lock, namespace(self.legacy):
@@ -151,7 +151,7 @@ class ProjectLocations:
                 candidate = day + '.' + str(number)
             root = create(self.parent, name or 'Untitled project', session=candidate,
                           host_preferences=preferences, actor=actor, clock=clock, local_only=local_only,
-                          started_from=started_from, guide=guide)
+                          started_from=started_from, guide=guide, research_starter=research_starter)
             self.registry.register(root)
             self.writable(candidate)
             return root
