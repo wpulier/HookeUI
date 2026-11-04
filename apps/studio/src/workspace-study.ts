@@ -1582,7 +1582,9 @@ launcherAssistant.mountRecovery(conversationRecovery,()=>snapshot.session);
 function recentProjects(){
   return sortSessions(snapshot.projects).filter(row => {
     const counts=row.counts;
-    return !row.launcherBootstrap || row.name || !counts || counts.sourcesIncomplete ||
+    // Before the catalog arrives the socket can supply an unnamed provisional row without a label.
+    const provisional=!row.label && row.id===snapshot.session;
+    return (!row.launcherBootstrap && !provisional) || row.name || !counts || counts.sourcesIncomplete ||
       counts.sources || counts.made || counts.researchers || counts.conversations>1;
   }).map(row=>rowView(row,'',Date.now()/1000));
 }
