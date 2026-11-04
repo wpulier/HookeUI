@@ -2775,19 +2775,19 @@ async def session(app, client, msg) -> dict:
         try:
             starter = accepted(msg["researchStarter"], msg.get("starterRequestId"))
         except ValueError as error:
-            raise tools.ToolError(str(error), next=None) from error
+            raise tools.ToolError(str(error), next="review the brief and its source before creating the Project") from error
         # Creation runs synchronously alongside every other session switch. Its first event owns
         # both the accepted brief and the request id, including after a lost acknowledgement.
         previous = next((i for i in app.day.catalogue.list() if i.starter_request == starter["requestId"]), None)
         if previous:
             if app.day.elsewhere(previous.id).research_starter != starter:
-                raise tools.ToolError("This creation request already belongs to another brief.", next=None)
+                raise tools.ToolError("This creation request already belongs to another brief.", next="reopen the investigation to start with the updated brief")
             done = app.switch_session(previous.id)
         else:
             try:
                 verify_preview(starter, msg["researchStarter"].get("receipt"))
             except ValueError as error:
-                raise tools.ToolError(str(error), next=None) from error
+                raise tools.ToolError(str(error), next="preview the link again or paste the original brief") from error
             sid = app.day.new(starter["title"], by="user", research_starter=starter)
             done = {"ok": True, "session": sid}
     elif action == "new":

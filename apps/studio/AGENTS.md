@@ -1378,8 +1378,7 @@ follows that request's real outcome through `hooke-ask-sent`/`hooke-ask-settled`
 failed request is said at once with the words kept, and so is an accepted request whose answer's start_researcher
 was refused (`refused` on `hooke-ask-settled`: a missing key, the cap; its own words); an accepted one waits for the
 new researcher, which takes the Tab over, and says plainly if none has started after 90 seconds. It never claims a researcher
-started. With no Project open, the launcher shows the most recent Project first, up to seven more recent
-ones and New project; thumbnails are 192 px wide, so pictures stay near that size.
+started. The shared investigation launcher lists up to eight recent Projects by last use, each one click from the first screen.
 
 The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-part1-uiux-pass/audit.md`) settled these:
 - **Tabs.** `WorkspaceResearchTabs` owns every Tab that is a view rather than a saved Tab (`study:<id>`, the
@@ -1488,9 +1487,8 @@ The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-par
   The item is Data's own entry when it has that exact revision, else the entry the server sent (Data refreshes
   after); a `close` closes the side reader while it shows that item. Done is the screen report showing it
   (orchestrator/data_reader.py).
-- **First launch.** A fresh profile opens the server's current Project on its empty Stage (`session-home.ts`); `firstRun`
-  (no stored Tabs, no Project with an input or result) shows Welcome to Hooke only while no Project Tab is open. Both
-  carry the **small-models offer** under their ways in (`starter-models.ts`; Will, 2026-10-26), and Models carries it
+- **First launch and New Project.** First launch and New Project share the investigation launcher. Choosing a file or Library asset starts its Project after selection. Dismissing a picker or preview leaves the prior Project alone. The guided example uses its existing local-only path. Remote instrument previews never book time. Research links open an editable, cited brief; the accepted brief belongs to the new Project and reopens in Overview. A launcher conversation can follow the selected Project only after it opens.
+  The launcher and the empty Stage carry the small-models offer (`starter-models.ts`); Models carries it
   as one row at the top until answered: "Add a few small models?", rows in the wire's own words and sizes (Bright
   objects Included; EdgeTAM and DINOv2 small ticked; InstanSeg with its own software and Cellpose-SAM, non-commercial,
   unticked; an entry the edition excludes is left out), the models folder with its free space and Show in Finder, where

@@ -385,11 +385,16 @@ renderRecord();
 // conversation, `session`, `sessions`) moves everything.
 let sitting = ''; // the session open now (its sid, opaque): its researchers are on the shelf
 const sessionsModel = new SessionsModel((command) => connection.send(command));
+function newProjectFromMenu(): boolean {
+  if(document.body.dataset.workspaceStudy !== 'true') return sessionsModel.create();
+  window.dispatchEvent(new Event('hooke-new-project'));
+  return true;
+}
 const sessionMenu = new SessionMenu(sessionsModel, element<HTMLButtonElement>('session'), element<HTMLElement>('session-panel'),
-  { openAll: () => navigateStudio('#sessions') });
+  { openAll: () => navigateStudio('#sessions'), newProject:newProjectFromMenu });
 // All sessions (#sessions): every session as a gallery, as All assets is the library (sessions-page.ts).
 const sessionsPanel = element<HTMLElement>('sessions-page');
-const sessionsPage = new SessionsPage(sessionsPanel, sessionsModel, (hash) => navigateStudio(hash));
+const sessionsPage = new SessionsPage(sessionsPanel, sessionsModel, (hash) => navigateStudio(hash), newProjectFromMenu);
 // The side bar is the session (sidebar.ts): its assets, Made, Researchers and Activity, one at a time in a column on
 // the live view's left. Each section is drawn by its own view, once: Made by madetoday.ts, Activity by the chat's own
 // list (chatlog.ts, so an answer's ⓘ opens it at its request), Researchers by researcher-cards.ts.
@@ -1838,6 +1843,10 @@ talkButton.addEventListener('click', (event) => {
 });
 
 function startTalk(): void {
+  if (document.body.dataset.studyNeutral === 'true') {
+    document.querySelector<HTMLButtonElement>('.launcher-assistant button[title="Dictate a message to Hooke"]')?.click();
+    return;
+  }
   if (!workspaceSession || !workspaceReady) { showHint('Reconnect to the studio before starting Talk.'); return; }
   if (scientificAskSelection()) { showHint('Talk uses the Stage. Remove the saved attachment before starting Talk.'); return; }
   // Not allowed yet: the microphone card first, whose button starts Talk in its own click (mic-card.ts).
@@ -1882,6 +1891,7 @@ let talkKeySetting: TalkKey = 'control-option';
 let heardCueSetting: HeardCue = 'tone';
 /** Whether Talk is held for each turn: the session's own word once it has said it, else the settings. */
 function holdToTalk(): boolean {
+  if (document.body.dataset.studyNeutral === 'true') return false;
   if (voice.state === 'live' || voice.state === 'connecting') {
     if (voice.talkMode !== undefined) return voice.talkMode === 'hold'; // GPT-Live announces none: a toggle
     if (voice.state === 'live') return false;
@@ -1924,6 +1934,15 @@ const heardTone = new HeardTone({ shared: () => voice.cueContext() });
 const heardSign = heardHandler({ turn: () => turns.turn, cue: () => heardCueSetting, settle: () => heardRing.settle(), tone: () => heardTone.play() });
 talkHold.attach(window, document);
 talkHold.attachButton(talkButton);
+// The Project voice has authority in its Project. While choosing a destination only
+// the launcher's composer receives speech, and no background microphone can act on the previous Project.
+const launcherVoice = new MutationObserver(() => {
+  if (document.body.dataset.studyNeutral === 'true') {
+    talkHold.cancel();
+    if (voice.state === 'live' || voice.state === 'connecting') voice.stop();
+  }
+});
+launcherVoice.observe(document.body, {attributes:true, attributeFilter:['data-study-neutral']});
 
 /** The window now for the voice: a granted tab share's frame, else the window composed (screen.ts). */
 const windowCapture: WindowCapture = {
@@ -3985,11 +4004,11 @@ export function workspaceStudyBridge() {
       return { blockers: record.blockers, running: [...record.running,
         ...assistantLines({ writing: chat.writing, steps: assistantSteps, voice: voice.state === 'live' || voice.state === 'connecting' })] };
     },
-    switchSession: (id?: string) => studySessionSwitch.run(switchBlockReason, async () => {
+    switchSession: (id?: string, research?: {researchStarter: import('./research-starter').ResearchStarter; starterRequestId: string}) => studySessionSwitch.run(switchBlockReason, async () => {
       if (id === sessionsModel.current) return id;
       studyTransition = true;
       try {
-        const reply = await connection.request('session', id ? { action: 'switch', id } : { action: 'new' });
+        const reply = await connection.request('session', id ? { action: 'switch', id } : { action: 'new', ...research });
         const sid = typeof reply.session === 'string' ? reply.session : '';
         if (!sid || id && sid !== id) throw new Error('The server did not acknowledge the requested project.');
         await waitFor(() => sessionsModel.current === sid && sourcesModel.state?.session === sid && !staging && !stageGate.holding(performance.now()), 'The acknowledged project did not finish opening.');

@@ -163,6 +163,10 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
                             await asyncio.to_thread(archive.close)
 
     app = FastAPI(lifespan=lifespan)
+    from .launcher_assistant import register as add_launcher_assistant
+    add_launcher_assistant(app, built, studio_origin, ARCHIVE_HEADER)
+    from .research_starter import register as add_research_starter
+    add_research_starter(app, built, studio_origin, ARCHIVE_HEADER)
     from .capability_journey_api import register as add_capability_journey_routes
     add_capability_journey_routes(app, built, studio_origin, ARCHIVE_HEADER)
     from .scientific_project_api import register as add_scientific_project_routes

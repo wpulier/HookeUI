@@ -320,9 +320,10 @@ export class ScientificFileImport {
     }
   }
 }
-export function openScientificFileImport(options: Options): void {
+export function openScientificFileImport(options: Options, files?: File[]): void {
   let current = imports.get(options.session);
   if (!current || current.finished()) { current = new ScientificFileImport(options); imports.set(options.session, current); }
+  if (files) current.accept({ files, uri: '', folder: false });
   current.show();
 }
 
