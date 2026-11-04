@@ -87,7 +87,7 @@ def test_a_version_sent_from_elsewhere_is_refused_without_overwriting(tmp_path):
     root, *_ = project(tmp_path)
     remote = folder_remote(tmp_path / 'Drive', create=True)
     first = push_sealed(sealed(root, tmp_path, 'One'), remote, parent=None, summary='One')
-    with pytest.raises(Diverged, match='two places'):
+    with pytest.raises(Diverged, match='two places.*Nothing was sent. Send it to a new place instead'):
         push_sealed(sealed(root, tmp_path, 'Two'), remote, parent=None, summary='Stale')
     assert remote.records.head() == first['commit']
 

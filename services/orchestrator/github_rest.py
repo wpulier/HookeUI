@@ -6,6 +6,8 @@ the same `call(method, path, payload) -> (status, data)` shape as `publish_api._
 """
 from __future__ import annotations
 
+import time
+
 from . import untrusted
 from .project_remote_layers import RemoteRefused
 
@@ -22,6 +24,23 @@ def refused(what: str, status: int, data) -> str:
         from .github_signin import INSTALL_URL
         words += f'. Install the HookeUI app on your GitHub account ({INSTALL_URL}), then try again'
     return words
+
+
+DOWNLOAD_RETRIES = (1.0, 3.0)  # seconds before asking again after a server error
+_pause = time.sleep  # tests replace it
+
+
+def _bounded(response, limit: int) -> bytes:
+    """A 200 download's bytes, refused when it came from anywhere but GitHub or is larger than `limit`."""
+    host = response.url.host or ''
+    if not (host == 'github.com' or host.endswith('.githubusercontent.com')):
+        raise RemoteRefused('A download was redirected away from GitHub; nothing was used')
+    body = bytearray()
+    for block in response.iter_bytes():
+        body += block
+        if len(body) > limit:
+            raise RemoteRefused('A file of this project is larger than its manifest says')
+    return bytes(body)
 
 
 class GitHubRefused(RemoteRefused):
@@ -93,24 +112,22 @@ class Client:
         return response.status_code, data
 
     def download(self, url: str, limit: int) -> bytes:
-        """GET public bytes (a raw file or release asset) with no token, bounded; redirects to GitHub's storage only."""
+        """GET public bytes (a raw file or release asset) with no token, bounded; redirects to GitHub's storage only.
+        GitHub's file servers now and then answer one request with a server error (a 501 was seen live): that is asked
+        again, twice at most, before the file is refused."""
         if self.http is not None:
             return self.http.download(url, limit)
         import httpx
         with httpx.Client(follow_redirects=True, timeout=120, trust_env=False,
                           headers={'User-Agent': 'HookeUI'}) as client:
-            with client.stream('GET', url) as response:
-                if response.status_code != 200:
-                    raise RemoteRefused(f'GitHub could not provide a file of this project ({response.status_code})')
-                host = response.url.host or ''
-                if not (host == 'github.com' or host.endswith('.githubusercontent.com')):
-                    raise RemoteRefused('A download was redirected away from GitHub; nothing was used')
-                body = bytearray()
-                for block in response.iter_bytes():
-                    body += block
-                    if len(body) > limit:
-                        raise RemoteRefused('A file of this project is larger than its manifest says')
-                return bytes(body)
+            waits = list(DOWNLOAD_RETRIES)
+            while True:
+                with client.stream('GET', url) as response:
+                    if response.status_code == 200:
+                        return _bounded(response, limit)
+                    if not waits or not (response.status_code >= 500 or response.status_code == 429):
+                        raise RemoteRefused(f'GitHub could not provide a file of this project ({response.status_code})')
+                _pause(waits.pop(0))
 
     def asset(self, repo: str, asset_id: int, limit: int) -> bytes:
         """GET a release asset's bytes signed in (a private repository's), bounded. GitHub answers with a redirect to
