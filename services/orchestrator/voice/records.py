@@ -150,6 +150,8 @@ class Records:
             return self._cancelled(result, before)
         if tool in ("researcher_note", "researcher_followup", "revise_work"):
             return self._steered(tool, result, before)
+        if tool in ("start_agent", "agent_note", "stop_agent", "answer_agent"):
+            return self._agent(tool, run)
         if tool == "run_capability":
             return self._capability(result, run)
         if tool == "workflow":
@@ -395,6 +397,33 @@ class Records:
                 seen.add(ref["id"])
                 out.append(ref)
         return out
+
+    def _agent(self, tool: str, run) -> dict:
+        """An outside agent's launch as the conductor records it (agents/conductor.py), never as the tool said it."""
+        lid = ((getattr(run, "values", None) or {}) if run is not None else {}).get("agentLaunch")
+        found = getattr(self.services, "agents", None)
+        conductor = found() if callable(found) else None
+        launch = conductor.launches.get(lid) if conductor is not None and lid else None
+        if launch is None:
+            return {"result": "uncertain", "error": "Hooke has no record of that agent",
+                    "said": "Not sure it was done: Hooke has no record of that agent."}
+        if tool == "answer_agent":
+            ask = ((getattr(run, "values", None) or {}) if run is not None else {}).get("agentAsk")
+            return ({"result": "verified", "said": f"{launch.label} has your answer and carries on."}
+                    if not any(a["id"] == ask for a in launch.asks) else
+                    {"result": "uncertain", "said": f"{launch.label} still shows the ask as waiting."})
+        if tool == "stop_agent":
+            return ({"result": "verified", "said": f"{launch.label} is stopped and disconnected."}
+                    if launch.state == "stopped" else
+                    {"result": "uncertain", "said": f"{launch.label} is not recorded as stopped yet."})
+        if launch.state == "failed":
+            return {"result": "failed", "error": launch.why, "said": f"{launch.label} failed: {launch.why}"}
+        if tool == "agent_note":
+            sent = any(e["role"] == "hooke" for e in launch.transcript[1:])
+            return ({"result": "verified", "said": f"Passed to {launch.label} as Hooke's note."} if sent else
+                    {"result": "uncertain", "said": f"Not sure {launch.label} got it."})
+        return {"result": "running", "said": f"{launch.label} is {launch.status.replace('-', ' ')}: it reports back "
+                                             f"in the Agents panel."}
 
     def _saved(self, result: dict, run) -> dict:
         """What a call saved resolves in Hooke's stores: verified, naming it; running while it saves or works in the

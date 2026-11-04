@@ -24,6 +24,7 @@ from .magnifier import add_magnifier_tools
 from .memory import add_memory_tools
 from .motion import add_motion_tools
 from .narration import add_narration_tools
+from .agents import add_agent_tools
 from .research import add_research_tools, recent_request
 from .scene import add_dissect_tool, add_lead_tool, add_scene_tools
 from .seeing import add_seeing_tools
@@ -65,6 +66,7 @@ class Services:
     magnifier: Any = None  # magnifier.Magnifier
     dissector: Any = None  # dissect.Dissector
     research: Any = None  # research.ResearchManager
+    agents: Callable | None = None  # () -> agents.conductor.Conductor: outside agents Hooke starts (ADR 0029)
     desk: Any = None  # research.desk.Desk: which researcher a request means
     presenter: Any = None  # presenter.Presenter: a researcher's work beside the view
     day: Any = None  # day.SessionStore: conversations and preferences
@@ -135,6 +137,7 @@ def build(services: Services) -> Registry:
     add_group_tools(registry, services)
     add_dissect_tool(registry, services)
     add_research_tools(registry, services)
+    add_agent_tools(registry, services)
     add_narration_tools(registry, services)
     add_view_tools(registry, services)
     add_finding_tools(registry, services)

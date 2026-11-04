@@ -3145,6 +3145,77 @@
       ]
     },
     {
+      "id": "start-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Start an outside agent",
+      "what": "Starts Codex, Claude Code or Grok on a task",
+      "how": {
+        "tool": "start_agent",
+        "say": "ask Codex to write a stomata-tracking capability"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "agents-status",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "What everyone is doing",
+      "what": "Says what researchers and outside agents are doing",
+      "how": {
+        "tool": "agents",
+        "say": "what's everyone doing?"
+      },
+      "parts": [
+        "outside-agents",
+        "research-worker"
+      ]
+    },
+    {
+      "id": "agent-note",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Tell an outside agent",
+      "what": "Passes an outside agent a note, marked as Hooke's",
+      "how": {
+        "tool": "agent_note",
+        "say": "tell Codex to use micro-sam"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "stop-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Stop an outside agent",
+      "what": "Stops an outside agent and revokes its connection",
+      "how": {
+        "tool": "stop_agent",
+        "say": "stop Grok"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
+      "id": "answer-agent",
+      "family": "researchers",
+      "actor": "agent",
+      "title": "Answer an agent's ask",
+      "what": "Gives your yes or no to what an agent asked",
+      "how": {
+        "tool": "answer_agent",
+        "say": "yes, allow it"
+      },
+      "parts": [
+        "outside-agents"
+      ]
+    },
+    {
       "id": "cancel-research-button",
       "family": "researchers",
       "actor": "you",
@@ -5657,6 +5728,13 @@
       "kind": "app",
       "purpose": "Background work in its own process: web, pictures, video, lessons",
       "source": "services/research_worker/researcher.py"
+    },
+    {
+      "id": "outside-agents",
+      "title": "Outside agents",
+      "kind": "app",
+      "purpose": "Codex, Claude Code and Grok Build, started by Hooke with your sign-in",
+      "source": "services/orchestrator/agents/conductor.py"
     },
     {
       "id": "ledger",

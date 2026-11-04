@@ -132,6 +132,8 @@ def register(app, built, studio_origin, header: str) -> Connections:
         for client in list(clients):
             client.offer(message)
 
+    built.announce_agent_connections = announce  # the conductor's launches appear in Connected agents too
+
     def studio(request: Request, writes: bool) -> None:
         if _host(request) not in LOOPBACK_HOSTS:
             raise Refused(403, "not-local", "Only this Mac's Hooke window may do that.", next="use Hooke on this Mac")

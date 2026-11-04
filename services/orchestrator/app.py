@@ -214,6 +214,7 @@ class App:
     _sessions_sent: float = field(default=-1e9, repr=False)
     _sessions_sending: set = field(default_factory=set, repr=False)
     _research_working: dict = field(default_factory=dict, repr=False)
+    conductor: object = field(default=None, repr=False)  # outside agents Hooke starts (agents/conductor.py, ADR 0029)
     _key_admin: object = field(default=None, repr=False)
     _loop: object = field(default=None, repr=False)  # the app's event loop, once started
     _pages: dict = field(default_factory=dict, repr=False)  # open_page's waits: id -> the studio's reply (page-opened)
@@ -591,6 +592,7 @@ class App:
                             outline_seen=partial(outline_seen, hub, lambda: sight.view),
                             publish_settings=lambda: app.publish_settings(), sweep=sweep,
                             clip=clip, watcher=watcher, guide=guide, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
+                            agents=lambda: app.conductor,  # outside agents Hooke starts (ADR 0029), made with the App below
                             capabilities=lambda: app.capabilities_wire(counts=False),  # the agent reads what the Capabilities page shows
                             capability_status=lambda: app.capability_status(),  # its awareness: the rows alone, fresh
                             # The Models page's download queue and its card, for the agent (brain/toolbox/catalog.py)
@@ -932,6 +934,12 @@ class App:
                   datasets=datasets, rig=rig)
         services.workspace_context = app.workspace_context
         app.registrations = registrations
+        from .agents.conductor import Conductor
+        from .agents.hooke_side import HookeSide
+
+        # Outside agents the user asks Hooke to start (ADR 0029): what they report spending counts in the day's allowance.
+        app.conductor = Conductor(paths.home, HookeSide(app))
+        research.spending.others.append(app.conductor.spent_on)
         # Dataset tables (datatables.py): measured tables pooled and edited, each version with its rows; a correction of a
         # population a following table pooled makes its next version, debounced and read off the loop.
         from .datatables import DataTables
@@ -1233,6 +1241,9 @@ class App:
 
         self._stopping = False
         looplag.warm_imports()  # what would stall the loop when first used, imported now off it (looplag.WARM_IMPORTS)
+        if self.conductor is not None:  # connections a crash left to agents Hooke started are revoked (ADR 0029)
+            await asyncio.to_thread(self.conductor.recover)
+            self._tasks.append(asyncio.create_task(asyncio.to_thread(self.conductor.warm)))  # off the loop, never awaited
         self._tasks.append(asyncio.create_task(self.warm_vision()))
         from . import fiji_sandbox
 
@@ -1832,6 +1843,8 @@ class App:
         if self.hub.loop_lag is not None:
             self.hub.loop_lag.stop()
         self.research.stop()
+        if self.conductor is not None:
+            await self.conductor.close()  # every agent Hooke started ends, its connection revoked
         if getattr(self, "registrations", None) is not None:
             await asyncio.to_thread(self.registrations.stop)  # its jobs ended, recorded interrupted
         await self.hub.stop()

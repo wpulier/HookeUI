@@ -58,6 +58,8 @@ THINK_TOOLS = PARTNER_TOOLS + ("compare_models", "count", "measure", "query_popu
                                "write_document",
                                # Guiding the user's hands (guide.py): its lines go to the voice word for word
                                "guide", "stop_guiding", "guiding",
+                               # Outside agents Hooke starts (ADR 0029).
+                               "start_agent", "agents", "agent_note", "stop_agent", "answer_agent",
                                # Projects by voice (brain/toolbox/projects.py)
                                "list_projects", "rename_project", "organize_project", "apply_organization",
                                "archive_project", "undo_project_change")

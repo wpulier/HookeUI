@@ -229,6 +229,11 @@ TOOLS = {
     "research_status": "none: reads the researchers",
     "summarize_research": "none: reads the researchers' work",
     "cancel_researcher": "none: stops a researcher",
+    "start_agent": "none: starts an outside agent; what it keeps is its own (agents/conductor.py)",
+    "agents": "none: reads the workers",
+    "agent_note": "none: a note to an outside agent",
+    "stop_agent": "none: stops an outside agent",
+    "answer_agent": "none: the user's answer to an outside agent's ask",
     "researcher_note": "clip",  # a note to a working researcher; with hold_seconds, the footage it asked for (held.py)
     "set_research_cap": "none: changes a preference",
     "propose_correction": "temporary: a proposal until the user accepts it; accepting relabels the outline",

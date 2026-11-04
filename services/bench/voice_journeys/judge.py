@@ -19,7 +19,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .standard import load_bench, outcome_spans, released, step_view, thinks, unprompted_spans, windows
+from .standard import load_bench, outcome_spans, released, step_lines, step_view, thinks, unprompted_spans, windows
 
 JUDGE = "openai:gpt-6.1-sol@low"  # as score.py: another model than the voices' own
 # Each judge: its key, and a judged step's worst cost (one image, about 3,000 tokens in; its output cap, thinking
@@ -182,13 +182,18 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
     bench["_outcomes"] = outcome_spans(inter)
     steps = [s for s in bench["steps"] if not s.get("setup")]
     out, unprompted, tasks = [], unprompted_spans(inter), thinks(inter)
+    before: list[str] = []  # what the voice said on its own while the plan waited (an agent's ask), for the next step
     for i, (step, (start, end)) in enumerate(zip(steps, windows(steps, bench.get("ended")))):
         if step.get("kind") in ("idle", "restart"):
+            if step.get("kind") == "idle":
+                before += [l["text"] for l in step_lines(conv, inter, start, end)]  # unprompted lines included
             continue
         release = released(step)
         # The next request interrupted this answer on purpose (the plan's barge-in): judge what was said before it.
         cut = steps[i + 1] if i + 1 < len(steps) and steps[i + 1].get("interrupt") else None
         _, calls, _, lines = step_view(bench, conv, inter, (start, end), unprompted, tasks)
+        answer = {l["text"] for l in lines}
+        later = [l["text"] for l in step_lines(conv, inter, start, end) if l["text"] not in answer]
         # The requests Hooke had in its rows in the chat as the user spoke, each in its latest state then (what the user
         # sees): "is the video search done?" is judged against the search's own row, however many steps back it was.
         latest: dict[str, dict] = {}
@@ -226,7 +231,9 @@ def facts(bench: dict, conv: list[dict], inter: list[dict]) -> list[dict]:
         pointed = [f"- (+{e['t'] - release:.1f} s) pointed: a {e.get('style') or 'mark'} drawn on "
                    + ("the live view" if str(e.get("target") or "") == "frame" else f"{e.get('target')}")
                    for e in sorted(drawn.values(), key=lambda e: e["t"])]
+        heard_before, before = before, later  # said on its own in this step's window: the next step's context
         out.append({"id": step["id"], "say": step.get("say", ""), "release": release, "said": [l["text"] for l in lines],
+                    "before": heard_before,
                     "rows": rows + (["Researchers started in this step, by their own records:"] + results if results else []),
                     "interruptedS": round((cut.get("down") or cut["start"]) - release, 1) if cut else None,
                     "lines": [f"{i + 1}. (+{l['first'] - release:.1f} s) {l['text']}" for i, l in enumerate(lines)],
@@ -262,6 +269,8 @@ async def verdicts(bench: dict, conv: list[dict], inter: list[dict], plan: dict,
         earlier = "".join(f'Earlier, the user said "{say}"; the voice said: {" ".join(said)[:300] or "(nothing)"}'
                           + (f'; the app did: {" ".join(did)[:400]}' if did else "") + "\n"
                           for say, said, did in history[-2:])
+        if step.get("before"):  # said with no request while the plan waited: what the user may be answering now
+            earlier += f'Then, with no request from the user, the voice said: {" ".join(step["before"])[:400]}\n'
         history.append((re.sub(r"\[\[slnc \d+\]\] ?", "", step["say"]), step["said"],
                         [a.lstrip("- ") for a in step["actions"]]))
         if only is not None and step["id"] not in only:

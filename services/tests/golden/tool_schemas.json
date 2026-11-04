@@ -1572,6 +1572,123 @@
   }
  },
  {
+  "description": "Start an outside coding agent installed on this Mac (Codex, Claude Code, Grok Build) on a task the user gave, with the user's own sign-in; it works in this Project through Hooke and reports back for review. Only when the user asked for that agent. Say you are getting that agent on it, not that you will do it yourself.",
+  "inline_ms": 4000,
+  "kind": "effect",
+  "name": "start_agent",
+  "params": {
+   "properties": {
+    "asked_with": {
+     "description": "the user's own words asking for the agent",
+     "type": "string"
+    },
+    "program": {
+     "description": "which agent: codex (OpenAI Codex), claude-code (Claude Code), grok (Grok Build), gemini (Gemini CLI)",
+     "enum": [
+      "codex",
+      "claude-code",
+      "grok",
+      "gemini"
+     ],
+     "type": "string"
+    },
+    "task": {
+     "description": "what the agent should do, in the user's words",
+     "type": "string"
+    }
+   },
+   "required": [
+    "program",
+    "task",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "What every worker is doing, and what a finished one found: Hooke's researchers and the outside agents Hooke started (working, needs you, done or failed), with a finished agent's own last words. For \"what's everyone doing?\" and \"what did Codex find?\"; say it in one or two sentences, an agent's report as back for the user's review, never as an accepted finding.",
+  "inline_ms": 300,
+  "kind": "query",
+  "name": "agents",
+  "params": {
+   "properties": {},
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Give the user's own answer to what an outside agent asked to do (allow or decline), after they said it; never on Hooke's own judgement.",
+  "inline_ms": 2000,
+  "kind": "effect",
+  "name": "answer_agent",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    },
+    "always": {
+     "description": "the user said yes for the rest of this session",
+     "type": "boolean"
+    },
+    "answer": {
+     "enum": [
+      "allow",
+      "decline"
+     ],
+     "type": "string"
+    },
+    "asked_with": {
+     "description": "the user's own answer, quoted",
+     "type": "string"
+    }
+   },
+   "required": [
+    "answer",
+    "asked_with"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Pass an outside agent a note from the user (\"tell Codex to use micro-sam\"); it is marked as Hooke's relay, never as the user's approval of anything.",
+  "inline_ms": 2000,
+  "kind": "effect",
+  "name": "agent_note",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    },
+    "text": {
+     "description": "what to tell it",
+     "type": "string"
+    }
+   },
+   "required": [
+    "text"
+   ],
+   "type": "object"
+  }
+ },
+ {
+  "description": "Stop an outside agent Hooke started (its access to the Project ends with it); say only that it stopped.",
+  "inline_ms": 3000,
+  "kind": "effect",
+  "name": "stop_agent",
+  "params": {
+   "properties": {
+    "agent": {
+     "description": "which outside agent, as the user named it (\"Codex\", \"Grok\"); omit for the only one running",
+     "type": "string"
+    }
+   },
+   "required": [],
+   "type": "object"
+  }
+ },
+ {
   "description": "Rarely: offer one next step, said later at a pause, only when you notice something on screen the user has not asked about and would want to know (for example: \"There's a second one at the top; want me to compare them?\"). Never instead of doing what the user asked, and not for ordinary questions.",
   "inline_ms": 100,
   "kind": "effect",
