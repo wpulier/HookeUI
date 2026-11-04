@@ -18,7 +18,7 @@
 .inv-secondary, .inv-status { color: var(--mm-text-2); font-size: 13px; }
 .inv-status:not(:empty) { padding: 8px 0; }
 .inv-practical {
-  display: grid; grid-template-columns: minmax(0,1.75fr) minmax(230px,1fr); gap: 20px;
+  display: grid; grid-template-columns: minmax(0,1.45fr) minmax(230px,1fr); gap: 20px;
   border: 1px solid var(--mm-line); border-radius: 12px; padding: 19px 20px;
   background: var(--mm-card); align-items: center;
 }
@@ -91,3 +91,7 @@
   .inv-art { height: 100%; min-height: 86px; }
   .inv-card strong { margin: 3px 0; font-size: 17px; }
 }
+
+.inv-more-recent summary { cursor: pointer; color: var(--mm-text-2); }
+.inv-more-recent[open] { flex-basis: 100%; }
+.inv-more-recent > div { display: flex; flex-wrap: wrap; gap: 6px 16px; padding-block: 6px; }

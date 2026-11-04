@@ -1395,7 +1395,7 @@ follows that request's real outcome through `hooke-ask-sent`/`hooke-ask-settled`
 failed request is said at once with the words kept, and so is an accepted request whose answer's start_researcher
 was refused (`refused` on `hooke-ask-settled`: a missing key, the cap; its own words); an accepted one waits for the
 new researcher, which takes the Tab over, and says plainly if none has started after 90 seconds. It never claims a researcher
-started. The shared investigation launcher lists up to eight recent Projects by last use, each one click from the first screen.
+started. The shared investigation launcher shows the three most recently used Projects, with up to five more under the disclosure.
 
 The whole-app usability audit (2026-10-23/24, ledger `docs/design/2026-10-23-part1-uiux-pass/audit.md`) settled these:
 - **Tabs.** `WorkspaceResearchTabs` owns every Tab that is a view rather than a saved Tab (`study:<id>`, the

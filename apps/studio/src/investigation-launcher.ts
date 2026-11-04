@@ -15,7 +15,7 @@ export interface LauncherActions {
   previewResearch(url: string, signal?: AbortSignal): Promise<ResearchStarter>;
   createResearch(brief: ResearchStarter): ActionResult;
 }
-interface RecentProject {id: string; name: string; thumb?: string | null}
+interface RecentProject {id: string; name: string; lastUsed?: string; thumb?: string | null}
 
 const investigations = [
   {id: 'light-my-cells-2', title: 'Light My Cells 2', kind: 'Research challenge', status: 'Start Project',
@@ -75,16 +75,16 @@ export class InvestigationLauncher {
     const identity = element('div');
     identity.append(element('h1', 'What would you like to investigate?'));
     const controls = element('div', '', 'inv-controls');
-    controls.append(this.actionButton('open-project', 'Open Project…'));
+    controls.append(this.actionButton('open-project', 'Open Project…'), this.actionButton('blank', 'Start blank'));
     header.append(identity, controls);
 
     const practical = element('section', '', 'inv-practical');
     const work = element('div', '', 'inv-start');
-    work.append(element('h2', 'Start with what you have'), element('p', 'Drop images, videos, or research files here to begin.', 'inv-secondary'));
+    work.append(element('h2', 'Start with what you have'), element('p', 'Drop images, videos, or research files here.', 'inv-secondary'));
     const ways = element('div', '', 'inv-ways');
     const quickStarts = [
       ['files', 'Open files'], ['library', 'Choose from Library'], ['feed', 'Start a live feed'],
-      ['example', 'Try an example'], ['blank', 'Start blank'],
+      ['example', 'Try an example'],
     ] as const;
     for (const [id, label] of quickStarts) ways.append(this.actionButton(id, label));
     work.append(ways);
@@ -99,7 +99,7 @@ export class InvestigationLauncher {
     const row = element('div', '', 'inv-link-row');
     const read = element('button', 'Preview', 'inv-button'); read.type = 'submit';
     row.append(this.url, read);
-    form.append(label, row, element('p', 'Review the brief before creating a Project.', 'inv-secondary'));
+    form.append(label, row);
     form.addEventListener('submit', event => {event.preventDefault(); void this.readLink(this.url.value, read);});
     practical.append(work, form);
 
@@ -131,7 +131,7 @@ export class InvestigationLauncher {
     this.recent.setAttribute('aria-label', 'Recent Projects');
     this.recent.hidden = true;
     this.status.setAttribute('role', 'status');
-    this.root.append(header, this.recent, this.assistantHost, practical, this.status, explore, devices);
+    this.root.append(header, this.recent, practical, this.status, this.assistantHost, explore, devices);
     this.root.addEventListener('dragover', event => {
       if (event.dataTransfer?.types.includes('Files')) {
         event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'copy';
@@ -164,8 +164,21 @@ export class InvestigationLauncher {
     for (const row of this.recentRows) this.cards.delete('recent:' + row.id);
     this.recentRows = visible.map(({id, name}) => ({id, name}));
     this.recent.hidden = !visible.length;
-    this.recent.replaceChildren(element('span', 'Recent Projects', 'inv-eyebrow'),
-      ...visible.map(row => this.actionButton('recent:' + row.id, row.name, 'inv-recent-link')));
+    const links = visible.map(row => {
+      const link = this.actionButton('recent:' + row.id, row.name, 'inv-recent-link');
+      if (row.lastUsed) link.title = row.name + ' · Last opened ' + row.lastUsed;
+      return link;
+    });
+    const expanded = this.recent.querySelector('details')?.open ?? false;
+    this.recent.replaceChildren(element('span', 'Recent Projects', 'inv-eyebrow'), ...links.slice(0, 3));
+    if (links.length > 3) {
+      const more = element('details', '', 'inv-more-recent');
+      const list = element('div');
+      list.append(...links.slice(3));
+      more.append(element('summary', (links.length - 3) + ' more'), list);
+      more.open = expanded;
+      this.recent.append(more);
+    }
   }
 
   reset() {
@@ -294,7 +307,7 @@ export class InvestigationLauncher {
     });
     dialog.addEventListener('cancel', event => { if (this.busy) event.preventDefault(); });
     dialog.addEventListener('close', () => {
-      if (dialog.contains(this.assistantHost)) this.recent.after(this.assistantHost);
+      if (dialog.contains(this.assistantHost)) this.status.after(this.assistantHost);
       if (this.preview === dialog) {
         this.preview = undefined;
         this.workingBrief = undefined;
