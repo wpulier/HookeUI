@@ -23,7 +23,7 @@ def prove(m) -> tuple[bool, str]:
             return False, ready["reason"]
         python, _ = catalog.execution_runtime(ready)
         params = catalog.parameters(m.id, {"cells_per_target": 16})
-        result = subprocess.run([python, "-m", "bench.prediction_proof", json.dumps(params)],
+        result = subprocess.run([python, "-m", "scientific_compute.prediction_proof", json.dumps(params)],
                                 capture_output=True, text=True, timeout=120)
         if result.returncode:
             return False, f"Prediction proof failed: {result.stderr[-1000:]}"
