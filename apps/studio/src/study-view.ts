@@ -9,6 +9,7 @@ import { researchIcon } from './research-workspace';
 /** A saved Study is never an instruction to launch. Only its explicit Start action dispatches work. */
 export interface StudyActions {
   localWorkflows?: boolean;
+  loadLocalInputs?:()=>Promise<StudyInput[]>;
   conversation?: HTMLElement;
   control(action: 'pause' | 'continue' | 'stop'): void | Promise<unknown>;
   start?(fields: StudyStart): Promise<unknown>;
@@ -636,12 +637,22 @@ export function renderStudy(root: HTMLElement, study: Effort, actions: StudyActi
   root.append(wrap, scrim, sheet);
   if (actions.localWorkflows) {
     const discussion = actions.conversation?.querySelector('textarea');
+    // Reading retained results does not require rebuilding the Project-wide experiment input picker.
+    const loadChoices=actions.loadLocalInputs?async()=>{
+      const rows=await actions.loadLocalInputs!();
+      if(!root.contains(rail))throw new Error('This Study page has changed.');
+      Array.from(list.children).forEach((item,index)=>{
+        const ref=study.inputs[index],row=rows.find(i=>i.id===ref.id&&i.revision===ref.revision&&i.digest===ref.digest);
+        if(row&&item.firstElementChild){item.firstElementChild.textContent=row.title;(item as HTMLElement).title=studyInputDescription(row);}
+      });
+      return rows;
+    }:undefined;
     mountStudyInitiation(initiation, study, availableInputs, fetch, actions.openFile, discussion ? () => {
       showOne('conv');
       discussion.scrollIntoView({block: 'nearest'});
       discussion.focus();
-    } : undefined);
-    mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log);
+    } : undefined, loadChoices);
+    mountStudyWorkflows(rail, study, availableInputs, actions.openFile, fetch, log, loadChoices);
     mountLocalStudyResearcher(rail, study);
   }
 

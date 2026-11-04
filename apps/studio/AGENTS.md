@@ -2213,3 +2213,5 @@ the old pair and exclude late replies; a 30-second deadline preserves readable
 failure and retry. This is read-only refresh, never scientific execution.
 
 Compare two methods in the Study plan selects two saved workflow revisions and their shared inputs. The reviewed plan can prepare a connected-agent handoff; manual baseline admission uses ordinary Study workflows. Keep the unchanged inputs and experiment limit visible during review.
+
+Project overview covers all Studies and results in the selected Project. Specimen stage is the permanent work tab for camera, picture or video; its saved identity remains `main`. Opening a Study shows its saved question while current inputs and readiness load.

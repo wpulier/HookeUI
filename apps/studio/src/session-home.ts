@@ -33,6 +33,7 @@ export interface HomeActions {
   library(): void;
   /** All projects: open an existing Project instead of filling this one. */
   projects?(): void;
+  overview?(): void;
   /** Start with a question instead of a specimen: a researcher on it, through the Assistant (its own words, admitted
    * there as any request to start one). Nothing needs to be on the Stage. */
   research?(question: string): boolean | void;
@@ -117,7 +118,9 @@ export class SessionHome {
     root.setAttribute('aria-labelledby', 'session-home-title');
     root.hidden = true;
     this.title.id = 'session-home-title';
-    const lead = node('p', 'home-lead', 'What will you look at?');
+    const lead = node('p', 'home-lead', 'Open a specimen');
+    const back = node('button', 'home-overview', 'View Project overview');
+    back.type = 'button'; back.hidden = !actions.overview; back.onclick = () => actions.overview?.();
     const example = node('section', 'home-example');
     const preview = node('img', 'home-example-image');
     preview.src = '/api/onboarding/example';
@@ -226,7 +229,7 @@ export class SessionHome {
     } else research.hidden = true;
     // Under the ways in, once: a few small models to add, or Not now (starter-models.ts; Will, 2026-10-26). A fresh profile
     // lands here, on its current Project's empty Stage, so this is where a first launch sees it.
-    root.replaceChildren(this.title, lead, pair, research, example, starterOffer('stage'), this.recent, more, this.fileInput);
+    root.replaceChildren(this.title, lead, back, pair, research, example, starterOffer('stage'), this.recent, more, this.fileInput);
   }
 
   isOpen(): boolean {

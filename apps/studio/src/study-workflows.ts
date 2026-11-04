@@ -6,7 +6,7 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='') => {const n=
 async function reply(r:Response){const b=await r.json();if(!r.ok||b.ok===false)throw new Error(String(b.says||b.error||'Workflow request failed'));return b;}
 
 export function mountStudyWorkflows(root:HTMLElement,study:Effort,inputs:StudyInput[],
-  openFile:((ref:{id:string;revision:number},name:string)=>Promise<unknown>)|undefined,fetcher:typeof fetch=fetch,resultsRoot:HTMLElement=root):void{
+  openFile:((ref:{id:string;revision:number},name:string)=>Promise<unknown>)|undefined,fetcher:typeof fetch=fetch,resultsRoot:HTMLElement=root,loadChoices?:()=>Promise<StudyInput[]>):void{
   const box=node('section');box.className='study-rail-section';
   box.append(node('h3','Run an experiment'),node('p','Run a saved workflow on exact Project inputs. Closing this Study does not stop its work.'));
   const results=node('section');results.className='study-workflow-results';results.setAttribute('aria-label','Workflow experiments');
@@ -37,8 +37,11 @@ export function mountStudyWorkflows(root:HTMLElement,study:Effort,inputs:StudyIn
   const refreshButton=node('button','Refresh experiment results');refreshButton.type='button';refreshButton.onclick=()=>{void refresh();};results.append(refreshButton);
   const link=node('a','Open scientific workflows');link.href='#workflows';box.append(link);
   void refresh();
-  if(study.status!=='active'||!inputs.length)return;
-  void fetcher('/api/workflows',{cache:'no-store'}).then(reply).then(body=>{
+  if(study.status!=='active')return;
+  const prepare=async()=>{
+  if(loadChoices)inputs=await loadChoices();
+  if(!current()||!inputs.length)return;
+  await fetcher('/api/workflows',{cache:'no-store'}).then(reply).then(body=>{
     if(!current())return;const workflows=body.workflows as Workflow[];if(!workflows.length)return;
     const form=node('form'),selection=node('select'),source=node('select'),run=node('button','Run workflow');run.type='submit';
     selection.setAttribute('aria-label','Saved workflow');source.setAttribute('aria-label','Exact Project input');
@@ -69,4 +72,11 @@ export function mountStudyWorkflows(root:HTMLElement,study:Effort,inputs:StudyIn
       finally{if(current())run.disabled=false;}
     };
   }).catch(e=>{if(current())notice.textContent=String(e);});
+  };
+  const offer=()=>{void prepare().catch(()=>{
+    if(!current())return;
+    const retry=node('button','Retry loading workflow inputs');retry.type='button';
+    retry.onclick=()=>{retry.remove();offer();};box.append(retry);
+  });};
+  offer();
 }

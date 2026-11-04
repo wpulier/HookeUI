@@ -47,6 +47,8 @@ export class WorkspaceResearchTabs {
  private rows:ResearchSession[]=[];
  private project='';
  private active='';
+ private overview=false;
+ showingOverview(value:boolean){if(value!==this.overview){this.overview=value;this.mount();}}
  /** Researcher Tabs the person closed in this Project (remembered across launches). */
  private hidden=new Set<string>();
  private opened=new Set<string>();
@@ -272,8 +274,8 @@ export class WorkspaceResearchTabs {
    let moved=false;
    if(wanted.length!==host.row.children.length||wanted.some((node,i)=>host.row.children[i]!==node)){moved=true;for(const node of wanted)host.row.append(node);}
    this.persist();
-   const selected=this.selectedId()||workId(host.activeWorkId);
-   for(const tab of this.controls()){const active=this.identity(tab)===selected;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;}
+   const selected=this.overview?null:this.selectedId()||workId(host.activeWorkId);
+   for(const tab of this.controls()){const active=this.identity(tab)===selected;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active||this.overview&&this.identity(tab)===workId(host.activeWorkId)?0:-1;}
    const fitKey=JSON.stringify([this.order,selected,this.signature]);
    if(moved||fitKey!==this.fitKey){this.fitKey=fitKey;host.refit?.();}
   }finally{this.painting=false;}

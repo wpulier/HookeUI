@@ -20,6 +20,8 @@ export class ProjectResearchHome {
     }
   }
   leave():void{this.seenOpen=false;}
+  private lastStudies?:readonly Effort[];private lastActivity?:Record<string,ActivitySnapshot>;
+  private savedSignature='';
   private session='';private signature='';private opening=0;private studyLimit=12;private eventLimit=3;private statusLimit=12;
   private readonly host:HTMLElement; private readonly actions:Actions;
   constructor(host:HTMLElement,actions:Actions){
@@ -31,7 +33,11 @@ export class ProjectResearchHome {
     const owned=studies.filter(s=>s.session===session);
     const local=todaysResearch(researchers,session);
     const expired=owned.flatMap(s=>Object.values(s.tasks??{})).map(t=>t.status==='running'&&!!t.collaboration?.leaseUntil&&t.collaboration.leaseUntil<Date.now()/1000);
-    const signature=JSON.stringify([session,owned,error,activity,material,expired,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])]);if(signature===this.signature)return;
+    if(this.session!==session||this.lastStudies!==studies||this.lastActivity!==activity){
+      this.savedSignature=JSON.stringify([owned,activity]);this.lastStudies=studies;this.lastActivity=activity;
+    }
+    const signature=JSON.stringify([session,error,material,expired,local.map(r=>[r.rid,r.status,r.name,r.brief,r.engine,r.mission?.status])])+this.savedSignature;
+    if(signature===this.signature)return;
     const disclosures=new Map(Array.from(this.root.querySelectorAll('details')).map(d=>[d.dataset.disclosure,d.open]));
     const focus=(document.activeElement as HTMLElement|null)?.dataset.researchFocus;
     const same=this.session===session;if(!same){disclosures.clear();this.opening++;this.studyLimit=12;this.eventLimit=3;this.statusLimit=12;}
@@ -107,7 +113,7 @@ export class ProjectResearchHome {
     if(!owned.length)now.append(node('p',local.length?'Open a researcher to inspect its observed activity.':'No Study work recorded yet.'));
     if(!issues)attention.append(node('p',error?'Refresh the Project to check its current state.':'No attention items in the displayed Studies.'));
     if(ordered.length>this.statusLimit){attention.append(node('p',`Showing ${this.statusLimit} of ${ordered.length} Studies, attention first.`),action('Show more current work','more-status',()=>{this.statusLimit+=12;this.signature='';this.update(session,studies,error,activity,researchers,material);}));}
-    if(owned[0])continuation.append(node('p','Inspect the latest evidence, then propose the next experiment in its Study.'),action('Continue investigation','continue',()=>this.actions.openStudy(owned[0].id)));
+    if(owned[0])continuation.append(node('p','Inspect the latest evidence, then propose the next experiment in its Study.'),action(`Open Study: ${studyName(owned[0])}`,'continue',()=>this.actions.openStudy(owned[0].id)));
     else if(this.actions.startResearch)continuation.append(action('Start research','continue',this.actions.startResearch));
     continuation.append(node('small','Connected agents and Hooke researchers contribute to the same Project. Opening work starts nothing.'));
     sections.replaceChildren(purpose,now,attention,continuation,recent);purpose.classList.add('project-overview-purpose');recent.classList.add('project-overview-recent');this.root.append(sections);

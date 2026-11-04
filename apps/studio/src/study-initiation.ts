@@ -10,13 +10,14 @@ type State={experiments?:unknown[];basis:Ref;plan:Plan|null;assignments:Assignme
 const n=<K extends keyof HTMLElementTagNameMap>(tag:K,text='',cls='')=>{const e=document.createElement(tag);e.textContent=text;e.className=cls;return e;};
 async function result(r:Response){const body=await r.json();if(!r.ok||body.ok===false)throw new Error([body.says||body.error||'Research setup could not be saved.',typeof body.next==='string'?body.next:''].filter(Boolean).join(' '));return body;}
 
-export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyInput[],fetcher:typeof fetch=fetch,openFile?:(ref:Ref,name:string)=>Promise<unknown>,discuss?:()=>void):void{
+export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyInput[],fetcher:typeof fetch=fetch,openFile?:(ref:Ref,name:string)=>Promise<unknown>,discuss?:()=>void,loadChoices? :()=>Promise<StudyInput[]>):void{
   const box=n('section','','study-initiation');box.setAttribute('aria-label','Research plan and collaborators');
   const heading=n('header');heading.append(n('span','RESEARCH PLAN','study-initiation-eyebrow'),n('h3','From question to experiment'));
   const status=n('p','Loading your saved plan…','study-note');status.setAttribute('role','status');
   const content=n('div'),outcome=n('div'),setup=n('details'),setupTitle=n('summary','Plan and run history');box.append(outcome,heading,status,content);host.prepend(box);
   const current=()=>host.contains(box),base=`/api/research-efforts/${encodeURIComponent(study.id)}/coordination`;
   let state:State|null=null,pending=false,amending=false,assignmentLimit=12;
+  let choicesReady=!loadChoices,choicesError='';
   const draftKey=`hooke:research-plan:${study.session}:${study.id}`;
   const clearDraft=()=>{try{localStorage.removeItem(draftKey);}catch{/* Storage may be unavailable. */}};
   const call=async(action:string,fields:object)=>result(await fetcher(`${base}/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'research-effort'},body:JSON.stringify({session:study.session,...fields})}));
@@ -38,6 +39,11 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
     }
     status.textContent=state.plan?.status==='reviewed'?'Plan reviewed. Next, hand the work to your agent or run the tools yourself.':'Save your approach, then review it before handing work to an agent.';
     if(box.dataset.result)status.textContent='';
+    if(!choicesReady){
+      status.textContent=choicesError||'Loading experiment setup…';
+      if(choicesError)content.append(button('Retry loading inputs',loadInputs));
+      return;
+    }
     if(!state.plan||state.plan.status==='draft'||amending){
       const form=n('form'),output=n('textarea'),evaluation=n('textarea'),method=n('textarea'),mode=n('select');
       output.value=state.plan?.desiredOutput||'';evaluation.value=state.plan?.evaluation||study.criteria;method.value=state.plan?.methodNotes||'';
@@ -276,5 +282,8 @@ Read the retained plan, exact material, prior failures and decisions through the
     },true);form.append(submit);form.onsubmit=e=>{e.preventDefault();submit.click();};
   }
   async function load(){const response=await result(await fetcher(`${base}?session=${encodeURIComponent(study.session)}`,{cache:'no-store'}));if(current()){state=response;draw();}}
+  async function loadInputs(){try{inputs=await loadChoices!();choicesReady=true;choicesError='';}
+    catch{choicesError='Experiment inputs could not be loaded.';}if(current())draw();}
+  if(loadChoices)void loadInputs();
   void load().catch(e=>{if(current()){status.textContent=String(e.message||e);content.append(button('Retry',load));}});
 }

@@ -536,10 +536,16 @@ const board=new ResearchersBoard({open:rid=>openResearcher(rid),
    const started=named?snapshot.sources.find(asset=>[asset.title,asset.specimen].some(words=>(words??'').trim().toLowerCase()===named)):undefined;
    return picture(started)||picture(snapshot.source);}});
 researcherBrowser.append(board.root);
+let homeInventory:{entries:DataEntry[];count:number;groups:string[]}|undefined;
 function renderBoard():void{
-  const material=resourceSession===snapshot.session?projectInputs(entries):[];
+  if(homeInventory?.entries!==entries){
+    const inputs=projectInputs(entries);
+    homeInventory={entries,count:inputs.length,groups:[...new Set(inputs.map(item=>item.material?.organization?.role).filter((role):role is string=>!!role))]};
+  }
+  const inventory=resourceSession===snapshot.session?homeInventory:undefined;
+  document.body.dataset.projectHasResearch=String(knownStudies.some(s=>s.session===snapshot.session));
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
-    {count:material.length,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:[...new Set(material.map(entry=>entry.material?.organization?.role).filter((role):role is string=>!!role))]});
+    {count:inventory?.count??0,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:inventory?.groups??[]});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }
@@ -915,7 +921,7 @@ const researchTabs:WorkspaceResearchTabs=new WorkspaceResearchTabs({backgroundTa
 const researchStage=el('section','study-research-stage');researchStage.hidden=true;researchStage.setAttribute('aria-label','Researcher');
 const researchHolder=el('div','study-research-holder');
 const researchBack=button('',()=>{if(canLeaveStudy()){rememberProjectDestination(null);closeResearchStage();}},'study-research-back');researchBack.title='Back to the work Tab; admitted research continues';
-const researchBackWords=el('span','','Main');researchBack.append(tabMark('left','study-research-back-icon'),researchBackWords);
+const researchBackWords=el('span','','Specimen stage');researchBack.append(tabMark('left','study-research-back-icon'),researchBackWords);
 // The research stage's bar sits in the Stage bar's left (workspace-feel plan): back, what it is working on, and Stop while
 // it can be stopped. Stop says "Stop requested" until the server lists the researcher as stopped (research-stop.ts).
 const researchBar=el('header','study-research-stage-bar');researchBar.setAttribute('aria-label','Researcher');
@@ -959,6 +965,7 @@ function renderResearchStudy():void{
   researchStudy.replaceChildren();
   // Its Tab's mark says what kind of page it is (and its lit cell); the bar says what it works on and how it stands.
   if(!summary&&shownResearch===draftPage){researchStudy.append(el('strong','study-research-objective','New researcher'));tickResearchClock();return;}
+  if(!summary&&shownResearch===currentStudyPage){researchStudy.append(el('strong','study-research-objective','Study'));tickResearchClock();return;}
   if(!summary){researchStudy.append(el('span','study-research-stage-note','Closing this never stops the researcher.'));tickResearchClock();return;}
   const objective=el('strong','study-research-objective',summary.title);objective.title=summary.title;
   const facts=el('span','study-research-facts');facts.append(el('span','',summary.words));if(summary.tip)facts.title=summary.tip;
@@ -978,7 +985,8 @@ function openResearchStage(node:HTMLElement):void{
   for(const child of [...researchHolder.children] as HTMLElement[])if(child!==node&&child!==draftPage&&!child.id)child.remove();
   if(node.parentElement!==researchHolder)researchHolder.append(node);
   for(const child of researchHolder.children as HTMLCollectionOf<HTMLElement>)child.hidden=child!==node;
-  const pageLabel=node===overviewPage?'Project overview':openStudyNow?'Study':'Researcher';researchStage.setAttribute('aria-label',pageLabel);researchBar.setAttribute('aria-label',pageLabel);
+  const pageLabel=node===overviewPage?'Project overview':node===currentStudyPage?'Study':'Researcher';researchStage.setAttribute('aria-label',pageLabel);researchBar.setAttribute('aria-label',pageLabel);
+  researchTabs.showingOverview(node===overviewPage);
   projectNavigation?.select(node===overviewPage?'overview':null);shownResearch=node;researchStage.hidden=false;document.body.dataset.researchOpen='true';researchStudyKey='';
   // The Assistant panel steps aside on a researcher's or a Study's Tab (its Stage bar button opens it over the page).
   applyLayout();
@@ -987,7 +995,7 @@ function openResearchStage(node:HTMLElement):void{
   if(openedRid&&bridge.researchers().some(s=>s.rid===openedRid))bridge.researchOpened(openedRid);
   renderResearchStudy();
   // Back names the work Tab it returns to, on every researcher, Study and draft page (the mock's "‹ Main").
-  researchBackWords.textContent=openTab()||'Main';researchBack.setAttribute('aria-label',`Back to ${openTab()||'Main'}`);
+  researchBackWords.textContent=openTab()||'Specimen stage';researchBack.setAttribute('aria-label',`Back to ${openTab()||'Specimen stage'}`);
   renderContext();
 }
 let openStudyNow:Effort|null=null,studyTimer=0,studyOpening=0;
@@ -1002,6 +1010,7 @@ function restoreProjectDestination(session:string):void{
   if(destination?.startsWith('study:')){void openStudy(destination.slice(6));return;}
   if(['overview','studies','inputs','results','activity'].includes(destination??''))openProjectDestination(destination as ProjectDestination);
 }
+window.addEventListener('workspace-project-overview',()=>openProjectDestination('overview'));
 function openProjectDestination(destination:ProjectDestination):void{
   if(!canLeaveStudy(()=>openProjectDestination(destination)))return;
   rememberProjectDestination(destination);bridge.navigate('#');
@@ -1024,14 +1033,37 @@ let currentStudyPage:HTMLElement|null=null;
 let retireStudyStaging:(()=>void)|null=null;
 /** Capture a Project opening, not only its ID: away-and-back never renews an old request. */
 window.addEventListener('workflow-open-study',event=>{const value=(event as CustomEvent<{id:string;session:string}>).detail;if(value.session===snapshot.session&&/^p[0-9a-f]{32}$/.test(value.id)){bridge.navigate('#');void openStudy(value.id);}});
+// Choices are immutable revision locators, never execution authority. Share a short-lived
+// successful/pending read only within one opening of the same Project and inventory.
+let choicesRead:{session:string;generation:number;inventory:DataEntry[];until:number;value:Promise<StudyInput[]>}|null=null;
+function openingChoices(owner:ReturnType<WorkspaceViews['tabOwner']>){
+  const now=performance.now();
+  if(choicesRead&&choicesRead.session===owner.session&&choicesRead.generation===owner.generation&&choicesRead.inventory===entries&&now<choicesRead.until)return choicesRead.value;
+  const value=studyInputs(owner.session);choicesRead={...owner,inventory:entries,until:now+15000,value};
+  void value.catch(()=>{if(choicesRead?.value===value)choicesRead=null;});return value;
+}
 async function openStudy(id:string,material?:{reference:Reference;title:string}):Promise<void>{
   if(!canLeaveStudy(()=>void openStudy(id,material)))return;
   const owner=workspaceViews.tabOwner(),session=owner.session,opening=++studyOpening;
   const current=()=>opening===studyOpening&&inputOwnerCurrent(owner)&&!switching;
+  // Navigate on the click. The read-only question is already part of the Project index;
+  // editing and execution controls require fresh data for this opening.
+  clearInterval(studyTimer);retireStudyStaging?.();retireStudyStaging=null;openStudyNow=null;
+  const page=el('article','study-opening'),saved=knownStudies.find(s=>s.id===id&&s.session===session);
+  currentStudyPage=page;
+  const heading=el('h2','',saved?studyName(saved):'Opening Study');
+  const status=el('p','','Loading Study details…');status.setAttribute('role','status');
+  page.append(heading);if(saved?.objective)page.append(el('p','',saved.objective));page.append(status);
+  page.setAttribute('aria-busy','true');openResearchStage(page);
   let study:Effort,providers:StudyProvider[]=[],availableInputs:StudyInput[]=[];
-  try{[study,providers,availableInputs]=await Promise.all([readStudy(id,session),studyReadiness(session,fetch,id).catch(()=>[]),studyInputs(session).catch(()=>[])]);}catch(error){if(current())actionError(error);return;}
+  const inputsForView=async()=>{const rows=await openingChoices(owner);if(!current()||currentStudyPage!==page)throw new Error('The Study view changed.');availableInputs=rows;return rows;};
+  try{[study,providers]=await Promise.all([readStudy(id,session),studyReadiness(session,fetch,id).catch(()=>[])]);
+    if(current()&&providers.length)availableInputs=await inputsForView();}catch(error){
+    if(current()){page.removeAttribute('aria-busy');status.textContent=error instanceof Error?error.message:'Could not load this Study.';
+      page.append(button('Retry opening Study',()=>void openStudy(id,material)));}return;
+  }
   if(!current())return;
-  const page=el('article');currentStudyPage=page;
+  page.removeAttribute('aria-busy');page.classList.remove('study-opening');
   const apply=async(work:()=>Promise<Effort>)=>{
     if(!current()||currentStudyPage!==page||researchStage.hidden)throw new Error('The Project or Study view changed. Return to the original Study.');
     const next=await work();if(current()&&currentStudyPage===page&&!researchStage.hidden)draw(next);
@@ -1061,7 +1093,7 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     conversation.update(next);
     renderStudy(page,next,{
       conversation:conversation.root,
-      localWorkflows:true,
+      localWorkflows:true, loadLocalInputs:providers.length?undefined:inputsForView,
       readiness:async()=>{const latest=await studyReadiness(session,fetch,next.id);if(!current()||currentStudyPage!==page)throw new Error('Return to the original Study.');providers=latest;return latest;},
       control:action=>apply(()=>controlStudy(next.id,session,action)),
       start:fields=>apply(()=>startStudy(next.id,session,fields)),
@@ -1094,7 +1126,7 @@ async function openStudy(id:string,material?:{reference:Reference;title:string})
     researchStudyKey='';renderResearchStudy();
   };
   if(location.hash.startsWith('#research/'))bridge.navigate('#');
-  rememberProjectDestination('study:'+id);openResearchStage(page);draw(study);void conversation.refresh();clearInterval(studyTimer);
+  rememberProjectDestination('study:'+id);draw(study);void conversation.refresh();clearInterval(studyTimer);
   // Only local retained state is read. Provider collection is a separate explicit action.
   studyTimer=window.setInterval(()=>{
     if(!current()||researchStage.hidden||currentStudyPage!==page){clearInterval(studyTimer);return;}
@@ -1183,7 +1215,7 @@ function leaveStudyDialog(then?:()=>void):void{
 window.addEventListener('beforeunload',event=>{if(currentStudyPage?.dataset.draft||currentStudyPage?.querySelector('[data-draft]')||currentStudyPage?.dataset.pending||currentStudyPage?.querySelector('[data-pending]')){event.preventDefault();event.returnValue='';}});
 function closeResearchStage(navigate=true):void{
   if(!canLeaveStudy(()=>closeResearchStage(navigate)))return;
-  projectResearchHome.leave();projectNavigation.select(null);
+  projectResearchHome.leave();researchTabs.showingOverview(false);projectNavigation.select(null);
   ++studyOpening;retireStudyStaging?.();retireStudyStaging=null;currentStudyPage=null;openStudyNow=null;clearInterval(studyTimer);
   if(researchStage.hidden)return;
   researchStage.hidden=true;delete document.body.dataset.researchOpen;researchTabs.virtualLeft();researchBar.querySelector('.study-view-controls')?.remove();
@@ -2279,7 +2311,7 @@ provideResearchReader({
     openInNewTab: (entry) => { if (leaveResearchPage()) void openReaderTab(entry); },
     goTo: (tab) => { if (!leaveResearchPage()) return; const owner = workspaceViews.tabOwner(); void workspaceViews.goTo(tab, owner).catch(actionError); },
     leave: (entry) => { if (leaveResearchPage()) openInReader(entry); },
-    home: () => openTab() || 'Main',
+    home: () => openTab() || 'Specimen stage',
     allInData: (rid) => {
       const name = bridge.researchers().find((row) => row.rid === rid)?.name ?? '';
       // Data under this researcher's chip (the maker filter, ticket 66 D2); with no name known, Data unfiltered.
