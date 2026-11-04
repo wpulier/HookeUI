@@ -1558,8 +1558,11 @@ const conversationRecovery=el('div');
 rightHeader.after(conversationRecovery);
 launcherAssistant.mountRecovery(conversationRecovery,()=>snapshot.session);
 function recentProjects(){
-  const placeholder = freshPlaceholder();
-  return sortSessions(snapshot.projects).filter(row=>row.id!==placeholder).map(row=>rowView(row,'',Date.now()/1000));
+  return sortSessions(snapshot.projects).filter(row => {
+    const counts=row.counts;
+    return !row.launcherBootstrap || row.name || !counts || counts.sourcesIncomplete ||
+      counts.sources || counts.made || counts.researchers || counts.conversations>1;
+  }).map(row=>rowView(row,'',Date.now()/1000));
 }
 launcherAssistant.mount(starter.assistantHost,{
   activate:id=>{void starter.activate(id);},
@@ -1598,13 +1601,8 @@ async function finishLauncher(session:string):Promise<void>{
   launcherAssistant.leave();renderTabs();
   try{await launcherAssistant.adopt(session);}catch(error){actionError(`${error instanceof Error?error.message:'Could not save the conversation.'} Open Assistant to retry saving it.`);}
 }
-function freshPlaceholder():string|undefined{
-  if(tabs?.order.length || tabs?.closed.length || snapshot.projects.length!==1)return;
-  const row=snapshot.projects[0],counts=row.counts;
-  if(row.id===snapshot.session && !row.name && counts && !counts.sourcesIncomplete && !counts.sources &&
-    !counts.made && !counts.researchers && counts.conversations<=1 && row.lastActive===row.started)return row.id;
-}
-function beginStarter(){return changeSession(freshPlaceholder());}
+// Only an explicit action starts a Project; the host's idle bootstrap session stays available to the server.
+function beginStarter(){return changeSession();}
 async function startWithFiles(files:File[]):Promise<void>{
   if(!files.length||!await beginStarter())return;
   const owner=workspaceViews.tabOwner();

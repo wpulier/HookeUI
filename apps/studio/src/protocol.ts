@@ -246,6 +246,7 @@ export interface SourcesMessage {
 
 /** One session as the sessions list shows it (the header chip's menu and the sessions rail). */
 export interface SessionRow {
+  launcherBootstrap?: boolean; // implicit host session with only startup events
   id: string; // the sid, opaque
   name: string; // "" until named
   named: boolean;

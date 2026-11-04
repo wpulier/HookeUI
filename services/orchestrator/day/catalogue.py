@@ -113,6 +113,7 @@ class Info:
     """One session as the list shows it and as `find` matches it."""
     id: str
     starter_request: str | None = None
+    bootstrap_only: bool = True  # no explicit Project start, opening, or researcher work in its journal
     name: str = ""  # its name; "" until it has one
     named: bool = False  # the user named it (not the app, from its first specimen or request)
     created: float = 0.0
@@ -164,6 +165,8 @@ class Info:
         row = {"id": self.id, "name": self.name, "named": self.named, "label": self.label, "started": self.created,
                "lastActive": self.last_active, "days": list(self.days), "counts": self.counts,
                "specimens": list(self.specimens)}
+        if self.bootstrap_only and self.titles and not self.unavailable:
+            row["launcherBootstrap"] = True
         if self.picture:
             row["thumb"] = f"/api/library/{self.picture}/thumbnail"  # the library's own small picture (thumbnails.py)
         if self.unavailable is not None:
@@ -266,6 +269,13 @@ class Catalogue:
     @staticmethod
     def _fold(info: Info, e: dict) -> None:
         kind = e["type"]
+        line = e.get("line") if isinstance(e.get("line"), dict) else {}
+        automatic = (kind == "session-origin" or
+                     (kind == "thread-opened" and e.get("thread") == "t1" and not e.get("title")) or
+                     (kind == "line" and line.get("type") == "activity" and
+                      str(line.get("id", "")).startswith("catalog-peek:")))
+        if not automatic:
+            info.bootstrap_only = False
         at = float(e.get("at") or 0.0)
         day = day_of(e)
         if at:

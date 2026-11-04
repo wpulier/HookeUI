@@ -103,3 +103,18 @@ def test_redirect_rebind_is_refused_before_connect_and_public_ip_keeps_tls_name(
     monkeypatch.setattr(httpx.AsyncHTTPTransport, 'handle_async_request', actual_connect)
     assert asyncio.run(starters.preview('https://first.example/study'))['status'] == 'unreadable'
     assert connected == [('93.184.216.34', 'first.example', 'first.example')]
+
+def test_recent_projects_distinguish_background_activity_from_an_explicit_blank(tmp_path):
+    store = SessionStore(tmp_path / 'sessions')
+    initial = store.sid
+    def row(sid):
+        return store.catalogue.get(sid).wire()
+    assert row(initial)['launcherBootstrap']
+    store._record({'type':'line', 'thread':'t1', 'line':{
+        'type':'activity', 'kind':'model', 'id':'catalog-peek:1', 'text':'Nothing new.'}})
+    assert row(initial)['launcherBootstrap']
+    blank = store.new()
+    assert blank != initial and 'launcherBootstrap' not in row(blank)
+    assert row(initial)['launcherBootstrap']
+    store.switch_session(initial)
+    assert 'launcherBootstrap' not in row(initial)

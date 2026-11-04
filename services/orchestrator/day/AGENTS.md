@@ -414,3 +414,7 @@ A Project begun with a research link records the accepted title, question, origi
 working brief, URL and request ID together in its session-started event. Reopening restores them.
 Repeating the same creation after a lost acknowledgement returns the same Project. Distinct
 creations may use the same URL. Previewing a link never opens a session.
+
+The launcher's Recent Projects omits the implicit host session while its journal contains only startup
+events (including the background catalog check) and its input inventory is empty. Choosing Start blank
+creates an explicit Project, so it remains in Recents even without files or conversation.
