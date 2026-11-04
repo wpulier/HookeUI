@@ -50,9 +50,9 @@ establish ownership across a Project switch.
     the voice as a note. "Keep here" (`session-kept`) dismisses it for that specimen, and any opening clears it.
   - **Opening:** the app opens in the session it was last in (`SessionStore.resume`: the pointer in
     `preferences.jsonl`, else the one a request was last made in). Another is opened from the session title's menu or
-    "go back to yesterday's leaf session" (`switch_session`, a query tool: `day/catalogue.find` by name, date, day
-    word or specimen; one clear match opens it and gives the brain its facts, summaries and latest exchanges;
-    several are listed for the model to ask which).
+    "go back to yesterday's leaf session" (`switch_session`, a query tool: `day/catalogue.find` by name, date or run
+    of dates, day word, specimen or what was said in it; one clear match opens it and gives the brain its facts,
+    summaries and latest exchanges; several are listed, best first, for the model to ask which).
   - **What opening brings back:** the live view starts fresh (outlines, magnifier, viewer, cells' layer: `App._clear_view`
     on `session-opened`). The session's conversations, memory, researchers (continuable), evidence, tracks,
     bookmarks and snapshots come back as history. Its live outlines never do, and one app-notice says so ("Back in
@@ -213,6 +213,60 @@ establish ownership across a Project switch.
     row of icon tabs (the open one a lit pill with its word); the panel icon hides the whole side bar to the rail as the
     chat's hides the chat, and brings back what was open; a first visit opens on Assets with Actions at 30%. Reserved in the panel stack so the eyepiece glides aside; a sheet with the five as tabs on a phone; on
     the screen report as kind `sidebar` (`shows` "actions" with Actions alone).
+- **Projects by voice** (`brain/toolbox/projects.py`, Lane B of Will's 3 Nov plan): the brain, and so the voice
+  (`do_in_hooke`, think's `THINK_TOOLS`), lists, renames, tidies and archives Projects through the same functions the
+  studio and the door use, and undoes each change.
+  - **Finding one** (`Catalogue.rank`, which `find` reads): its id; exactly its name; "previous"; a time
+    (`span_in`: a day, "this week", "last week" as the calendar week before this one, Monday to Sunday, "the last 10
+    days", "this month", "last month", "in October" as the latest October not after today, "3 days ago") narrowing
+    to the Projects that touched it; and words against its name and conversation titles (3), what was seen in it (2)
+    and its conversations' running summaries (1, `Info.summaries`), plural and singular alike (`stem`: "leaves" is
+    "leaf"). A Project matching every word outside its summaries is a full match; one full match alone, in the time
+    named, is sure (so "open the leaf one from last week" opens it). Otherwise full matches come first, then partial
+    ones, and nothing decides between them: the model asks. Only a full match in the time decides it: with only partial
+    matches in it, the full matches outside it are given too, each said not to be in it ("the onion one from last week"
+    is never a Project whose summary named onions). `find` (recall) gives the sure one, else the full matches, else the
+    partial ones. The Project open now is matched by its name and what was seen in it, never its conversations, which
+    hold the very request being asked; "the other …" leaves it out. "The week before last", weekends, "tonight" and "in
+    October 2025" are times, never name words. A reading of words and dates, never of what was meant (the models
+    judge).
+  - **Opening one** (`switch_session`): only a sure match opens (or the other of two full matches when one is open);
+    anything else opens nothing and shows the "Which Project?" card, a full match outside the time or one found only in
+    what was said included. `session` takes the user's own words. The model's pick is checked against what the user
+    said this turn, the words heard and a voice hand-off's reading of them each on its own (`threads._heard`): when they
+    read as another Project, or several, nothing is opened, the card shows the model's pick and the words' reading for
+    the user to choose, and an `override` line (`switch-session-words`) is logged (live, 3 Nov: "open the leaf one from
+    last week" was called with "Stomata in light"; the will-projects journey went from failing that step to passing
+    it). A card still asking says "Opened …" once one of its Projects is opened.
+  - **Shown, not read out** (`ProjectCards`, `project-card.ts`, placed under its request as experiment cards are): a
+    tidy's proposal is a card with Do it (the press is the user's yes, as an experiment card's Run it, run with the
+    pressing studio's screen pin as `present`'s command is, so its Tab closes are that studio's; what it groups is the
+    user's) and Not now, then "Doing it…" with no buttons while it applies, then what was done with Undo; failures are
+    said in words, never a raw code; when an open may mean several Projects, a "Which Project?" card shows two or three,
+    each with Open (the studio's own `session` switch), and the voice asks one short question. A studio that connects
+    is sent the open Project's cards (`App.project_cards_wire`); the `project-card` command presses one.
+  - **The verbs:** `list_projects` (query, `about` in the user's words, each row with why it matched);
+    `rename_project` (the store's `rename_session`, `App.rename_session`'s path); `organize_project` (query: the
+    Project's name, conversations and their summaries, Tabs and what each holds, and its material and their groups,
+    as facts; with the model's `plan`, checked and kept as a proposal `o1`, nothing changed; a plan in words is refused
+    with its shape, and a conversation note tells the next turn the proposal waits) and `apply_organization` (the
+    model judges the user's reply: yes, with `skip` for parts turned down, or `decline`; code checks only that the
+    quote is the user's words said after the proposal, never in the request that asked for the tidy (research/policy
+    `quoted`, `said_since`): names through the store, groups through `project_material_edit.organize`, the door's
+    `material.organize`, with actor `agent:<channel>`, Tabs closed through the tabs tool's own close);
+    `archive_project` (on the user's request or yes, quoted).
+  - **Archived** (`session-archived`, `SessionStore.archive`, `Info.archived`, the row's `archived`): the Project is
+    put away, never moved or deleted: its journal, work and files stay, it opens as before, and `find` still finds it.
+    The studio's Projects menu and All Projects leave it out unless the search is used or it is open
+    (`session-menu.ts` `listedRow`), its row saying Archived; `list_projects` counts the ones it leaves out.
+  - **Undo** (`undo_project_change`): every change journals its undo record, `project-change` (each step and what it
+    was before; `SessionStore.record_change`, strict), in each Project it changed, so archiving several is one change
+    and one undo, from any Project (`Info.changes`); `project-change-undone` marks it done. Every result names its
+    change and its time; undo takes that change id, or a kind (rename, archive, tidy) or a Project, else the newest; a
+    change made in another conversation (the record keeps where it was asked) is asked about first, never undone
+    unasked. A step changed again since is left and said. A Tab the tidy closed is reopened quietly (the tabs tool's `reopen`,
+    show false: back among the open Tabs, the user's screen unmoved, checked by the studio's saved layout); "Undone" is
+    said only once every part is back, and one that is not is named ("Partly undone"). A change whose record could not be written says it cannot be undone by asking.
 - **One store, one source of truth** (`orchestrator/day/`): every turn, note, subject, summary and researcher
   started is an event in the session's journal (`services/sessions/<sid>/journal.jsonl`, git-ignored, kept), and
   `SessionStore` (`DayStore` is its old name) is rebuilt from it, so a restart comes back to the same session,

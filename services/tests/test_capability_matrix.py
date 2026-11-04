@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from pathlib import Path
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -189,6 +190,20 @@ PLANS: dict[str, Plan] = {
     "guide": Plan("find me a stoma and centre it", [("guide", {"object": O1})], ("outline",),
                   not_on_path={"guide": "its first line is the app's own reading, said at once; the model judges the lines "
                                "after it as the slide moves, on later frames, never inside the request (test_guide.py)"}),
+    # The microscope's motors through a scope bridge on the virtual OpenFlexure microscope (the world's `scope`): it moves,
+    # snaps and focuses; it has no exposure, channel or light of its own to set, so those are refused, saying so.
+    "microscope": Plan("what is the microscope doing?", [("microscope", {})]),
+    "move-stage": Plan("move the stage 20 microns right", [("move_stage", {"x": 20})]),
+    "scope-snap": Plan("take a picture with the microscope", [("scope_snap", {})]),
+    "scope-focus": Plan("autofocus", [("scope_focus", {"range": 2, "step": 1})]),
+    "scope-exposure": Plan("set the exposure to 20 ms", [("scope_exposure", {"ms": 20})],
+                           expect="refused: does not set the exposure"),
+    "scope-channel": Plan("switch to FITC", [("scope_channel", {"name": "FITC"})], expect="refused: no channel"),
+    "scope-light": Plan("turn the light off", [("scope_light", {"on": False})], expect="refused: not switched from here"),
+    "scope-acquire": Plan("take three pictures a second apart",
+                          [("scope_acquire", {"plan": {"time_plan": {"interval": 0, "loops": 3}}})]),
+    "stop-scope": Plan("stop", [("stop_scope", {})]),
+    "scope-limits": Plan("what are the microscope's limits?", [("scope_limits", {})]),
     "stop-guiding": Plan("stop guiding", [("stop_guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "guiding": Plan("what are you guiding me to?", [("guiding", {})], ("outline",), before=[("guide", {"object": O1})]),
     "bookmark": Plan("bookmark this, the nice stomata", [("bookmark", {"note": "the nice stomata"})]),
@@ -221,6 +236,17 @@ PLANS: dict[str, Plan] = {
                       expect="refused: there is no asset a999999"),
     "switch-session": Plan("go back to the previous session", [("switch_session", {"session": "previous"})],
                            before=[("new_session", {"name": "kidney section"})]),
+    # Projects by voice (brain/toolbox/projects.py): find, rename, tidy (proposed, then applied on the yes), archive, undo.
+    "list-projects": Plan("what Projects do I have on guard cells?", [("list_projects", {"about": "guard cells"})]),
+    "rename-project": Plan("call this Project Stomata in light", [("rename_project", {"name": "Stomata in light"})]),
+    "organize-project": Plan("tidy this Project", [("organize_project", {})]),
+    "apply-organization": Plan("yes, do it", [("apply_organization", {"confirms": "o1", "asked_with": "yes, do it"})],
+                               before=[("organize_project", {"plan": {"name": "Leaf epidermis"}})]),
+    "archive-project": Plan("archive the previous one", [("archive_project", {
+        "projects": ["previous"], "asked_with": "archive the previous one"})],
+                            before=[("new_session", {"name": "kidney section"})]),
+    "undo-project-change": Plan("undo that", [("undo_project_change", {})],
+                                before=[("rename_project", {"name": "Stomata in light"})]),
     "you-lead": Plan("let me find it myself", [("set_lead", {"user_leads": True})]),
     "level": Plan("explain it more simply", [("set_level", {"level": "simple"})]),
     "suggest-next": Plan("what should I look at next?", [("suggest_next", {"text": "look at the guard cells next"})]),
@@ -232,6 +258,17 @@ PLANS: dict[str, Plan] = {
     "research-status": Plan("how is the researcher doing?", [("research_status", {})], ("lesson",)),
     "summarize-research": Plan("what have they found?", [("summarize_research", {"label": "guard cells"})], ("lesson",)),
     "cancel-research": Plan("stop the researcher", [("cancel_researcher", {"researcher": "r2"})], ("working",)),
+    # Outside agents (ADR 0029): the tests' world has no agent program installed (conftest), so starting one says so and
+    # nothing is launched; the conductor's own tests drive recorded streams of the real programs (test_agents_*.py).
+    "start-agent": Plan("ask Codex to write a stomata-tracking capability", [("start_agent", {
+        "program": "codex", "task": "write a stomata-tracking capability",
+        "asked_with": "ask Codex to write a stomata-tracking capability"})], expect="refused: Codex isn't installed on this Mac"),
+    "agents-status": Plan("what's everyone doing?", [("agents", {})]),
+    "agent-note": Plan("tell Codex to use micro-sam", [("agent_note", {"agent": "Codex", "text": "use micro-sam"})],
+                       expect="refused: No agent called Codex"),
+    "stop-agent": Plan("stop Grok", [("stop_agent", {"agent": "Grok"})], expect="refused: No agent called Grok"),
+    "answer-agent": Plan("yes, allow it", [("answer_agent", {"answer": "allow", "asked_with": "yes, allow it"})],
+                         expect="refused: No outside agent is asking for anything now"),
     "followup": Plan("ask the researcher why", [("researcher_followup", {"researcher": "r1", "question": "why do they close?"})],
                      ("lesson",), not_on_path={"research": ENGINE_KEPT}),
     "revise": Plan("make question 2 easier", [("revise_work", {"researcher": "r1", "change": "make question 2 easier",
@@ -395,11 +432,41 @@ def test_every_capability_and_actor_has_a_planned_row():
 
 
 # --- running the rows ---------------------------------------------------------------------------------------------------
+_SCOPE: dict = {}
+
+
+def scope_bridge_url() -> str:
+    """One scope bridge per test process on the harness's virtual OpenFlexure microscope (sim/virtual_scope.py), for
+    the microscope's rows: every rig's app is given it (MICROMIND_SCOPE_URL), as `make start SCOPE_BACKEND=...` does."""
+    if "url" not in _SCOPE:
+        import tempfile
+
+        import cv2
+
+        from scope_bridge.backends.openflexure import OpenFlexure
+        from scope_bridge.bridge import ScopeBridge
+        from scope_bridge.server import serve
+        from sim.virtual_scope import VirtualScope
+
+        rng = np.random.default_rng(4)
+        slide = cv2.GaussianBlur(rng.uniform(0, 255, (600, 600)).astype(np.float32), (0, 0), 1.5)
+        slide = cv2.cvtColor(cv2.normalize(slide, None, 30, 230, cv2.NORM_MINMAX).astype(np.uint8), cv2.COLOR_GRAY2BGR)
+        scope = VirtualScope(slide, size=(160, 120), disc=(80.0, 60.0, 55.0), zoom=1.0, fps=5, motor_speed=1e6,
+                             motor_z_speed=1e4)
+        scope.serve()
+        bridge = ScopeBridge(OpenFlexure(scope.url, um_per_z_step=0.01), Path(tempfile.mkdtemp(prefix="matrix-scope-")))
+        server = serve(bridge, 0)
+        _SCOPE.update(scope=scope, bridge=bridge, server=server, url=f"http://127.0.0.1:{server.server_address[1]}")
+    return _SCOPE["url"]
+
+
 @pytest.fixture
 def world(tmp_path, monkeypatch):
     """Keys present, every model's code installed, the cloud stood in for: so a row's run is the wiring, and a refusal
     a row expects is made on purpose."""
     from orchestrator import fal_segment, operations
+
+    monkeypatch.setenv("MICROMIND_SCOPE_URL", scope_bridge_url())
 
     for key in ("GEMINI_API_KEY", "OPENAI_API_KEY", "FAL_KEY", "ANTHROPIC_API_KEY", "HF_TOKEN"):
         monkeypatch.setenv(key, "stand-in")

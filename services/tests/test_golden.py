@@ -201,7 +201,8 @@ def build(tmp_path, monkeypatch):
                         # Production builds Brain before these stores are attached. Render the same
                         # declared tools with its lazy resolver; this fixture never executes a table action.
                         table_services=lambda: (hub.datatables, hub.table_derivatives),
-                        workspace_tabs=WorkspaceTabs(SimpleNamespace(day=day, hub=hub)).run)
+                        workspace_tabs=WorkspaceTabs(SimpleNamespace(day=day, hub=hub)).run,
+                        agents=lambda: None)  # the outside-agent tools are declared; none runs here
     registry = toolbox.build(services)
     assert {"make_table", "edit_table", "analyze", "make_graph", "read_analysis", "tabs"} <= registry.tools.keys()
     brain = Brain(hub, agent, registry, conversation)

@@ -203,12 +203,13 @@ typecheck:
 
 # The Python tests run on every core (pytest-xdist): JOBS=8 sets how many workers, SERIAL=1 runs them in one process.
 # What a loaded Mac breaks rather than the code is left out (tests/conftest.py: the `wall_clock` fixture's bounds and the
-# tests marked `timing`): make test-timing runs those, one test at a time.
+# tests marked `timing`): make test-timing runs those, one test at a time. A test still running after 15 minutes prints
+# every thread's stack and ends its worker, so a hang fails naming the test rather than running into CI's hour.
 test:
 	cd services && if [ "$(SERIAL)" = 1 ]; then jobs="-p no:xdist"; \
 		elif .venv/bin/python -c "import xdist" 2>/dev/null; then jobs="-n $(or $(JOBS),auto)"; \
 		else echo "pytest-xdist is not in services/.venv (make setup adds it): the tests run in one process"; jobs=""; fi; \
-		.venv/bin/python -m pytest -q -m "not timing" $$jobs
+		.venv/bin/python -m pytest -q -m "not timing" -o faulthandler_timeout=900 -o faulthandler_exit_on_timeout=true $$jobs
 	cd apps/studio && npx tsc --noEmit -p . && npx vitest run
 	@if [ "$$(uname)" = Darwin ] && command -v swiftc >/dev/null 2>&1; then $(MAKE) --no-print-directory native-test; \
 		else echo "native checks skipped: they need macOS and swiftc"; fi
@@ -252,6 +253,17 @@ check: test
 
 sim-test:
 	cd services && .venv/bin/python -m sim.harness $(if $(SIM_MANIFEST),--asset-manifest "$(SIM_MANIFEST)") $(if $(SIM_VIDEO),--video "../$(SIM_VIDEO)") $(if $(SIM_ONLY),--only "$(SIM_ONLY)")
+
+# The scope bridge's own environment (services/scope_bridge/AGENTS.md): pymmcore-plus, Micro-Manager's test adapters (the
+# demo configuration) and Pillow, pinned in requirements.txt, beside the services' and never in the app's runtime.
+.PHONY: scope-setup scope-fuzz
+scope-setup:
+	cd services/scope_bridge && uv venv --python 3.13 --allow-existing -q .venv && uv pip install --python .venv/bin/python -q -r requirements.txt
+	@echo "Scope bridge environment ready: make start SCOPE_BACKEND=mm-demo (or openflexure SCOPE_SERVER=http://...)"
+
+# Random commands at the scope bridge on Micro-Manager's demo configuration: zero limit breaches or it fails.
+scope-fuzz:
+	cd services && scope_bridge/.venv/bin/python -m scope_bridge.fuzz --backend mm-demo --n $(or $(N),2000)
 
 # Every model in the catalog (catalog/models): ready here, or what it needs and how (orchestrator/readiness.py). It reads
 # files and the keys file only: it loads no model, downloads nothing and calls no provider.

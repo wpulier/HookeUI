@@ -186,6 +186,17 @@ Slide map (Where things are on the whole slide):
 - I: What it is guiding to: Says what it is guiding you to and the last line (say "what are you guiding me to?")
 - I: Bookmark a place: Keeps this place on the slide with your words (say "bookmark this, the nice stomata")
 - I: Which way to a bookmark: Says which way a bookmarked place is from here (say "which way is the stomata I marked?")
+The microscope's motors (Moving the stage and focus, pictures, light and acquisitions, inside your limits):
+- I: What the microscope is doing: Says where the stage is, its light, exposure and your limits (say "what is the microscope doing?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Move the stage: Moves the stage or the focus, inside your limits (say "move the stage 20 microns right"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: A picture with the microscope: Takes a picture with the microscope's own camera (say "take a picture with the microscope"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Autofocus the microscope: Sweeps the focus and stops at the sharpest, inside your limits (say "autofocus"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Set the exposure: Sets the microscope camera's exposure, inside your limits (say "set the exposure to 20 ms"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Switch the channel: Switches the microscope to one of its channels (say "switch to FITC"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Switch the light: Turns the light on after your yes, or off at once (say "turn the light off"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Run an acquisition: Runs a time, focus and position plan; a large one asks first (say "take three pictures a second apart"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Stop the microscope: Stops the motors and any acquisition at once (say "stop"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
+- I: Your limits for the microscope: Reads or changes your limits; loosening them asks first (say "what are the microscope's limits?"); NOT AVAILABLE here: not wired in this build (the tool is not in the brain's list here)
 A clearer picture (Better pictures made from real frames):
 - I: A clearer picture: Averaged, sharpest or focus-stacked from real frames (say "clean up the picture")
 Snapshots (Saving the view with its outlines):
@@ -218,6 +229,13 @@ Talking with it (Asking by text or voice, and how it answers):
 - I: New session: New Project's earlier name, kept so saved workflows run (say "start a new session")
 - You: Sessions: Start, name or go back to a session
 - I: Back to a session: Goes back to an earlier session, its conversations and work (say "go back to yesterday's leaf session")
+- I: Find your Projects: Lists your Projects, or finds those you describe, best first (say "what Projects do I have on guard cells?")
+- I: Rename a Project: Renames this Project or another you name, undoably (say "call this Project Stomata in light")
+- I: Tidy a Project: Proposes names, groups and Tabs to close, as a card (say "tidy this Project")
+- I: Do the tidy: Applies the tidy it proposed, on your yes, undoably (say "yes, do it")
+- I: Archive Projects: Puts Projects away with all their work kept, or brings them back (say "archive the old test ones")
+- I: Undo a Project change: Puts back the last rename, archive or tidy Hooke made (say "undo that")
+- You: Tidy or choose a Project: Do it, Not now or Undo on a Project card
 - I: Let you find things: Stops pointing things out until you ask (say "let me find it myself")
 - I: Explain simpler or deeper: Changes how things are explained (say "explain it more simply")
 - I: Suggest what next: Offers something worth looking at next (say "what should I look at next?")
@@ -248,6 +266,11 @@ Researchers (Background work you ask for: research, pictures, videos, lessons):
 - I: How is it going: Says how the researchers are doing (say "how is the researcher doing?")
 - I: What they found: Sums up what researchers found (say "what have they found?")
 - I: Stop a researcher: Stops a researcher (say "stop the researcher")
+- I: Start an outside agent: Starts Codex, Claude Code or Grok on a task (say "ask Codex to write a stomata-tracking capability")
+- I: What everyone is doing: Says what researchers and outside agents are doing (say "what's everyone doing?")
+- I: Tell an outside agent: Passes an outside agent a note, marked as Hooke's (say "tell Codex to use micro-sam")
+- I: Stop an outside agent: Stops an outside agent and revokes its connection (say "stop Grok")
+- I: Answer an agent's ask: Gives your yes or no to what an agent asked (say "yes, allow it")
 - You: Stop a researcher: The Stop button on its work
 - I: Ask a researcher: Asks a researcher about its own work (say "ask the researcher why"); models: Researching: GPT-6.1 Sol + web search (cloud), a setting
 - You: Steer a working researcher: The pinned researcher composer sends a note to its existing inbox

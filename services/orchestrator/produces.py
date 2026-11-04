@@ -137,6 +137,12 @@ TOOLS = {
     "new_project": "none: starts a Project (its journal is the Project itself, listed from the journals)",
     "new_session": "none: new_project's earlier name; starts a Project the same way",
     "switch_session": "none: opens an earlier session",
+    "list_projects": "none: reads the Projects list (day/catalogue.py)",
+    "rename_project": "none: names a Project in its own journal, with an undo record",
+    "organize_project": "none: reads what tidying the Project can act on, and keeps a proposal in memory",
+    "apply_organization": "none: names, material groups and Tab closes the user agreed to, each with an undo record",
+    "archive_project": "none: puts Projects away in their own journals (nothing moved or deleted), with an undo record",
+    "undo_project_change": "none: puts back a Project change from its undo record",
     "show_measurements": "none: opens the measurements table of what was already measured (tables.py reads it)",
     "assets": "none: reads the library (All assets)",
     "add_asset": "none: puts an asset on stage; the session's journal keeps it as one of its sources",
@@ -212,6 +218,18 @@ TOOLS = {
     "stop_guiding": "none: stops guiding",
     "guiding": "none: reads the guidance",
     "show_map": "none: opens the slide map",
+    # The microscope through the scope bridge: its pictures and receipts are the bridge's (services/scope_bridge), each
+    # receipt filed in the session's journal as an app notice
+    "microscope": "none: reads the microscope's state",
+    "move_stage": "none: moves the microscope's stage; its receipt is in the journal",
+    "scope_snap": "none: a picture the scope bridge keeps; its receipt is in the journal",
+    "scope_focus": "none: moves the microscope's focus; its receipt is in the journal",
+    "scope_exposure": "none: sets the microscope's exposure; its receipt is in the journal",
+    "scope_channel": "none: switches the microscope's channel; its receipt is in the journal",
+    "scope_light": "none: switches the microscope's light; its receipt is in the journal",
+    "scope_acquire": "none: pictures the scope bridge keeps; its receipt is in the journal",
+    "stop_scope": "none: stops the microscope",
+    "scope_limits": "none: reads or changes the user's limits for the microscope",
     "bookmark": "bookmark",
     "way_to_bookmark": "result",  # a measurement of where it is from the view now, as where_is (review note)
     "seen_before": "none: reads what was named today",
@@ -223,6 +241,11 @@ TOOLS = {
     "research_status": "none: reads the researchers",
     "summarize_research": "none: reads the researchers' work",
     "cancel_researcher": "none: stops a researcher",
+    "start_agent": "none: starts an outside agent; what it keeps is its own (agents/conductor.py)",
+    "agents": "none: reads the workers",
+    "agent_note": "none: a note to an outside agent",
+    "stop_agent": "none: stops an outside agent",
+    "answer_agent": "none: the user's answer to an outside agent's ask",
     "researcher_note": "clip",  # a note to a working researcher; with hold_seconds, the footage it asked for (held.py)
     "set_research_cap": "none: changes a preference",
     "propose_correction": "temporary: a proposal until the user accepts it; accepting relabels the outline",
@@ -258,6 +281,9 @@ COMMANDS = {
     # An experiment's card (experiments.py): Run it makes what the experiment tool's run makes; Stop and Open results
     # make nothing new.
     "experiment": "project, population, result",
+    # A Project card's button (brain/toolbox/projects.py): Do it renames and groups as apply_organization does; Not now
+    # and Undo make nothing new.
+    "project-card": "none: applies, drops or undoes a tidy the user agreed to, in the Project's own journal",
     "dataset": "dataset",
     "dataset-rename": "dataset",
     "dataset-trash": "none: moves a dataset aside (the user's)",

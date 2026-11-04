@@ -2,7 +2,7 @@
 // until the server's echo, every session newest first by when it began (opening one never moves it), the search, each
 // row's picture, rename in place, the list read once, Escape among the other menus, and the screen report.
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { matchesSearch, SessionMenu } from './session-menu';
+import { listedRow, matchesSearch, SessionMenu } from './session-menu';
 import { SessionsModel, READ_FAILED } from './sessions';
 import { PanelStack, type EscapeEvent, type Panel } from './panels';
 import type { ClientCommand } from './protocol';
@@ -109,6 +109,21 @@ test('the search narrows the list by name or by what was seen in it; nothing mat
   expect(text(panel)).toContain('No project matches.');
   expect(matchesSearch(row('d', { name: 'Blood smear' }), 'BLOOD sm', NOW)).toBe(true);
   expect(matchesSearch(row('d', { name: 'Blood smear' }), 'blood leaf', NOW)).toBe(false);
+});
+
+test('an archived Project is left out of the list unless searched for or open, and its row says Archived', () => {
+  const { model, chip, panel, view } = menu();
+  model.applySession(state('a', { name: 'Leaf' }));
+  model.applyList(list('a', [row('a', { name: 'Leaf' }), row('b', { name: 'Test run', archived: true }),
+    row('c', { name: 'Pond' })]));
+  fire(chip, 'click');
+  expect(rowsIn(panel).map((r) => r.dataset.sid).sort()).toEqual(['a', 'c']);
+  view.search.value = 'test';
+  fire(view.search as unknown as SessionNode, 'input');
+  expect(rowsIn(panel).map((r) => r.dataset.sid)).toEqual(['b']);
+  expect(text(rowOf(panel, 'b'))).toContain('Archived');
+  expect(listedRow(row('b', { archived: true }), '', 'b', NOW)).toBe(true); // the one open stays listed
+  expect(listedRow(row('b', { archived: true }), '', 'a', NOW)).toBe(false);
 });
 
 test('a click on a session sends the switch, closes the menu and the title says "Opening…" until the echo', () => {

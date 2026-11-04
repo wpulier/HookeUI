@@ -24,6 +24,8 @@ FAMILIES: dict[str, str] = {
     "measuring": "count, measure sizes, set the objective and the scale",
     "motion": "watch what moves, how fast and how straight",
     "map": "where things outlined earlier are from the view now; the slide map",
+    "scope": "the microscope's own motors, camera and light (a connected scope): move, focus, pictures, light, "
+             "acquisitions, inside the limits the user set",
     "seeing": "a clearer picture from real frames: averaged, the sharpest, focus-stacked",
     "snapshots": "a picture of the view with its outlines and labels, saved",
     "time": "what happened in the last minute; watch for something to happen and say when",

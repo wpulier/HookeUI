@@ -214,6 +214,7 @@ class App:
     _sessions_sent: float = field(default=-1e9, repr=False)
     _sessions_sending: set = field(default_factory=set, repr=False)
     _research_working: dict = field(default_factory=dict, repr=False)
+    conductor: object = field(default=None, repr=False)  # outside agents Hooke starts (agents/conductor.py, ADR 0029)
     _key_admin: object = field(default=None, repr=False)
     _loop: object = field(default=None, repr=False)  # the app's event loop, once started
     _pages: dict = field(default_factory=dict, repr=False)  # open_page's waits: id -> the studio's reply (page-opened)
@@ -568,6 +569,21 @@ class App:
                       um_per_px=um_per_px, log=agent.log)
         hub.on_frame.append(guide.frame)  # after the coach's: its sweep for this frame is known
         hub.guide = guide
+        # The microscope's motors, camera and light, when a scope bridge was started with this app (scope.py,
+        # services/scope_bridge): every receipt filed in the session's journal, with what was asked.
+        from .scope import from_environment
+
+        scope = from_environment()
+
+        def scope_journal(receipt: dict, ctx) -> None:
+            asked = getattr(ctx, "asked", None)
+            dialogue.notice(producer={"kind": "scope", "id": str(receipt.get("id") or "")}, event=str(receipt.get("status")),
+                            summary=f"Microscope: {receipt.get('kind')} {receipt.get('status')}"
+                                    + (f": {receipt['why']}" if receipt.get("why") else ""),
+                            facts={"receipt": receipt}, asked=asked,
+                            origin={"day": getattr(asked, "day", None), "thread": getattr(asked, "thread", None),
+                                    "turnId": getattr(ctx, "turn_id", None), "requestId": getattr(ctx, "request_id", None)},
+                            tone="error" if receipt.get("status") == "failed" else "info")
 
         async def ask_quietly(prompt: str) -> dict:
             """The day's memory asks the fast model (summaries, settled facts); never on a reply's path."""
@@ -590,12 +606,14 @@ class App:
                             presenter=presenter, day=day, memory=memory, subjects=subjects, sight=sight, narrator=narrator,
                             outline_seen=partial(outline_seen, hub, lambda: sight.view),
                             publish_settings=lambda: app.publish_settings(), sweep=sweep,
-                            clip=clip, watcher=watcher, guide=guide, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
+                            clip=clip, watcher=watcher, guide=guide, scope=scope, scope_journal=scope_journal, slidemap=slidemap, history_log=paths.interaction_log, snapshots=paths.snapshots, bookmarks=bookmarks, registrations=registrations, log=agent.log,
+                            agents=lambda: app.conductor,  # outside agents Hooke starts (ADR 0029), made with the App below
                             capabilities=lambda: app.capabilities_wire(counts=False),  # the agent reads what the Capabilities page shows
                             capability_status=lambda: app.capability_status(),  # its awareness: the rows alone, fresh
                             # The Models page's download queue and its card, for the agent (brain/toolbox/catalog.py)
                             downloads=_LazyDownloads(lambda: app), installs=_LazyDownloads(lambda: app, "installs"), open_page=lambda client, page: app.open_page(client, page),
                             put_on_stage=lambda aid: app.put_on_stage(aid),
+                            sessions_changed=lambda: app.sessions_changed(at_once=True),
                             workspace_tabs=lambda ctx, args: app.hub.workspace_tabs.run(ctx, args),
                             observe=lambda model: app.observe(model, timeout=5.0),  # asked again before the agent answers
                             turn_on=lambda job, asked=None, expected=None: app.turn_on.start(job, asked=asked, expected=expected),  # Turn on, on the user's yes (turn_on tool)
@@ -931,6 +949,12 @@ class App:
                   datasets=datasets, rig=rig)
         services.workspace_context = app.workspace_context
         app.registrations = registrations
+        from .agents.conductor import Conductor
+        from .agents.hooke_side import HookeSide
+
+        # Outside agents the user asks Hooke to start (ADR 0029): what they report spending counts in the day's allowance.
+        app.conductor = Conductor(paths.home, HookeSide(app))
+        research.spending.others.append(app.conductor.spent_on)
         # Dataset tables (datatables.py): measured tables pooled and edited, each version with its rows; a correction of a
         # population a following table pooled makes its next version, debounced and read off the loop.
         from .datatables import DataTables
@@ -1232,6 +1256,9 @@ class App:
 
         self._stopping = False
         looplag.warm_imports()  # what would stall the loop when first used, imported now off it (looplag.WARM_IMPORTS)
+        if self.conductor is not None:  # connections a crash left to agents Hooke started are revoked (ADR 0029)
+            await asyncio.to_thread(self.conductor.recover)
+            self._tasks.append(asyncio.create_task(asyncio.to_thread(self.conductor.warm)))  # off the loop, never awaited
         self._tasks.append(asyncio.create_task(self.warm_vision()))
         from . import fiji_sandbox
 
@@ -1831,6 +1858,8 @@ class App:
         if self.hub.loop_lag is not None:
             self.hub.loop_lag.stop()
         self.research.stop()
+        if self.conductor is not None:
+            await self.conductor.close()  # every agent Hooke started ends, its connection revoked
         if getattr(self, "registrations", None) is not None:
             await asyncio.to_thread(self.registrations.stop)  # its jobs ended, recorded interrupted
         await self.hub.stop()
@@ -1897,7 +1926,7 @@ class App:
         if kind == "session-renamed":
             self.hub.broadcast(self.subjects.wire())
             self.sessions_changed(at_once=True)
-        elif kind == "session-opened":
+        elif kind in ("session-opened", "session-archived"):
             self.sessions_changed(at_once=True)
         elif kind in ("research-linked", "thread-opened") or (kind in ("made", "evidence-saved", "tracks-saved", "result")
                                                               and product_of(event) is not None) or (
@@ -2500,8 +2529,15 @@ class App:
                 *([self.slidemap.wire()] if self.slidemap is not None else []), self.subjects.wire(),
                 *([self.datasets.wire()] if self.datasets is not None else []),
                 *([self.rig.wire()] if self.rig is not None else []),
-                self.research_list(), *self.experiments_wire(), self.day.wire(), self.dialogue.history(),
+                self.research_list(), *self.experiments_wire(), *self.project_cards_wire(), self.day.wire(),
+                self.dialogue.history(),
                 self.execution_wire()]
+
+    def project_cards_wire(self) -> list[dict]:
+        """The open Project's Project cards (brain/toolbox/projects.py): a tidy proposed, a "which one?"; none when none."""
+        cards = getattr(self.hub, "project_cards", None)
+        wire = cards.wire_list(self.day.sid) if cards is not None else None
+        return [wire] if wire and wire["cards"] else []
 
     def experiments_wire(self) -> list[dict]:
         """The open Project's experiments, as cards (experiments.py); none when there are none."""

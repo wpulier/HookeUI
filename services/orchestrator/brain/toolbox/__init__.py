@@ -24,11 +24,13 @@ from .magnifier import add_magnifier_tools
 from .memory import add_memory_tools
 from .motion import add_motion_tools
 from .narration import add_narration_tools
+from .agents import add_agent_tools
 from .research import add_research_tools, recent_request
 from .scene import add_dissect_tool, add_lead_tool, add_scene_tools
 from .seeing import add_seeing_tools
 from .population import add_correction_tool, add_group_tools, add_population_tools
 from .threads import add_capability_tool, add_thread_tools
+from .projects import add_project_tools
 from .choosing import add_choosing_tools
 from .time import add_time_tools
 from .view import add_view_tools
@@ -53,6 +55,7 @@ from .workflows import add_workflow_tools
 from .experiments import add_experiment_tools
 from .experiment_design import add_experiment_design_tools
 from .guiding import add_guide_tools
+from .scope import add_scope_tools
 
 
 @dataclass
@@ -64,6 +67,7 @@ class Services:
     magnifier: Any = None  # magnifier.Magnifier
     dissector: Any = None  # dissect.Dissector
     research: Any = None  # research.ResearchManager
+    agents: Callable | None = None  # () -> agents.conductor.Conductor: outside agents Hooke starts (ADR 0029)
     desk: Any = None  # research.desk.Desk: which researcher a request means
     presenter: Any = None  # presenter.Presenter: a researcher's work beside the view
     day: Any = None  # day.SessionStore: conversations and preferences
@@ -91,6 +95,8 @@ class Services:
     clip: Any = None  # clip.ClipBuffer: the last minute of the view (what_happened)
     watcher: Any = None  # watcher.Watcher: watching for something to happen (watch)
     guide: Any = None  # guide.Guide: guiding the user's hands to a thing until it is centred and sharp (guide)
+    scope: Any = None  # scope.ScopeClient: the microscope's motors, camera and light through the scope bridge
+    scope_journal: Callable | None = None  # (receipt, ctx): files a scope bridge receipt in the session's journal
     sweep: Any = None  # sweep.SweepBuffer: the frames of the last turn of the focus knob (enhance how="stack")
     slidemap: Any = None  # slidemap.SlideMap: the slide map panel (where_is needs only the scene)
     snapshots: Any = None  # Path: where snapshots are saved (paths.Paths.snapshots; None: from the environment)
@@ -110,6 +116,7 @@ class Services:
     observe: Callable | None = None  # async (model id) -> asks the outside world again about it (observed.py)
     turn_on: Callable | None = None  # (job id) -> one press of Turn on, carried through (capability_shelf.TurnOn.start)
     kinds: Callable | None = None  # () -> the new kinds of job on here (kinds.available): run_capability's choices
+    sessions_changed: Callable | None = None  # () -> every studio is sent the Projects list again (a rename, an archive)
 
 
 def build(services: Services) -> Registry:
@@ -121,6 +128,7 @@ def build(services: Services) -> Registry:
     registry.models = lambda run: activity.models_of(services.hub, run)  # what worked on each step, for Activity
     add_scene_tools(registry, services)
     add_thread_tools(registry, services)
+    add_project_tools(registry, services)
     add_capability_tool(registry, services)
     add_catalog_tools(registry, services)
     add_kind_tools(registry, services)
@@ -132,6 +140,7 @@ def build(services: Services) -> Registry:
     add_group_tools(registry, services)
     add_dissect_tool(registry, services)
     add_research_tools(registry, services)
+    add_agent_tools(registry, services)
     add_narration_tools(registry, services)
     add_view_tools(registry, services)
     add_finding_tools(registry, services)
@@ -139,6 +148,7 @@ def build(services: Services) -> Registry:
     add_motion_tools(registry, services)
     add_where_tools(registry, services)
     add_guide_tools(registry, services)
+    add_scope_tools(registry, services)
     add_identity_tools(registry, services)
     add_outcome_tools(registry, services)
     add_time_tools(registry, services)

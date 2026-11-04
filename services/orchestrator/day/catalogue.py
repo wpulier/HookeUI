@@ -27,6 +27,7 @@ from . import sid as sids
 ARCHIVE = "archive"  # sessions/archive/: journals moved aside by "start today afresh" before sessions existed
 ID = re.compile(r"(tb|an|gr|[a-z])([0-9]+)")  # one letter, or a dataset table's "tb" (ids.PREFIXES)
 ID_FIELDS = ("id", "lastMember")  # an event's own id fields (and "members", "ids": lists of ids)
+SUMMARY_CHARS = 600  # of each conversation's running summary, kept for finding a Project by what was said in it
 
 
 def local_day(at: float) -> str:
@@ -135,6 +136,11 @@ class Info:
     claims: dict[tuple[str, str], str] = field(default_factory=dict)
     ids: dict[tuple[str, str], int] = field(default_factory=dict)  # (day, prefix) -> the highest number given
     unavailable: str | None = None  # retained locator exists, but its research cannot currently be read
+    summaries: dict[str, str] = field(default_factory=dict)  # conversation id -> its latest running summary (find)
+    archived: bool = False  # put away by the user (`session-archived`): listed only when asked for, never deleted
+    # The Project changes made in it that can be undone (`project-change`, brain/toolbox/projects.py): change id -> its record,
+    # with "undone" once undone. One change may span Projects (archiving several): each keeps its own part.
+    changes: dict[str, dict] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
@@ -167,6 +173,8 @@ class Info:
             row["thumb"] = f"/api/library/{self.picture}/thumbnail"  # the library's own small picture (thumbnails.py)
         if self.unavailable is not None:
             row['storageUnavailable'] = self.unavailable
+        if self.archived:
+            row["archived"] = True
         return row
 
 
@@ -320,6 +328,16 @@ class Catalogue:
             info.last_user = max(info.last_user, at)
         elif kind == "research-linked" and e.get("rid") and e["rid"] not in info.researchers:
             info.researchers.append(str(e["rid"]))
+        elif kind == "summary" and e.get("thread"):
+            info.summaries[str(e["thread"])] = str(e.get("text") or "")[:SUMMARY_CHARS]
+        elif kind == "session-archived":
+            info.archived = e.get("archived") is not False
+        elif kind == "project-change" and isinstance(e.get("change"), str) and isinstance(e.get("steps"), list):
+            info.changes[e["change"]] = {"at": at, "what": str(e.get("what") or ""), "says": str(e.get("says") or ""),
+                                         "steps": list(e["steps"]), "by": str(e.get("by") or ""), "undone": False,
+                                         "asked": e.get("asked") if isinstance(e.get("asked"), dict) else None}
+        elif kind == "project-change-undone" and e.get("change") in info.changes:
+            info.changes[e["change"]]["undone"] = True
         if kind == "made" and e.get("id") and e.get("kind"):
             info.claims.setdefault((str(e["kind"]), str(e["id"])), day)
         made = product_of(e)
@@ -364,38 +382,156 @@ class Catalogue:
         return max((i.ids.get((day, prefix), 0) for i in infos), default=0)
 
     def find(self, ref: str, *, current: str | None = None, now: float | None = None) -> list[Info]:
-        """The sessions `ref` may mean, best first ([] when none): its id; "previous" (the most recent other than
-        `current`); a date ("2026-10-11", "Oct 11", "October 11", "today", "yesterday", a weekday within the last
-        week) narrowing to the sessions that touched it; and words matched against its name and conversations (twice)
-        and what was seen in it (once)."""
+        """The sessions `ref` may mean, best first ([] when none): `rank`'s answer as sessions. One clear match is the
+        only one returned (switch_session opens it); when unsure, those matching every word (else the partial ones),
+        best first, for the model to ask which."""
+        ranked = self.rank(ref, current=current, now=now)
+        sure = [m.info for m in ranked.matches if m.sure]
+        full = [m.info for m in ranked.matches if m.full]
+        return sure[:1] if sure else full or [m.info for m in ranked.matches]
+
+    def rank(self, ref: str, *, current: str | None = None, now: float | None = None) -> "Ranked":
+        """The sessions `ref` may mean, best first, each with why: its id; "previous" (the most recent other than
+        `current`); a time ("2026-10-11", "Oct 11", "yesterday", a weekday within the last week, "last week", "this
+        month", "in October": `span_in`) narrowing to the sessions that touched it; and words matched against its name
+        and conversations' titles (3 each), what was seen in it (2) and its conversations' summaries (1), a plural or
+        singular alike ("leaves" is "leaf").
+
+        Those that match every word in their name, conversations or specimens (`full`) come first, then the partial
+        ones (a word only in a summary, or not every word). One full match alone, in the time named, is `sure` (`find`
+        returns it alone); otherwise nothing decides among them: the model asks. When a time was named and nothing in it matches the words, the
+        matches outside it are given, each `inSpan` False, so "the leaf one from last week" said of one from the week
+        before is still found and said to be from then. A reading of words and dates, not of what was meant."""
         text = " ".join(str(ref or "").lower().split())
         if not text:
-            return []
+            return Ranked([], None, [])
         infos = self.list()
         exact = [i for i in infos if i.id == text]
         if exact:
-            return exact
+            return Ranked([Match(exact[0], sure=True)], None, [])
         # A session called exactly that, and only one: it (the partner bench of 2026-10-29: "Open the Nuclei project"
         # also matched another session that had looked at nuclei, and nothing was opened).
         named = [i for i in infos if " ".join(str(i.name or "").lower().split()) == text]
         if len(named) == 1:
-            return named
+            return Ranked([Match(named[0], sure=True)], None, [])
         others = [i for i in infos if i.id != current]
         if text in ("previous", "the previous one", "the last one", "last one", "the other one", "before"):
-            return others[:1]
-        day = _day_in(text, now if now is not None else time.time())
-        pool = [i for i in infos if day in i.days] if day else infos
-        words = {w for w in re.findall(r"[a-z0-9]+", text) if len(w) > 2} - _NOT_NAMES
-
-        def score(i: Info) -> int:
-            main = " ".join([i.name, *i.titles.values()]).lower()
-            rest = " ".join(i.specimens).lower()
-            return sum(2 if w in main else 1 if w in rest else 0 for w in words)
-
+            return Ranked([Match(i, sure=True) for i in others[:1]], None, [])
+        span = span_in(text, now if now is not None else time.time())
+        words = sorted({w for w in re.findall(r"[a-z0-9]+", text) if len(w) > 2} - _NOT_NAMES - _span_words(span))
+        if current and re.search(r"\b(?:other|another|different)\b", text):
+            infos = [i for i in infos if i.id != current]  # "the other leaf one": not the one open now
         if not words:
-            return pool if day else []
-        ranked = sorted(((score(i), i.last_active, i) for i in pool), key=lambda s: (s[0], s[1]), reverse=True)
-        return [i for s, _at, i in ranked if s > 0]
+            pool = [Match(i, in_span=True) for i in infos if span is not None and span.holds(i)]
+            return Ranked(pool, span, [])
+        # The Project open now by its name and what was seen in it only: its conversations hold the very request being
+        # asked (live, 3 Nov: "what Projects do I have on guard cells" matched the open one by its own question's title).
+        scored = [m for m in (_match(i, words, own=i.id == current) for i in infos) if m.score > 0]
+        if span is not None:
+            for m in scored:
+                m.in_span = span.holds(m.info)
+            inside = [m for m in scored if m.in_span]
+            # Only a full match in the time decides it; else what matches only in part inside it is given with the full
+            # matches outside it (review of #189: "the onion one from last week" opened a Project whose summary named
+            # onions, from last week, over Onion skin, from the week before).
+            scored = inside if any(m.full for m in inside) else inside + [m for m in scored if m.full and not m.in_span]
+            if not scored:
+                scored = [m for m in (_match(i, words, own=i.id == current) for i in infos) if m.score > 0]
+                for m in scored:
+                    m.in_span = False
+        scored.sort(key=lambda m: (m.full, m.score, m.info.last_active), reverse=True)
+        full = [m for m in scored if m.full]
+        if len(full) == 1 and full[0].in_span is not False:
+            full[0].sure = True
+        return Ranked(scored, span, words)
+
+
+@dataclass
+class Match:
+    """One session `rank` found, with why: the words of the reference it matched and where (name, conversation,
+    specimen, summary), whether it matched them all outside its summaries (`full`), and whether it touched the time named
+    (`in_span`: None when none was named)."""
+    info: Info
+    score: int = 0
+    matched: dict[str, str] = field(default_factory=dict)  # word -> where it matched best
+    full: bool = False
+    in_span: bool | None = None
+    sure: bool = False
+
+
+@dataclass
+class Ranked:
+    matches: list[Match]
+    span: "Span | None"
+    words: list[str]  # the words of the reference that name it, not a time or the asking
+
+    @property
+    def sure(self) -> "Match | None":
+        """The one match meant beyond doubt, else None."""
+        return next((m for m in self.matches if m.sure), None)
+
+
+@dataclass(frozen=True)
+class Span:
+    """A run of calendar dates a reference names, first and last included ("YYYY-MM-DD"), and how it was said."""
+    first: str
+    last: str
+    said: str  # the words it was read from ("last week")
+
+    def holds(self, info: Info) -> bool:
+        return any(self.first <= day <= self.last for day in info.days)
+
+    @property
+    def words(self) -> str:
+        """The span in the words the model is told: "Oct 26 to Nov 1", or one date."""
+        def short(day: str) -> str:
+            date = datetime.date.fromisoformat(day)
+            return f"{date.strftime('%b')} {date.day}"
+        return short(self.first) if self.first == self.last else f"{short(self.first)} to {short(self.last)}"
+
+
+WEIGHTS = {"name": 3, "conversation": 3, "specimen": 2, "summary": 1}
+
+
+def stem(word: str) -> str:
+    """A word as plural and singular are matched: "leaves" and "leaf", "cells" and "cell", "stomata" and "stoma",
+    "nuclei" and "nucleus", "studies" and "study". A light rule, never a dictionary."""
+    w = word.lower()
+    if len(w) <= 3:
+        return w
+    for end, to in (("ies", "y"), ("ves", "f"), ("ata", "a"), ("ches", "ch"), ("shes", "sh"), ("sses", "ss"),
+                    ("xes", "x")):
+        if w.endswith(end) and len(w) > len(end) + 1:
+            return w[:-len(end)] + to
+    if w.endswith("i") and len(w) > 4:
+        return w[:-1] + "us"
+    if w.endswith("s") and not w.endswith(("ss", "us", "is")):
+        return w[:-1]
+    return w
+
+
+def _stems(text: str) -> set[str]:
+    return {stem(t) for t in re.findall(r"[a-z0-9]+", text.lower())}
+
+
+def _match(info: Info, words: list[str], own: bool = False) -> Match:
+    fields = {"name": info.name, "conversation": "" if own else " ".join(info.titles.values()),
+              "specimen": " ".join(info.specimens), "summary": "" if own else " ".join(info.summaries.values())}
+    stems = {where: _stems(value) for where, value in fields.items()}
+    lowered = {where: value.lower() for where, value in fields.items()}
+    match = Match(info)
+    for word in words:
+        s = stem(word)
+        for where in ("name", "conversation", "specimen", "summary"):
+            # Whole words, plural or singular; a longer word also inside one ("stomat" of "stomatal"), never a short
+            # one ("test" is not in "latest").
+            if s in stems[where] or (len(word) >= 5 and (word in lowered[where]
+                                                         or any(t.startswith(s) for t in stems[where]))):
+                match.matched[word] = where
+                match.score += WEIGHTS[where]
+                break
+    match.full = bool(words) and all(match.matched.get(w) in ("name", "conversation", "specimen") for w in words)
+    return match
 
 
 # Words that name the asking, not a session ("go back to yesterday's leaf session": "leaf" is what it is called).
@@ -405,38 +541,126 @@ _NOT_NAMES = {"the", "one", "session", "sessions", "back", "about", "with", "tha
               "february", "march", "april", "june", "july", "august", "september", "october", "november", "december",
               "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov", "dec", "monday", "tuesday",
               "wednesday", "thursday", "friday", "saturday", "sunday", "mon", "tue", "tues", "wed", "thu", "thur",
-              "thurs", "fri", "sat", "sun"}
+              "thurs", "fri", "sat", "sun",
+              # times and the asking for Projects ("what Projects do I have on guard cells", "the one from last week")
+              "projects", "week", "weeks", "month", "months", "year", "days", "day", "ago", "past", "recent",
+              "recently", "open", "have", "any", "which", "all", "ones", "show", "list", "some", "few", "couple", "two",
+              "three", "four", "five", "six", "seven", "for", "please", "can", "you", "are", "there", "those", "these",
+              "them", "its", "into", "out", "made", "had", "since", "during", "before", "after", "other", "another",
+              "different", "tonight", "weekend", "weekends"}
 _MONTHS = {m: n for n, names in enumerate((("jan", "january"), ("feb", "february"), ("mar", "march"), ("apr", "april"),
                                            ("may",), ("jun", "june"), ("jul", "july"), ("aug", "august"),
                                            ("sep", "sept", "september"), ("oct", "october"), ("nov", "november"),
                                            ("dec", "december")), 1) for m in names}
+_FULL_MONTHS = {"january", "february", "march", "april", "june", "july", "august", "september", "october", "november",
+                "december"}  # said alone, a month ("in October"); "may" and the short forms only after "in", "from"...
+_MONTH_AFTER = {"in", "from", "during", "of", "since", "early", "late", "mid"}
 _WEEKDAYS = {w: n for n, names in enumerate((("mon", "monday"), ("tue", "tues", "tuesday"), ("wed", "wednesday"),
                                              ("thu", "thur", "thurs", "thursday"), ("fri", "friday"),
                                              ("sat", "saturday"), ("sun", "sunday"))) for w in names}
+_COUNTS = {"two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "ten": 10, "fourteen": 14}
+
+
+def _span_words(span: "Span | None") -> set[str]:
+    """The words a span was read from, so "last week" or "in may" are never matched as names."""
+    return set(re.findall(r"[a-z0-9]+", span.said)) if span is not None else set()
+
+
+def _month_span(year: int, month: int) -> tuple[str, str]:
+    first = datetime.date(year, month, 1)
+    after = datetime.date(year + (month == 12), month % 12 + 1, 1)
+    return first.isoformat(), (after - datetime.timedelta(days=1)).isoformat()
+
+
+def span_in(text: str, now: float) -> Span | None:
+    """The calendar dates a reference names, if it names any: one day (an ISO date, "Oct 11", "today", "yesterday", "3
+    days ago", a weekday: the most recent one, today included) or a run of them ("this week", "last week": the calendar
+    week before this one, Monday to Sunday; "the last 10 days", "past week"; "this month", "last month"; a month alone,
+    "in October": the latest October not after today). A reading of dates, not of what was meant."""
+    text = str(text or "").lower()
+    today = datetime.date.fromtimestamp(now)
+
+    def day(back: int) -> str:
+        return days_before(now, back)
+
+    def one(date: str, said: str) -> Span:
+        return Span(date, date, said)
+
+    found = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
+    if found:
+        return one(found.group(0), found.group(0)) if _is_date(found.group(0)) else None
+    words = re.findall(r"[a-z]+|\d+", text)
+    joined = " ".join(words)
+    if re.search(r"\bday before yesterday\b", joined):
+        return one(day(2), "day before yesterday")
+    if "today" in words or re.search(r"\bthis (morning|afternoon|evening)\b|\btonight\b", joined):
+        return one(day(0), "today")
+    if "yesterday" in words:
+        return one(day(1), "yesterday")
+    ago = re.search(r"\b(\d+|a|one|two|three|four|five|six|seven|ten|fourteen) (day|days|week|weeks) ago\b", joined)
+    if ago:
+        n = 1 if ago.group(1) in ("a", "one") else _COUNTS.get(ago.group(1)) or int(ago.group(1))
+        back = n * (7 if ago.group(2).startswith("week") else 1)
+        if ago.group(2).startswith("week"):  # "two weeks ago": that calendar week
+            monday = today - datetime.timedelta(days=today.weekday() + 7 * n)
+            return Span(monday.isoformat(), (monday + datetime.timedelta(days=6)).isoformat(), ago.group(0))
+        return one(day(back), ago.group(0))
+    recent = re.search(r"\b(?:last|past) (\d+|two|three|four|five|six|seven|ten|fourteen) (day|days|week|weeks)\b", joined)
+    if recent:
+        n = _COUNTS.get(recent.group(1)) or int(recent.group(1))
+        back = n * (7 if recent.group(2).startswith("week") else 1)
+        return Span(day(back - 1), day(0), recent.group(0))
+    if re.search(r"\b(?:past|this past) week\b|\blast seven days\b", joined):
+        return Span(day(6), day(0), "past week")
+    if re.search(r"\bthis week\b|\bearlier this week\b", joined):
+        monday = today - datetime.timedelta(days=today.weekday())
+        return Span(monday.isoformat(), today.isoformat(), "this week")
+    if re.search(r"\bweek before last\b", joined):
+        monday = today - datetime.timedelta(days=today.weekday() + 14)
+        return Span(monday.isoformat(), (monday + datetime.timedelta(days=6)).isoformat(), "week before last")
+    weekend = re.search(r"\b(?:last|this past|past|this) weekend\b|\bthe weekend\b", joined)
+    if weekend:  # the latest Saturday and Sunday not after today
+        saturday = today - datetime.timedelta(days=(today.weekday() - 5) % 7)
+        if weekend.group(0).startswith("last") and today.weekday() >= 5:
+            saturday -= datetime.timedelta(days=7)  # said on a weekend: the one before
+        last = min(saturday + datetime.timedelta(days=1), today)
+        return Span(saturday.isoformat(), last.isoformat(), weekend.group(0))
+    if re.search(r"\blast week\b|\bprevious week\b|\bweek before\b", joined):
+        monday = today - datetime.timedelta(days=today.weekday() + 7)
+        return Span(monday.isoformat(), (monday + datetime.timedelta(days=6)).isoformat(), "last week")
+    if re.search(r"\bthis month\b|\bearlier this month\b", joined):
+        return Span(today.replace(day=1).isoformat(), today.isoformat(), "this month")
+    if re.search(r"\blast month\b|\bprevious month\b", joined):
+        year, month = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
+        return Span(*_month_span(year, month), "last month")
+    for i, w in enumerate(words):
+        if w in _MONTHS and i + 1 < len(words) and words[i + 1].isdigit():
+            year = today.year
+            candidate = f"{year:04d}-{_MONTHS[w]:02d}-{int(words[i + 1]):02d}"
+            if _is_date(candidate):
+                if candidate > today.isoformat():  # "Dec 30" said in January: last year's
+                    candidate = f"{year - 1:04d}-{_MONTHS[w]:02d}-{int(words[i + 1]):02d}"
+                return one(candidate, f"{w} {words[i + 1]}") if _is_date(candidate) else None
+    for i, w in enumerate(words):
+        if w in _MONTHS and (w in _FULL_MONTHS or (i and words[i - 1] in _MONTH_AFTER)):
+            month = _MONTHS[w]
+            year = today.year if month <= today.month else today.year - 1  # "in December" said in November: last year's
+            if i + 1 < len(words) and re.fullmatch(r"(?:19|20)\d\d", words[i + 1]):
+                year = int(words[i + 1])  # "in October 2025"
+                if (year, month) > (today.year, today.month):
+                    return None
+                first, last = _month_span(year, month)
+                return Span(first, min(last, today.isoformat()), f"{w} {year}")
+            first, last = _month_span(year, month)
+            return Span(first, min(last, today.isoformat()), (f"{words[i - 1]} {w}" if i and words[i - 1] in _MONTH_AFTER else w))
+    for w in words:
+        if w in _WEEKDAYS:
+            back = (today.weekday() - _WEEKDAYS[w]) % 7
+            return one(day(back), w)
+    return None
 
 
 def _day_in(text: str, now: float) -> str | None:
-    """The calendar date a reference names, if it names one: an ISO date, a month and day ("Oct 11"), "today",
-    "yesterday", or a weekday (the most recent one, today included). A reading of dates, not of what was meant."""
-    found = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", text)
-    if found:
-        return found.group(0) if _is_date(found.group(0)) else None
-    words = re.findall(r"[a-z]+|\d+", text)
-    if "today" in words:
-        return local_day(now)
-    if "yesterday" in words:
-        return days_before(now, 1)
-    for i, w in enumerate(words):
-        if w in _MONTHS and i + 1 < len(words) and words[i + 1].isdigit():
-            year = time.localtime(now).tm_year
-            candidate = f"{year:04d}-{_MONTHS[w]:02d}-{int(words[i + 1]):02d}"
-            if _is_date(candidate):
-                if candidate > local_day(now):  # "Dec 30" said in January: last year's
-                    candidate = f"{year - 1:04d}-{_MONTHS[w]:02d}-{int(words[i + 1]):02d}"
-                return candidate if _is_date(candidate) else None
-    for w in words:
-        if w in _WEEKDAYS:
-            back = (time.localtime(now).tm_wday - _WEEKDAYS[w]) % 7
-            return days_before(now, back)
-    return None
-
+    """The one calendar date a reference names, if it names a single day (`span_in`); None for none or a run of days."""
+    span = span_in(text, now)
+    return span.first if span is not None and span.first == span.last else None
