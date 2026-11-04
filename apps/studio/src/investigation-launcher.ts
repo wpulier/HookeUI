@@ -257,6 +257,12 @@ export class InvestigationLauncher {
     header.append(element('span', label, 'inv-eyebrow'), close);
     dialog.append(header, heading);
     this.preview = dialog;
+    dialog.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!this.busy) dialog.close();
+    });
     dialog.addEventListener('cancel', event => { if (this.busy) event.preventDefault(); });
     dialog.addEventListener('close', () => {
       if (dialog.contains(this.assistantHost)) this.recent.after(this.assistantHost);
