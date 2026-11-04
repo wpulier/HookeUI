@@ -100,6 +100,8 @@ class GitHub:
         if rest.startswith('git/refs/heads/') and method == 'PATCH':
             branch = rest[len('git/refs/heads/'):]
             current = repo['refs'].get(branch)
+            if branch in repo.get('protected', ()):  # a ruleset: only an allowed actor may move it
+                return 422, {'message': 'Repository rule violations found\n\nCannot update this protected ref.\n\n'}
             if not payload.get('force') and not self._descends(repo, payload['sha'], current):
                 return 422, {'message': 'Update is not a fast forward'}
             repo['refs'][branch] = payload['sha']
@@ -254,6 +256,24 @@ def test_an_edit_on_github_is_reported_and_a_stale_publication_refused(tmp_path)
     assert r['refs']['main'] == web
 
 
+def test_a_rule_that_keeps_the_branch_still_is_said_as_github_said_it(tmp_path):
+    # Live 2026-11-03: a ruleset on main refused Hooke's own update (the app acts as the person), and Hooke said
+    # 'another version arrived first' although nothing had arrived.
+    root, repo, _, _, note, source, _, review = published(tmp_path)
+    hub = GitHub()
+    full, placeholder = create_repository(signed_in(hub), 'ruled', private=False, description='')
+    remote = github_remote(signed_in(hub), full, placeholder=placeholder)
+    first = publish(review['staging'], review_digest=review['reviewDigest'], signoff=SIGNOFF, remote=remote,
+                    replaces=placeholder)
+    hub.repos[full]['protected'] = {'main'}
+    review2 = prepare(seal(root), tmp_path / 'Review 2')
+    with pytest.raises(GitHubRefused, match=r'publishing the version \(422: Repository rule violations found') as refused:
+        publish(review2['staging'], review_digest=review2['reviewDigest'], signoff=SIGNOFF, remote=remote,
+                parent=first['commit'])
+    assert not isinstance(refused.value, Diverged)
+    assert hub.repos[full]['refs']['main'] == first['commit']
+
+
 def test_links_and_submodules_in_a_repository_are_refused(tmp_path):
     root, repo, _, _, note, source, _, review = published(tmp_path)
     hub = GitHub()
@@ -318,3 +338,40 @@ def test_a_first_publication_that_did_not_finish_is_tried_again_under_the_same_n
     github.repos[repo]['refs']['notes'] = placeholder
     with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
         create_repository(client, 'leaf-cells', private=False, description='x')
+
+
+def _served(monkeypatch, answers):
+    """Client.download against canned answers: (status, body) pairs, served in order; the pauses it took."""
+    import httpx
+
+    from orchestrator import github_rest
+    asked, paused = [], []
+
+    def answer(request):
+        asked.append(str(request.url))
+        status, body = answers[len(asked) - 1]
+        return httpx.Response(status, content=body)
+    real = httpx._client.Client  # the class itself, even when an earlier call here replaced httpx.Client
+    monkeypatch.setattr(httpx, 'Client', lambda **kw: real(transport=httpx.MockTransport(answer), **kw))
+    monkeypatch.setattr(github_rest, '_pause', paused.append)
+    return github_rest.Client(anonymous=True), asked, paused
+
+
+def test_a_download_asks_again_after_a_passing_server_error(monkeypatch):
+    # Seen live 2026-11-03: raw.githubusercontent.com answered one file of an Update with a 501, then served it.
+    client, asked, paused = _served(monkeypatch, [(501, b''), (503, b''), (200, b'cells')])
+    url = 'https://raw.githubusercontent.com/ada/research/' + 'a' * 40 + '/README.md'
+    assert client.download(url, 100) == b'cells'
+    assert asked == [url] * 3 and paused == [1.0, 3.0]
+
+
+def test_a_download_refuses_after_three_server_errors_and_at_once_when_missing(monkeypatch):
+    from orchestrator.project_remote_layers import RemoteRefused
+    client, asked, paused = _served(monkeypatch, [(502, b'')] * 3)
+    with pytest.raises(RemoteRefused, match=r'could not provide a file of this project \(502\)'):
+        client.download('https://raw.githubusercontent.com/ada/research/x', 100)
+    assert len(asked) == 3 and paused == [1.0, 3.0]
+    client, asked, paused = _served(monkeypatch, [(404, b'')])
+    with pytest.raises(RemoteRefused, match=r'\(404\)'):
+        client.download('https://raw.githubusercontent.com/ada/research/x', 100)
+    assert len(asked) == 1 and paused == []

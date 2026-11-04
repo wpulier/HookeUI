@@ -113,8 +113,9 @@ def push_sealed(sealed: Path, remote: Remote, *, parent: str | None, summary: st
         raise SecretsFound(findings)
     head = remote.records.head()
     if head != expected:
-        raise Diverged('This project changed in two places: the remote has a version this Mac did not send. '
-                       'Nothing was sent. Start an independent copy, or update first.')
+        raise Diverged('This project changed in two places: the remote has a version this Mac did not send (made '
+                       'outside Hooke, or from another Mac). Nothing was sent. Send it to a new place '
+                       'instead.')
     # 1. Bulk objects: new contents in new packs, each verified by the store; the parent's packs are reused.
     sizes, sources = {}, {}
     for entry in bulk:
