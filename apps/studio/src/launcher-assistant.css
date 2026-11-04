@@ -1,0 +1,25 @@
+.launcher-assistant {min-width:0;}
+.launcher-assistant h2 {margin:0 0 .6rem;font-size:1rem;}
+.launcher-assistant-status {margin:.45rem 0 0;font-size:.82rem;color:var(--mm-text-2);}
+.launcher-assistant-status:empty {display:none;}
+.launcher-assistant-history {max-height:14rem;margin-bottom:.6rem;overflow:auto;line-height:1.45;}
+.launcher-assistant-history p {white-space:pre-wrap;overflow-wrap:anywhere;margin:.5rem 0;}
+.launcher-assistant-user {color:var(--mm-text-2);font-weight:600;}
+.launcher-assistant .mm-composer-actions>button:not(.mm-composer-send), .launcher-assistant-history button {font:inherit;color:var(--mm-text);background:var(--mm-card);border:1px solid var(--mm-line-strong);border-radius:6px;padding:.25rem .6rem;cursor:pointer;}
+
+/* The first question shares a row with dictation and Send. Longer drafts can still grow. */
+body[data-workspace-study='true'] .launcher-assistant .mm-composer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+}
+body[data-workspace-study='true'] .launcher-assistant .mm-composer-actions { gap: 6px; }
+body[data-workspace-study='true'] .launcher-assistant .mm-composer-actions button { min-width: 32px; }
+.launcher-assistant .mm-composer-spacer { display: none; }
+@media (max-width: 540px) {
+  body[data-workspace-study='true'] .launcher-assistant .mm-composer { grid-template-columns: 1fr; }
+  .launcher-assistant .mm-composer-actions { justify-content: flex-end; }
+}

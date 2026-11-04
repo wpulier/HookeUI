@@ -653,3 +653,8 @@ Door-admitted imported diagnostics carry a trusted `capability_identity.admitted
 context. `toolbox/kinds` checks its exact owner-approved installed entry off-loop and
 passes its generation into the existing runtime check, including retained-image
 execution. This is dispatch state, never a model-supplied scientific parameter.
+
+The New Project assistant uses the configured chat model with only the choices and brief visible in its launcher.
+Its temporary conversation gains no Project tools or camera context. A starter action goes through the same Studio
+control as a click. After the destination opens, acknowledged exchanges join its shared conversation and chat history.
+A saved research starter is bounded, untrusted reference material in that Project's model context.

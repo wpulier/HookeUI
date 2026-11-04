@@ -179,3 +179,6 @@ Project-grant preparation carries the existing launch Studio token in `X-Hooke-S
 it is not an agent credential. This restricts the canonical owner Project catalogue
 and choice metadata to the owner window. Final grants still require the one-use native
 signature; the Studio token alone cannot approve them.
+
+New Project's Dictate button uses speech recognition when the web view provides it and explains Mac Dictation when
+it is unavailable. The microphone and speech recognition usage strings cover this user-initiated input.

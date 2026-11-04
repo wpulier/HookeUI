@@ -247,6 +247,7 @@ export interface SourcesMessage {
 
 /** One session as the sessions list shows it (the header chip's menu and the sessions rail). */
 export interface SessionRow {
+  launcherBootstrap?: boolean; // implicit host session with only startup events
   id: string; // the sid, opaque
   name: string; // "" until named
   named: boolean;
@@ -1693,7 +1694,7 @@ export type ClientCommand =
   | { type: 'slidemap'; open: boolean } // the slide map panel (the brain's show_map)
   // sessions (the project: header chip, its menu, the sessions rail): start one, go back to one, name one, or keep
   // working here when the app suggests a new one
-  | { type: 'session'; action: 'new' | 'switch' | 'rename' | 'keep'; id?: string; name?: string }
+  | { type: 'session'; action: 'new' | 'switch' | 'rename' | 'keep'; id?: string; name?: string; researchStarter?: import('./research-starter').ResearchStarter; starterRequestId?: string }
   // a new session's home covers the stage (session-home.ts): while held, the running look makes no looks and the subject
   // tracker ignores them, so nothing is written into a session before the user chose what it looks at
   | { type: 'view'; held: boolean; live?: boolean }

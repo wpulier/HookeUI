@@ -244,8 +244,9 @@ describe('the panel', () => {
 
 describe('where it is mounted', () => {
   const read = (name: string) => readFileSync(fileURLToPath(new URL(name, import.meta.url)), 'utf8');
-  it('the first-launch Welcome puts it under the three ways in, before the quiet line', () => {
-    expect(read('./workspace-study.ts')).toContain("page.append(head,ways,starterOffer('welcome'),quiet)");
+  it('the shared Project launcher keeps the first-launch model offer', () => {
+    expect(read('./workspace-study.ts')).toContain("const starterModels=starterOffer('welcome')");
+    expect(read('./workspace-study.ts')).toContain('launcher.append(starter.root,starterModels)');
   });
   it('the empty Stage, where a fresh profile lands, puts it under its ways in and the example', () => {
     expect(read('./session-home.ts')).toContain("root.replaceChildren(this.title, lead, back, pair, research, example, starterOffer('stage'), this.recent");
