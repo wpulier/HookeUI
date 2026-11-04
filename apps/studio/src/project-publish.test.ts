@@ -158,8 +158,13 @@ test('a started-from copy can update, and says plainly what it kept', async () =
   const view = projectPublish(a, () => true, 'Research');
   await vi.waitFor(() => expect(Array.from(view.element.querySelectorAll('button')).some(b => b.textContent === 'Update from the published version')).toBe(true));
   click(view.element, 'Update from the published version');
-  await vi.waitFor(() => expect(view.element.textContent).toContain('1 document updated, 3 results and 2 files added.'));
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Updated to the published version: 1 document changed, 3 results and 2 other files added.'));
   expect(view.element.textContent).toContain('no longer follows the version here, so it was left as it was');
+  // Live, 2026-11-03: a second publication's new picture came inside its document, and "0 files added" read as lost.
+  (a.update as ReturnType<typeof vi.fn>).mockResolvedValueOnce({added: [], extended: ['p1'], unchanged: [], refused: [], filesAdded: 0, fileConflicts: [], resultsAdded: 0});
+  click(view.element, 'Update from the published version');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Updated to the published version: 1 document changed.'));
+  expect(view.element.textContent).not.toContain('0 other files');
 });
 
 test('Start from takes a GitHub address or a folder and offers to open the copy', async () => {

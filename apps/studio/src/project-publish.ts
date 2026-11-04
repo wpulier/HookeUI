@@ -163,9 +163,10 @@ export function projectPublish(actions: PublishActions, current: () => boolean, 
             if (!active()) return;
             const changed = result.added.length + result.extended.length;
             const results = result.resultsAdded ?? 0;
-            status.textContent = changed || results || result.filesAdded
-              ? `${changed} document${changed === 1 ? '' : 's'} updated, ${results} result${results === 1 ? '' : 's'} and ${result.filesAdded} file${result.filesAdded === 1 ? '' : 's'} added.`
-              : 'Already up to date.';
+            // Only what changed is named: a new picture arrives inside its document, so "0 files added" would mislead.
+            const added = [results ? plural(results, 'result') : '', result.filesAdded ? plural(result.filesAdded, 'other file') : ''].filter(Boolean);
+            const parts = [changed ? `${plural(changed, 'document')} changed` : '', added.length ? `${added.join(' and ')} added` : ''].filter(Boolean);
+            status.textContent = parts.length ? `Updated to the published version: ${parts.join(', ')}.` : 'Already up to date.';
             if (result.refused.length) content.append(node('p', `${result.refused.length} document${result.refused.length > 1 ? 's' : ''} in the publication no longer follow${result.refused.length > 1 ? '' : 's'} the version here, so ${result.refused.length > 1 ? 'they were' : 'it was'} left as ${result.refused.length > 1 ? 'they were' : 'it was'}.`));
           } catch (error) { if (active()) status.textContent = message(error); }
           finally { busy = false; update.disabled = false; }
