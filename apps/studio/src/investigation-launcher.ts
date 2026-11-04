@@ -107,7 +107,8 @@ export class InvestigationLauncher {
     practical.append(work, form);
 
     const explore = element('section', '', 'inv-explore');
-    explore.append(element('h2', 'Explore an investigation'));
+    explore.append(element('h2', 'Explore an investigation'),
+      element('p', 'Start a research challenge without equipment, or preview an instrument session.', 'inv-secondary'));
     const collection = element('div', '', 'inv-collection');
     for (const item of investigations) {
       const card = this.actionButton(item.id, '', 'inv-card');
@@ -315,9 +316,10 @@ export class InvestigationLauncher {
   private renderBrief(dialog: HTMLDialogElement, body: HTMLElement, brief: ResearchStarter) {
     const form = element('form', '', 'inv-preview-form');
     const source = element('p', brief.source, 'inv-source');
-    const title = element('input'); title.value = brief.title; title.required = true;
-    const question = element('textarea'); question.value = brief.question; question.rows = 2;
-    const context = element('textarea'); context.value = brief.context; context.rows = 3;
+    const title = element('input'); title.value = brief.title; title.required = true; title.maxLength = 80;
+    const question = element('textarea'); question.value = brief.question; question.rows = 2; question.maxLength = 800;
+    question.placeholder = 'What would you like to find out?';
+    const context = element('textarea'); context.value = brief.context; context.rows = 3; context.maxLength = 2500;
     context.placeholder = 'Add what you want to investigate.';
     this.workingBrief = () => ({
       status: brief.status, title: title.value, original: brief.original, source: brief.source,
