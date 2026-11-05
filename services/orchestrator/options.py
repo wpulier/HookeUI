@@ -394,13 +394,25 @@ BRAIN_FAST = {
         # were 36/40 at 0.7 s and acted on cut-off words ("Can you close the"): not for voice.
         Option("gemini-3.5-flash", "Gemini 3.5 Flash", "fast bench 78/80, p50 1.04 s / p90 1.24 s", model="gemini-3.5-flash"),
         Option("gpt-5.6-luna-priority", "GPT-5.6 Luna (priority)", "fast bench 78/80, p50 1.13 s / p90 1.66 s", model="gpt-5.6-luna"),
-        Option("gemini-3.8-flash", "Gemini 3.8 Flash", "fast bench 79/80, p50 2.01 s / p90 3.40 s (2026-10-06; 0.81 s on 10-04)", model="gemini-3.8-flash"),
+        Option("gemini-3.8-flash", "Gemini 3.8 Flash", "fast bench 104/116, p50 2.62 s / p90 3.84 s, 1 call over the 15 s timeout (2026-11-05; 79/80 at 2.01 s on 10-06)", model="gemini-3.8-flash"),
         Option("gemini-3.5-flash-lite", "Gemini 3.5 Flash-Lite", "fast bench: 21/24, p50 0.68 s; answered detail it could not see", model="gemini-3.5-flash-lite"),
         # Acting-model candidates for driving Hooke by voice (Will, 2026-11-03: one slot every actor uses, Sol Ultrafast
         # beside Sonnet and the Flash models); compared on the fast bench and the will-drive journey before any default.
         Option("gpt-6.1-sol-ultrafast", "GPT-6.1 Sol (Ultrafast)", "OpenAI's fastest tier at 6x the price; not yet on the fast bench",
                model="gpt-6.1-sol"),
-        Option("claude-sonnet-5-5", "Claude Sonnet 5.5", "not yet on the fast bench", model="claude-sonnet-5-5"),
+        # Fast bench 2026-11-05 14:48 EST (58 cases x 2), all three at the same time: Gemini 3.8 Flash 104/116 at p50 2.62 s
+        # / p90 3.84 s, max 30.7 s, $0.020 a decision; Claude Opus 5.5 fast 103/116 at 1.05 / 2.05 s, max 3.1 s, $0.29;
+        # Claude Sonnet 5.5 106/116 at 2.19 / 2.79 s, max 4.1 s, $0.072. Six misses each are shared (the bench still
+        # expects new_session, switch_session and revise_work where the prompt now routes to new_project, recall and
+        # name_outline). Over 6 tries each, Opus asks which other cell for "These two are one cell" (0/6, Gemini 6/6) and
+        # Gemini fetches a reference photo for "Make me another picture" (0/6, Opus 6/6). Claude reads the prompt as 35.6k
+        # tokens (Gemini 26k) and nothing of it is cached, so Opus fast costs about 14 times Gemini per decision.
+        Option("claude-sonnet-5-5", "Claude Sonnet 5.5", "fast bench 106/116, p50 2.19 s / p90 2.79 s; $0.07 a decision (2026-11-05)",
+               model="claude-sonnet-5-5"),
+        # The live partner's quick look (Settings.vision) as the quick decision too, so typed questions answered from the
+        # notes come from the same model as the ones that look (2026-11-05 Beta readiness audit).
+        Option("claude-opus-5-5-fast", "Claude Opus 5.5 (fast mode)",
+               "fast bench 103/116, p50 1.05 s / p90 2.05 s, never over 3.1 s; $0.29 a decision (2026-11-05)", model="claude-opus-5-5"),
         Option("off", "Always look first", "every request waits for the vision call (~2 s)"),
     ]
 }
