@@ -293,7 +293,8 @@ ORDERS = ("notes-first", "static-first")
 # Fast bench 2026-11-05 15:51 EST, both orders at once (58 cases x 2): Claude Opus 5.5 fast 107/116 static-first against
 # 103 notes-first, p50 0.90 s against 1.16 s, $0.022 a decision against $0.291 (35.2k of its 35.6k tokens read from the
 # cache); Gemini 3.8 Flash 109 against 106, p50 2.81 s against 2.83 s, $0.02 either way (its own cache only matched exact
-# repeats). Resampled where Opus's orders differed (5 cases x 4 more): 14/20 against 9/20.
+# repeats). Resampled where Opus's orders differed (5 cases x 4 more): 14/20 against 9/20. Every arm, miss and cost:
+# docs/bench/quick-decisions-prompt-cache-2026-11-05.md.
 ORDER = "static-first"
 
 
