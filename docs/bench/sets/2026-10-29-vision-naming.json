@@ -1,0 +1,486 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-10-29-vision-naming",
+ "title": "Seeing: naming microscopy pictures (µBench), five vision models on a click and on the running look",
+ "measures": "How often each vision model names what is in the eyepiece exactly and by the right kind, how well its confidence is calibrated, how fast, and whether it names a blank disc.",
+ "job": {
+  "name": "Seeing",
+  "setting": "vision"
+ },
+ "ran": {
+  "started": "2026-10-29",
+  "sameTime": true
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "benchmark": {
+  "name": "Naming bench (µBench)",
+  "method": "180 pictures (leucocytes, Pap cytology) in the eyepiece disc x 4 conditions (told the right specimen, nothing, the wrong one, and a blank grey disc told the specimen), through a click (identify) and the running look (sight). Compared on the 171 pictures every option answered: exact names over the three told conditions, the right kind, ECE when told the right specimen, median time, and blank discs named over every grey answer.",
+  "code": "services/bench/naming",
+  "command": "python -m bench.naming.run",
+  "cases": 180,
+  "repeats": 1,
+  "inputs": {
+   "description": "µBench microscopy pictures (Acevedo et al. 2020 leucocytes; Hussain et al. 2019 Pap cytology)",
+   "public": true,
+   "source": "µBench"
+  }
+ },
+ "arms": [
+  {
+   "id": "gemini-4-argon/click",
+   "label": "Gemini 4 Argon (click)",
+   "option": "gemini-4-argon",
+   "model": "gemini-4-argon",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low",
+   "path": "click"
+  },
+  {
+   "id": "gemini-4-argon/look",
+   "label": "Gemini 4 Argon (look)",
+   "option": "gemini-4-argon",
+   "model": "gemini-4-argon",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low",
+   "path": "look"
+  },
+  {
+   "id": "gemini-3.8-flash/click",
+   "label": "Gemini 3.8 Flash (click)",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low",
+   "path": "click"
+  },
+  {
+   "id": "claude-opus-5-5/look",
+   "label": "Claude Opus 5.5 (look)",
+   "option": "claude-opus-5-5",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low",
+   "path": "look"
+  },
+  {
+   "id": "claude-opus-5-5/click",
+   "label": "Claude Opus 5.5 (click)",
+   "option": "claude-opus-5-5",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low",
+   "path": "click"
+  },
+  {
+   "id": "claude-opus-5-5-fast/click",
+   "label": "Claude Opus 5.5 (fast mode) (click)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low, speed fast",
+   "path": "click"
+  },
+  {
+   "id": "claude-opus-5-5-fast/look",
+   "label": "Claude Opus 5.5 (fast mode) (look)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low, speed fast",
+   "path": "look"
+  },
+  {
+   "id": "gemini-3.5-flash/click",
+   "label": "Gemini 3.5 Flash (click)",
+   "option": "gemini-3.5-flash",
+   "model": "gemini-3.5-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking minimal",
+   "path": "click"
+  },
+  {
+   "id": "gemini-3.5-flash/look",
+   "label": "Gemini 3.5 Flash (look)",
+   "option": "gemini-3.5-flash",
+   "model": "gemini-3.5-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking minimal",
+   "path": "look"
+  },
+  {
+   "id": "gemini-3.8-flash/look",
+   "label": "Gemini 3.8 Flash (look)",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low",
+   "path": "look"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "exact",
+   "label": "Exact name",
+   "unit": "fraction",
+   "better": "higher"
+  },
+  {
+   "id": "rightKind",
+   "label": "Right kind",
+   "unit": "fraction",
+   "better": "higher"
+  },
+  {
+   "id": "ece",
+   "label": "Calibration error (ECE)",
+   "unit": "fraction",
+   "better": "lower"
+  },
+  {
+   "id": "p50S",
+   "label": "Median time",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "blankNamed",
+   "label": "Named a blank disc",
+   "unit": "count",
+   "better": "lower"
+  }
+ ],
+ "results": [
+  {
+   "arm": "gemini-4-argon/click",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.8,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.79,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.22,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 5.2
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "gemini-4-argon/look",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.69,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.84,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.18,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 9.2
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.8-flash/click",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.63,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.8,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.31,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 3.5
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5/look",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.62,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.87,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.14,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 5.2
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5/click",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.61,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.78,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.18,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 5.1
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5-fast/click",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.6,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.78,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.15,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 2.0
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5-fast/look",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.6,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.85,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.12,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 2.1
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.5-flash/click",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.58,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.75,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.36,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 2.0
+    },
+    {
+     "metric": "blankNamed",
+     "value": 85,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.5-flash/look",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.54,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.83,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.36,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 2.8
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 180
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.8-flash/look",
+   "values": [
+    {
+     "metric": "exact",
+     "value": 0.54,
+     "outOf": 1
+    },
+    {
+     "metric": "rightKind",
+     "value": 0.84,
+     "outOf": 1
+    },
+    {
+     "metric": "ece",
+     "value": 0.31,
+     "outOf": 1
+    },
+    {
+     "metric": "p50S",
+     "value": 5.2
+    },
+    {
+     "metric": "blankNamed",
+     "value": 0,
+     "outOf": 179
+    }
+   ]
+  }
+ ],
+ "decision": {
+  "summary": "No default changed with this run; on 29 Oct the quick look became Claude Opus 5.5 fast (the live partner's stack), with these numbers behind it.",
+  "setting": "vision",
+  "to": "claude-opus-5-5-fast"
+ },
+ "caveats": [
+  "Paired (McNemar): Argon is the most exact; Opus beats 3.8 Flash looking and is level on a click; Opus fast beats 3.5 Flash looking and never names a blank disc; fast mode and standard Opus do not differ significantly.",
+  "The Anthropic credit ran out from row 6,702; those 192 Claude rows were rerun after the top-up with the same seeds.",
+  "The per-condition table is in docs/bench/naming.md."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Vision: Claude Opus 5.5 and Gemini 4 Argon beside the Gemini defaults",
+   "href": "docs/bench/vision-2026-10-29.md",
+   "public": true
+  },
+  {
+   "kind": "write-up",
+   "title": "Naming bench, per condition",
+   "href": "docs/bench/naming.md",
+   "public": true
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false
+ }
+}

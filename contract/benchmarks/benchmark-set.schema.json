@@ -1,0 +1,212 @@
+{
+  "$id": "hooke:benchmarks/benchmark-set",
+  "title": "A benchmark set: one comparison of ways to do one job, run at one time",
+  "description": "benchmark-set/1. Written by Hooke's maintainers, by a user's own Hooke, or by an agent; the same shape for all, so a website can list them side by side. Numbers and words only: no pictures and no personal data (privacy). Who ran it is said; how far it is trusted is decided by whoever publishes it, never claimed here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "id", "title", "measures", "ran", "runBy", "benchmark", "arms", "metrics", "results", "licence", "privacy"],
+  "properties": {
+    "schema": {"enum": ["benchmark-set/1"]},
+    "id": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9][a-z0-9-]{1,80}$"},
+    "title": {"type": "string", "minLength": 3, "maxLength": 160},
+    "measures": {"type": "string", "minLength": 10, "maxLength": 800},
+    "job": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {"type": "string", "minLength": 2, "maxLength": 80},
+        "setting": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,40}$"}
+      }
+    },
+    "ran": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["started"],
+      "properties": {
+        "started": {"$ref": "#/$defs/time"},
+        "ended": {"$ref": "#/$defs/time"},
+        "sameTime": {"type": "boolean"}
+      }
+    },
+    "runBy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind"],
+      "properties": {
+        "kind": {"enum": ["maintainer", "user", "agent"]},
+        "name": {"type": "string", "minLength": 1, "maxLength": 120},
+        "contributor": {"type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,120}$"}
+      }
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hooke": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "version": {"type": "string", "maxLength": 40},
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{7,40}$"},
+            "edition": {"enum": ["research", "commercial"]}
+          }
+        },
+        "machine": {"type": "string", "maxLength": 200},
+        "conditions": {"type": "string", "maxLength": 1000}
+      }
+    },
+    "benchmark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "method"],
+      "properties": {
+        "name": {"type": "string", "minLength": 2, "maxLength": 120},
+        "method": {"type": "string", "minLength": 10, "maxLength": 2000},
+        "code": {"type": "string", "maxLength": 300},
+        "command": {"type": "string", "maxLength": 600},
+        "cases": {"type": "integer", "minimum": 0},
+        "repeats": {"type": "integer", "minimum": 1},
+        "inputs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["description", "public"],
+          "properties": {
+            "description": {"type": "string", "minLength": 3, "maxLength": 800},
+            "public": {"type": "boolean"},
+            "licence": {"type": "string", "maxLength": 120},
+            "source": {"type": "string", "maxLength": 500}
+          }
+        }
+      }
+    },
+    "arms": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/arm"}},
+    "metrics": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/metric"}},
+    "results": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/armResult"}},
+    "cases": {"type": "array", "maxItems": 5000, "items": {"$ref": "#/$defs/case"}},
+    "spend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usd", "basis"],
+      "properties": {
+        "usd": {"type": "number", "minimum": 0},
+        "basis": {"type": "string", "minLength": 3, "maxLength": 400}
+      }
+    },
+    "decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["summary"],
+      "properties": {
+        "summary": {"type": "string", "minLength": 3, "maxLength": 1200},
+        "setting": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,40}$"},
+        "from": {"type": "string", "maxLength": 80},
+        "to": {"type": "string", "maxLength": 80},
+        "change": {"type": "string", "maxLength": 500}
+      }
+    },
+    "caveats": {"type": "array", "maxItems": 40, "items": {"type": "string", "minLength": 3, "maxLength": 800}},
+    "links": {"type": "array", "maxItems": 40, "items": {"$ref": "#/$defs/link"}},
+    "licence": {"type": "string", "minLength": 2, "maxLength": 60},
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["images", "personalData"],
+      "properties": {
+        "images": {"enum": [false]},
+        "personalData": {"enum": [false]},
+        "note": {"type": "string", "maxLength": 400}
+      }
+    }
+  },
+  "$defs": {
+    "time": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}(T[0-9]{2}:[0-9]{2}(:[0-9]{2})?(Z|[+-][0-9]{2}:[0-9]{2}))?$"},
+    "ref": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/+:-]{0,80}$"},
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": {"$ref": "#/$defs/ref"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "option": {"type": "string", "maxLength": 80},
+        "model": {"type": "string", "maxLength": 80},
+        "provider": {"type": "string", "maxLength": 60},
+        "runs": {"enum": ["cloud", "this Mac", "code"]},
+        "path": {"type": "string", "maxLength": 60},
+        "role": {"enum": ["default", "default before", "default after", "candidate", "baseline", "reference"]},
+        "note": {"type": "string", "maxLength": 600}
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "unit", "better"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]{0,40}$"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 120},
+        "unit": {"enum": ["count", "fraction", "ms", "s", "usd", "tokens", "score", "fps"]},
+        "better": {"enum": ["higher", "lower", "neither"]},
+        "note": {"type": "string", "maxLength": 600}
+      }
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "value"],
+      "properties": {
+        "metric": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]{0,40}$"},
+        "value": {"type": ["number", "null"]},
+        "outOf": {"type": "number", "minimum": 0},
+        "note": {"type": "string", "maxLength": 400}
+      }
+    },
+    "armResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arm", "values"],
+      "properties": {
+        "arm": {"$ref": "#/$defs/ref"},
+        "values": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/value"}},
+        "note": {"type": "string", "maxLength": 600}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "results"],
+      "properties": {
+        "id": {"$ref": "#/$defs/ref"},
+        "text": {"type": "string", "maxLength": 600},
+        "expected": {"type": "string", "maxLength": 200},
+        "tags": {"type": "array", "maxItems": 12, "items": {"type": "string", "pattern": "^[a-z][a-z0-9-]{0,40}$"}},
+        "results": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/caseResult"}},
+        "note": {"type": "string", "maxLength": 600}
+      }
+    },
+    "caseResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["arm"],
+      "properties": {
+        "arm": {"$ref": "#/$defs/ref"},
+        "right": {"type": "integer", "minimum": 0},
+        "tries": {"type": "integer", "minimum": 1},
+        "values": {"type": "array", "maxItems": 64, "items": {"$ref": "#/$defs/value"}},
+        "did": {"type": "string", "maxLength": 300},
+        "note": {"type": "string", "maxLength": 600}
+      }
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "title"],
+      "properties": {
+        "kind": {"enum": ["write-up", "pull-request", "code", "raw-data", "dataset"]},
+        "title": {"type": "string", "minLength": 2, "maxLength": 200},
+        "href": {"type": "string", "maxLength": 500},
+        "public": {"type": "boolean"}
+      }
+    }
+  }
+}

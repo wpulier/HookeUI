@@ -1,0 +1,745 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-11-05-quick-decisions-will-drive",
+ "title": "Quick decisions: Gemini 3.8 Flash and Claude Opus 5.5 fast driving Hooke by voice (will-drive)",
+ "measures": "How well Hooke is driven by voice when Quick decisions plans the spoken hand-offs: steps done, judged quality, false claims, receipts, how fast hand-offs are planned and seen, and the run's cost.",
+ "job": {
+  "name": "Quick decisions",
+  "setting": "fast"
+ },
+ "ran": {
+  "started": "2026-11-05T15:14:10-05:00",
+  "ended": "2026-11-05T15:22:45-05:00",
+  "sameTime": true
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "environment": {
+  "hooke": {
+   "commit": "9f282873",
+   "edition": "research"
+  },
+  "machine": "Apple silicon Mac, 14 cores",
+  "conditions": "Two second stacks in parallel (ports 28870 and 28970) on one commit; voice gpt-realtime-2.1, hold to talk; macOS voices as the microphone; other sessions loading the Mac heavily (load average 58-124 on 14 cores at 15:07)."
+ },
+ "benchmark": {
+  "name": "will-drive voice journey",
+  "method": "13 spoken requests driving Hooke on a real leaf recording: Tabs made, used and renamed; every cell outlined; a capability turned on; a researcher started, asked about, steered and stopped; a request spoken over a running one; a multi-step request; an Escape takeover. The voice hands each request to Hooke's brain, whose Quick decisions plans it (12 of 14 and 12 of 13 hand-offs here). Scored from the app's records; answer quality judged by gpt-6.1-sol.",
+  "code": "services/bench/voice_journeys/run.py",
+  "command": "python -m bench.voice_journeys.run --voice gpt-realtime-2.1 --talk hold --plan will-drive --settings '{\"fast\": <arm>}'",
+  "cases": 13,
+  "repeats": 1,
+  "inputs": {
+   "description": "The 23 s leaf epidermis recording of 2026-06-14 as the camera; the plan's words spoken by macOS voices",
+   "public": false,
+   "source": "services/bench/voice_journeys/plans/will-drive.json"
+  }
+ },
+ "arms": [
+  {
+   "id": "gemini-3.8-flash",
+   "label": "Gemini 3.8 Flash",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "role": "default before",
+   "note": "thinking low"
+  },
+  {
+   "id": "claude-opus-5-5-fast",
+   "label": "Claude Opus 5.5 (fast mode)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "role": "default after",
+   "note": "effort low, speed fast (twice the price)"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "stepsPlayed",
+   "label": "Steps played",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "failedSteps",
+   "label": "Failed steps",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "quality",
+   "label": "Partner quality, judged 0 to 3 (mean)",
+   "unit": "score",
+   "better": "higher"
+  },
+  {
+   "id": "stepsUnder2",
+   "label": "Steps judged under 2",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "falseDone",
+   "label": "False \"done\"",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "receiptsVerified",
+   "label": "Receipts verified",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "receiptsFailed",
+   "label": "Receipts failed",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "rightToolFirst",
+   "label": "Right tool on the first try",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "planP50Ms",
+   "label": "Hand-off planning, median",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "planMaxMs",
+   "label": "Hand-off planning, slowest",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "handoffP50Ms",
+   "label": "Whole hand-off, median",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "handoffMaxMs",
+   "label": "Whole hand-off, slowest",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "visibleSpokenP50S",
+   "label": "Single step visible and spoken, median",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "visibleSpokenP95S",
+   "label": "Single step visible and spoken, 95th percentile",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "researcherStartedS",
+   "label": "Researcher started",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "runUsd",
+   "label": "Cost of the run",
+   "unit": "usd",
+   "better": "lower",
+   "note": "the stack's Spending plus the judge"
+  }
+ ],
+ "results": [
+  {
+   "arm": "gemini-3.8-flash",
+   "values": [
+    {
+     "metric": "stepsPlayed",
+     "value": 13,
+     "outOf": 13
+    },
+    {
+     "metric": "failedSteps",
+     "value": 5
+    },
+    {
+     "metric": "quality",
+     "value": 1.46
+    },
+    {
+     "metric": "stepsUnder2",
+     "value": 6
+    },
+    {
+     "metric": "falseDone",
+     "value": 0
+    },
+    {
+     "metric": "receiptsVerified",
+     "value": 7
+    },
+    {
+     "metric": "receiptsFailed",
+     "value": 1
+    },
+    {
+     "metric": "rightToolFirst",
+     "value": 12,
+     "outOf": 13
+    },
+    {
+     "metric": "planP50Ms",
+     "value": 4938
+    },
+    {
+     "metric": "planMaxMs",
+     "value": 6774
+    },
+    {
+     "metric": "handoffP50Ms",
+     "value": 6746
+    },
+    {
+     "metric": "handoffMaxMs",
+     "value": 15028
+    },
+    {
+     "metric": "visibleSpokenP50S",
+     "value": 10.73
+    },
+    {
+     "metric": "visibleSpokenP95S",
+     "value": 25.94
+    },
+    {
+     "metric": "researcherStartedS",
+     "value": 4.2
+    },
+    {
+     "metric": "runUsd",
+     "value": 4.66
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5-fast",
+   "values": [
+    {
+     "metric": "stepsPlayed",
+     "value": 13,
+     "outOf": 13
+    },
+    {
+     "metric": "failedSteps",
+     "value": 3
+    },
+    {
+     "metric": "quality",
+     "value": 1.85
+    },
+    {
+     "metric": "stepsUnder2",
+     "value": 4
+    },
+    {
+     "metric": "falseDone",
+     "value": 0
+    },
+    {
+     "metric": "receiptsVerified",
+     "value": 6
+    },
+    {
+     "metric": "receiptsFailed",
+     "value": 3
+    },
+    {
+     "metric": "rightToolFirst",
+     "value": 12,
+     "outOf": 13
+    },
+    {
+     "metric": "planP50Ms",
+     "value": 2720
+    },
+    {
+     "metric": "planMaxMs",
+     "value": 4958
+    },
+    {
+     "metric": "handoffP50Ms",
+     "value": 4276
+    },
+    {
+     "metric": "handoffMaxMs",
+     "value": 7604
+    },
+    {
+     "metric": "visibleSpokenP50S",
+     "value": 6.47
+    },
+    {
+     "metric": "visibleSpokenP95S",
+     "value": 21.66
+    },
+    {
+     "metric": "researcherStartedS",
+     "value": 2.91
+    },
+    {
+     "metric": "runUsd",
+     "value": 12.73
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "id": "new-tab",
+   "text": "Make a new tab called Stomata.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "outline-there",
+   "text": "Go back to main and outline every cell.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "table-into-tab",
+   "text": "Put their measurements in the Stomata tab, next to the picture.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 3,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "rename",
+   "text": "Rename that tab to Leaf measurements.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "whats-off",
+   "text": "What capabilities aren't turned on yet?",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "turn-on",
+   "text": "Turn on Spot look-alikes.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ],
+     "note": "first tool turn_on, expected do_in_hooke or models"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ],
+     "note": "first tool turn_on, expected do_in_hooke or models; not answered: The reply accurately reports the ongoing functional check without claiming success, but the capability is not confirmed on and no user action to complete activation is given."
+    }
+   ]
+  },
+  {
+   "id": "researcher",
+   "text": "Start a researcher to find out what normal stomata density is for a leaf like this.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 3,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 3,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "talk-over",
+   "text": "Meanwhile, zoom in on the biggest stoma.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ],
+     "note": "not answered: It reported finding two stomata and a failed size comparison but never opened the requested close-up or offered a next step, instead narrating technical failures while pointing at the researcher rather than a stoma."
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ],
+     "note": "not confirmed on screen: a close-up of one large stoma"
+    }
+   ]
+  },
+  {
+   "id": "status",
+   "text": "What's the researcher doing?",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 0,
+       "outOf": 3
+      }
+     ],
+     "note": "not answered: The latest researcher record says Researcher 1 is still working, but the reply incorrectly says it finished and reports unsupported findings."
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "note",
+   "text": "Tell it to focus on monocots.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "multi",
+   "text": "Open a new tab called Notes, write up what we've measured so far in it, then go back to main.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ]
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 2,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "take-over",
+   "text": "Outline every cell again, then colour them by size.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 0,
+       "outOf": 3
+      }
+     ],
+     "note": "no takeover reached the server; not answered: It failed to acknowledge Escape or stop, instead reporting completed outlines and promising size recoloring that never happened, without explaining the interruption or next steps."
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ],
+     "note": "no takeover reached the server; not answered: It did not promptly acknowledge Escape and stop in a few words; instead it gave filler progress narration and a delayed completion report, with outlining done but size colouring unfinished."
+    }
+   ]
+  },
+  {
+   "id": "cancel",
+   "text": "Actually, stop the researcher.",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ],
+     "note": "not answered: The voice only narrated an attempt to stop Researcher 1 and promised confirmation, without a record showing it stopped or a plain statement that it had already finished."
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 1,
+     "values": [
+      {
+       "metric": "quality",
+       "value": 1,
+       "outOf": 3
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "spend": {
+  "usd": 17.39,
+  "basis": "each stack's Spending plus the judge, settled per run"
+ },
+ "caveats": [
+  "One run per arm: the timings are indicative, not settled.",
+  "Neither arm meets the journey standard: both failed the Escape takeover and the close-up asked for over a running researcher.",
+  "The journey needed a harness fix to start at all (wpulier/HookeUI#203): since the New Project launcher, Talk dictated into the launcher."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Quick decisions write-up",
+   "href": "docs/bench/quick-decisions-2026-11-05.md",
+   "public": true
+  },
+  {
+   "kind": "pull-request",
+   "title": "wpulier/HookeUI#204",
+   "href": "https://github.com/wpulier/HookeUI/pull/204",
+   "public": true
+  },
+  {
+   "kind": "write-up",
+   "title": "Voice journeys: how they run and are scored",
+   "href": "docs/bench/voice-journeys.md",
+   "public": true
+  },
+  {
+   "kind": "raw-data",
+   "title": "Every call's row, costs, journey logs and verdicts (kept by the maintainers)",
+   "public": false
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false,
+  "note": "Scores and words only; the recording and the journey's audio are not part of the set."
+ }
+}

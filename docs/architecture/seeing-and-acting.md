@@ -292,7 +292,8 @@ other files.
 - The fast pass (`brain/fast.py`) runs beside every vision call; it acts only when its actions
   work (else the look answers). Seen ids become outlines first, reusing an outline that
   already covers the thing. Option BRAIN_FAST; benches: `bench/fast_bench.py`,
-  `bench/sight_bench.py`, `bench/tool_choice.py`, `bench/brain_prompt.py`.
+  `bench/sight_bench.py`, `bench/tool_choice.py`, `bench/brain_prompt.py`. Its default and the comparison behind it:
+  `docs/bench/quick-decisions-2026-11-05.md`.
   Its prompt (`fast.prompt`, the first pass, the follow-up round and point-only alike) puts what is the same call after
   call first (the instructions, the ~80 KB tool list, the JSON reply) and this call's notes and the user's words last
   (`fast.ORDER` "static-first"; "notes-first", the order it was written in, stays for `bench/fast_bench.py --orders`).
