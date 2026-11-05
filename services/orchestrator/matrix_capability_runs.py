@@ -16,12 +16,13 @@ import sys
 import tempfile
 import time
 
-from scientific_compute.catalog import IDS, descriptor, descriptors, parameters, execution_runtime
+from scientific_compute.catalog import IDS, descriptor, descriptors, parameters, execution_runtime, implementation
 from scientific_compute.reservation import heavy_work
 from .scientific_file_intake import FileIntake, request_identity
 from .scientific_files import CHUNK_BYTES
 from .scientific_projects import InvalidProject, Conflict, _json
 from . import sandbox, worker_resources, generation_leases
+from .research import frozen_rules
 
 MAX_INPUT_BYTES = 64 << 30
 MAX_RECEIPT_BYTES = 2 << 20
@@ -76,7 +77,7 @@ def _failure_message(log):
     return 'Scientific capability failed; no result was published: ' + reason + '\nDiagnostic tail (bounded): ' + tail
 
 
-def _compute(capability, sources, params, work, check, executable, runtime_folder):
+def _compute(capability, sources, params, work, check, executable, runtime_folder, implementation=None):
     if not sandbox.available():
         raise InvalidProject('The confined scientific process is unavailable on this computer; nothing ran')
     inputs = work / 'inputs'; outputs = work / 'outputs'
@@ -92,14 +93,20 @@ def _compute(capability, sources, params, work, check, executable, runtime_folde
             raise InvalidProject('The retained input content hash does not match its manifest')
         resolved[port] = str(destination)
     request = work / 'request.json'; receipt = outputs / 'receipt.json'
-    request.write_bytes(_json({'capability': capability, 'inputs': resolved, 'params': params,
-                              'output': str(outputs), 'receipt': str(receipt)}))
+    body = {'capability': capability, 'inputs': resolved, 'params': params,
+            'output': str(outputs), 'receipt': str(receipt)}
     package = Path(__file__).resolve().parents[1] / 'scientific_compute'
+    worker, readable = package / 'worker.py', [package]
+    if implementation is not None:
+        # A reviewed catalog folder (ADR 0031): its own adapter, the folder worker and nothing of engine.py.
+        body = {**body, 'folder': implementation['folder'], 'adapter': implementation['adapter']}
+        worker, readable = package / 'folder_worker.py', [package, Path(implementation['folder'])]
+    request.write_bytes(_json(body))
     # A minimal environment deliberately excludes provider keys and user-added imports.
     env = sandbox.confine({'PATH': '/usr/bin:/bin', 'LANG': 'en_US.UTF-8',
                           'OPENBLAS_NUM_THREADS': '1', 'OMP_NUM_THREADS': '1', 'VECLIB_MAXIMUM_THREADS': '1'}, outputs)
-    cmd = sandbox.wrap([str(executable), str(package / 'worker.py'), str(request)],
-                       [package, runtime_folder, sandbox.python_home(executable), inputs, request], [outputs],
+    cmd = sandbox.wrap([str(executable), str(worker), str(request)],
+                       [*readable, runtime_folder, sandbox.python_home(executable), inputs, request], [outputs],
                        gpu=False, children=False)
     log = outputs / 'worker.log'
     with log.open('wb') as errors:
@@ -155,6 +162,12 @@ def run_matrix(store, session, capability, generation, inputs, params, request, 
         sources[port], exact[port] = _input(store, session, ref, check)
     invocation = {'format': 1, 'capability': capability, 'generation': generation, 'runtime': current['runtime'],
                   'inputs': exact, 'params': values}
+    rules = [p['id'] for p in current['inputs'] if p['type'] == frozen_rules.PORT_TYPE]
+    if rules:
+        # A comparison judged by a rule: the rule must be a Study's, frozen before the results it judges (ADR 0031).
+        invocation['frozenRules'] = {port: frozen_rules.require(store, session, port, exact[port],
+                                                                {k: v for k, v in exact.items() if k not in rules})
+                                     for port in rules}
     target, _ = request_identity(session, request)
     def previous_result():
         if not store._folder(target).exists():
@@ -182,7 +195,8 @@ def run_matrix(store, session, capability, generation, inputs, params, request, 
             raise InvalidProject('Insufficient disk space after waiting for scientific compute')
         if descriptor(capability)['generation'] != generation:
             raise InvalidProject('Scientific code or runtime changed while waiting; admit a new attempt')
-        path, summary = _compute(capability, sources, values, Path(scratch), check, executable, runtime_folder)
+        path, summary = _compute(capability, sources, values, Path(scratch), check, executable, runtime_folder,
+                                 implementation(capability))
         check()
         if descriptor(capability)['generation'] != generation:
             raise InvalidProject('Scientific code or runtime changed while executing; result not published')

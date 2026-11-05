@@ -1,0 +1,97 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "vcc-count-emission"
+name = "Emit VCC prediction counts"
+runs = "cpu"
+version = "1"
+licence = ["vcc-count-emission"]
+kind = "tool-function"
+what = "Stream whole-count predicted cells from per-target factors and real controls"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from VCC 2026 Track E generate.py; no pretrained weights" }
+credit = { authors = "HookeUI contributors", link = "https://virtualcellchallenge.org" }
+component = { what = "Streaming count emission", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 4096
+load_limit_s = 30
+operation = "vcc-count-emission"
+category = "Research"
+experimental = true
+outcomes = { empty = "No panel target", unsupported = "Factors, controls or gene axis that do not match the declared three contexts" }
+description = "Each predicted cell is a resampled control cell of its context whose counts are moved by the factor in expectation (binomial thinning down, added Poisson up). Written straight into the H5AD's CSR arrays: no dense copy and no worst-case dense disk rule; disk is admitted from the controls' own density."
+
+[[inputs]]
+id = "factors"
+type = "artifact.npz"
+label = "Factors (one array per context)"
+
+[[inputs]]
+id = "controls_1"
+type = "matrix.anndata"
+label = "First context's control cells"
+
+[[inputs]]
+id = "controls_2"
+type = "matrix.anndata"
+label = "Second context's control cells"
+
+[[inputs]]
+id = "controls_3"
+type = "matrix.anndata"
+label = "Third context's control cells"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Gene axis (gene_name column)"
+
+[[inputs]]
+id = "perts"
+type = "artifact.csv"
+label = "Panel targets (target_gene column)"
+
+[[inputs]]
+id = "contexts"
+type = "string"
+label = "Contexts, in control-input order"
+default = "D,E,F"
+agent = true
+tooltip = "Three context names, matching the three control inputs and the factors."
+
+[[inputs]]
+id = "cells_per_target"
+type = "int"
+label = "Cells per target"
+default = 400
+min = 1
+max = 10000
+agent = true
+tooltip = "Predicted cells for every target in every context."
+
+[[inputs]]
+id = "context_column"
+type = "string"
+label = "Context column"
+default = "context"
+agent = true
+tooltip = "The controls' obs column naming their context."
+
+[[inputs]]
+id = "seed"
+type = "int"
+label = "Seed"
+default = 0
+min = 0
+max = 2147483647
+agent = true
+tooltip = "One generator for all three contexts, in order; the same seed gives the same cells."
+
+[[outputs]]
+id = "result"
+type = "matrix.anndata"
+label = "Predicted raw counts"

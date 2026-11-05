@@ -149,8 +149,8 @@ def file_workflow(m: catalog.Manifest) -> bool:
     """Reviewed file adapters use WorkflowService, not the live-view runner."""
     if m.runner != 'builtin-cpu' or m.namespace:
         return False
-    from scientific_compute.catalog import IDS
-    return m.id in IDS
+    from scientific_compute.catalog import ids
+    return m.id in ids()
 
 
 def takes_why(m: catalog.Manifest) -> str:

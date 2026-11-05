@@ -14,7 +14,9 @@ from . import fiji_sandbox, owned_process
 
 BOUNDARY_VERSION = "bundle-resources-v1"
 POLL_S = .05
-TERMINAL_SETTLE_S = .05
+# Only waited once the kernel no longer finds the task: a worker releasing gigabytes under load can take seconds
+# between losing its task record and publishing its exit status (a 2 GB matrix worker did, 5 Nov 2026).
+TERMINAL_SETTLE_S = 5.0
 
 
 @dataclass(frozen=True)

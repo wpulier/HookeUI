@@ -52,6 +52,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `cell-evaluation-rank` | - |
 | [Upstream cell-eval2 0.20.0 and CPU dependencies](https://github.com/ArcInstitute/cell-eval2/blob/main/LICENSE) | open | MIT (cell-eval2); BSD-3-Clause (scientific libraries); transitive packages retain their own terms | code | catalog: `cell-evaluation-runtime` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `cell-evaluation-select` | - |
+| [Frozen-rule comparison](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `frozen-gate` | - |
 | [InstanSeg brightfield nuclei (code and weights)](https://github.com/instanseg/instanseg) | open | Apache-2.0 | code | catalog: `instanseg-brightfield` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-concatenate` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-count-diagnostics` | - |
@@ -69,9 +70,15 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-effects-merge` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-fit` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-predict` | - |
+| [Pseudobulk screen effects](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `screen-effects` | - |
 | [Spot measure, an example capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-measure` | - |
 | [Spot shape, an example derived capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-shape` | - |
 | [Swin2SR lightweight x2 (Conde, Choi, Burchi, Timofte)](https://huggingface.co/caidas/swin2SR-lightweight-x2-64) | open | Apache-2.0 | code | catalog: `swin2sr-enlarge` | - |
+| [Effect-transfer expression factors](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `transfer-factors` | - |
+| [Streaming count emission](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-count-emission` | - |
+| [Independent entry integrity check](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-entry-check` | - |
+| [Pinned cell-eval2 fold scoring](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-fold-score` | - |
+| [Official VCC packaging with measured forecast](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-package` | - |
 | [Official vcc-cli 0.3.0 and scientific Python dependencies](https://pypi.org/project/vcc-cli/0.3.0/) | open | MIT (vcc-cli); transitive packages retain their own licenses | code | catalog: `vcc-packaging-runtime` | - |
 
 ## Defaults by edition

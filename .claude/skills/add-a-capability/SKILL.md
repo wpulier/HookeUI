@@ -182,6 +182,31 @@ and qualification. Pictures retain their smaller embedded-package limit; larger
 recipes require their separate share file. This mechanism does not establish a
 complete animation workflow or clean-machine qualification.
 
+## Count-matrix capabilities (retained files, ADR 0031)
+
+An operation on retained Project files (AnnData matrices, CSV, JSON, NPZ), rather than on the view, is also one
+folder, reviewed into `catalog/models/<id>/`. It does not touch `services/scientific_compute/engine.py`, and it changes
+no other operation's generation. Its manifest declares:
+
+- `runner = "builtin-cpu"` and `adapter = "adapter:run"`;
+- exactly one `needs_to_run = ["install:<runtime>"]`: `matrix-cpu-runtime`, `cell-evaluation-runtime` or
+  `vcc-packaging-runtime`;
+- data `[[inputs]]` typed by file (`matrix.anndata`, `artifact.csv`, `artifact.json`, `artifact.npz`...), plus its
+  parameters and one `[[outputs]]`.
+
+Its `adapter.py` defines `run(inputs, params, output, check)`. `inputs` maps each port to a materialized file path.
+The function writes one result file into `output`, calls `check()` between long steps, and returns
+`(path, summary)`, where summary is a small JSON dict. It runs in the shared confined matrix worker:
+- no network and no child processes;
+- the worker's RSS, CPU and file limits;
+- only its own folder importable.
+
+Refuse a wrong input by raising with words, and admit memory and disk from measured facts before writing. Workflows,
+Tools, researchers and the door's `workflows/capabilities` find it with no app change. A port typed
+`artifact.frozen-rule` admits only a rule a Study froze before that step's other inputs existed. Examples:
+`catalog/models/screen-effects`, `transfer-factors`, `vcc-count-emission`, `vcc-entry-check`, `vcc-fold-score`,
+`vcc-package` and `frozen-gate`. Test with synthetic files in `services/tests/test_matrix_folder_capabilities.py`.
+
 ## 5. Your own version of one
 
 ```bash

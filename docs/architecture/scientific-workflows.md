@@ -35,7 +35,7 @@ calibrated labels and retained text files. APIs can declare other supported axes
 
 The run lock serializes durable claims before launch. Each input/step/attempt has its own document; the run summary
 does not accumulate results. A batch freezes up to 64 exact inputs, processes them sequentially and resumes without
-repeating accepted steps. A graph has at most 12 nodes and no cycles; at most 32 attempts are allowed per node/item.
+repeating accepted steps. A graph has at most 12 nodes and no cycles; at most 32 attempts are allowed per node/item. A retained-file tool step binds one dependency per declared port, up to eight (ADR 0031); comparisons take up to six and other steps three.
 Independent fixed branches can feed a comparison; the existing method service checks provenance against the original
 input and retains method agreement without claiming biological accuracy.
 

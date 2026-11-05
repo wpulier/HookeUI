@@ -1,0 +1,66 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "vcc-fold-score"
+name = "Score a held-out fold (cell-eval2)"
+runs = "cpu"
+version = "1"
+licence = ["vcc-fold-score"]
+kind = "tool-function"
+what = "Score predicted cells against held-out real cells with pinned cell-eval2"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Runs the upstream cell-eval2 0.20.0 run command in-process; no pretrained weights" }
+credit = { authors = "Arc Institute (cell-eval2); HookeUI contributors", link = "https://github.com/ArcInstitute/cell-eval2" }
+component = { what = "Pinned cell-eval2 fold scoring", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:cell-evaluation-runtime"]
+workers = []
+host = "shared"
+documented_mb = 8192
+load_limit_s = 30
+operation = "vcc-fold-score"
+category = "Research"
+experimental = true
+outcomes = { empty = "No scored target", unsupported = "An unpinned evaluator runtime, a failed tiny preflight score, or inputs cell-eval2 refuses" }
+description = "Runs cell-eval2's own run command on (prediction, real) with the chosen preset, after a tiny synthetic end-to-end score in the same runtime. Returns raw aggregate and per-target metrics: not anchored scaled scores and not an organizer score."
+
+[[inputs]]
+id = "prediction"
+type = "matrix.anndata"
+label = "Predicted cells (with the real side's controls)"
+
+[[inputs]]
+id = "real"
+type = "matrix.anndata"
+label = "Held-out real cells"
+
+[[inputs]]
+id = "preset"
+type = "choice"
+label = "Preset"
+default = "vcc2026"
+options = ["vcc2026"]
+agent = true
+tooltip = "The cell-eval2 preset; vcc2026 is the 2026 challenge's six metrics."
+
+[[inputs]]
+id = "pert_col"
+type = "string"
+label = "Perturbation column"
+default = "target_gene"
+agent = true
+tooltip = "obs column naming each cell's target in both files."
+
+[[inputs]]
+id = "control_label"
+type = "string"
+label = "Control label"
+default = "non-targeting"
+agent = true
+tooltip = "The label of control cells in the perturbation column."
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Raw fold metrics"

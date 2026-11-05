@@ -1,0 +1,114 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "vcc-entry-check"
+name = "Check a VCC entry"
+runs = "cpu"
+version = "1"
+licence = ["vcc-entry-check"]
+kind = "tool-function"
+what = "Check an emitted entry's labels, counts and factor effects"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from VCC 2026 Track E check.py; no pretrained weights" }
+credit = { authors = "HookeUI contributors", link = "https://virtualcellchallenge.org" }
+component = { what = "Independent entry integrity check", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 4096
+load_limit_s = 30
+operation = "vcc-entry-check"
+category = "Research"
+experimental = true
+outcomes = { empty = "No panel target", unsupported = "An entry with wrong shape, labels, gene axis or counts" }
+description = "Reads the entry from disk and checks its context and target rows, gene axis, whole nonnegative counts and cell totals on sampled targets, and reports how well each sampled target's change from controls follows its factor. A structural failure refuses."
+
+[[inputs]]
+id = "entry"
+type = "matrix.anndata"
+label = "Emitted entry"
+
+[[inputs]]
+id = "factors"
+type = "artifact.npz"
+label = "Factors it was made from"
+
+[[inputs]]
+id = "controls_1"
+type = "matrix.anndata"
+label = "First context's control cells"
+
+[[inputs]]
+id = "controls_2"
+type = "matrix.anndata"
+label = "Second context's control cells"
+
+[[inputs]]
+id = "controls_3"
+type = "matrix.anndata"
+label = "Third context's control cells"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Gene axis (gene_name column)"
+
+[[inputs]]
+id = "perts"
+type = "artifact.csv"
+label = "Panel targets (target_gene column)"
+
+[[inputs]]
+id = "contexts"
+type = "string"
+label = "Contexts, in control-input order"
+default = "D,E,F"
+agent = true
+tooltip = "Three context names, matching the three control inputs."
+
+[[inputs]]
+id = "cells_per_target"
+type = "int"
+label = "Cells per target"
+default = 400
+min = 1
+max = 10000
+agent = true
+tooltip = "The cells the entry holds for every target in every context."
+
+[[inputs]]
+id = "sampled_targets"
+type = "int"
+label = "Sampled targets per context"
+default = 6
+min = 1
+max = 300
+agent = true
+tooltip = "How many targets' counts are read in full and compared with their factors."
+
+[[inputs]]
+id = "max_cell_total"
+type = "number"
+label = "Largest cell total"
+default = 1000000.0
+min = 1.0
+max = 1000000000.0
+agent = true
+tooltip = "A sampled cell with more counts than this refuses."
+
+[[inputs]]
+id = "seed"
+type = "int"
+label = "Sampling seed"
+default = 1
+min = 0
+max = 2147483647
+agent = true
+tooltip = "Which targets are sampled."
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Entry check report"

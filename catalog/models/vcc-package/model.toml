@@ -1,0 +1,51 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "vcc-package"
+name = "Package a VCC entry (with memory forecast)"
+runs = "cpu"
+version = "1"
+licence = ["vcc-package"]
+kind = "tool-function"
+what = "Package a complete final prediction with official vcc prep and check it"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Runs the official vcc-cli 0.3.0 prep function; no upload" }
+credit = { authors = "Arc Research Institute (vcc-cli); HookeUI contributors", link = "https://pypi.org/project/vcc-cli/0.3.0/" }
+component = { what = "Official VCC packaging with measured forecast", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:vcc-packaging-runtime"]
+workers = []
+host = "shared"
+documented_mb = 16384
+load_limit_s = 30
+operation = "vcc-package"
+category = "Research"
+experimental = true
+outcomes = { empty = "No complete final panel", unsupported = "A forecast over this computer's memory or the worker's ceiling, an incomplete panel, or counts official prep refuses" }
+description = "Forecasts official prep's peak memory from the entry's stored entries using ratios measured on three full 2026 entries, admits it against this computer's memory and the worker's ceiling, packages with vcc prep 0.3.0, then decompresses the package and checks its counts and rows hash for hash. Never uploads."
+
+[[inputs]]
+id = "matrix"
+type = "matrix.anndata"
+label = "Complete final prediction"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Official gene_names.csv"
+
+[[inputs]]
+id = "perts"
+type = "artifact.csv"
+label = "Official pert_counts.csv"
+
+[[inputs]]
+id = "manifest"
+type = "artifact.json"
+label = "Official final manifest.json"
+
+[[outputs]]
+id = "result"
+type = "artifact.vcc"
+label = "Checked official package"

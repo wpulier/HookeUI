@@ -1,0 +1,88 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "screen-effects"
+name = "Screen effects"
+runs = "cpu"
+version = "1"
+licence = ["screen-effects"]
+kind = "tool-function"
+what = "Per-target log fold changes from a pseudobulk Perturb-seq screen"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from the VCC 2026 Track E effects.py; no pretrained weights" }
+credit = { authors = "HookeUI contributors; screen data by its makers (e.g. Replogle et al. 2022)", link = "https://doi.org/10.1016/j.cell.2022.05.013" }
+component = { what = "Pseudobulk screen effects", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 8192
+load_limit_s = 30
+operation = "screen-effects"
+category = "Research"
+experimental = true
+outcomes = { empty = "No targeted rows", unsupported = "A screen without the declared columns, controls or genes on the axis" }
+description = "Pools a pseudobulk screen's rows by target, normalises targets and controls to proportions over the screen's genes on a declared gene axis, and returns log fold changes with each target's cells and (optionally) its strongest row's strength. Bit-identical to the effects behind the VCC 2026 entries."
+
+[[inputs]]
+id = "screen"
+type = "matrix.anndata"
+label = "Pseudobulk screen (mean raw counts per filtered cell)"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Gene axis (gene_name column)"
+
+[[inputs]]
+id = "registry"
+type = "artifact.json"
+label = "Row-to-target registry ({\"row_targets\": {...}})"
+
+[[inputs]]
+id = "pseudocount"
+type = "number"
+label = "Pseudo-count"
+default = 1.0
+min = 0.01
+max = 100.0
+agent = true
+tooltip = "Added to each pooled population before proportions; shrinks low-count genes toward no change."
+
+[[inputs]]
+id = "control_marker"
+type = "string"
+label = "Control row marker"
+default = "non-targeting"
+agent = true
+tooltip = "A row whose id contains this text is a control (unless the registry maps it)."
+
+[[inputs]]
+id = "cells_column"
+type = "string"
+label = "Cells per row column"
+default = "num_cells_filtered"
+agent = true
+tooltip = "obs column with each row's filtered cell count; rows without one are dropped."
+
+[[inputs]]
+id = "gene_symbol_column"
+type = "string"
+label = "Gene symbol column"
+default = "gene_name"
+agent = true
+tooltip = "var column whose symbols are matched to the gene axis."
+
+[[inputs]]
+id = "strength_column"
+type = "string"
+label = "Strength column"
+default = ""
+agent = true
+tooltip = "Optional obs column of each row's response strength (e.g. mann_whitney_counts); kept from each target's row with the most cells."
+
+[[outputs]]
+id = "result"
+type = "artifact.npz"
+label = "Effects (targets, L, cells, axis_idx, strength)"

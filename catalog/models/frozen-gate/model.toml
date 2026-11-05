@@ -1,0 +1,46 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "frozen-gate"
+name = "Decide under a frozen rule"
+runs = "cpu"
+version = "1"
+licence = ["frozen-gate"]
+kind = "tool-function"
+what = "Compare a challenger with a baseline under a Study's frozen rule"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from the VCC 2026 campaign decide.py; no pretrained weights" }
+credit = { authors = "HookeUI contributors", link = "https://github.com/wpulier/HookeUI" }
+component = { what = "Frozen-rule comparison", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 512
+load_limit_s = 30
+operation = "frozen-gate"
+category = "Research"
+experimental = true
+outcomes = { empty = "No condition", unsupported = "A rule that is not a Study's frozen rule, frozen after a score existed, or scores from different evaluators" }
+description = "Applies a frozen-gate-v1 rule to two fold scores: scaled gains over declared spans, overall, per metric and on declared target subsets. The app admits the rule only if a Study froze it before both scores were made."
+
+[[inputs]]
+id = "baseline"
+type = "artifact.json"
+label = "Baseline fold score"
+
+[[inputs]]
+id = "challenger"
+type = "artifact.json"
+label = "Challenger fold score"
+
+[[inputs]]
+id = "rule"
+type = "artifact.frozen-rule"
+label = "Study's frozen rule"
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Decision"

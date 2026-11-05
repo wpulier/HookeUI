@@ -1,4 +1,11 @@
-"""Metadata-only, allowlisted bindings for bundled matrix capabilities."""
+"""Metadata-only bindings for bundled matrix capabilities.
+
+Two kinds share one admission, worker boundary and workflow path (ADR 0031):
+- the engine operations in ``IDS``, implemented in ``engine.py`` and its sibling modules;
+- folder capabilities: a reviewed ``catalog/models/<id>`` folder with ``runner = "builtin-cpu"``
+  and ``adapter = "module:function"`` beside its manifest. Its generation covers only its own
+  folder, the folder worker and its prepared runtime, so adding one changes no other generation.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -16,11 +23,53 @@ RUNTIME_OWNERS = {'matrix-evaluate-cell': 'cell-evaluation-runtime',
                   'matrix-package-vcc': 'vcc-packaging-runtime'}
 
 
+FOLDER_WORKER = Path(__file__).with_name('folder_worker.py')
+
+
+def _folder_manifest(capability):
+    """The reviewed folder capability of this id, or None (never a user's or channel's entry)."""
+    from gpu_worker import manifests
+    m = manifests.manifests().get(capability)
+    if (m is None or m.runner != 'builtin-cpu' or m.namespace or m.channel or not m.adapter
+            or ':' not in m.adapter or not m.folder or capability in IDS):
+        return None
+    folder = Path(m.folder)
+    if folder.parent != BASE / 'catalog' / 'models' or folder.is_symlink():
+        return None
+    return m
+
+
+def ids():
+    """Every matrix capability: the engine operations, then reviewed folder capabilities by id."""
+    from gpu_worker import manifests
+    folders = sorted(key for key in manifests.manifests() if _folder_manifest(key) is not None)
+    return IDS + tuple(folders)
+
+
+def _runtime_owner(capability):
+    m = _folder_manifest(capability)
+    if m is None:
+        return RUNTIME_OWNERS.get(capability, RUNTIME_ID)
+    owners = [n.removeprefix('install:') for n in m.needs_to_run if n.startswith('install:')]
+    if len(owners) != 1 or '/' in owners[0]:
+        raise ValueError('A folder matrix capability names exactly one prepared runtime: needs_to_run = ["install:<runtime>"]')
+    return owners[0]
+
+
+def folder_files(m):
+    """Every regular file the folder holds, in name order: what its generation covers and its worker may read."""
+    folder = Path(m.folder)
+    files = sorted(p for p in folder.rglob('*') if p.is_file() and '__pycache__' not in p.parts and p.suffix != '.pyc')
+    if any(p.is_symlink() for p in folder.rglob('*')):
+        raise ValueError('A folder matrix capability holds no symbolic links')
+    return files
+
+
 def runtime(capability, environ=None):
     from gpu_worker import manifests
     from orchestrator import envs
     environ = os.environ if environ is None else environ
-    owner_id = RUNTIME_OWNERS.get(capability, RUNTIME_ID)
+    owner_id = _runtime_owner(capability)
     owner = manifests.manifests()[owner_id]
     lock_hash = hashlib.sha256(envs.lock_file(owner, environ).read_bytes()).hexdigest()
     generation = envs._generation_from_files(owner, environ)
@@ -49,6 +98,8 @@ def execution_runtime(expected, environ=None):
     from orchestrator import envs, interpreter_identity
     environ = os.environ if environ is None else environ
     capability = next((key for key, owner in RUNTIME_OWNERS.items() if owner == expected.get('owner')), '')
+    if not capability and expected.get('owner') != RUNTIME_ID:
+        capability = next((key for key in ids() if key not in IDS and _runtime_owner(key) == expected.get('owner')), '')
     actual = runtime(capability, environ)
     if not actual['prepared'] or actual != expected:
         raise ValueError('The prepared scientific runtime changed; admit a new attempt')
@@ -60,8 +111,25 @@ def execution_runtime(expected, environ=None):
     return executable, folder
 
 
+def _folder_descriptor(m, environ):
+    current = runtime(m.id, environ)
+    digest = hashlib.sha256(b'matrix-folder-v1\0')
+    folder = Path(m.folder)
+    for path in folder_files(m):
+        digest.update(str(path.relative_to(folder)).encode() + b'\0' + path.read_bytes() + b'\0')
+    for path in (FOLDER_WORKER, Path(__file__).with_name('resource_profile.py')):
+        digest.update(b'host/' + path.name.encode() + b'\0' + path.read_bytes() + b'\0')
+    digest.update(json.dumps(current, sort_keys=True).encode())
+    return current, 'matrix-folder-v1.' + digest.hexdigest()
+
+
 def descriptor(capability, environ=None):
     from gpu_worker import manifests
+    folder = _folder_manifest(capability) if capability not in IDS else None
+    if folder is not None:
+        m = folder
+        current, generation = _folder_descriptor(m, environ)
+        return _shape(m, current, generation)
     if capability not in IDS:
         raise ValueError('Unknown bundled matrix capability')
     m = manifests.manifests().get(capability)
@@ -77,9 +145,19 @@ def descriptor(capability, environ=None):
                  BASE / 'services' / 'orchestrator' / 'matrix_capability_runs.py', Path(__file__)):
         digest.update(path.name.encode() + b'\0' + path.read_bytes())
     digest.update(json.dumps(current, sort_keys=True).encode())
+    return _shape(m, current, 'matrix-v1.' + digest.hexdigest())
+
+
+def implementation(capability):
+    """Where a folder capability's code is, for the confined worker only (never listed: it is a host path)."""
+    m = _folder_manifest(capability) if capability not in IDS else None
+    return None if m is None else {'folder': m.folder, 'adapter': m.adapter}
+
+
+def _shape(m, current, generation):
     reason = current['reason']
-    return {'id': capability, 'capability': capability, 'name': m.name,
-            'generation': 'matrix-v1.' + digest.hexdigest(), 'inputs': [{'id': p.id, 'type': p.type} for p in m.data_inputs],
+    return {'id': m.id, 'capability': m.id, 'name': m.name,
+            'generation': generation, 'inputs': [{'id': p.id, 'type': p.type} for p in m.data_inputs],
             'outputs': [{'id': p.id, 'type': p.type} for p in m.outputs],
             'parameters': [asdict(p) for p in m.params],
             'parameterSchema': {'type': 'object', 'additionalProperties': False, 'properties': {p.id: {
@@ -92,7 +170,7 @@ def descriptor(capability, environ=None):
 
 
 def descriptors(environ=None):
-    return [{key: value for key, value in descriptor(name, environ).items() if key != 'manifest'} for name in IDS]
+    return [{key: value for key, value in descriptor(name, environ).items() if key != 'manifest'} for name in ids()]
 
 
 def parameters(capability, supplied):
