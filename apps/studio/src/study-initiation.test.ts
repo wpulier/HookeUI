@@ -52,7 +52,10 @@ it('keeps typing made while a plan save is in flight',async()=>{
 
 it('opens the exact returned report evidence and separates it from acceptance', async()=>{
  const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
- const root=new TestElement('section'),open=vi.fn(async()=>undefined);
+ let pendingAtNavigation:boolean|undefined;
+ const root=new TestElement('section'),open=vi.fn(async()=>{
+  pendingAtNavigation=root.querySelector('[data-pending]')!==null;
+ });
  const evidence={id:'receipt',session:'s1',revision:3,digest:'exact-digest'};
  const fetcher=vi.fn(async()=>new Response(JSON.stringify({basis:{id:'study',session:'s1',revision:4,digest:'basis'},plan:{...plan,status:'reviewed'},assignments:[{id:'assignment:a',objective:'Interpret a retained measurement',observedState:'completed',claimedBy:{byLabel:'Codex'},report:{statement:'271 bright regions, not biological cells',limitations:'Uncalibrated',evidence:[evidence]}}]})));
  mountStudyInitiation(root as unknown as HTMLElement,study,[],fetcher as unknown as typeof fetch,open);
@@ -60,6 +63,7 @@ it('opens the exact returned report evidence and separates it from acceptance', 
  const button=root.querySelectorAll('button').find(b=>b.textContent==='Open evidence 1 · version 3') as unknown as HTMLButtonElement;
  button.onclick!(new Event('click') as PointerEvent);
  await vi.waitFor(()=>expect(open).toHaveBeenCalledWith(evidence,'Report evidence 1'));
+ expect(pendingAtNavigation).toBe(false); // navigation must pass the real Study leave guard
  await vi.waitFor(()=>expect(root.textContent).not.toContain('Opening evidence…'));
  expect(root.textContent).not.toContain('Saving…');
  expect(root.textContent).toContain('Copy report context');
