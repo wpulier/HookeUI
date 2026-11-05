@@ -28,6 +28,7 @@ FIELDS = {"selected", "selection", "adapter", "model", "provider", "endpoint", "
           "probeReadbackWallMs", "probeReadbackThreadMs", "probeWallMs", "probeProcessMs",
           "probeMinorFaults", "probeMajorFaults", "probeEmbeddingHit",
           "requestId", "attemptId", "retryOf", "phase", "outputCap", "inputTokens", "outputTokens", "thinkingTokens",
+          "cachedTokens", "cacheWriteTokens",
           "finishReason", "responseStatus", "parseOk", "promptDigest", "promptBytes",
           "rawActionCount", "actionCount", "targetCount", "planDigest", "planOmitted",
           "candidateCount", "groundingCount", "outputChars", "sourceHost", "sourceDigest", "rejection",
