@@ -16,6 +16,7 @@ from orchestrator.research.efforts import Efforts
 from orchestrator.scientific_file_intake import FileIntake
 from orchestrator.scientific_projects import ProjectStore, InvalidProject
 from scientific_compute import catalog
+from tests.test_agent_door import window_key  # noqa: F401  (signs the studio's connection answer)
 
 FOLDERS = ('frozen-gate', 'screen-effects', 'transfer-factors', 'vcc-count-emission', 'vcc-entry-check',
            'vcc-fold-score', 'vcc-package')
@@ -139,14 +140,14 @@ def test_frozen_gate_applies_its_rule(tmp_path):
     assert [c['holds'] for c in decision['conditions']] == [False, True, False]
 
 
-def keep(store, name, body, request):
-    intake = FileIntake(store, 's1', request, name=name, size=len(body), max_bytes=len(body))
+def keep(store, name, body, request, session='s1'):
+    intake = FileIntake(store, session, request, name=name, size=len(body), max_bytes=len(body))
     try:
         intake.write(body)
         saved = intake.publish()
     finally:
         intake.close()
-    return {'id': saved.id, 'session': 's1', 'revision': saved.revision, 'digest': saved.digest}
+    return {'id': saved.id, 'session': session, 'revision': saved.revision, 'digest': saved.digest}
 
 
 def study(store):
@@ -218,3 +219,42 @@ def test_the_folder_worker_cannot_import_the_engine(tmp_path):
                    check=True, cwd=tmp_path / 'out')
     receipt = json.loads((tmp_path / 'out' / 'receipt.json').read_text())
     assert receipt['summary']['reach'] == 'none'
+
+
+def test_an_agent_freezes_a_rule_through_the_door(tmp_path):
+    from types import SimpleNamespace
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from orchestrator.door import api, schema
+    from orchestrator.door.projects import access
+    from orchestrator.origin import studio_origin
+    from tests.test_agent_door import connect, bearer, BASE, HEADER
+    store = ProjectStore(tmp_path / 'projects')
+    built = SimpleNamespace(paths=SimpleNamespace(home=tmp_path),
+                            hub=SimpleNamespace(clients=set(), resources=SimpleNamespace(projects=store)),
+                            day=SimpleNamespace(sid='2026-10-28', elsewhere=lambda _: SimpleNamespace(local_only=False)))
+    app = FastAPI()
+    api.register(app, built, studio_origin, HEADER)
+    with TestClient(app, base_url=BASE) as client:
+        agent = connect(client, label='Synthetic reviewer')
+        headers = bearer(agent['token'])
+        access(built).remember('2026-10-28', 'agent:' + agent['connection']['id'])
+        created = client.post('/api/agent/v1/studies', headers=headers, json={
+            'session': '2026-10-28', 'requestKey': 'study-0001', 'title': 'Gate', 'objective': 'Decide', 'criteria': 'Rule',
+            'budgetUsd': 0, 'inputs': []})
+        assert created.status_code == 200, created.text
+        sid = created.json()['study']['id']
+        rule = keep(store, 'rule.json', json.dumps(RULE).encode(), 'rule-file-000001', session='2026-10-28')
+        wrong = client.post(f'/api/agent/v1/studies/{sid}/rules', headers=headers,
+                            json={'session': '2026-10-28', 'requestKey': 'freeze-1', 'artifact': rule})
+        assert wrong.status_code == 400
+        schema.check(wrong.json(), 'refusal')
+        body = {'session': '2026-10-28', 'requestKey': 'freeze-1', 'name': 'C3 rule', 'artifact': rule}
+        frozen = client.post(f'/api/agent/v1/studies/{sid}/rules', headers=headers, json=body)
+        assert frozen.status_code == 200, frozen.text
+        row = frozen.json()['study']['frozenRules'][0]
+        assert row['by'] == 'agent:' + agent['connection']['id'] and row['artifact']['sha256'] and row['format'] == 'frozen-gate-v1'
+        again = client.post(f'/api/agent/v1/studies/{sid}/rules', headers=headers, json=body)
+        assert again.json()['study']['frozenRules'] == [row]
+        renamed = client.post(f'/api/agent/v1/studies/{sid}/rules', headers=headers, json={**body, 'name': 'changed'})
+        assert renamed.status_code == 409
