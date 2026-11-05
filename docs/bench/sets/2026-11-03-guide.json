@@ -1,0 +1,225 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-11-03-guide",
+ "title": "Guiding the user's hands: three models and the rule centring and focusing a simulated slide",
+ "measures": "Whether the guide's judge gets a simulated person to centre the target and bring it into focus, how fast, in how many lines, and how often its 'done' is refused.",
+ "job": {
+  "name": "Guiding your hands",
+  "setting": "guide"
+ },
+ "ran": {
+  "started": "2026-11-03"
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "benchmark": {
+  "name": "Guide bench",
+  "method": "A closed loop on a synthetic eyepiece view with the phone's shake, noise and JPEG; a simulated person follows each line (0.6 s to react, 60-140% of the asked move, a focus step per line). Eight cases: the target off in each direction near and far, out of focus either way, the phone turned a quarter, centred only. Right when done with the target within 0.15 of the radius of the centre and, when asked, sharp.",
+  "code": "services/bench/guide_bench.py",
+  "command": "python -m bench.guide_bench --judge model --model <arm> --seeds 2",
+  "cases": 8,
+  "inputs": {
+   "description": "The bundled human_mitosis.png as brightfield, mirrored 3 x 3",
+   "public": true,
+   "licence": "CC0",
+   "source": "assets/examples/human_mitosis.png"
+  }
+ },
+ "arms": [
+  {
+   "id": "gemini-3.5-flash",
+   "label": "Gemini 3.5 Flash",
+   "runs": "cloud",
+   "role": "default",
+   "model": "gemini-3.5-flash",
+   "provider": "Google",
+   "option": "gemini-3.5-flash"
+  },
+  {
+   "id": "gemini-3.8-flash",
+   "label": "Gemini 3.8 Flash",
+   "runs": "cloud",
+   "role": "candidate",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "option": "gemini-3.8-flash"
+  },
+  {
+   "id": "gemini-3.5-flash-lite",
+   "label": "Gemini 3.5 Flash-Lite",
+   "runs": "cloud",
+   "role": "candidate",
+   "model": "gemini-3.5-flash-lite",
+   "provider": "Google",
+   "note": "a bench arm, not a GUIDE option"
+  },
+  {
+   "id": "rule",
+   "label": "The rule (no model)",
+   "runs": "code",
+   "role": "reference",
+   "option": "rule"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "right",
+   "label": "Runs right",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "doneS",
+   "label": "Median time to done",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "lines",
+   "label": "Median lines said",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "judgmentP50S",
+   "label": "Median judgment time",
+   "unit": "s",
+   "better": "lower"
+  },
+  {
+   "id": "overrides",
+   "label": "'Done' refused by the code's check",
+   "unit": "count",
+   "better": "lower"
+  }
+ ],
+ "results": [
+  {
+   "arm": "gemini-3.5-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 16,
+     "outOf": 16
+    },
+    {
+     "metric": "doneS",
+     "value": 13.5
+    },
+    {
+     "metric": "lines",
+     "value": 8.5
+    },
+    {
+     "metric": "judgmentP50S",
+     "value": 0.45
+    },
+    {
+     "metric": "overrides",
+     "value": 1
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.8-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 16,
+     "outOf": 16
+    },
+    {
+     "metric": "doneS",
+     "value": 23.3
+    },
+    {
+     "metric": "lines",
+     "value": 9.5
+    },
+    {
+     "metric": "judgmentP50S",
+     "value": 1.6
+    },
+    {
+     "metric": "overrides",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.5-flash-lite",
+   "values": [
+    {
+     "metric": "right",
+     "value": 15,
+     "outOf": 16
+    },
+    {
+     "metric": "doneS",
+     "value": 40.3
+    },
+    {
+     "metric": "lines",
+     "value": 15
+    },
+    {
+     "metric": "judgmentP50S",
+     "value": 0.8
+    },
+    {
+     "metric": "overrides",
+     "value": 19
+    }
+   ]
+  },
+  {
+   "arm": "rule",
+   "values": [
+    {
+     "metric": "right",
+     "value": 24,
+     "outOf": 24
+    },
+    {
+     "metric": "doneS",
+     "value": 9.3
+    },
+    {
+     "metric": "lines",
+     "value": 8.5
+    },
+    {
+     "metric": "judgmentP50S",
+     "value": 0
+    },
+    {
+     "metric": "overrides",
+     "value": 0
+    }
+   ]
+  }
+ ],
+ "decision": {
+  "summary": "Gemini 3.5 Flash stays the guide's default: every case right at 0.45 s a line, the fastest model that did. The rule is a non-default option and the bench's ceiling.",
+  "setting": "guide",
+  "to": "gemini-3.5-flash"
+ },
+ "caveats": [
+  "Model arms run in real time; the rule answers at once, so its numbers are a ceiling, not a measure of judgment on real pictures."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Guide bench",
+   "href": "docs/bench/guide.md",
+   "public": true
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false
+ }
+}

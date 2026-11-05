@@ -40,6 +40,7 @@ Component contracts (read the relevant file before editing):
 - `apps/studio/AGENTS.md`
 - `catalog/AGENTS.md`
 - `contract/AGENTS.md`
+- `docs/bench/README.md` (benchmark sets: the measurements behind defaults, in one shape anyone's results can take)
 - `docs/architecture/freshness-and-overlay.md`
 - `docs/architecture/hooke-project-format-v2.md` (publishing and starting from a Project, ADR 0028)
 - `docs/architecture/on-screen.md`

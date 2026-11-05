@@ -10883,7 +10883,7 @@
     "set_default"
    ],
    "current": "off",
-   "default": "gemini-3.8-flash",
+   "default": "claude-opus-5-5-fast",
    "defaultReason": null,
    "fallbackFor": [],
    "hint": "the fast pass beside every look",
@@ -10954,7 +10954,7 @@
      "models": [
       "Google Gemini API"
      ],
-     "note": "fast bench 79/80, p50 2.01 s / p90 3.40 s (2026-10-06; 0.81 s on 10-04)",
+     "note": "fast bench 104/116, p50 2.62 s / p90 3.84 s, 1 call over the 15 s timeout (2026-11-05; 79/80 at 2.01 s on 10-06)",
      "readiness": {
       "group": "Ready",
       "next": null,
@@ -11038,7 +11038,7 @@
      "models": [
       "Anthropic API"
      ],
-     "note": "not yet on the fast bench",
+     "note": "fast bench 106/116, p50 2.19 s / p90 2.75 s; $0.07 a decision (2026-11-05)",
      "readiness": {
       "group": "Needs setup",
       "next": {
@@ -11062,6 +11062,48 @@
      },
      "runs": "cloud",
      "said": "Claude Sonnet 5.5 (cloud)",
+     "sources": [
+      {
+       "licence": "Anthropic commercial terms",
+       "title": "Anthropic API (Claude writes lessons when ANTHROPIC_API_KEY is set)",
+       "url": "https://www.anthropic.com/legal/commercial-terms"
+      }
+     ],
+     "tier": "terms",
+     "why": "needs ANTHROPIC_API_KEY"
+    },
+    {
+     "available": false,
+     "id": "claude-opus-5-5-fast",
+     "label": "Claude Opus 5.5 (fast mode)",
+     "licence": "Anthropic API: Anthropic commercial terms",
+     "models": [
+      "Anthropic API"
+     ],
+     "note": "fast bench 103/116, p50 1.05 s / p90 2.02 s, never over 3.1 s; $0.29 a decision (2026-11-05)",
+     "readiness": {
+      "group": "Needs setup",
+      "next": {
+       "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+       "kind": "key",
+       "says": "Add your Anthropic API key",
+       "service": "anthropic",
+       "url": "https://console.anthropic.com/settings/keys"
+      },
+      "status": "needs-setup",
+      "steps": [
+       {
+        "how": "put ANTHROPIC_API_KEY=... in /nonexistent",
+        "kind": "key",
+        "says": "Add your Anthropic API key",
+        "service": "anthropic",
+        "url": "https://console.anthropic.com/settings/keys"
+       }
+      ],
+      "word": "Needs your Anthropic API key"
+     },
+     "runs": "cloud",
+     "said": "Claude Opus 5.5 (fast mode) in the cloud",
      "sources": [
       {
        "licence": "Anthropic commercial terms",
