@@ -1,0 +1,211 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-10-29-vision-grounding",
+ "title": "Seeing: \"what's that?\" on the real leaf recordings, five vision models",
+ "measures": "Whether the vision model boxes the thing a question is about, on hand-labelled real microscope frames, and how fast.",
+ "job": {
+  "name": "Seeing",
+  "setting": "vision"
+ },
+ "ran": {
+  "started": "2026-10-29",
+  "sameTime": true
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "benchmark": {
+  "name": "Grounding bench",
+  "method": "15 hand-labelled questions on frames of the real leaf recordings, 3 tries each, sequential; the model boxes what it means (pointing 'box').",
+  "code": "services/bench/grounding.py",
+  "command": "python -m bench.grounding --strategies box --repeats 3",
+  "cases": 15,
+  "repeats": 3,
+  "inputs": {
+   "description": "Frames of the 2026-06-14 leaf epidermis recordings, hand-labelled",
+   "public": false
+  }
+ },
+ "arms": [
+  {
+   "id": "claude-opus-5-5-fast",
+   "label": "Claude Opus 5.5 (fast mode)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low, speed fast"
+  },
+  {
+   "id": "gemini-3.5-flash",
+   "label": "Gemini 3.5 Flash",
+   "option": "gemini-3.5-flash",
+   "model": "gemini-3.5-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking minimal"
+  },
+  {
+   "id": "claude-opus-5-5",
+   "label": "Claude Opus 5.5",
+   "option": "claude-opus-5-5",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "note": "effort low"
+  },
+  {
+   "id": "gemini-3.8-flash",
+   "label": "Gemini 3.8 Flash",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low"
+  },
+  {
+   "id": "gemini-4-argon",
+   "label": "Gemini 4 Argon",
+   "option": "gemini-4-argon",
+   "model": "gemini-4-argon",
+   "provider": "Google",
+   "runs": "cloud",
+   "note": "thinking low"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "right",
+   "label": "Right object",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "p50Ms",
+   "label": "Median time",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "p95Ms",
+   "label": "95th percentile time",
+   "unit": "ms",
+   "better": "lower"
+  }
+ ],
+ "results": [
+  {
+   "arm": "claude-opus-5-5-fast",
+   "values": [
+    {
+     "metric": "right",
+     "value": 44,
+     "outOf": 45
+    },
+    {
+     "metric": "p50Ms",
+     "value": 940
+    },
+    {
+     "metric": "p95Ms",
+     "value": 1580
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.5-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 45,
+     "outOf": 45
+    },
+    {
+     "metric": "p50Ms",
+     "value": 1460
+    },
+    {
+     "metric": "p95Ms",
+     "value": 2010
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5",
+   "values": [
+    {
+     "metric": "right",
+     "value": 43,
+     "outOf": 45
+    },
+    {
+     "metric": "p50Ms",
+     "value": 2290
+    },
+    {
+     "metric": "p95Ms",
+     "value": 3910
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.8-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 45,
+     "outOf": 45
+    },
+    {
+     "metric": "p50Ms",
+     "value": 4190
+    },
+    {
+     "metric": "p95Ms",
+     "value": 6700
+    }
+   ]
+  },
+  {
+   "arm": "gemini-4-argon",
+   "values": [
+    {
+     "metric": "right",
+     "value": 45,
+     "outOf": 45
+    },
+    {
+     "metric": "p50Ms",
+     "value": 4570
+    },
+    {
+     "metric": "p95Ms",
+     "value": 10900
+    }
+   ]
+  }
+ ],
+ "decision": {
+  "summary": "No default changed with this run; on 29 Oct the quick look became Claude Opus 5.5 fast (the live partner's stack), with these numbers behind it.",
+  "setting": "vision",
+  "to": "claude-opus-5-5-fast"
+ },
+ "caveats": [
+  "Every Claude miss was 'What's the dark speck on the left edge?': named right, boxed beside the labelled point.",
+  "An earlier 15 x 2 run the same day: Opus fast 59/60, Opus 30/30, Argon 30/30, Claude Sonnet 5.5 (thinking off) 27/30, GPT-6.1 Terra 22/30, Claude Haiku 5.5 14/30."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Vision: Claude Opus 5.5 and Gemini 4 Argon beside the Gemini defaults",
+   "href": "docs/bench/vision-2026-10-29.md",
+   "public": true
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false
+ }
+}

@@ -23,11 +23,11 @@ wrapper around the bench, since the bench records no spend).
 
 | Option | Right | p50 | p90 | p99 | Slowest | Over 3 s | Over the 15 s planner timeout | Input tokens a call | Cost a decision |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Gemini 3.8 Flash | 104/116 | 2.62 s | 3.84 s | 12.6 s | 30.7 s | 33 | 1 | 26.0k | $0.020 |
-| Claude Opus 5.5 (fast mode) | 103/116 | 1.05 s | 2.05 s | 2.77 s | 3.09 s | 1 | 0 | 35.6k | $0.291 |
-| Claude Sonnet 5.5 | 106/116 | 2.19 s | 2.79 s | 3.95 s | 4.14 s | 7 | 0 | 35.6k | $0.072 |
+| Gemini 3.8 Flash | 104/116 | 2.62 s | 3.84 s | 12.4 s | 30.7 s | 33 | 1 | 26.0k | $0.020 |
+| Claude Opus 5.5 (fast mode) | 103/116 | 1.05 s | 2.02 s | 2.75 s | 3.09 s | 1 | 0 | 35.6k | $0.291 |
+| Claude Sonnet 5.5 | 106/116 | 2.19 s | 2.75 s | 3.89 s | 4.14 s | 7 | 0 | 35.6k | $0.072 |
 
-No model had an error, an unreadable reply or an action where none was asked for. A call over the 15 s planner timeout
+Percentiles are the bench's own (numpy). No model had an error, an unreadable reply or an action where none was asked for. A call over the 15 s planner timeout
 is dropped in the app and the full look answers instead (`brain/loop.py` `PLANNER_TIMEOUT_S`).
 
 **Misses every model shares (6 each).** Three requests, 2 tries each: "Start a new session." (`new_project`; the bench
@@ -113,6 +113,10 @@ Gemini 3.8 Flash, Sonnet 5.5 and the other options stay, with these numbers in t
 persists.
 
 ## How it was run, and what it cost
+
+- **As data:** `docs/bench/sets/2026-11-05-quick-decisions-fast-bench.json`, `...-fast-bench-resample.json` and
+  `...-will-drive.json`. They hold every arm, metric and case above in the benchmark-set shape
+  (`contract/benchmarks/benchmark-set.schema.json`, `docs/bench/README.md`).
 
 - **Commit:** dev 9f282873 plus this change; the journeys also needed the launcher fix (#203). The local check before
   the PR: `make capability-check`, 25 models, 16 works, 9 not installed here, none broken.

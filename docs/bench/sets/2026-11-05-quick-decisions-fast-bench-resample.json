@@ -1,0 +1,308 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-11-05-quick-decisions-fast-bench-resample",
+ "title": "Quick decisions: the five requests that tell Opus 5.5 fast and Gemini 3.8 Flash apart, 4 more tries each",
+ "measures": "Whether each model's misses on the fast bench are systematic or chance: the five requests either model missed, tried 4 more times each.",
+ "job": {
+  "name": "Quick decisions",
+  "setting": "fast"
+ },
+ "ran": {
+  "started": "2026-11-05T14:56:07-05:00",
+  "ended": "2026-11-05T14:57:17-05:00",
+  "sameTime": true
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "environment": {
+  "hooke": {
+   "commit": "9f282873",
+   "edition": "research"
+  },
+  "machine": "Apple silicon Mac, 14 cores",
+  "conditions": "The two arms in parallel, the five requests in turn, right after the full bench."
+ },
+ "benchmark": {
+  "name": "Fast bench (resample)",
+  "method": "5 of the 58 requests against fixed workspace notes (a leaf epidermis with two stomata and a speck, one outlined and selected, a finished researcher), each with its right call: act now with a given tool, answer from the notes, wait for a camera look, or do nothing for remarks, fillers and cut-off words. A call is right when the model's decision matches. Level 'simple'. Each arm in its own process, all at once.",
+  "code": "services/bench/fast_bench.py",
+  "command": "python -m bench.fast_bench --models <arm> --repeats 4 --only <request>",
+  "cases": 5,
+  "repeats": 4,
+  "inputs": {
+   "description": "Fixed text notes and requests written in the bench's code",
+   "public": true,
+   "licence": "Apache-2.0",
+   "source": "services/bench/fast_bench.py"
+  }
+ },
+ "arms": [
+  {
+   "id": "gemini-3.8-flash",
+   "label": "Gemini 3.8 Flash",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "role": "default before",
+   "note": "thinking low"
+  },
+  {
+   "id": "claude-opus-5-5-fast",
+   "label": "Claude Opus 5.5 (fast mode)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "role": "default after",
+   "note": "effort low, speed fast (twice the price)"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "right",
+   "label": "Right calls",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "p50Ms",
+   "label": "Median time a decision",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "p90Ms",
+   "label": "90th percentile time",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "p99Ms",
+   "label": "99th percentile time",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "maxMs",
+   "label": "Slowest decision",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "over3s",
+   "label": "Decisions over 3 s",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "overTimeout",
+   "label": "Decisions over the app's 15 s planner timeout",
+   "unit": "count",
+   "better": "lower",
+   "note": "dropped in the app; the full look answers instead"
+  }
+ ],
+ "results": [
+  {
+   "arm": "claude-opus-5-5-fast",
+   "values": [
+    {
+     "metric": "right",
+     "value": 6,
+     "outOf": 20
+    },
+    {
+     "metric": "p50Ms",
+     "value": 1919
+    },
+    {
+     "metric": "p90Ms",
+     "value": 2352
+    },
+    {
+     "metric": "p99Ms",
+     "value": 2459
+    },
+    {
+     "metric": "maxMs",
+     "value": 2479
+    },
+    {
+     "metric": "over3s",
+     "value": 0,
+     "outOf": 20
+    },
+    {
+     "metric": "overTimeout",
+     "value": 0,
+     "outOf": 20
+    }
+   ]
+  },
+  {
+   "arm": "gemini-3.8-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 10,
+     "outOf": 20
+    },
+    {
+     "metric": "p50Ms",
+     "value": 2692
+    },
+    {
+     "metric": "p90Ms",
+     "value": 4280
+    },
+    {
+     "metric": "p99Ms",
+     "value": 6084
+    },
+    {
+     "metric": "maxMs",
+     "value": 6275
+    },
+    {
+     "metric": "over3s",
+     "value": 6,
+     "outOf": 20
+    },
+    {
+     "metric": "overTimeout",
+     "value": 0,
+     "outOf": 20
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "id": "c01",
+   "text": "Show me what the researcher found.",
+   "expected": "show_result",
+   "results": [
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 4,
+     "did": "show_me (4x)"
+    },
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 3,
+     "tries": 4,
+     "did": "show_me"
+    }
+   ]
+  },
+  {
+   "id": "c02",
+   "text": "Can you teach me more about that?",
+   "expected": "start_researcher",
+   "results": [
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 4,
+     "did": "no action (4x)"
+    },
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 4,
+     "did": "no action (3x); dissect"
+    }
+   ]
+  },
+  {
+   "id": "c03",
+   "text": "Make me another picture, of a closed stoma this time.",
+   "expected": "start_researcher",
+   "results": [
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 4,
+     "tries": 4
+    },
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 4,
+     "did": "reference_photo (4x)"
+    }
+   ]
+  },
+  {
+   "id": "c04",
+   "text": "Clear the outlines and find the guard cell nuclei.",
+   "expected": "look+clear",
+   "results": [
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 4,
+     "did": "clear + find + find (2x)"
+    },
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 3,
+     "tries": 4,
+     "did": "clear + find"
+    }
+   ]
+  },
+  {
+   "id": "c05",
+   "text": "These two are one cell.",
+   "expected": "correct_cells",
+   "results": [
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 4,
+     "did": "no action (4x)"
+    },
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 4,
+     "tries": 4
+    }
+   ]
+  }
+ ],
+ "spend": {
+  "usd": 6.34,
+  "basis": "provider-reported tokens at list price"
+ },
+ "caveats": [
+  "With the full bench's 2 tries, each case has 6: 'These two are one cell.' Opus 0/6, Gemini 6/6; 'Make me another picture' Opus 6/6, Gemini 0/6; 'Show me what the researcher found' Opus 0/6 (always show_me), Gemini 4/6."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Quick decisions write-up",
+   "href": "docs/bench/quick-decisions-2026-11-05.md",
+   "public": true
+  },
+  {
+   "kind": "pull-request",
+   "title": "wpulier/HookeUI#204",
+   "href": "https://github.com/wpulier/HookeUI/pull/204",
+   "public": true
+  },
+  {
+   "kind": "raw-data",
+   "title": "Every call's row, costs, journey logs and verdicts (kept by the maintainers)",
+   "public": false
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false
+ }
+}

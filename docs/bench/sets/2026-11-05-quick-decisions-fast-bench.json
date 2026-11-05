@@ -1,0 +1,1627 @@
+{
+ "schema": "benchmark-set/1",
+ "id": "2026-11-05-quick-decisions-fast-bench",
+ "title": "Quick decisions: Claude Opus 5.5 fast, Gemini 3.8 Flash and Claude Sonnet 5.5 on the fast bench",
+ "measures": "Whether the model behind Quick decisions knows, from the workspace notes alone, when to act now, answer now, wait for a camera look or do nothing, and how fast and at what cost per decision.",
+ "job": {
+  "name": "Quick decisions",
+  "setting": "fast"
+ },
+ "ran": {
+  "started": "2026-11-05T14:48:47-05:00",
+  "ended": "2026-11-05T14:55:08-05:00",
+  "sameTime": true
+ },
+ "runBy": {
+  "kind": "maintainer",
+  "name": "Hooke maintainers"
+ },
+ "environment": {
+  "hooke": {
+   "commit": "9f282873",
+   "edition": "research"
+  },
+  "machine": "Apple silicon Mac, 14 cores",
+  "conditions": "dev 9f282873 plus the claude-opus-5-5-fast option; three arms in parallel; cloud calls only."
+ },
+ "benchmark": {
+  "name": "Fast bench",
+  "method": "58 requests against fixed workspace notes (a leaf epidermis with two stomata and a speck, one outlined and selected, a finished researcher), each with its right call: act now with a given tool, answer from the notes, wait for a camera look, or do nothing for remarks, fillers and cut-off words. A call is right when the model's decision matches. Level 'simple'. Each arm in its own process, all at once.",
+  "code": "services/bench/fast_bench.py",
+  "command": "python -m bench.fast_bench --models <arm> --repeats 2",
+  "cases": 58,
+  "repeats": 2,
+  "inputs": {
+   "description": "Fixed text notes and requests written in the bench's code",
+   "public": true,
+   "licence": "Apache-2.0",
+   "source": "services/bench/fast_bench.py"
+  }
+ },
+ "arms": [
+  {
+   "id": "gemini-3.8-flash",
+   "label": "Gemini 3.8 Flash",
+   "option": "gemini-3.8-flash",
+   "model": "gemini-3.8-flash",
+   "provider": "Google",
+   "runs": "cloud",
+   "role": "default before",
+   "note": "thinking low"
+  },
+  {
+   "id": "claude-opus-5-5-fast",
+   "label": "Claude Opus 5.5 (fast mode)",
+   "option": "claude-opus-5-5-fast",
+   "model": "claude-opus-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "role": "default after",
+   "note": "effort low, speed fast (twice the price)"
+  },
+  {
+   "id": "claude-sonnet-5-5",
+   "label": "Claude Sonnet 5.5",
+   "option": "claude-sonnet-5-5",
+   "model": "claude-sonnet-5-5",
+   "provider": "Anthropic",
+   "runs": "cloud",
+   "role": "candidate",
+   "note": "effort low"
+  }
+ ],
+ "metrics": [
+  {
+   "id": "right",
+   "label": "Right calls",
+   "unit": "count",
+   "better": "higher"
+  },
+  {
+   "id": "p50Ms",
+   "label": "Median time a decision",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "p90Ms",
+   "label": "90th percentile time",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "p99Ms",
+   "label": "99th percentile time",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "maxMs",
+   "label": "Slowest decision",
+   "unit": "ms",
+   "better": "lower"
+  },
+  {
+   "id": "over3s",
+   "label": "Decisions over 3 s",
+   "unit": "count",
+   "better": "lower"
+  },
+  {
+   "id": "overTimeout",
+   "label": "Decisions over the app's 15 s planner timeout",
+   "unit": "count",
+   "better": "lower",
+   "note": "dropped in the app; the full look answers instead"
+  },
+  {
+   "id": "inputTokensPerCall",
+   "label": "Input tokens a decision",
+   "unit": "tokens",
+   "better": "lower",
+   "note": "provider-reported; each provider's own tokenizer"
+  },
+  {
+   "id": "costPerCallUsd",
+   "label": "Cost a decision",
+   "unit": "usd",
+   "better": "lower",
+   "note": "provider-reported tokens at list price, uncached"
+  },
+  {
+   "id": "runUsd",
+   "label": "Cost of the run",
+   "unit": "usd",
+   "better": "lower"
+  }
+ ],
+ "results": [
+  {
+   "arm": "gemini-3.8-flash",
+   "values": [
+    {
+     "metric": "right",
+     "value": 104,
+     "outOf": 116
+    },
+    {
+     "metric": "p50Ms",
+     "value": 2624
+    },
+    {
+     "metric": "p90Ms",
+     "value": 3836
+    },
+    {
+     "metric": "p99Ms",
+     "value": 12393
+    },
+    {
+     "metric": "maxMs",
+     "value": 30679
+    },
+    {
+     "metric": "over3s",
+     "value": 33,
+     "outOf": 116
+    },
+    {
+     "metric": "overTimeout",
+     "value": 1,
+     "outOf": 116
+    },
+    {
+     "metric": "inputTokensPerCall",
+     "value": 26007
+    },
+    {
+     "metric": "costPerCallUsd",
+     "value": 0.0198
+    },
+    {
+     "metric": "runUsd",
+     "value": 2.3
+    }
+   ]
+  },
+  {
+   "arm": "claude-opus-5-5-fast",
+   "values": [
+    {
+     "metric": "right",
+     "value": 103,
+     "outOf": 116
+    },
+    {
+     "metric": "p50Ms",
+     "value": 1050
+    },
+    {
+     "metric": "p90Ms",
+     "value": 2021
+    },
+    {
+     "metric": "p99Ms",
+     "value": 2749
+    },
+    {
+     "metric": "maxMs",
+     "value": 3091
+    },
+    {
+     "metric": "over3s",
+     "value": 1,
+     "outOf": 116
+    },
+    {
+     "metric": "overTimeout",
+     "value": 0,
+     "outOf": 116
+    },
+    {
+     "metric": "inputTokensPerCall",
+     "value": 35598
+    },
+    {
+     "metric": "costPerCallUsd",
+     "value": 0.291
+    },
+    {
+     "metric": "runUsd",
+     "value": 33.76
+    }
+   ]
+  },
+  {
+   "arm": "claude-sonnet-5-5",
+   "values": [
+    {
+     "metric": "right",
+     "value": 106,
+     "outOf": 116
+    },
+    {
+     "metric": "p50Ms",
+     "value": 2186
+    },
+    {
+     "metric": "p90Ms",
+     "value": 2754
+    },
+    {
+     "metric": "p99Ms",
+     "value": 3889
+    },
+    {
+     "metric": "maxMs",
+     "value": 4142
+    },
+    {
+     "metric": "over3s",
+     "value": 7,
+     "outOf": 116
+    },
+    {
+     "metric": "overTimeout",
+     "value": 0,
+     "outOf": 116
+    },
+    {
+     "metric": "inputTokensPerCall",
+     "value": 35598
+    },
+    {
+     "metric": "costPerCallUsd",
+     "value": 0.0722
+    },
+    {
+     "metric": "runUsd",
+     "value": 8.37
+    }
+   ]
+  }
+ ],
+ "cases": [
+  {
+   "id": "c01",
+   "text": "What are we looking at?",
+   "expected": "answer",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c02",
+   "text": "Magnify that.",
+   "expected": "zoom",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c03",
+   "text": "Highlight the other stoma.",
+   "expected": "highlight",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c04",
+   "text": "Close the magnifier.",
+   "expected": "close_magnifier",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c05",
+   "text": "Can you magnify it more, even if it blurs?",
+   "expected": "zoom",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c06",
+   "text": "Show me what the researcher found.",
+   "expected": "show_result",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 2,
+     "did": "show_me"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "show_me (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c07",
+   "text": "Can you teach me more about that?",
+   "expected": "start_researcher",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 1,
+     "tries": 2,
+     "did": "no action"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "no action (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 0,
+     "tries": 2,
+     "did": "zoom (2x)"
+    }
+   ]
+  },
+  {
+   "id": "c08",
+   "text": "Does the dark speck have a ring around it?",
+   "expected": "look",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c09",
+   "text": "Is the stoma on the right bigger than the one in the middle?",
+   "expected": "look",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c10",
+   "text": "What's that thing right at the top edge?",
+   "expected": "look",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c11",
+   "text": "Clear everything.",
+   "expected": "clear",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c12",
+   "text": "Highlight the stomata.",
+   "expected": "highlight",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c13",
+   "text": "What is it made of?",
+   "expected": "dissect",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c14",
+   "text": "Close that.",
+   "expected": "close_result",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c15",
+   "text": "Bring the lesson back up.",
+   "expected": "show_result",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c16",
+   "text": "Can you walk me through the quiz the researcher made?",
+   "expected": "result_step or read_result",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c17",
+   "text": "What's the next question?",
+   "expected": "result_step",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c18",
+   "text": "What does the lesson say about guard cells?",
+   "expected": "read_result",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c19",
+   "text": "Let me find things myself, stop pointing them out.",
+   "expected": "set_lead",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c20",
+   "text": "Can you explain things more simply? I'm new to this.",
+   "expected": "set_level",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c21",
+   "text": "I'm a biology student, so be technical with me.",
+   "expected": "set_level",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 0,
+     "tries": 2,
+     "did": "no action (2x)"
+    }
+   ]
+  },
+  {
+   "id": "c22",
+   "text": "Give me hints first instead of telling me the answer.",
+   "expected": "set_level",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c23",
+   "text": "Make question 2 of the quiz easier.",
+   "expected": "revise_work",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c24",
+   "text": "Rename the label on the picture to guard cell.",
+   "expected": "revise_work",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 2,
+     "did": "name_outline (2x)"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "name_outline (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 0,
+     "tries": 2,
+     "did": "name_outline (2x)"
+    }
+   ]
+  },
+  {
+   "id": "c25",
+   "text": "Ask the researcher why the pore closes at night.",
+   "expected": "researcher_followup",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c26",
+   "text": "Make me another picture, of a closed stoma this time.",
+   "expected": "start_researcher",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 2,
+     "did": "reference_photo (2x)"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c27",
+   "text": "That's not a cell, take it off.",
+   "expected": "correct_cells",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c28",
+   "text": "These two are one cell.",
+   "expected": "correct_cells",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "no action (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c29",
+   "text": "Undo that correction.",
+   "expected": "correct_cells",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c30",
+   "text": "Huh, that cell looks odd.",
+   "expected": "none or answer or look",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c31",
+   "text": "Is that really a cell?",
+   "expected": "answer or look",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c32",
+   "text": "Let's start a new topic.",
+   "expected": "new_thread",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c33",
+   "text": "Can we go back to the blood smear conversation?",
+   "expected": "switch_thread",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c34",
+   "text": "What did we say about the platelet earlier today?",
+   "expected": "recall",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c35",
+   "text": "Start a new session.",
+   "expected": "new_session",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 2,
+     "did": "new_project (2x)"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "new_project (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 0,
+     "tries": 2,
+     "did": "new_project (2x)"
+    }
+   ]
+  },
+  {
+   "id": "c36",
+   "text": "New topic, let's look at the onion.",
+   "expected": "new_thread",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c37",
+   "text": "Let's start over.",
+   "expected": "new_thread or none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c38",
+   "text": "Go back to yesterday's leaf session.",
+   "expected": "switch_session",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c39",
+   "text": "What did we find in Tuesday's blood smear session?",
+   "expected": "recall",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c40",
+   "text": "Back to the leaf session: what did we conclude?",
+   "expected": "switch_session",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 2,
+     "did": "recall (2x)"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 0,
+     "tries": 2,
+     "did": "recall (2x)"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 0,
+     "tries": 2,
+     "did": "recall (2x)"
+    }
+   ]
+  },
+  {
+   "id": "c41",
+   "text": "Okay",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c42",
+   "text": "interesting",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c43",
+   "text": "Uh this is really",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c44",
+   "text": "So I wanna become more observant myself",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c45",
+   "text": "So the magnifying of the stoma is cool",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c46",
+   "text": "I'm going to change the slide now, but this is really interesting",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c47",
+   "text": "To me, looking at this, it seems the cells are elongated",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c48",
+   "text": "Yeah",
+   "expected": "none",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c49",
+   "text": "Can you close the",
+   "expected": "unfinished",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c50",
+   "text": "What is",
+   "expected": "unfinished",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c51",
+   "text": "Oh, wait, never mind",
+   "expected": "cancel",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c52",
+   "text": "Actually, forget it",
+   "expected": "cancel",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c53",
+   "text": "Wait for it to settle, then zoom in on the stoma",
+   "expected": "zoom",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c54",
+   "text": "Stop highlighting the stoma",
+   "expected": "clear or highlight",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c55",
+   "text": "Close the magnifier and highlight the hairs along the edge.",
+   "expected": "look+close_magnifier",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c56",
+   "text": "Clear the outlines and find the guard cell nuclei.",
+   "expected": "look+clear",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 0,
+     "tries": 2,
+     "did": "clear + find (2x)"
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 1,
+     "tries": 2,
+     "did": "clear + find + find"
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c57",
+   "text": "Close the magnifier then highlight the guard cells.",
+   "expected": "look+close_magnifier or close_magnifier+find",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  },
+  {
+   "id": "c58",
+   "text": "Highlight the guard cells in that stoma.",
+   "expected": "look or find",
+   "results": [
+    {
+     "arm": "gemini-3.8-flash",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-opus-5-5-fast",
+     "right": 2,
+     "tries": 2
+    },
+    {
+     "arm": "claude-sonnet-5-5",
+     "right": 2,
+     "tries": 2
+    }
+   ]
+  }
+ ],
+ "spend": {
+  "usd": 44.43,
+  "basis": "provider-reported tokens at list price"
+ },
+ "decision": {
+  "summary": "A tie on correctness (103 vs 104 of 116; 105 each when 'Show me what the researcher found' may use show_me, whose own description it is), Opus 2.5 times as fast with no tail, at about 14 times the cost a decision. With the will-drive journey, the default moved to Opus 5.5 fast.",
+  "setting": "fast",
+  "from": "gemini-3.8-flash",
+  "to": "claude-opus-5-5-fast",
+  "change": "https://github.com/wpulier/HookeUI/pull/204"
+ },
+ "caveats": [
+  "Six misses each are shared by all three: the bench still expects new_session, switch_session and revise_work where the prompt now routes to new_project, recall and name_outline.",
+  "Two tries a case; the cases that tell the models apart were tried 4 more times (2026-11-05-quick-decisions-fast-bench-resample).",
+  "The prompt is sent uncached; caching it changes the cost per decision."
+ ],
+ "links": [
+  {
+   "kind": "write-up",
+   "title": "Quick decisions write-up",
+   "href": "docs/bench/quick-decisions-2026-11-05.md",
+   "public": true
+  },
+  {
+   "kind": "pull-request",
+   "title": "wpulier/HookeUI#204",
+   "href": "https://github.com/wpulier/HookeUI/pull/204",
+   "public": true
+  },
+  {
+   "kind": "code",
+   "title": "The fast bench",
+   "href": "services/bench/fast_bench.py",
+   "public": true
+  },
+  {
+   "kind": "raw-data",
+   "title": "Every call's row, costs, journey logs and verdicts (kept by the maintainers)",
+   "public": false
+  }
+ ],
+ "licence": "CC-BY-4.0",
+ "privacy": {
+  "images": false,
+  "personalData": false
+ }
+}
