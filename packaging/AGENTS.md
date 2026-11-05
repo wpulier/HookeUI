@@ -66,6 +66,8 @@ and scientific runtime code; the core remains runnable without a Hooke account.
     stake quits; running work asks "Quit Hooke and stop what's running?"; unsaved or unreadable work asks with
     Quit Anyway. No state leaves Hooke unable to quit. A waiting update installs as Hooke quits; in the 0.4.1
     rehearsal (a VM, 4695 → 4696) Sparkle then reopened Hooke on the new build within about a second.
+  - The main window stays ARC-owned after Close (`isReleasedWhenClosed = false`): asynchronous leave checks and
+    their sheets may still need it. Closing the window must not invalidate that reference before termination.
   - A quit that waits for its check (`.terminateLater`) is answered with `Termination.reply` and started from a check's
     completion with `Termination.terminate` (`HookeUI/Termination.swift`), never with `DispatchQueue.main.async`: a
     `terminate` called inside a main-queue block waits in a run loop where the main queue cannot run, so that answer

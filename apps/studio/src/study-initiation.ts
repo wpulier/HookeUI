@@ -21,7 +21,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
   const draftKey=`hooke:research-plan:${study.session}:${study.id}`;
   const clearDraft=()=>{try{localStorage.removeItem(draftKey);}catch{/* Storage may be unavailable. */}};
   const call=async(action:string,fields:object)=>result(await fetcher(`${base}/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'research-effort'},body:JSON.stringify({session:study.session,...fields})}));
-  const button=(label:string,run:()=>Promise<void>,primary=false,busy='Saving…')=>{const b=n('button',label,primary?'study-primary':'study-quiet');b.type='button';b.onclick=()=>{if(pending||!current())return;pending=true;box.dataset.pending='true';b.disabled=true;const previous=status.textContent;status.textContent=busy;void run().then(()=>{if(current()&&status.textContent===busy)status.textContent=previous;}).catch(e=>{if(current())status.textContent=String(e.message||e);}).finally(()=>{pending=false;delete box.dataset.pending;if(current())b.disabled=false;});};return b;};
+  const button=(label:string,run:()=>Promise<void>,primary=false,busy='Saving…',blocksLeaving=true)=>{const b=n('button',label,primary?'study-primary':'study-quiet');b.type='button';b.onclick=()=>{if(pending||!current())return;pending=true;if(blocksLeaving)box.dataset.pending='true';b.disabled=true;const previous=status.textContent;status.textContent=busy;void run().then(()=>{if(current()&&status.textContent===busy)status.textContent=previous;}).catch(e=>{if(current())status.textContent=String(e.message||e);}).finally(()=>{pending=false;delete box.dataset.pending;if(current())b.disabled=false;});};return b;};
   function draw(){
     if(!current()||!state)return;content.replaceChildren();outcome.replaceChildren();delete box.dataset.draft;
     try{if(localStorage.getItem(draftKey))amending=true;}catch{/* In-memory editing remains available. */}
@@ -229,7 +229,7 @@ export function mountStudyInitiation(host:HTMLElement,study:Effort,inputs:StudyI
       if(!assignment.report&&assignment.observedState==='planned')card.append(n('p','Copy the handoff below and paste it into your connected agent. The agent reads this saved plan and claims the assignment; replies and results return here.','study-note'));
       if(assignment.report){
         card.append(n('p',assignment.report.statement),n('small',assignment.report.limitations));
-        for(const [index,ref]of (assignment.report.evidence||[]).entries())if(openFile)card.append(button(`Open evidence ${index+1} · version ${ref.revision}`,async()=>{await openFile(ref,`Report evidence ${index+1}`);},false,'Opening evidence…'));
+        for(const [index,ref]of (assignment.report.evidence||[]).entries())if(openFile)card.append(button(`Open evidence ${index+1} · version ${ref.revision}`,async()=>{await openFile(ref,`Report evidence ${index+1}`);},false,'Opening evidence…',false));
       }
       const next=assignment.report?'This assignment has returned its report. Read its evidence and limitations before proposing any new assignment; do not claim or rerun the completed assignment.':'Claim this assignment through study.coordinate (action claim) using your actual harness and model; its schema is in hooke tools.';
       const prompt=`Continue this research in Hooke using your already-authorized named connection and the installed Hooke skill. Do not create another Project or request fresh credentials when your connection works.
@@ -249,7 +249,7 @@ Read the retained plan, exact material, prior failures and decisions through the
       card.append(n('summary',`${p.title} · awaiting your review`),n('p',`Proposed by ${item.byLabel}`),n('p',p.gap));
       for(const [label,value]of [['Licence',p.licence],['Dependencies',p.dependencies],['Permissions',p.permissions],['Resources',p.resources],['Checks',p.proofPlan]])card.append(n('h4',label),n('p',value));
       card.append(n('p','A proposal does not install or activate its package. Models shows its current setup, checks and activation state.','study-note'));
-      if(openFile)card.append(button('Open proposed package',async()=>{await openFile(p.package,p.title);},false,'Opening package…'));
+      if(openFile)card.append(button('Open proposed package',async()=>{await openFile(p.package,p.title);},false,'Opening package…',false));
       const setup=n('a','Review in Models');setup.href='#models';card.append(setup);content.append(card);
     }
     content.append(button('Refresh activity',async()=>{if(box.dataset.draft){status.textContent='Save your draft before refreshing activity.';return;}await load();}));

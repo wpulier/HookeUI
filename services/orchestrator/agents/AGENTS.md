@@ -77,7 +77,9 @@ it when asked.
   budget fits what is left (at most $3, refused under $0.25) and is held while it runs; only API-key billing goes into
   Spending. At most four work at once, six programs alive (a finished one is ended to make room).
 - **Say only what happened**: a launch is `done` when its turn completed; whether its report came back is read from
-  the Study. A restart never shows a launch as working.
+  the Study. Closing Hooke preserves that completed outcome while ending its program and revoking access.
+  Shutdown interrupt/exit messages cannot turn it into a failure. Unfinished work is stopped; an explicit Stop
+  remains stopped. A restart never shows a launch as working.
 
 ## Tests
 - `tests/test_agents_adapters.py`: each adapter against what the real program said (`tests/fixtures/agents/`,
