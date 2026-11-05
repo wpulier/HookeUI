@@ -233,7 +233,7 @@ native-test:
 		"$$out" version
 	@out="$$(mktemp -d)/termination" && \
 		swiftc -swift-version 5 packaging/macos/HookeUI/Termination.swift packaging/macos/tests/termination/main.swift \
-			-o "$$out" && "$$out" nested && "$$out" deferred && "$$out" event && \
+			-o "$$out" && "$$out" nested && "$$out" deferred && "$$out" event && "$$out" close && \
 		{ "$$out" old; test $$? -eq 3; } && echo "ok: the 4695 answer still hangs here, so these checks can fail"
 
 test-timing:

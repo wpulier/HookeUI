@@ -9,21 +9,30 @@
 import AppKit
 
 let name = CommandLine.arguments.dropFirst().first ?? ""
-guard ["nested", "deferred", "event", "old"].contains(name) else {
+guard ["nested", "deferred", "event", "old", "close"].contains(name) else {
     FileHandle.standardError.write("usage: termination nested|deferred|event|old\n".data(using: .utf8)!)
     exit(2)
 }
 
 final class Delegate: NSObject, NSApplicationDelegate {
     var asked = 0
+    var window: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         switch name {
+        case "close":
+            window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 200),
+                              styleMask: [.titled, .closable], backing: .buffered, defer: false)
+            window!.isReleasedWhenClosed = false
+            window!.orderFront(nil)
+            Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { [self] _ in window!.close() }
         case "nested", "old": DispatchQueue.main.async { NSApp.terminate(nil) }
         case "deferred": DispatchQueue.main.async { Termination.terminate() }
         default: Timer.scheduledTimer(withTimeInterval: 0.05, repeats: false) { _ in NSApp.terminate(nil) }
         }
     }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         asked += 1
@@ -32,7 +41,13 @@ final class Delegate: NSObject, NSApplicationDelegate {
             if name == "old" {
                 DispatchQueue.main.async { NSApp.reply(toApplicationShouldTerminate: true) }
             } else {
-                Termination.reply(true)
+                if name == "close" {
+                    DispatchQueue.main.async { [self] in
+                        // The real leave callback still reads the ARC-owned window after Close.
+                        precondition(window != nil && window!.title.isEmpty)
+                        Termination.reply(true)
+                    }
+                } else { Termination.reply(true) }
             }
         }
         return .terminateLater

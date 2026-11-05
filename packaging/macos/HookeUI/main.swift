@@ -822,6 +822,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         buildMenu()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440, height: 900),
                           styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
+        // The asynchronous leave check still uses this window after its red close button.
+        // AppKit's legacy release-on-close would invalidate our ARC-owned reference.
+        window.isReleasedWhenClosed = false
         window.title = appName
         window.minSize = NSSize(width: 900, height: 600)
         window.backgroundColor = NSColor(calibratedWhite: 0.09, alpha: 1)

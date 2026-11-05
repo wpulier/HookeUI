@@ -190,6 +190,40 @@ def test_a_program_that_dies_fails_and_is_revoked(made):
     asyncio.run(scenario())
 
 
+@pytest.mark.parametrize("completed", [False, True])
+def test_close_preserves_completed_turn_when_exit_arrives_during_stop(made, completed):
+    conductor, side, home = made
+
+    async def scenario():
+        launch = await conductor.start("codex", "inspect the retained evidence")
+        await settle(conductor, lambda: launch.state == "working")
+        adapter = Scripted.made[0]
+        if completed:
+            adapter.emit("turn", state="completed", turn="t1")
+            await settle(conductor, lambda: launch.status == "done")
+
+        async def stopping():
+            adapter.stopped = True
+            # Real subprocess shutdown yields while its stream pump drains.
+            adapter.emit("turn", state="interrupted", turn="t1")
+            adapter._finish(0, "the program ended")
+            await settle(conductor, lambda: launch.ended_at is not None)
+
+        adapter.stop = stopping
+        await conductor.close()
+        expected = "done" if completed else "stopped"
+        assert launch.state == expected
+        assert launch.why == "Hooke closed"
+        assert not any(state == "failed" for _, state in side.lines)
+        assert side.calls.count(("end", launch.project, launch.connection)) == 1
+        assert not os.path.exists(os.path.join(os.path.dirname(launch.folder), "credential"))
+        later = Conductor(home, Side(), find=lambda _: None)
+        assert later.get(launch.id).state == expected
+        if completed:
+            assert later.get(launch.id).report["returned"]
+    asyncio.run(scenario())
+
+
 def test_restart_never_says_an_agent_is_still_working(made, tmp_path):
     conductor, side, home = made
 

@@ -160,6 +160,7 @@ class Conductor:
         self.clock = clock
         self.launches: dict[str, Launch] = {}
         self.adapters: dict[str, Adapter] = {}
+        self._stopping: dict[str, tuple[str, str]] = {}
         self._tasks: set[asyncio.Task] = set()
         self._admission = asyncio.Lock()
         self._dirty = False
@@ -432,6 +433,8 @@ class Conductor:
             launch.model = event.get("model") or launch.model
             launch.billing = event.get("billing") or launch.billing
         elif kind == "turn":
+            if launch.ended_at is not None or launch.id in self._stopping:
+                return  # shutdown stream events cannot rewrite the retained turn outcome
             state = event.get("state")
             if state == "working":
                 if launch.state not in ("failed", "stopped"):
@@ -527,10 +530,14 @@ class Conductor:
             self._note(launch, "note", event.get("text") or "A warning")
         elif kind == "exit":
             if launch.ended_at is None:
-                why = launch.why or event.get("why") or "it ended"
-                tail = "; ".join(event.get("stderr") or [])[-300:]
-                self._end(launch, "failed" if launch.state != "done" else "done",
-                          f"Its program ended ({why})" + (f": {tail}" if tail and launch.state != "done" else ""))
+                ending = self._stopping.get(launch.id)
+                if ending is not None:
+                    self._end(launch, *ending)
+                else:
+                    why = launch.why or event.get("why") or "it ended"
+                    tail = "; ".join(event.get("stderr") or [])[-300:]
+                    self._end(launch, "failed" if launch.state != "done" else "done",
+                              f"Its program ended ({why})" + (f": {tail}" if tail and launch.state != "done" else ""))
             self.adapters.pop(launch.id, None)
         self.changed()
 
@@ -602,22 +609,25 @@ class Conductor:
         except KeyError as error:
             raise Refused("That ask is no longer waiting.", next="reload the Agents list") from error
 
-    async def stop(self, lid: str, why: str = "You stopped it") -> Launch:
+    async def stop(self, lid: str, why: str = "You stopped it", *, preserve_completed: bool = False) -> Launch:
         launch = self.get(lid)
         adapter = self.adapters.get(lid)
-        if launch.state in ("failed", "stopped") and adapter is None:
+        if launch.ended_at is not None and adapter is None:
             return launch
-        launch.state = "stopped"  # first: its program's exit is then never read as a failure
+        ending = self._stopping.setdefault(lid, (
+            "done" if preserve_completed and launch.state == "done" else "stopped", why))
+        launch.state = ending[0]
         if adapter is not None:
             await adapter.stop()
-        self._end(launch, "stopped", why)
+        self._end(launch, *ending)
+        self._stopping.pop(lid, None)
         return launch
 
     async def close(self) -> None:
         """Hooke is quitting: every agent's program is stopped and its connection revoked."""
         for lid in [lid for lid, r in self.launches.items() if r.state in LIVE_STATES or lid in self.adapters]:
             try:
-                await asyncio.wait_for(self.stop(lid, "Hooke closed"), 10)
+                await asyncio.wait_for(self.stop(lid, "Hooke closed", preserve_completed=True), 10)
             except Exception:
                 pass
         for task in list(self._tasks):

@@ -27,6 +27,12 @@ spec.loader.exec_module(channels)
 NORMAL_FEED = "https://github.com/wpulier/hookeui.org/releases/latest/download/appcast.xml"
 
 
+def test_main_window_survives_close_until_async_leave_check_finishes():
+    setup = MAIN.read_text().split('window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1440', 1)[1]
+    setup = setup.split('window.makeKeyAndOrderFront(nil)', 1)[0]
+    assert 'window.isReleasedWhenClosed = false' in setup
+
+
 def render(template: str, name: str) -> dict:
     text = channels.info_plist((MACOS / "HookeUI" / template).read_text(), name, version="0.2.0", build="3600",
                                feed="https://example.org/appcast.xml", edkey="public-key-fixture")
