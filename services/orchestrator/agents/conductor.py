@@ -405,10 +405,12 @@ class Conductor:
         try:
             await adapter.start(spec)
         except Exception as error:  # the program refused to start: said as itself, and cleaned up
-            why = short(str(error) or type(error).__name__, 300)
-            launch.state = "failed"  # first: its program's exit is then never said instead of this
-            await adapter.stop()
-            self._end(launch, "failed", f"{launch.label} didn't start: {why}")
+            if launch.id not in self._stopping and launch.ended_at is None:
+                why = short(str(error) or type(error).__name__, 300)
+                launch.state = "failed"  # first: its program's exit is then never said instead of this
+                await adapter.stop()
+                self._end(launch, "failed", f"{launch.label} didn't start: {why}")
+            # Stop owns cleanup when it interrupted an initialization RPC.
         await pump
 
     async def _pump(self, launch: Launch, adapter: Adapter) -> None:

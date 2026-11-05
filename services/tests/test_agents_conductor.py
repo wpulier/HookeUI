@@ -242,6 +242,35 @@ def test_restart_never_says_an_agent_is_still_working(made, tmp_path):
     assert ("end", launch.project, launch.connection) in later_side.calls  # its connection withdrawn at start
 
 
+def test_stop_during_initialization_keeps_stopped_when_start_rpc_raises(made):
+    conductor, side, home = made
+
+    class Initializing(Scripted):
+        async def start(self, spec):
+            self.spec = spec
+            self.pending = asyncio.get_running_loop().create_future()
+            await self.pending
+
+        async def stop(self):
+            await super().stop()
+            if not self.pending.done():
+                self.pending.set_exception(RuntimeError("initialization connection closed"))
+            await asyncio.sleep(0)
+
+    conductor.make_adapter = lambda *_: Initializing()
+
+    async def scenario():
+        launch = await conductor.start("codex", "read the Project")
+        await settle(conductor, lambda: Scripted.made and Scripted.made[0].spec is not None)
+        await conductor.stop(launch.id)
+        await settle(conductor, lambda: launch.id not in conductor.adapters)
+        assert launch.state == "stopped"
+        assert side.calls.count(("end", launch.project, launch.connection)) == 1
+        await conductor.close()
+        assert Conductor(home, Side(), find=lambda _: None).get(launch.id).state == "stopped"
+    asyncio.run(scenario())
+
+
 def test_refusals_say_what_to_do(made, tmp_path):
     conductor, side, _ = made
 
