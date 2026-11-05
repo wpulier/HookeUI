@@ -160,7 +160,7 @@ private revision=0;private generation=0;private revealSequence=0;
  private recover=button('Review recovery',()=>this.reviewRecovery());private retry=button('Retry save',()=>void this.flush());
  // The row holds only Tabs, then + and ⌄ (All Tabs) and, only while the layout needs the person, its status and Retry.
  private fade=el('span','workspace-tabs-fade');private tools=el('div','workspace-tab-tools');private allTabs!:HTMLButtonElement;private allCount=el('span','workspace-all-count');
- private fitFrame=0;private scrollTimer=0;private loadedRevision=0;private loadedViews='';
+ private fitFrame=0;private scrollTimer=0;private loadedRevision=0;private loadedProject='';private loadedViews='';
  // The Stage bar under the row, on every Tab (workspace-feel plan): the specimen on work Tabs (a researcher's page puts
  // its own bar in `stageResearch`), and the Project's camera, Record and Assistant on the right.
  private stageBar=el('div','workspace-stage-bar');private stageWork=el('div','workspace-stage-work');private stageResearch=el('div','workspace-stage-research');private stageRight=el('div','workspace-stage-right');
@@ -438,7 +438,9 @@ private revision=0;private generation=0;private revealSequence=0;
  resume(){this.changing=false;delete document.body.dataset.workspaceOpening;this.render();this.visibility();}
  /** Between Projects, show no tabs: never the previous Project's under the next Project's name. */
  private opening(){this.tabs.replaceChildren(el('span','workspace-tabs-opening','Opening…'));this.say('Opening…');document.body.dataset.workspaceOpening='true';window.dispatchEvent(new CustomEvent('workspace-tab-context'));}
+ hasNoSavedArrangement(session:string):boolean{return this.loadedProject===session&&this.session===session&&this.loadedRevision===0;}
  async load(session:string):Promise<void>{
+  this.loadedProject='';
   const blocker=studyArtifacts().blockReason(this.session);if(blocker){this.opts.notice(new Error(blocker));return;}
   this.clearFlash();
   this.clearReopen(); // a closed Tab's Reopen belongs to the Project it was closed in
@@ -455,7 +457,7 @@ private revision=0;private generation=0;private revealSequence=0;
    {const home=this.layout.views.find(v=>this.isHome(v.id));if(home)this.openIds=[home.id,...this.openIds.filter(id=>id!==home.id)];}
    this.layout.active=this.openIds.includes(nav?.active)?nav.active:this.openIds[0]??'';
    studyArtifacts().clearDocuments();this.changing=false;if(await this.activate(this.layout.active,true,true)===false)throw new Error('The saved Tab input could not be opened. Use Retry opening; your Data is kept.');
-   this.say(this.dirty?'Saving…':'Saved');this.retry.hidden=true;this.retry.textContent='Retry save';this.retry.onclick=()=>void this.flush();this.retainCameraStatus();this.updateRecovery();
+   this.say(this.dirty?'Saving…':'Saved');this.retry.hidden=true;this.retry.textContent='Retry save';this.retry.onclick=()=>void this.flush();this.retainCameraStatus();this.updateRecovery();if(g===this.generation)this.loadedProject=session;
   }catch(error){if(g===this.generation)this.tabs.replaceChildren(el('span','workspace-tabs-opening','Not opened'));this.say('Opening failed');this.retry.hidden=false;this.retry.textContent='Retry opening';this.retry.onclick=()=>void this.load(session);this.opts.notice(error);}finally{if(g===this.generation){this.changing=false;delete document.body.dataset.workspaceOpening;window.dispatchEvent(new CustomEvent('workspace-tab-context'));}}
  }
  /** Camera availability survives a successful layout save; save errors keep priority. */

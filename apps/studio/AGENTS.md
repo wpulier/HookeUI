@@ -1,3 +1,5 @@
+A first-open Project without a saved arrangement opens Project overview, including connector-created Projects. Existing layouts and explicit Specimen stage navigation stay preserved; this navigation preference grants no execution authority.
+
 Open Project keeps moved-folder recovery in a disclosure. “Use this location” is opt-in and sent to the same owner command; errors preserve the path and choice. It does not grant access or bypass normal unsaved-work navigation.
 
 Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.

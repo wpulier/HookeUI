@@ -1027,14 +1027,14 @@ let openStudyNow:Effort|null=null,studyTimer=0,studyOpening=0;
 const projectNavigation=new ProjectNavigation(openProjectDestination);
 find('workspace-tabs-strip').prepend(projectNavigation.root);
 function rememberProjectDestination(destination:string|null):void{
-  try{if(destination)localStorage.setItem(`hooke:project-destination:${snapshot.session}`,destination);else localStorage.removeItem(`hooke:project-destination:${snapshot.session}`);}catch{/* Navigation stays available without browser storage. */}
+  try{if(destination)localStorage.setItem(`hooke:project-destination:${snapshot.session}`,destination);else localStorage.setItem(`hooke:project-destination:${snapshot.session}`,'stage');}catch{/* Navigation stays available without browser storage. */}
 }
 function restoreProjectDestination(session:string, openOverview = false):void{
   if(snapshot.session!==session)return;
   let destination:string|null=null;try{destination=localStorage.getItem(`hooke:project-destination:${session}`);}catch{return;}
   if(destination?.startsWith('study:')){void openStudy(destination.slice(6));return;}
   if(['overview','studies','inputs','results','activity'].includes(destination??''))openProjectDestination(destination as ProjectDestination);
-  else if(openOverview)openProjectDestination('overview');
+  else if(destination!=='stage'&&(openOverview||workspaceViews.hasNoSavedArrangement(session)))openProjectDestination('overview');
 }
 window.addEventListener('workspace-project-overview',()=>openProjectDestination('overview'));
 function openProjectDestination(destination:ProjectDestination):void{
