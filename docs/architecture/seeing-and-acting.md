@@ -292,7 +292,8 @@ other files.
 - The fast pass (`brain/fast.py`) runs beside every vision call; it acts only when its actions
   work (else the look answers). Seen ids become outlines first, reusing an outline that
   already covers the thing. Option BRAIN_FAST; benches: `bench/fast_bench.py`,
-  `bench/sight_bench.py`, `bench/tool_choice.py`, `bench/brain_prompt.py`.
+  `bench/sight_bench.py`, `bench/tool_choice.py`, `bench/brain_prompt.py`. Its default and the comparison behind it:
+  `docs/bench/quick-decisions-2026-11-05.md`.
 - How a look points is option POINTING: "box" (the default: the model boxes, the outline model
   draws each box), "marks" (numbered DoG spots), "snap-first" (an instant ring, then the box) and
   "masks" (segmenter-first Set-of-Mark, `orchestrator/masks.py`): after the slide settles, EdgeTAM

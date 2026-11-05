@@ -389,7 +389,7 @@ SIGHT = {
 # at 2.5 times the speed (p50 1.05 s against 2.62 s, never over 3.1 s against a 30.7 s tail). On will-drive, one run
 # each on the same commit at the same time, the hand-offs it planned took p50 2.7 s against 4.9 s, 3 steps failed
 # against 5, judged quality 1.85 against 1.46, and Gemini told a working researcher as finished. It costs about 14
-# times as much a decision ($0.29 against $0.02: the 35.6k-token prompt is not cached).
+# times as much a decision ($0.29 against $0.02: the 35.6k-token prompt is not cached). docs/bench/quick-decisions-2026-11-05.md
 BRAIN_FAST = {
     o.id: o
     for o in [
