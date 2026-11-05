@@ -30,7 +30,7 @@ import { BoxDrag, frameBox } from './boxdrag';
 import { ChatLog } from './chatlog';
 import { endsVoiceTurn, type LocalNoticeOptions } from './chatmodel';
 import { AskRequests, askError } from './ask-feedback';
-import { assistantBlockReason } from './assistant-readiness';
+import { assistantBlockReason, assistantChip } from './assistant-readiness';
 import { ExecutionRecordingControl } from './executionlog';
 import { ExecutionHistory } from './executionhistory';
 import { AssetsView } from './assets';
@@ -893,16 +893,11 @@ function renderSetup(wire: CapabilitiesWire): void {
   setupChip.title = chip.title;
   setupNotice.update(wire);
 }
-/** The composer's model chip: the Assistant's chat model, the one that looks at the view and answers (Seeing), by its
- * one name ("Gemini 3.8 Flash"); it opens the Models defaults (every job's model), the same picker as before. */
+/** The composer's model chip: the models that answer a typed question, Quick decisions then Seeing (assistantChip); it
+ * opens the Models defaults (every job's model), the same picker as before. */
 function renderComposerModel(wire: CapabilitiesWire): void {
-  const role = wire.roles.find((r) => r.id === 'vision');
-  const option = role?.options.find((o) => o.id === role.current);
-  const name = option?.label ?? '';
-  // A chosen model without its key says so here, before the first question finds out (readiness: its next step is the key).
-  const key = option && !option.available && option.readiness?.next?.kind === 'key' ? option.readiness : null;
-  composer.setModel(name, key ? `${name}: ${key.word.charAt(0).toLowerCase()}${key.word.slice(1)}. Add it in Models › Keys, or choose the models for each job`
-    : name ? `The Assistant answers with ${option?.said ?? name}. Choose the models for each job` : 'Choose the models for each job', key ? 'needs a key' : '');
+  const chip = assistantChip(wire);
+  composer.setModel(chip.words, chip.title, chip.needs, chip.more);
 }
 const source = element<HTMLButtonElement>('source');
 const cameraPanel = element<HTMLElement>('camera-panel');
