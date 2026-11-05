@@ -11038,7 +11038,7 @@
      "models": [
       "Anthropic API"
      ],
-     "note": "fast bench 106/116, p50 2.19 s / p90 2.79 s; $0.07 a decision (2026-11-05)",
+     "note": "fast bench 106/116, p50 2.19 s / p90 2.75 s; $0.07 a decision (2026-11-05)",
      "readiness": {
       "group": "Needs setup",
       "next": {
@@ -11080,7 +11080,7 @@
      "models": [
       "Anthropic API"
      ],
-     "note": "fast bench 103/116, p50 1.05 s / p90 2.05 s, never over 3.1 s; $0.29 a decision (2026-11-05)",
+     "note": "fast bench 103/116, p50 1.05 s / p90 2.02 s, never over 3.1 s; $0.29 a decision (2026-11-05)",
      "readiness": {
       "group": "Needs setup",
       "next": {
