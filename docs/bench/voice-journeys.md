@@ -99,6 +99,11 @@ the words are unchanged. `[[slnc 1500]]` in the words is a 1.5 s pause.
 - **Setup.** It is typed in the chat once per stack before Talk. It makes a Nuclei Project with outlines, measurements
   and one finished researcher, then a Scratch Project, as the journey's setup asks. Each new Project opens on the empty
   stage, so a `stage` step puts the specimen on it, as a person does: Use live camera, then the bridge plays the still.
+- **No Project open.** A plan with no setup of its own (`smoke`, `will-drive` and the other `will-*` plans) starts on a
+  stack with no Project open, where the studio shows the New Project launcher and Talk dictates into it instead of
+  connecting (`main.ts` `startTalk`). The player presses the launcher's Start blank first, as a person would, and records
+  it (`{e: "launcher", ok}`); then the specimen goes on the new Project's empty stage. Without it, every such run since
+  the launcher (3 Nov, 763ec913) stopped at "Talk did not turn on" with no steps.
 - **The specimen.** The still is played as a 20 s loop with sensor-like noise (`stack.py` `noisy_loop`). The bridge
   heals a camera whose frames are byte-identical (a frozen iPhone), and that stopped a plain still's live view about
   17 s after a Project's Use live camera. On this second stack the live camera does not come back by itself when a

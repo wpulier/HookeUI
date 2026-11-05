@@ -49,7 +49,8 @@ VISION_S = 2.0  # one vision call with the picture
 OUTLINE_S = 0.15  # one EdgeTAM outline
 CELLS_S = 1.2  # a cell finder's run (Cellpose-SAM ~1-2 s at phase 0)
 CAMERA_TICK_S = 0.05  # a live camera's frames, real seconds apart (20 fps), for cases whose `camera` is "live"
-QUESTION = re.compile(r'User: "(.*)"\n\nFirst, what are', re.S)
+QUESTION = re.compile(r'User: "(.*)"\n\nFirst, what are', re.S)  # the quick decision's prompt, notes-first (fast.ORDERS)
+QUESTION_LAST = re.compile(r'\nConversation so far:\n.*\nUser: "(.*)"\n\Z', re.S)  # static-first: the words end it
 FINAL_QUESTION = re.compile(r'User: "(.*?)"\nYour reply', re.S)
 ANSWER_FACTS = re.compile(r'<answer-facts source="app" untrusted="true">\n(.*?)\n</answer-facts>', re.S)
 SCRIPTED_VIEW = ContextVar("acting_scripted_view", default=None)
@@ -487,7 +488,7 @@ class ScriptedModel:
             await self.world.clock.sleep(FAST_S)
             return SimpleNamespace(data=self.world.check_reply(images), latency_ms=FAST_S * 1000, error=None, model="fake")
         held = SCRIPTED_VIEW.get()
-        m = QUESTION.search(prompt) or FINAL_QUESTION.search(prompt)
+        m = QUESTION.search(prompt) or QUESTION_LAST.search(prompt) or FINAL_QUESTION.search(prompt)
         question = held[0] if held is not None else m.group(1) if m else None
         latency = VISION_S if held is not None else FAST_S
         await self.world.clock.sleep(latency)

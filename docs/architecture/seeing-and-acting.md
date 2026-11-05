@@ -294,6 +294,16 @@ other files.
   already covers the thing. Option BRAIN_FAST; benches: `bench/fast_bench.py`,
   `bench/sight_bench.py`, `bench/tool_choice.py`, `bench/brain_prompt.py`. Its default and the comparison behind it:
   `docs/bench/quick-decisions-2026-11-05.md`.
+  Its prompt (`fast.prompt`, the first pass, the follow-up round and point-only alike) puts what is the same call after
+  call first (the instructions, the ~80 KB tool list, the JSON reply) and this call's notes and the user's words last
+  (`fast.ORDER` "static-first"; "notes-first", the order it was written in, stays for `bench/fast_bench.py --orders`).
+  Claude is sent the first part marked for Anthropic's prompt cache (`vision.Prefixed`, a 5-minute marker), so each
+  decision after the first within 5 minutes reads its ~35k tokens at a twentieth of the input price: Claude Opus 5.5 fast
+  $0.022 a decision against $0.29, a cold one that writes the cache about $0.36 (fast bench, 2026-11-05: also 107/116
+  against 103 and p50 0.90 s against 1.16 s; Gemini 3.8 Flash 109 against 106 at the same speed and cost;
+  `docs/bench/quick-decisions-prompt-cache-2026-11-05.md`). Gemini and
+  OpenAI are sent the same whole string: Gemini's own cache matched only exact repeats on the bench. Cache reads and
+  writes are priced in Spending (`vision.anthropic_usd`) and kept on the call's record (`cachedTokens`, `cacheWriteTokens`).
 - How a look points is option POINTING: "box" (the default: the model boxes, the outline model
   draws each box), "marks" (numbered DoG spots), "snap-first" (an instant ring, then the box) and
   "masks" (segmenter-first Set-of-Mark, `orchestrator/masks.py`): after the slide settles, EdgeTAM

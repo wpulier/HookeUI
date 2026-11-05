@@ -39,7 +39,7 @@
 <script type="module">
 import '/src/style.css';import '/src/studio-shell.css';import '/src/workspace-theme.css';
 import '/src/workspace-study.css';import '/src/workspace-study-v2.css';import '/src/workspace-calm.css';import '/src/workspace-feel.css';import '/src/handoffs.css';import '/src/experiment-card.css';
-import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
+import {assistantChip} from '/src/assistant-readiness.ts';import {ChatLog} from '/src/chatlog.ts';import {Composer} from '/src/composer.ts';import {litCell,setLitCell} from '/src/lit-cell.ts';
 import {researcherCardView} from '/src/shelf.ts';import {moreButton} from '/src/drawer-menu.ts';import {FlightStrip} from '/src/handoffs.ts';
 import cells from '../../catalog/models/basic-bright-objects/example-human-cells.png';
 const params=new URLSearchParams(location.search),state=params.get('state')||'start';
@@ -64,8 +64,13 @@ document.getElementById('ask').before(strip.root);
 document.getElementById('wrap').append(chat.newMessages);
 const composer=new Composer(document.getElementById('ask'),{fieldId:'question',label:'Message to the Assistant',placeholder:'Ask anything',
  attach:{label:'Add a specimen',items:()=>[{label:'Choose from Data…',act:()=>{}},{label:'Open a picture or video…',act:()=>{}}]},
- model:{words:'Gemini 3.8 Flash',title:'The Assistant answers with Gemini 3.8 Flash (cloud). Choose the models for each job',open:()=>{}},
+ model:{words:'',open:()=>{}},
  extra:[document.getElementById('talk')]});
+// The chip as the app draws it from its default models (assistant-readiness.ts): Quick decisions, then Seeing.
+const pick=(id,current,label,said)=>({id,kind:'model',title:id,purpose:'',current,powers:[],agentCanChange:[],options:[{id:current,label,said,note:'',available:true}]});
+const modelChip=assistantChip({roles:[pick('fast','gemini-3.8-flash','Gemini 3.8 Flash','Gemini 3.8 Flash (cloud)'),
+ pick('vision','claude-opus-5-5-fast','Claude Opus 5.5 (fast mode)','Claude Opus 5.5 (fast mode) in the cloud')]});
+composer.setModel(modelChip.words,modelChip.title,modelChip.needs,modelChip.more);
 document.getElementById('more').replaceWith(moreButton('Conversations and Activity',()=>[],'mm-dhead-more'));
 const chip=document.createElement('button');chip.type='button';chip.className='mm-composer-chip';
 const thumb=document.createElement('span');thumb.className='mm-composer-thumb';const img=document.createElement('img');img.src=cells;img.alt='';thumb.append(img);

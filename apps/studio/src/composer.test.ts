@@ -115,6 +115,15 @@ describe('the composer', () => {
     expect(composer.modelChip!.querySelector<HTMLElement>('.mm-composer-model-needs')!.hidden).toBe(false);
     composer.setModel('Gemini 3.8 Pro', 'The Assistant answers with Gemini 3.8 Pro (cloud)');
     expect(composer.modelChip!.querySelector<HTMLElement>('.mm-composer-model-needs')!.hidden).toBe(true);
+    // A second model that also answers is counted beside the first one's name, outside the words that may be cut short.
+    const more = () => composer.modelChip!.querySelector<HTMLElement>('.mm-composer-model-more')!;
+    expect(more().hidden).toBe(true);
+    composer.setModel('Gemini 3.8 Flash', 'The Assistant answers with Gemini 3.8 Flash (cloud) from the workspace notes, and with Claude Opus 5.5 (fast mode) in the cloud when it needs to look', '', '+1');
+    expect(composer.modelChip!.textContent).toBe('Gemini 3.8 Flash+1');
+    expect(more().hidden).toBe(false);
+    expect(composer.modelChip!.getAttribute('aria-label')).toContain('Claude Opus 5.5 (fast mode)');
+    composer.setModel('Gemini 3.8 Pro', 'The Assistant answers with Gemini 3.8 Pro (cloud)');
+    expect(more().hidden).toBe(true);
     fire(composer.modelChip as unknown as TestElement, 'click');
     expect(open).toHaveBeenCalledWith(composer.modelChip);
   });

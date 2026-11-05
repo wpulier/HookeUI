@@ -161,7 +161,7 @@ def test_sonnet_is_a_choice_beside_opus_and_no_default_changed():
     # Quick decisions moved to Opus 5.5 fast on 2026-11-05 (options.BRAIN_FAST), measured, not by adding Sonnet.
     assert (defaults.vision, defaults.fast, defaults.brain) == ("claude-opus-5-5-fast", "claude-opus-5-5-fast", "json-actions")
     assert Settings().update({"vision": "claude-sonnet-5-5", "brain": "fc"}) == []
-    assert PRICES["claude-sonnet-5-5"] == {"in": 2.00, "out": 10.00}  # Anthropic's pricing page, read 2026-10-29
+    assert PRICES["claude-sonnet-5-5"] == {"in": 2.00, "out": 10.00, "cached": 0.10}  # Anthropic's pricing page, read 2026-10-29 and 11-05
     assert api_usage.provider_for("claude-sonnet-5-5") == "Anthropic"
 
 

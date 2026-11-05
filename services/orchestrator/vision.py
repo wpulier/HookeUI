@@ -23,6 +23,21 @@ def image_mime(data: bytes) -> str:
     return "image/png" if data.startswith(b"\x89PNG\r\n\x1a\n") else "image/jpeg"
 
 
+class Prefixed(str):
+    """A prompt whose first `stable` characters are the same call after call (the quick decision's instructions and
+    tool list, brain/fast.py), followed by what this call alone says. It is the whole prompt as a plain string to every
+    reader; AnthropicVision marks the stable part for Anthropic's prompt cache, which matches by prefix. Gemini and
+    OpenAI are sent the string as it is: their caching is their own (on the fast bench of 2026-11-05 Gemini 3.8 Flash's
+    matched only exact repeats of a whole prompt)."""
+
+    stable: int
+
+    def __new__(cls, stable: str, rest: str) -> "Prefixed":
+        made = super().__new__(cls, stable + rest)
+        made.stable = len(stable)
+        return made
+
+
 @dataclass
 class VisionResult:
     data: dict | None
@@ -30,6 +45,8 @@ class VisionResult:
     model: str
     raw_text: str = ""
     error: str = ""
+    # input (every prompt token, cached or not), output, and where the provider says so: thinking, cached (input read
+    # from its cache, billed at its cached price), cacheWrite (input written to Anthropic's cache, billed at 1.25x).
     usage: dict = field(default_factory=dict)
 
 
@@ -243,6 +260,7 @@ class GeminiVision(_Client):
                 "input": response.usage_metadata.prompt_token_count,
                 "output": response.usage_metadata.candidates_token_count,
                 "thinking": getattr(response.usage_metadata, "thoughts_token_count", None),
+                "cached": getattr(response.usage_metadata, "cached_content_token_count", None) or 0,
             }
         data = _parse_json(text)
         _diagnostic_result(response, "gemini", data)
@@ -306,7 +324,8 @@ class OpenAIVision(_Client):
         text = response.output_text or ""
         usage = {}
         if response.usage:
-            usage = {"input": response.usage.input_tokens, "output": response.usage.output_tokens}
+            usage = {"input": response.usage.input_tokens, "output": response.usage.output_tokens,
+                     "cached": getattr(getattr(response.usage, "input_tokens_details", None), "cached_tokens", None) or 0}
         data = _parse_json(text)
         _diagnostic_result(response, "openai", data)
         if data is None:
@@ -349,9 +368,13 @@ class AnthropicVision(_Client):
                        model=self.model, identity="request-model; hosted revision unconfirmed",
                        optionId=self.model + ("-fast" if self.fast else ""))
         _diagnostic_entry(prompt, max_output_tokens)
-        content = [{"type": "image", "source": {"type": "base64", "media_type": image_mime(img),
-                                                "data": base64.b64encode(img).decode()}} for img in images]
-        content.append({"type": "text", "text": prompt + "\n\nReply with the JSON object only."})
+        # A Prefixed prompt's stable part goes first, marked for the cache (5 minutes from its last use; Opus 5.5 caches
+        # from 512 tokens), so the next call with the same part reads it at a twentieth of the input price.
+        stable = prompt.stable if isinstance(prompt, Prefixed) else 0
+        content = [{"type": "text", "text": prompt[:stable], "cache_control": {"type": "ephemeral"}}] if stable else []
+        content += [{"type": "image", "source": {"type": "base64", "media_type": image_mime(img),
+                                                 "data": base64.b64encode(img).decode()}} for img in images]
+        content.append({"type": "text", "text": prompt[stable:] + "\n\nReply with the JSON object only."})
         # Thinking shares max_tokens with the answer, so the cap leaves room for it beyond the answer's own.
         body: dict = {"model": self.model, "max_tokens": max_output_tokens + 2000, "fallbacks": "default",
                       "messages": [{"role": "user", "content": content}]}
@@ -374,11 +397,8 @@ class AnthropicVision(_Client):
                         reason = response.text[:200]
                     raise RuntimeError(f"Anthropic {response.status_code}: {reason}")
                 reply = response.json()
-                usage = reply.get("usage") or {}
-                price = api_usage.PRICES.get(self.model)
-                tokens = (usage.get("input_tokens"), usage.get("output_tokens"))
-                usd = ((tokens[0] * price["in"] + tokens[1] * price["out"]) / 1e6 * (2 if self.fast else 1)
-                       if isinstance(price, dict) and all(isinstance(n, int) for n in tokens) else None)
+                usage = anthropic_usage(reply.get("usage") or {})
+                usd = anthropic_usd(self.model, usage, fast=self.fast)
                 api_usage.record(self.model, usd, provider="Anthropic", area="Live",
                                  basis=("Reported tokens · list price before discounts" + (" · fast mode" if self.fast else ""))
                                  if usd is not None else "Usage or price unavailable")
@@ -394,12 +414,44 @@ class AnthropicVision(_Client):
             return VisionResult(None, latency, self.model, error=f"refused by the model's safeguards ({category or 'no category'})")
         text = "".join(part.get("text", "") for part in reply.get("content", []) if part.get("type") == "text")
         data = _parse_json(text)
-        _diagnostic_note(inputTokens=tokens[0], outputTokens=tokens[1], finishReason=reply.get("stop_reason"),
+        _diagnostic_note(inputTokens=usage["input"], outputTokens=usage["output"], cachedTokens=usage["cached"],
+                         cacheWriteTokens=usage["cacheWrite"], finishReason=reply.get("stop_reason"),
                          parseOk=isinstance(data, dict), **_plan_diagnostics(data))
         if data is None:
             execution.finish("unreadable")
-        return VisionResult(data, latency, self.model, raw_text=text,
-                            usage={"input": tokens[0], "output": tokens[1]})
+        return VisionResult(data, latency, self.model, raw_text=text, usage=usage)
+
+
+CACHE_WRITE = 1.25  # Anthropic's 5-minute cache write, times the input price (pricing page, read 2026-11-05)
+
+
+def anthropic_usage(reported: dict) -> dict:
+    """The Messages API's usage in VisionResult's words: input is every prompt token, the uncached part
+    (`input_tokens`) with what was written to and read from the cache."""
+    def count(key):
+        value = reported.get(key)
+        return value if isinstance(value, int) else None
+
+    fresh, write, read = count("input_tokens"), count("cache_creation_input_tokens") or 0, count("cache_read_input_tokens") or 0
+    return {"input": None if fresh is None else fresh + write + read, "output": count("output_tokens"),
+            "cached": read, "cacheWrite": write}
+
+
+def anthropic_usd(model: str, usage: dict, fast: bool = False) -> float | None:
+    """A Claude call's list price from its usage (anthropic_usage): uncached input at the input price, cache writes at
+    1.25 times it, cache reads at the model's cached price, output at the output price; fast mode doubles all of them
+    (caching's multipliers apply on top of fast mode's prices, Anthropic's pricing page, 2026-11-05). None when the
+    price or a count is unknown."""
+    price = api_usage.PRICES.get(model)
+    tokens = (usage.get("input"), usage.get("output"))
+    if not isinstance(price, dict) or not all(isinstance(n, int) for n in tokens):
+        return None
+    read, write = usage.get("cached") or 0, usage.get("cacheWrite") or 0
+    if read and "cached" not in price:
+        return None  # a cache read with no cached price here: said as unknown, never guessed
+    fresh = tokens[0] - read - write
+    return ((fresh + write * CACHE_WRITE) * price["in"] + read * price.get("cached", 0) + tokens[1] * price["out"]) / 1e6 \
+        * (2 if fast else 1)
 
 
 def make_vision(spec: str, temperature: float | None = 0.2):

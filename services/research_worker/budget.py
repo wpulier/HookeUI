@@ -18,7 +18,7 @@ PRICES = {
     "gemini-3.5-flash": {"in": 1.50, "out": 9.00},
     "gemini-3.5-flash-lite": {"in": 0.30, "out": 2.50},
     "gpt-6-luna": {"in": 0.10, "out": 0.50},
-    "gemini-3.8-flash": {"in": 0.75, "out": 3.75},
+    "gemini-3.8-flash": {"in": 0.75, "out": 3.75, "cached": 0.075},  # cached: a context-cache read (pricing page, 2026-11-05)
     "gpt-image-2.5-flare": {"text_in": 5.00, "image_in": 8.00, "image_out": 30.00},
     "gpt-image-2.5-sunburst": {"text_in": 5.00, "image_in": 8.00, "image_out": 30.00},
     # Not from a price list: assumed equal to gpt-image-2.5's until its list price is checked (the S4
@@ -31,9 +31,9 @@ PRICES = {
     # 2026-10-29: "approximately $0.10 per second"). research_worker/video.py.
     "gemini-omni-flash": 0.10,
     # Lessons when ANTHROPIC_API_KEY is set, and a brain choice. Anthropic's pricing page, read 2026-10-29: $2/$10 (it was
-    # priced here at an older Sonnet's $3/$15).
-    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00},
-    "claude-opus-5-5": {"in": 4.00, "out": 20.00},  # presentations and vision; fast mode is twice this (vision.py)
+    # priced here at an older Sonnet's $3/$15). "cached": a cache read (2026-11-05: 0.05x the input price on both).
+    "claude-sonnet-5-5": {"in": 2.00, "out": 10.00, "cached": 0.10},
+    "claude-opus-5-5": {"in": 4.00, "out": 20.00, "cached": 0.20},  # presentations and vision; fast mode is twice this (vision.py)
     "gemini-4-argon": {"in": 4.00, "out": 20.00},  # vision; $2/$10 until 2026-11-30, priced at the list price after it
     # The one-brain voice (orchestrator/voice/openai_realtime.py; OpenAI's pricing page, read 2026-10-29): text in and
     # out, and audio and pictures in and audio out, per million tokens.

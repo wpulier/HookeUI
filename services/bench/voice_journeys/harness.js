@@ -522,6 +522,15 @@
       try {
         observeChat();
         document.querySelector('.example-skip')?.click(); // a fresh home's walkthrough steps aside
+        // A stack with no Project open shows the New Project launcher (investigation-launcher.ts, since 763ec913), where
+        // Talk dictates into the launcher instead of connecting (main.ts startTalk): a person starts a blank Project
+        // first, and so does a journey with no setup of its own. Recorded, never silent.
+        if (!setup && document.body.dataset.studyNeutral === 'true') {
+          [...document.querySelectorAll('dialog.project-launcher-sheet button')]
+            .find((b) => b.textContent.trim() === 'Start blank')?.click();
+          for (let i = 0; i < 60 && document.body.dataset.studyNeutral === 'true'; i++) await sleep(250);
+          ev({ e: 'launcher', started: 'blank', ok: document.body.dataset.studyNeutral !== 'true' });
+        }
         if (!setup) await stageSpecimen(plan, base, 'start'); // the journey starts with the specimen on the stage
         if (from === 0 && !setup) await sleep(baselineMs); // the live view before Talk: the baseline
         if (from > 0 && steps[from - 1]?.kind === 'restart') await checks(steps[from - 1]);

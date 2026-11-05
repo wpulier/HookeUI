@@ -50,6 +50,7 @@ export class Composer {
   readonly attachButton: HTMLButtonElement | null = null;
   readonly modelChip: HTMLButtonElement | null = null;
   private modelNeeds: HTMLElement | null = null;
+  private modelMore: HTMLElement | null = null;
   private readonly modelWords: HTMLElement | null = null;
 
   /** `root`: a form to build into (the Assistant's #ask, whose Talk is passed in `extra`), or none for a new one. */
@@ -80,15 +81,16 @@ export class Composer {
       const model = options.model;
       const chip = make('button', 'mm-composer-model'); chip.type = 'button';
       const words = make('span', 'mm-composer-model-words');
+      const more = make('span', 'mm-composer-model-more'); more.hidden = true;
       const needs = make('span', 'mm-composer-model-needs'); needs.hidden = true;
-      chip.append(words, needs);
+      chip.append(words, more, needs);
       if (model.open) {
         chip.setAttribute('aria-haspopup', 'dialog'); chip.setAttribute('aria-expanded', 'false');
         chip.append(lineIcon('M4 6.5 8 10.5 12 6.5', 'mm-composer-caret'));
         chip.addEventListener('click', () => model.open!(chip));
       } else chip.dataset.static = 'true';
       this.actions.append(chip);
-      this.modelChip = chip; this.modelWords = words; this.modelNeeds = needs;
+      this.modelChip = chip; this.modelWords = words; this.modelMore = more; this.modelNeeds = needs;
       this.setModel(model.words, model.title);
     }
     const spacer = make('span', 'mm-composer-spacer');
@@ -134,10 +136,12 @@ export class Composer {
   }
 
   /** The model chip's words ("Gemini 3.8 Flash") and its tooltip; `needs`, what it lacks before it can answer ("needs a
-   *  key"), said beside its name so a first question is not the way to find out. */
-  setModel(words: string, title?: string, needs = ''): void {
+   *  key"), said beside its name so a first question is not the way to find out; `more`, how many other models answer
+   *  too ("+1"), kept whole when the words are cut short. */
+  setModel(words: string, title?: string, needs = '', more = ''): void {
     if (!this.modelChip || !this.modelWords) return;
     if (this.modelWords.textContent !== words) this.modelWords.textContent = words;
+    if (this.modelMore) { if (this.modelMore.textContent !== more) this.modelMore.textContent = more; this.modelMore.hidden = !more; }
     if (this.modelNeeds) { if (this.modelNeeds.textContent !== needs) this.modelNeeds.textContent = needs; this.modelNeeds.hidden = !needs; }
     const tip = title ?? words;
     if (this.modelChip.title !== tip) this.modelChip.title = tip;

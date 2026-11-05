@@ -1864,10 +1864,14 @@ The workspace feel (plan of 2026-10-24, target `design/workspace-feel/`) is buil
   lines to eight; Enter sends, Shift+Enter a new line, never while an input method composes; words put there by code,
   such as Help's Ask the Assistant or a researcher draft, go through `composer.set` so Send follows them; your bubble
   keeps the lines you wrote); then + (Choose from Data…,
-  Open a picture or video…: the workspace's own routes, `setComposerAttach`), the Assistant's model chip (Seeing's
-  model, "Gemini 3.8 Flash ▾", opening the Models defaults picker, `SettingsPicker.openFrom`, over everything, 6 px
-  above the chip with its right edge on the composer's; a chosen model without its key adds "needs a key" in the
-  attention colour, from its readiness, so the first question is not how the person finds out), Talk (its microphone and word, every voice state kept; its live status, Mute and Activity at the composer's
+  Open a picture or video…: the workspace's own routes, `setComposerAttach`), the Assistant's model chip (the models
+  that answer a typed question, `assistantChip`: Quick decisions answers first from the workspace notes, so the chip
+  names it with a muted "+1" for Seeing, "Gemini 3.8 Flash +1 ▾", and its tooltip names both in full; Seeing alone when
+  Quick decisions is off, cannot run, or is the same model; the chip once named Seeing only while Quick decisions
+  answered, the 5 Nov 2026 Beta readiness audit. It opens the Models defaults picker, `SettingsPicker.openFrom`, over
+  everything, 6 px above the chip with its right edge on the composer's; a Seeing model without its key is the one
+  named, with "needs a key" in the attention colour, from its readiness, so the first question is not how the person
+  finds out), Talk (its microphone and word, every voice state kept; its live status, Mute and Activity at the composer's
   head) and Send (grey with nothing to send or while the request is answered, blue with words). No stop: no command
   cancels an answer being written. The composer stays in the Assistant panel at every width (the old phone layout's
   fixed composer is gone). `chat.fixture.html` shows the states over synthetic messages (fixture only).
