@@ -10883,7 +10883,7 @@
     "set_default"
    ],
    "current": "off",
-   "default": "gemini-3.8-flash",
+   "default": "claude-opus-5-5-fast",
    "defaultReason": null,
    "fallbackFor": [],
    "hint": "the fast pass beside every look",

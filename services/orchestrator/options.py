@@ -384,6 +384,12 @@ SIGHT = {
 # option, identical three-sequence harness): 3.5 proposed five stale-ID plans; 3.8
 # proposed zero. This narrow correction sequence is not a general quality or latency
 # benchmark. Earlier measurements below remain dated evidence; saved choices persist.
+# Default changed 2026-11-05 to Claude Opus 5.5 fast, the live partner's quick look: the same-hour fast bench is a tie
+# (103 vs 104 of 116, 105 each when "Show me what the researcher found" may use show_me, whose own description it is),
+# at 2.5 times the speed (p50 1.05 s against 2.62 s, never over 3.1 s against a 30.7 s tail). On will-drive, one run
+# each on the same commit at the same time, the hand-offs it planned took p50 2.7 s against 4.9 s, 3 steps failed
+# against 5, judged quality 1.85 against 1.46, and Gemini told a working researcher as finished. It costs about 14
+# times as much a decision ($0.29 against $0.02: the 35.6k-token prompt is not cached).
 BRAIN_FAST = {
     o.id: o
     for o in [
@@ -1130,7 +1136,7 @@ class Settings:
     research: str = "claude-opus-5-5"  # researchers think with Opus 5.5 (RESEARCH_ENGINE); "use GPT" picks gpt-6.1-sol
     presentation: str = 'auto'  # qualified retained-input producer; Standard layout only remains an explicit preference
     sight: str = "gemini-3.8-flash"
-    fast: str = "gemini-3.8-flash"  # correctness comparison and prior timing evidence: BRAIN_FAST
+    fast: str = "claude-opus-5-5-fast"  # the quick look as the quick decision too: measured 2026-11-05, see BRAIN_FAST
     image: str = "gpt-image-2.5-flare"
     cells: str = "cellpose-sam"  # EdgeTAM automatic masks in the explicit commercial edition (__post_init__)
     quality: str = "tell"  # how a poor view is handled (QUALITY)
