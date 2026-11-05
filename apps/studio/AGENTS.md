@@ -15,7 +15,7 @@ The Project menu's **Project folder** inspector uses the same `project-storage`
 projection as the connector. It captures the Project opening, discards late reads
 after navigation and reveals only the host-resolved saved location. Existing host
 storage and portable folder layouts are distinguished; neither availability nor
-Reveal claims complete collection. It does not migrate, move or export records.
+Reveal claims complete collection. It does not migrate or move records. Private backup appears before export and public publication. Back up to GitHub opens the existing owner sign-in and new-private-repository flow; opening it sends nothing. Later changes require Back up again; this is not automatic sync.
 
 A Project with retained Studies uses its empty stage as a return point to those Studies:
 question, recorded experiment/input/report counts and Open Study. Counts are history,
