@@ -46,7 +46,7 @@ def test_new_fast_default_preserves_explicit_user_choices():
     from orchestrator.options import Settings
 
     settings = Settings()
-    assert settings.fast == 'gemini-3.8-flash'
-    for value in ('gemini-3.5-flash', 'off'):
+    assert settings.fast == 'claude-opus-5-5-fast'  # the default since 2026-11-05 (options.BRAIN_FAST)
+    for value in ('gemini-3.8-flash', 'gemini-3.5-flash', 'off'):
         assert settings.update({'fast': value}) == []
         assert settings.fast == value

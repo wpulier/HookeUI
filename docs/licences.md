@@ -88,7 +88,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | presentation | `auto` | `auto` |
 | image | `gpt-image-2.5-flare` | `gpt-image-2.5-flare` |
 | sight | `gemini-3.8-flash` | `gemini-3.8-flash` |
-| fast | `gemini-3.8-flash` | `gemini-3.8-flash` |
+| fast | `claude-opus-5-5-fast` | `claude-opus-5-5-fast` |
 | cells | `edgetam-automask` | `cellpose-sam` |
 | quality | `tell` | `tell` |
 | speculate | `needs-look` | `needs-look` |
