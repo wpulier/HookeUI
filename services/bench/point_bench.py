@@ -6,7 +6,9 @@ nothing. Arms: the full fast pass told to only point (REFLEX "after-voice"), and
 LEAN_POINT) on each model. Right calls and time per arm, both, because the reflex has to be right before the voice
 finishes its first sentence.
 
-  cd services && .venv/bin/python -m bench.point_bench [--repeats 2]
+  cd services && .venv/bin/python -m bench.point_bench [--repeats 2] [--arms full@static-first:gemini-3.8-flash,...]
+
+A full arm may name the prompt's order (fast.ORDERS) after "@"; without one it is fast.ORDER.
 
 Writes results/point-bench.json.
 """
@@ -54,7 +56,7 @@ def right(got: set[str], expected) -> bool:
     return any(got == option for option in (expected if isinstance(expected, tuple) else (expected,)))
 
 
-async def arm(name: str, model: str, repeats: int) -> dict:
+async def arm(name: str, model: str, repeats: int, order: str | None = None) -> dict:
     vision = make_vision(VISION[model].spec)
     tools = registry().prompt_section()
     rows = []
@@ -63,7 +65,7 @@ async def arm(name: str, model: str, repeats: int) -> dict:
             moment = notes(SCREEN)
             t0 = time.perf_counter()
             if name == "full":
-                d = await decide(moment, words, vision, tools, model, point_only=True)
+                d = await decide(moment, words, vision, tools, model, point_only=True, order=order)
             else:
                 d = await lean(moment, words, vision, model)
             ms = (time.perf_counter() - t0) * 1000
@@ -71,7 +73,7 @@ async def arm(name: str, model: str, repeats: int) -> dict:
             rows.append({"words": words, "got": sorted(got), "right": right(got, expected), "ms": round(ms)})
     times = sorted(r["ms"] for r in rows)
     pct = lambda p: times[min(len(times) - 1, int(round(p / 100 * (len(times) - 1))))]  # noqa: E731
-    return {"arm": f"{name}:{model}", "right": sum(r["right"] for r in rows), "of": len(rows),
+    return {"arm": f"{name}{'@' + order if order else ''}:{model}", "right": sum(r["right"] for r in rows), "of": len(rows),
             "p50Ms": pct(50), "p90Ms": pct(90), "misses": [r for r in rows if not r["right"]]}
 
 
@@ -85,7 +87,8 @@ async def main() -> None:
     results = []
     for spec in args.arms.split(","):
         name, model = spec.split(":", 1)
-        result = await arm(name, model, args.repeats)
+        name, _, order = name.partition("@")
+        result = await arm(name, model, args.repeats, order or None)
         results.append(result)
         print(f"{result['arm']:32s} {result['right']}/{result['of']}  p50 {result['p50Ms']} ms  p90 {result['p90Ms']} ms")
         for miss in result["misses"][:6]:

@@ -6,8 +6,11 @@ a given tool, answer now from notes, wait for the vision call (needs_look), or d
 (remarks, fillers and pieces of speech never act). Measured per model: right calls and time.
 
   cd services && .venv/bin/python -m bench.fast_bench [--models gemini-3.5-flash-lite,gemini-3.8-flash] [--level simple]
+      [--orders notes-first,static-first]
 
-The notes carry the user's level line (learner.py) as the app's do; --level none leaves it out.
+The notes carry the user's level line (learner.py) as the app's do; --level none leaves it out. --orders compares the
+prompt's orders (fast.ORDERS): each call's input, cached and written-to-cache tokens and its list price come from the
+provider's reported usage, so a cached order's saving is measured, not assumed.
 
 Writes results/fast-bench.json.
 """
@@ -24,10 +27,11 @@ import numpy as np
 from bench.hygiene import Variant, summarise as hygiene, variant_names
 from bench.tool_choice import level_line, registry
 from orchestrator.brain.context import Moment
-from orchestrator.brain.fast import decide
+from orchestrator.brain.fast import ORDERS, decide
 from orchestrator.keys import load_keys
 from orchestrator.options import VISION
-from orchestrator.vision import make_vision
+from orchestrator.vision import anthropic_usd, make_vision
+from research_worker.budget import PRICES
 
 BENCH = Path(__file__).resolve().parent
 SEEN = ("Leaf epidermis: a sheet of green cells with two oval stomata. Specimen: leaf epidermis, ~400x. Things in view: "
@@ -122,6 +126,35 @@ CASES = [
 ]
 
 
+class Metered:
+    """A vision client that keeps each call's reported usage, so the bench can say what a decision cost."""
+
+    def __init__(self, vision) -> None:
+        self.vision, self.calls = vision, []
+
+    async def ask(self, images, prompt, *args, **kwargs):
+        result = await self.vision.ask(images, prompt, *args, **kwargs)
+        self.calls.append(result)
+        return result
+
+
+def usd(spec: str, result) -> float | None:
+    """A call's list price from its reported usage: Claude's cache writes and reads (vision.anthropic_usd), Gemini's
+    and OpenAI's cached input at the model's cached price where PRICES has one."""
+    usage = result.usage or {}
+    if spec.startswith("anthropic:"):
+        return anthropic_usd(result.model, usage, fast=spec.endswith("+fast"))
+    price = PRICES.get(result.model)
+    tokens, out = usage.get("input"), usage.get("output")
+    if not isinstance(price, dict) or not isinstance(tokens, int) or not isinstance(out, int):
+        return None
+    cached = usage.get("cached") or 0
+    if cached and "cached" not in price:
+        return None
+    out += usage.get("thinking") or 0
+    return ((tokens - cached) * price["in"] + cached * price.get("cached", 0) + out * price["out"]) / 1e6
+
+
 def judged(d, expected) -> bool:
     """One expected call (see CASES) against the fast pass's decision; "a+b" acts with both at once."""
     used = [n for n, _ in d.actions]
@@ -153,9 +186,12 @@ async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--models", default="gemini-3.5-flash-lite,gemini-3.8-flash")
     parser.add_argument("--repeats", type=int, default=2)
-    parser.add_argument("--only", default="", help="run only the requests containing this text (case-insensitive)")
+    parser.add_argument("--only", default="", help="run only the requests containing this text (case-insensitive; "
+                                                   "several separated by |)")
     parser.add_argument("--menu", default="flat", help="how the tool menu is laid out (options.MENU)")
     parser.add_argument("--variants", default="as-is", help="prompt variants (bench/hygiene.py): as-is,reflowed,framed")
+    parser.add_argument("--orders", default="notes-first", help="the prompt's orders (fast.ORDERS): " + ",".join(ORDERS))
+    parser.add_argument("--out", default="fast-bench.json", help="the results file's name in bench/results/")
     parser.add_argument("--level", default="simple",
                         help="how to explain, as the app tells it (learner.py): none (no line), simple, technical, "
                              "technical+hints")
@@ -163,14 +199,20 @@ async def main() -> None:
     load_keys()
     summary, rows = {}, []
     for model in args.models.split(","):
-        for variant in variant_names(args.variants):
+        for variant, order in [(v, o) for v in variant_names(args.variants) for o in args.orders.split(",")]:
             right, ms = 0, []
-            vision, tools = Variant(make_vision(VISION[model].spec), variant), registry().prompt_section(args.menu)
+            spec = VISION[model].spec
+            vision = Metered(Variant(make_vision(spec), variant))
+            tools = registry().prompt_section(args.menu)
             for _ in range(args.repeats):
                 for text, screen, expected, *forbid in CASES:
-                    if args.only.lower() not in text.lower():
+                    if not any(part.strip().lower() in text.lower() for part in args.only.split("|")):
                         continue
-                    d = await decide(notes(screen, args.level), text, vision, tools, model)
+                    calls = len(vision.calls)
+                    d = await decide(notes(screen, args.level), text, vision, tools, model, order=order)
+                    made = vision.calls[calls:]
+                    usage = made[-1].usage if made else {}
+                    cost = usd(spec, made[-1]) if made else None
                     used = [n for n, _ in d.actions]
                     accepted = expected if isinstance(expected, tuple) else (expected,)
                     ok = any(judged(d, e) for e in accepted) and not set(markers(d)) & set(forbid[0] if forbid else ())
@@ -180,17 +222,32 @@ async def main() -> None:
                     # case that needs a look acted on without one.
                     acted = [] if d.needs_look else used
                     unasked = expected in ("none", "answer", "look", "unfinished", "cancel") and bool(acted)
-                    rows.append({"model": model, "variant": variant, "text": text, "expected": expected, "needs_look": d.needs_look,
-                                 "used": used + markers(d), "answer": d.answer, "ms": round(d.ms), "right": ok, "unasked": unasked})
-                    print(f"{'ok ' if ok else 'BAD'} {model[:16]:16} {text[:50]:50} -> {'LOOK' if d.needs_look else used + markers(d)} {round(d.ms)} ms  {d.answer[:60]}", flush=True)
-            summary[f"{model}/{variant}"] = {"level": args.level, "right": f"{right}/{len(ms)}", "p50Ms": round(float(np.median(ms))),
-                                             "p90Ms": round(float(np.percentile(ms, 90)))}
+                    rows.append({"model": model, "variant": variant, "order": order, "text": text, "expected": expected,
+                                 "needs_look": d.needs_look, "used": used + markers(d), "answer": d.answer, "ms": round(d.ms),
+                                 "right": ok, "unasked": unasked, "usage": usage, "usd": cost,
+                                 "error": made[-1].error if made else ""})
+                    print(f"{'ok ' if ok else 'BAD'} {model[:16]:16} {order[:6]} {text[:50]:50} -> {'LOOK' if d.needs_look else used + markers(d)} "
+                          f"{round(d.ms)} ms  in {usage.get('input')} cached {usage.get('cached')} wrote {usage.get('cacheWrite', 0)} "
+                          f"${cost if cost is None else round(cost, 4)}  {d.answer[:50]}", flush=True)
+            mine = [r for r in rows if r["model"] == model and r["variant"] == variant and r["order"] == order]
+            priced = [r["usd"] for r in mine if r["usd"] is not None]
+            inputs = [r["usage"].get("input") for r in mine if isinstance(r["usage"].get("input"), int)]
+            summary[f"{model}/{variant}/{order}"] = {
+                "level": args.level, "right": f"{right}/{len(ms)}", "p50Ms": round(float(np.median(ms))),
+                "p90Ms": round(float(np.percentile(ms, 90))), "p99Ms": round(float(np.percentile(ms, 99))), "maxMs": round(max(ms)),
+                "over3s": sum(m > 3000 for m in ms), "errors": sum(bool(r["error"]) for r in mine),
+                "usdPerCall": round(sum(priced) / len(priced), 4) if priced else None, "usd": round(sum(priced), 2),
+                "unpriced": len(mine) - len(priced), "inputPerCall": round(sum(inputs) / len(inputs)) if inputs else None,
+                "cachedPerCall": round(sum(r["usage"].get("cached") or 0 for r in mine) / len(mine)) if mine else None,
+                "cacheWrites": sum(bool(r["usage"].get("cacheWrite")) for r in mine)}
     for model in args.models.split(","):
-        summary[f"{model} hygiene"] = hygiene([r for r in rows if r["model"] == model])
+        for order in args.orders.split(","):
+            summary[f"{model}/{order} hygiene"] = hygiene([r for r in rows if r["model"] == model and r["order"] == order])
     print(json.dumps(summary, indent=2))
     if args.only:
         return  # a subset never replaces the whole bench's results
-    (BENCH / "results" / "fast-bench.json").write_text(json.dumps({"summary": summary, "rows": rows}, indent=2))
+    (BENCH / "results").mkdir(exist_ok=True)
+    (BENCH / "results" / args.out).write_text(json.dumps({"summary": summary, "rows": rows}, indent=2))
 
 
 if __name__ == "__main__":

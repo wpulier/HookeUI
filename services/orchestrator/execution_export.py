@@ -14,7 +14,7 @@ def redacted(detail: dict) -> dict:
     for row in detail.get('steps', []):
         # Explicit fields prevent future receipt additions exposing user content.
         step = {key: row[key] for key in ('operation', 'outcome', 'ms', 'provider', 'model', 'reportedModel',
-                'phase', 'adapterMs', 'inputTokens', 'outputTokens', 'outputChars', 'candidateCount', 'groundingCount',
+                'phase', 'adapterMs', 'inputTokens', 'outputTokens', 'cachedTokens', 'cacheWriteTokens', 'outputChars', 'candidateCount', 'groundingCount',
                 'parseOk', 'finishReason', 'responseStatus') if key in row}
         step.update(id=alias(row.get('id')), parent=alias(row.get('parent')))
         if row.get('operation') == 'voice-boundary':

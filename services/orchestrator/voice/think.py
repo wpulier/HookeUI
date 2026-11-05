@@ -34,7 +34,6 @@ MAX_ROUNDS = 8  # tool rounds one task may take before it reports what it has
 THINK_TIMEOUT_S = 90.0  # a task still running after this reports what it has, said as unfinished
 MAX_TOKENS = 4000  # Opus thinks within max_tokens: room for its thinking beside the answer
 TOOL_OUTPUT_CHARS = 6000
-CACHE_READ = {"claude-opus-5-5": 0.05}  # a cache read's share of the input price (0.1 for other models)
 
 REPORT = {
     "name": "report",
@@ -249,19 +248,14 @@ class ClaudeThinker:
 
     async def _post(self, body: dict) -> dict:
         from research_worker import api_usage
+        from ..vision import anthropic_usage, anthropic_usd
 
         async with api_usage.attempt(self.model, provider="Anthropic", area="Live", out_tokens=body["max_tokens"]):
             response = await self._http().post("/v1/messages", json=body)
             response.raise_for_status()
             reply = response.json()
-            u = reply.get("usage") or {}
-            price = api_usage.PRICES.get(self.model)
-            tokens = (u.get("input_tokens"), u.get("output_tokens"))
-            # Cache writes at 1.25x the input price, reads at its CACHE_READ share (Opus 5.5: $0.20 of $4 per MTok).
-            cached = (int(u.get("cache_creation_input_tokens") or 0) * 1.25
-                      + int(u.get("cache_read_input_tokens") or 0) * CACHE_READ.get(self.model, 0.1))
-            usd = (((tokens[0] + cached) * price["in"] + tokens[1] * price["out"]) / 1e6
-                   if isinstance(price, dict) and all(isinstance(n, int) for n in tokens) else None)
+            # Cache writes at 1.25x the input price, reads at the model's cached price (Opus 5.5: $0.20 of $4 per MTok).
+            usd = anthropic_usd(self.model, anthropic_usage(reply.get("usage") or {}))
             api_usage.record(self.model, usd, provider="Anthropic", area="Live",
                              basis="Reported tokens · list price before discounts" if usd is not None
                              else "Usage or price unavailable")

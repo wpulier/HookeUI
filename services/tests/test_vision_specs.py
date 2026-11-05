@@ -77,7 +77,7 @@ def test_claude_answers_are_read_and_fast_mode_and_fallbacks_are_asked_for(monke
         "model": "claude-opus-5-5", "stop_reason": "end_turn", "usage": {"input_tokens": 1000, "output_tokens": 50},
         "content": [{"type": "thinking", "thinking": ""}, {"type": "text", "text": '{"answer": "a stoma"}'}]})
     assert result.data == {"answer": "a stoma"} and not result.error
-    assert result.usage == {"input": 1000, "output": 50}
+    assert result.usage == {"input": 1000, "output": 50, "cached": 0, "cacheWrite": 0}  # nothing cached: a plain prompt
     body = sent["body"]
     assert sent["path"] == "/v1/messages" and body["speed"] == "fast" and body["fallbacks"] == "default"
     assert body["output_config"] == {"effort": "low"} and body["messages"][0]["content"][0]["type"] == "image"
