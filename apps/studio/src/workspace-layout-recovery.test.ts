@@ -66,3 +66,12 @@ test('an internal check of the arrangement goes to Activity, never a toast over 
  expect(t.events).toEqual(['The Tab layout was not saved: a tab needs a bounded name and identity']);
  expect(t.current.retry.hidden).toBe(false); // Retry stays on the layout line
 });
+
+// First visits to connector-created Projects orient the person without replacing saved layouts.
+test('Overview defaults only for this successfully loaded, unarranged Project',()=>{
+ const current=Object.assign(Object.create(WorkspaceViews.prototype),{session:'new',loadedRevision:0,loadedProject:'new'});
+ expect(current.hasNoSavedArrangement('new')).toBe(true);
+ expect(current.hasNoSavedArrangement('old')).toBe(false);
+ current.loadedRevision=2;expect(current.hasNoSavedArrangement('new')).toBe(false);
+ current.loadedRevision=0;current.loadedProject='';expect(current.hasNoSavedArrangement('new')).toBe(false);
+});

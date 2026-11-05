@@ -77,12 +77,12 @@ _pending: dict[str, dict] = {}  # handle -> {device_code, interval, until}: the 
 
 
 def status(environ: Mapping[str, str] = os.environ) -> dict:
-    """{"setUp", "signedIn", "says"}: what the studio shows beside Share with everyone."""
+    """{"setUp", "signedIn", "says"}: shared sign-in state for private backup and publication."""
     if not client_id(environ):
         return {"setUp": False, "signedIn": False, "says": f"One-click GitHub sign-in isn't set up in this app yet. {TODAY}."}
     signed = bool(keychain.get(ACCOUNT))
     return {"setUp": True, "signedIn": signed,
-            "says": "Signed in to GitHub" if signed else "Sign in to GitHub to share with everyone"}
+            "says": "Signed in to GitHub" if signed else "Sign in to GitHub to continue"}
 
 
 def start(environ: Mapping[str, str] = os.environ, post: Post = _post) -> dict:

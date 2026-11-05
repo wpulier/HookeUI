@@ -323,21 +323,18 @@ def test_github_gives_a_message_without_its_final_newline_and_that_is_the_same_m
     assert not same_message(sent.replace('Leaf', 'Root').rstrip('\n'), sent) and not same_message(None, sent)
 
 
-def test_a_first_publication_that_did_not_finish_is_tried_again_under_the_same_name():
-    from orchestrator.github_rest import Client
-    from orchestrator.project_remote_github import create_repository
+def test_existing_single_commit_repository_is_never_reclaimed_as_a_failed_backup():
     github = GitHub()
     client = Client(http=github)
     repo, placeholder = create_repository(client, 'leaf-cells', private=False, description='x')
-    github.repos[repo]['refs']['hooke-pending-1553f979c45b'] = placeholder  # what the failed push left
-    again, same = create_repository(client, 'leaf-cells', private=False, description='x')
-    assert (again, same) == (repo, placeholder)
-    # A repository with any history of its own, or of the other visibility, is never taken over.
-    with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
-        create_repository(client, 'leaf-cells', private=True, description='x')
-    github.repos[repo]['refs']['notes'] = placeholder
+    github.repos[repo]['refs']['hooke-pending-1553f979c45b'] = placeholder
+    # Without a durable creation receipt even a failed Hooke creation is ambiguous.
     with pytest.raises(RemoteRefused, match='already have a repository named leaf-cells'):
         create_repository(client, 'leaf-cells', private=False, description='x')
+    assert github.repos[repo]['refs']['main'] == placeholder
+    github.init('ada/unrelated')
+    with pytest.raises(RemoteRefused, match='already have a repository named unrelated'):
+        create_repository(client, 'unrelated', private=False, description='x')
 
 
 def _served(monkeypatch, answers):

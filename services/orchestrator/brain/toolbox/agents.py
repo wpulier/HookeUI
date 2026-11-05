@@ -45,6 +45,7 @@ def add_agent_tools(registry: Registry, services) -> None:
                 return f"{launch.label} was already started for this request ({launch.status}); no other was started"
         try:
             launch = await conductor().start(str(args.get("program") or ""), str(args.get("task") or ""),
+                                             project=getattr(ctx.asked, "session", None),
                                              by="voice" if ctx.channel == "voice" else "chat")
         except Refused as error:
             raise ToolFailed(error.says, next=error.next or None) from error

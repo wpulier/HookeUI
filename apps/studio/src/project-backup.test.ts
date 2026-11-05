@@ -154,3 +154,20 @@ test('a backup that was removed is no longer offered', async () => {
   await vi.waitFor(() => expect(view.element.textContent).toContain('Not backed up yet.'));
   view.dispose();
 });
+
+
+test('the direct GitHub entrance prepares a private backup without sending until confirmed', async () => {
+  dom(); const a = actions();
+  const view = projectBackup(a, () => true, 'Cells under stress');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Back up to GitHub…'));
+  click(view.element, 'Back up to GitHub…');
+  const [folder, github] = radios(view.element);
+  expect(folder.checked).toBe(false); expect(github.checked).toBe(true);
+  expect(field(view.element, 'New private GitHub repository name').value).toBe('cells-under-stress-backup');
+  await vi.waitFor(() => expect(a.github.status).toHaveBeenCalled());
+  expect(a.backUp).not.toHaveBeenCalled();
+  click(view.element, 'Cancel');
+  await vi.waitFor(() => expect(view.element.textContent).toContain('Not backed up yet.'));
+  expect(a.backUp).not.toHaveBeenCalled();
+  view.dispose();
+});

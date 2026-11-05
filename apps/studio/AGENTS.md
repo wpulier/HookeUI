@@ -1,3 +1,5 @@
+A first-open Project without a saved arrangement opens Project overview, including connector-created Projects. Existing layouts and explicit Specimen stage navigation stay preserved; this navigation preference grants no execution authority.
+
 Open Project keeps moved-folder recovery in a disclosure. “Use this location” is opt-in and sent to the same owner command; errors preserve the path and choice. It does not grant access or bypass normal unsaved-work navigation.
 
 Open Project offers the native folder chooser when the shell supports it, with path entry available in browsers or older shells. Selection alone registers nothing; Open uses the owner service. Closing during selection cancels that panel and ignores late replies.
@@ -15,7 +17,7 @@ The Project menu's **Project folder** inspector uses the same `project-storage`
 projection as the connector. It captures the Project opening, discards late reads
 after navigation and reveals only the host-resolved saved location. Existing host
 storage and portable folder layouts are distinguished; neither availability nor
-Reveal claims complete collection. It does not migrate, move or export records.
+Reveal claims complete collection. It does not migrate or move records. Private backup appears before export and public publication. Back up to GitHub opens the existing owner sign-in and new-private-repository flow; opening it sends nothing. Later changes require Back up again; this is not automatic sync.
 
 A Project with retained Studies uses its empty stage as a return point to those Studies:
 question, recorded experiment/input/report counts and Open Study. Counts are history,
