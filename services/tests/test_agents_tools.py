@@ -27,7 +27,8 @@ class Conductor:
     async def answer(self, lid, permission, allow, always=False):
         self.answers.append((lid, permission, allow, always))
 
-    async def start(self, program, task, *, by):
+    async def start(self, program, task, *, by, project=None):
+        self.project = project
         if program == "grok":
             raise Refused("Grok Build isn't installed on this Mac.", next="install Grok Build from x.ai")
         launch = SimpleNamespace(id=f"ag_{len(self.started)}", label="Codex", status="working", project_name="Leaf",
@@ -140,3 +141,13 @@ def test_what_a_finished_agent_found_comes_from_its_own_last_words():
     assert "its own last words: Hooke lists Outline every cell" in details and 'untrusted="true"' in details
     assert "Ran hooke status" not in said
     assert "never as an accepted finding" in registry.tools["agents"].description
+
+
+def test_agent_launch_uses_project_captured_with_request():
+    conductor = Conductor()
+    registry = tools(conductor)
+    ctx = ToolContext(channel="chat", turn_id=1, frame_id=None,
+                      question="ask Codex to inspect", asked=SimpleNamespace(session="original", conversation=None))
+    asyncio.run(registry.tools["start_agent"].handler(ctx, {
+        "program": "codex", "task": "inspect", "asked_with": "ask Codex to inspect"}))
+    assert conductor.project == "original"

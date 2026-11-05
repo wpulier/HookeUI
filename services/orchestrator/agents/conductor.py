@@ -161,6 +161,7 @@ class Conductor:
         self.launches: dict[str, Launch] = {}
         self.adapters: dict[str, Adapter] = {}
         self._tasks: set[asyncio.Task] = set()
+        self._admission = asyncio.Lock()
         self._dirty = False
         self._flush: asyncio.Task | None = None
         self._programs: list[dict] | None = None
@@ -300,6 +301,16 @@ class Conductor:
     # --- starting -------------------------------------------------------------------------------------------------
     async def start(self, program: str, task: str, *, project: str | None = None, by: str = "studio",
                     budget_usd: float | None = None) -> Launch:
+        # Capture the requested Project before discovery or waiting for another admission.
+        # Capture only the identity here; catalogue validation stays off the live event loop.
+        project = project or self.side.current_project()
+        if not project:
+            raise Refused("Open a Project first: the agent works in one Project.", next="open or make a Project", status=409)
+        async with self._admission:
+            return await self._start(program, task, project=project, by=by, budget_usd=budget_usd)
+
+    async def _start(self, program: str, task: str, *, project: str, by: str,
+                     budget_usd: float | None) -> Launch:
         known = installed.BY_ID.get(program)
         if known is None:
             raise Refused(f"Hooke can't start {program}.", next="choose Codex, Claude Code, Grok Build or Gemini CLI", status=400)
@@ -444,14 +455,17 @@ class Conductor:
                     launch.state = "idle"
                     self._note(launch, "note", "Interrupted")
                 else:
+                    why = event.get("error") or "Its turn failed"
                     launch.state = "failed"
-                    launch.why = event.get("error") or "Its turn failed"
-                    self._note(launch, "note", launch.why)
-                    self.side.say({"agent": launch.label, "event": "failed", "why": short(launch.why, 200),
+                    adapter = self.adapters.get(launch.id)
+                    try:
+                        if adapter is not None:
+                            await adapter.stop()
+                    finally:
+                        self._end(launch, "failed", why)
+                    self.side.say({"agent": launch.label, "event": "failed", "why": short(why, 200),
                                    "what Hooke did": "ended it and revoked its connection; what it kept stays"},
                                   urgent=True)
-                    self.side.activity(f"{launch.label} failed: {short(launch.why, 160)}", state="failed",
-                                       id=f"agent:{launch.id}", ref={"agent": launch.label})
         elif kind == "delta":
             launch.live = (launch.live + (event.get("text") or ""))[-2000:]
         elif kind == "text":
@@ -512,8 +526,8 @@ class Conductor:
         elif kind == "warning":
             self._note(launch, "note", event.get("text") or "A warning")
         elif kind == "exit":
-            if launch.state not in ("stopped", "failed"):
-                why = event.get("why") or "it ended"
+            if launch.ended_at is None:
+                why = launch.why or event.get("why") or "it ended"
                 tail = "; ".join(event.get("stderr") or [])[-300:]
                 self._end(launch, "failed" if launch.state != "done" else "done",
                           f"Its program ended ({why})" + (f": {tail}" if tail and launch.state != "done" else ""))

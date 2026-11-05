@@ -25,6 +25,7 @@ class Side:
     def skill(self): return "/opt/SKILL.md"
     def door_url(self): return self.door
     def today(self): return "2026-11-03"
+    def current_project(self): return "s_open"
     def project(self, sid): return sid or "s_open", "Leaf stomata"
 
     def connect(self, label, kind, launch, project):
@@ -285,4 +286,64 @@ def test_list_messages_carry_a_peek_not_the_whole_transcript(made):
         assert side.sent[-1]["type"] == "agents" and len(row["transcript"]) == 6 and row["folder"] is None
         assert len(launch.wire(full=True)["transcript"]) == 21
         await conductor.close()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("program", ["codex", "claude-code"])
+def test_failed_turn_ends_program_access_and_reservation(made, program):
+    conductor, side, _ = made
+
+    async def scenario():
+        launch = await conductor.start(program, "inspect the selected material")
+        await settle(conductor, lambda: Scripted.made and Scripted.made[0].spec)
+        adapter = Scripted.made[0]
+        adapter.emit("turn", state="failed", error="allowance exhausted")
+        await settle(conductor, lambda: launch.state == "failed")
+        try:
+            assert adapter.stopped
+            assert launch.ended_at is not None
+            assert launch.id not in side.held
+            assert ("end", launch.project, launch.connection) in side.calls
+            assert not os.path.exists(os.path.join(os.path.dirname(launch.folder), "credential"))
+            await settle(conductor, lambda: launch.id not in conductor.adapters)
+            assert side.calls.count(("end", launch.project, launch.connection)) == 1
+        finally:
+            await conductor.close()
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("program,limit", [("codex", 4), ("claude-code", 1)])
+def test_concurrent_starts_share_capacity_and_allowance(made, program, limit):
+    conductor, side, _ = made
+    side.allowance_left = lambda: 3.0 - sum(side.held.values())
+
+    async def scenario():
+        outcomes = await asyncio.gather(*(conductor.start(program, "inspect") for _ in range(5)),
+                                        return_exceptions=True)
+        try:
+            assert sum(not isinstance(o, Exception) for o in outcomes) == limit
+            assert all(not isinstance(o, Exception) or isinstance(o, Refused) for o in outcomes)
+            assert sum(side.held.values()) <= 3.0
+        finally:
+            await conductor.close()
+    asyncio.run(scenario())
+
+
+def test_start_captures_project_before_slow_program_discovery(made):
+    conductor, side, _ = made
+    current = ["original"]
+    side.current_project = lambda: current[0]
+    side.project = lambda sid: (sid or current[0], "Project")
+    def discover(program):
+        current[0] = "different"
+        return "/opt/bin/codex"
+    conductor.find = discover
+
+    async def scenario():
+        launch = await conductor.start("codex", "inspect")
+        try:
+            assert launch.project == "original"
+            assert side.calls[0][-1] == "original"
+        finally:
+            await conductor.close()
     asyncio.run(scenario())

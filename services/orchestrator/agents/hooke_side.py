@@ -56,6 +56,9 @@ class HookeSide:
         return self.door
 
     # --- the Project, the connection, the assignment --------------------------------------------------------------
+    def current_project(self) -> str | None:
+        return self.built.day.sid
+
     def project(self, sid: str | None) -> tuple[str, str]:
         from .conductor import Refused
 

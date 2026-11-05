@@ -418,41 +418,11 @@ def _taken(name):
     raise RemoteRefused(f'You already have a repository named {name}; choose another name')
 
 
-def _unfinished(client: Client, name: str, *, private: bool):
-    """(owner/name, its placeholder) when the signed-in account's repository of that name is one Hooke made for a
-    first publication or backup that did not finish: its own, of the visibility asked for, still holding only
-    GitHub's starter commit and Hooke's pending branches. None for any other repository: it is never reused."""
-    from .github_pack import PENDING
-    _, me = client.ok('GET', '/user', what='reading your GitHub account')
-    login = me.get('login') if isinstance(me, dict) else None
-    if not isinstance(login, str) or not re.fullmatch(r'[A-Za-z0-9-]{1,39}', login):
-        return None
-    repo = f'{login}/{name}'
-    status, data = client.ok('GET', f'/repos/{repo}', what='reading the repository', allow=(404,))
-    if (status != 200 or (data.get('owner') or {}).get('login') != login
-            or bool(data.get('private')) != bool(private)):
-        return None
-    status, refs = client.ok('GET', f'/repos/{repo}/git/matching-refs/heads/', what='reading the repository',
-                             allow=(404, 409))
-    names = {str(r.get('ref', '')).removeprefix('refs/heads/') for r in refs if isinstance(r, dict)} \
-        if status == 200 and isinstance(refs, list) else set()
-    if 'main' not in names or any(n != 'main' and not n.startswith(PENDING) for n in names):
-        return None
-    records = GitHubRecords(client, repo)
-    placeholder = records.head()
-    if not placeholder:
-        return None
-    message, _, parent = records._commit(placeholder)
-    if parent is not None or 'Hooke-Snapshot:' in message:
-        return None  # it has history, or a Hooke version: a real repository, never taken over
-    return repo, placeholder
-
-
 def create_repository(client: Client, name: str, *, private: bool, description: str, wait=time.sleep):
     """Make a new repository under the signed-in account. Returns (owner/name, its placeholder commit).
 
-    When the name is taken by a repository Hooke made for a first publication or backup that did not finish (live
-    test, ticket 03), that one is used again, so trying again needs no new name."""
+    Existing names are refused. A starter commit and pending branches cannot prove that Hooke created a repository;
+    retrying an interrupted creation therefore requires another name until durable creation receipts exist."""
     if not re.fullmatch(r'[A-Za-z0-9_.-]{1,100}', name) or name in ('.', '..'):
         raise RemoteRefused('Choose a repository name of letters, digits, dashes, dots or underscores')
     status, data = client.ok('POST', '/user/repos', {'name': name, 'private': bool(private),
@@ -460,7 +430,7 @@ def create_repository(client: Client, name: str, *, private: bool, description: 
                                                      'auto_init': True, 'has_wiki': False, 'has_projects': False},
                              what='creating the repository', allow=(422,))
     if status == 422:
-        return _unfinished(client, name, private=private) or _taken(name)
+        return _taken(name)
     repo = repository(data.get('full_name', ''))
     records = GitHubRecords(client, repo)
     for _ in range(10):

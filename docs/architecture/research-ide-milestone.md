@@ -55,3 +55,5 @@ agent's independent filesystem access.
 Remote-format work builds on [Project format v2](hooke-project-format-v2.md).
 Do not introduce a second Project store, agent-specific backup path or credentials
 inside portable Project files.
+
+Repository names already in use are refused, including interrupted first backups without a durable creation receipt. Choose a new name; a single starter commit is not proof that Hooke owns that repository. Existing configured destinations continue to update through their retained identities.

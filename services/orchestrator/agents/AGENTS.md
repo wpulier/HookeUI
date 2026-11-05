@@ -69,6 +69,8 @@ it when asked.
 - **The voice says it once**: an ask, a finish and a failure reach the voice through the narrator (`HookeSide.say`,
   `notify`), each with a `still` check, so an ask already answered or a turn already followed is told, never said.
 - **Hooke's words are Hooke's**: everything relayed starts with `[Hooke]`; the instructions say it is never consent.
+- **Admission is serialized**: capture the requested Project before discovery, then check capacity and reserve the
+  allowance in one admission. Switching Projects while discovery runs never changes the launch’s Project.
 - **It ends whole**: program, process group, credential file, connection and Project access, on Stop, failure,
   Hooke quitting, and at the next start after a crash.
 - **Spend counts**: reported spend joins the day's allowance (`research/ledger.py` `DayLedger.others`); Claude Code's
