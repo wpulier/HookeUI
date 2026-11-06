@@ -27,7 +27,7 @@ def front(web):
 def test_an_untouched_project_reads_empty_and_writes_nothing(front):
     client, built, record = front
     before = len(built.hub.resources.projects.list(built.day.sid))
-    assert record.read(built.day.sid) == {'format': 1, 'about': None, 'page': None, 'next': [], 'changes': [], 'revision': 0}
+    assert record.read(built.day.sid) == {'format': 1, 'about': None, 'page': None, 'visual': None, 'next': [], 'changes': [], 'revision': 0}
     assert client.get('/api/project-front', params={'session': built.day.sid}).json()['front']['revision'] == 0
     assert len(built.hub.resources.projects.list(built.day.sid)) == before
 
@@ -118,3 +118,48 @@ def test_the_page_is_served_sandboxed_and_only_for_html(front):
     refused = client.get(f"/api/scientific-files/{other['id']}/page",
                          params={'session': other['session'], 'revision': other['revision']})
     assert refused.status_code == 400
+
+
+def test_the_main_visual_is_an_exact_picture_or_page(front):
+    client, built, record = front
+    sid = built.day.sid
+    picture = retained(client, built, 'cells.png', body=b'\x89PNG fixture bytes', request='picture-upload-0123456789')
+    state = record.set_visual(sid, {'id': picture['id'], 'revision': picture['revision']}, attribution=OWNER)
+    assert state['visual']['digest'] == picture['digest'] and state['visual']['kind'] == 'image'
+    assert state['visual']['name'] == 'cells.png' and state['visual']['sha256']
+    page = retained(client, built, 'entry.html')
+    assert record.set_visual(sid, page, attribution=AGENT)['visual']['kind'] == 'page'
+    with pytest.raises(InvalidProject, match='main visual'):
+        record.set_visual(sid, retained(client, built, 'notes.md', request='notes-upload-0123456789'), attribution=OWNER)
+    assert record.set_visual(sid, None, attribution=OWNER)['visual'] is None
+    chosen = client.post('/api/project-front/visual', headers=FRONT,
+                         json={'session': sid, 'visual': {'id': picture['id'], 'revision': picture['revision']}})
+    assert chosen.status_code == 200 and chosen.json()['front']['visual']['kind'] == 'image'
+
+
+def test_the_projects_library_lists_each_projects_front_and_studies(front):
+    client, built, record = front
+    sid = built.day.sid
+    record.set_about(sid, 'A Project.', attribution=OWNER)
+    listed = client.get('/api/project-library')
+    assert listed.status_code == 200
+    row = next(r for r in listed.json()['projects'] if r['session'] == sid)
+    assert row['about'] == 'A Project.' and row['studies'] == 0 and row['savedIn'] in ('folder', 'mac')
+    assert row['visual'] is None and row['page'] is None
+
+
+def test_library_rows_are_reused_until_the_project_or_its_record_changes(front, monkeypatch):
+    from orchestrator import project_front
+    _, built, record = front
+    sid = built.day.sid
+    project_front._LIBRARY_CACHE.clear()
+    reads = []
+    original = record.read
+    monkeypatch.setattr(record, 'read', lambda session: reads.append(session) or original(session))
+    project_front.library_rows(record, built, [sid])
+    project_front.library_rows(record, built, [sid])
+    assert reads == [sid]  # unchanged: the second read reuses the row
+    record.set_about(sid, 'Changed.', attribution=OWNER)
+    reads.clear()
+    rows = project_front.library_rows(record, built, [sid])
+    assert reads == [sid] and rows[0]['about'] == 'Changed.'
