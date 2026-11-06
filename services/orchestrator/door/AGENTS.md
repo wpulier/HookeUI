@@ -222,6 +222,15 @@ requires explicit developer confirmation mode plus its Studio origin/referrer an
 header; this is not an OS-level isolation boundary against local shell access.
 Catalogue reads and complete synchronous grant operations run off the event loop.
 
+## Frozen rules (ADR 0031)
+
+`POST studies/{id}/rules` takes exactly session, requestKey, name and artifact (an exact retained JSON file with a
+`format`). It appends a `frozenRules` row with Hooke's time and the caller's attribution; the Study read returns it.
+Retrying the same requestKey returns the same row, a changed body under it conflicts, and freezing the same file
+revision twice refuses. A matrix capability input typed `artifact.frozen-rule` (the `frozen-gate` comparison) admits
+only such a file, frozen before every other input of that step was saved; `run_matrix` refuses otherwise, for every
+caller. Freeze the rule before the results it judges exist. Nothing here starts work.
+
 ## Study correspondence
 
 Status advertises `interface.studyQuestions`. `GET studies/{id}/questions` lists saved

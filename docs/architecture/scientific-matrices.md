@@ -116,6 +116,60 @@ context/target pairs instead of pooling screens silently. Older `matrix-prepare`
 universe/provenance contract and therefore refuse this new merge; they still work through their existing fitting path.
 Reprepare explicitly when combining sources. Model blending remains the separate `response-combine` operation.
 
+## Folder capabilities (ADR 0031)
+
+A new matrix operation is a reviewed catalog folder, not an `engine.py` edit. Its `model.toml` declares
+`runner = "builtin-cpu"`, `adapter = "adapter:run"` and one `needs_to_run = ["install:<runtime>"]`; `adapter.py`
+beside it defines `run(inputs, params, output, check) -> (result_path, summary)`, inputs being materialized files by
+port. `catalog.ids()` lists it after the engine operations, and every caller reaches it through the same descriptor,
+`run_matrix`, workflow and door paths. `folder_worker.py` runs it in the same confined worker. Only its folder is
+importable there, so it cannot reach `engine.py`. Its generation, `matrix-folder-v1.<sha256>`, covers its folder
+files, the folder worker, the resource profile and the prepared runtime receipt, so adding a folder changes no other
+operation's generation. The descriptor never lists the folder's host path. User and channel entries are never matrix
+capabilities.
+
+The VCC 2026 entry pipeline is the first set of folder capabilities. Each is ported unchanged in arithmetic and
+random-number order from the 5 Nov 2026 scripts:
+
+| Folder | Runtime | Does | Ported from |
+|---|---|---|---|
+| `screen-effects` | matrix CPU | per-target log fold changes of one pseudobulk screen on a declared gene axis, plus each target's strength row | Track E `effects.py` |
+| `transfer-factors` | matrix CPU | factors `exp(a m + s (Lhat - m))`, with shrinkage k, rank r and an optional per-target strength weight `n/(n+half)` | `build_factors.py`, `c3.py` |
+| `vcc-count-emission` | matrix CPU | resampled control cells moved by binomial thinning / added Poisson, streamed into CSR | `generate.py` |
+| `vcc-entry-check` | matrix CPU | labels, gene axis, counts and sampled factor correlations read back from disk | `check.py` |
+| `vcc-fold-score` | cell-eval2 0.20.0 / AnnData 0.13.4 | `cell-eval2 run` in-process after a tiny synthetic end-to-end score | `eval/score_fold.sh` |
+| `vcc-package` | vcc-cli 0.3.0 | official `run_prep` with a measured memory forecast, then a hash-for-hash check of the package | `vcc prep` |
+| `frozen-gate` | matrix CPU | a `frozen-gate-v1` rule (scaled gains over spans: overall, each metric, target subsets) on two fold scores | `eval/decide.py` |
+
+Points that matter:
+
+- **Exact strength weighting.** C3's weighting interpolates in log space between the float32 factor sets at shift 0
+  and at shift a. Evaluating a_t directly in one pass differs in about 386,000 entries by float rounding, so the
+  folder keeps C3's order of operations.
+- **Emission disk admission.** Emission is admitted against the controls' measured density: a resampled cell gains
+  no genes. It is not admitted against the worst-case dense size, the "2x dense CSR" rule of gap row 9 (about 160 GB
+  for 360,000 cells). The full C3 entry needed 16 GB.
+- **Plain string names.** Cell and gene names are written as plain string arrays, the encoding Track E's pandas 2
+  produced. pandas 3's default would write nullable strings and change the file bytes.
+- **Packaging memory forecast.** Peak footprint is 2.10x the CSR payload plus 1 GiB; resident memory is 0.80x plus
+  1 GiB. Three full entries measured about 32.0 GB footprint and 10.4–12.0 GB resident at about 1.99e9 stored
+  entries. The forecast is admitted against the worker's RSS ceiling and the computer's physical memory, instead of
+  the engine packager's 8 GiB materialization guard, which refuses a real full-density entry.
+
+On 5 Nov 2026, run through the door on a private instance, the chain rebuilt C3 from the public K562 screen. The
+factors matched `e7269e59…`, the emitted H5AD `21931e90…` and the package `be1107ce…`, each identical to the
+submitted files. See the reproduction record in the PR. `services/bench/vcc_entry_reproduction.py` repeats the run.
+Nothing is uploaded.
+
+### Frozen rules
+
+A Study freezes a rule with `POST /api/agent/v1/studies/{study}/rules {session, requestKey, name, artifact}`. The
+rule is an exact retained JSON file with a `format`. Its `frozenRules` row has Hooke's time and is only ever appended.
+A capability input typed `artifact.frozen-rule` admits only a frozen file, and only when every other input of that
+step was saved after the freeze. `run_matrix` enforces this for every caller and records which Study froze the rule,
+and when, in the receipt as `matrixOperation.frozenRules`. A rule frozen after its scores existed, or a loose file,
+refuses with words.
+
 ## Statistical meaning
 
 ### Raw-cell reference projection

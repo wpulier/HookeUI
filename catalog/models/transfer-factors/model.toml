@@ -1,0 +1,143 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "transfer-factors"
+name = "Transfer factors"
+runs = "cpu"
+version = "1"
+licence = ["transfer-factors"]
+kind = "tool-function"
+what = "Per-target expression factors transferred from one screen's effects"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from VCC 2026 Track E build_factors.py and campaign c3.py; no pretrained weights" }
+credit = { authors = "HookeUI contributors", link = "https://github.com/wpulier/HookeUI" }
+component = { what = "Effect-transfer expression factors", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 2048
+load_limit_s = 30
+operation = "transfer-factors"
+category = "Research"
+experimental = true
+outcomes = { empty = "No panel target", unsupported = "Effects on another gene axis, or a panel the screen does not cover at all" }
+description = "Shrinks each target's effect by its cells (k), optionally keeps a rank-r part, and writes per-target factors exp(a*m + s*(Lhat - m)) for every context, m being the panel-mean shift. Optionally weights the shift per target by its screen strength, as the VCC 2026 C3 entry did."
+
+[[inputs]]
+id = "effects"
+type = "artifact.npz"
+label = "Screen effects"
+
+[[inputs]]
+id = "genes"
+type = "artifact.csv"
+label = "Gene axis (gene_name column)"
+
+[[inputs]]
+id = "perts"
+type = "artifact.csv"
+label = "Panel targets (target_gene column)"
+
+[[inputs]]
+id = "a"
+type = "number"
+label = "Shared shift weight a"
+default = 1.0
+min = 0.0
+max = 2.0
+agent = true
+tooltip = "Weight of the panel-mean shift m. 0 drops the shared response."
+
+[[inputs]]
+id = "s"
+type = "number"
+label = "Target-specific scale s"
+default = 0.5
+min = 0.0
+max = 2.0
+agent = true
+tooltip = "Scale of each target's own effect beyond the panel mean."
+
+[[inputs]]
+id = "rank"
+type = "int"
+label = "Rank (0 = none)"
+default = 0
+min = 0
+max = 512
+agent = true
+tooltip = "Keep only this many components of the shrunk effects (truncated SVD); 0 keeps all."
+
+[[inputs]]
+id = "k"
+type = "number"
+label = "Shrinkage k (cells)"
+default = 50.0
+min = 0.0
+max = 100000.0
+agent = true
+tooltip = "Each effect is shrunk by cells/(cells+k)."
+
+[[inputs]]
+id = "clip_low"
+type = "number"
+label = "Lowest log factor"
+default = -5.0
+min = -20.0
+max = -0.01
+agent = true
+tooltip = "Log factors are clipped to this floor."
+
+[[inputs]]
+id = "clip_high"
+type = "number"
+label = "Highest log factor"
+default = 2.0
+min = 0.01
+max = 20.0
+agent = true
+tooltip = "Log factors are clipped to this ceiling."
+
+[[inputs]]
+id = "strength_weight"
+type = "choice"
+label = "Per-target strength weight"
+default = "none"
+options = ["none", "saturating"]
+agent = true
+tooltip = "saturating: weight the shared shift per target by n/(n+half), n its screen strength per scale cells (C3)."
+
+[[inputs]]
+id = "strength_half"
+type = "number"
+label = "Strength at half weight"
+default = 100.0
+min = 0.001
+max = 100000.0
+agent = true
+tooltip = "The strength n at which a target gets half the shared shift."
+
+[[inputs]]
+id = "strength_scale"
+type = "number"
+label = "Strength per cells"
+default = 400.0
+min = 1.0
+max = 100000.0
+agent = true
+tooltip = "n = strength x this / the strength row's cells."
+
+[[inputs]]
+id = "contexts"
+type = "string"
+label = "Contexts"
+default = "D,E,F"
+agent = true
+tooltip = "The contexts the factors are written for, separated by commas; the same factors for each."
+
+[[outputs]]
+id = "result"
+type = "artifact.npz"
+label = "Factors, one array per context"

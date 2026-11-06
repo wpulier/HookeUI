@@ -167,6 +167,23 @@ def register(app, built, connected, body, reply, refusal):
         except (Refused, ValueError, OSError) as error:
             return failure(error)
 
+    @app.post(prefix + '/studies/{study}/rules')
+    async def freeze_rule(study: str, request: Request):
+        try:
+            caller = connected(request)
+            b = await body(request)
+            if set(b) != {'session', 'requestKey', 'name', 'artifact'}:
+                raise Refused(400, 'research-refused',
+                    'Freezing a rule requires exactly session, requestKey, name and artifact (the exact retained JSON '
+                    'file: {id, revision, digest}). Freeze it before the results it will judge exist.',
+                    next='import the rule file with project.import, then freeze its exact revision')
+            authorized(request, b['session'], True)
+            result = await asyncio.to_thread(service(built).freeze_rule, study, b['session'], request=b['requestKey'],
+                name=b['name'], artifact=b['artifact'], actor=caller.actor, label=caller.label)
+            return reply({'ok': True, 'study': result})
+        except (Refused, ValueError, OSError) as error:
+            return failure(error)
+
     @app.post(prefix + '/studies/{study}/challenges')
     async def challenge(study: str, request: Request):
         try:

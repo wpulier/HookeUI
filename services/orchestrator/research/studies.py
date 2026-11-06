@@ -348,6 +348,13 @@ class Studies:
             return True
         return summary(self.efforts._change(study, session, change))
 
+    def freeze_rule(self, study, session, *, request, name, artifact, actor, label):
+        """Record a decision rule before the results it judges exist (ADR 0031); rows are never edited."""
+        from . import frozen_rules
+        self.workflows.owner(session)
+        return summary(frozen_rules.freeze(self.efforts, study, session, request=request, name=name,
+                                           artifact=artifact, attribution=self.attribution(actor, label)))
+
     def challenge(self, study, session, *, request, claim, reason, evidence, actor, label):
         row = {'request': request, 'claim': claim, 'reason': reason, 'evidence': evidence,
                **self.attribution(actor, label), 'at': time.time()}
