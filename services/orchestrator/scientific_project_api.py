@@ -104,6 +104,8 @@ def _error(exc):
 def register(app, built, studio_origin, header):
     from .research.effort_api import register as register_efforts
     register_efforts(app, built, studio_origin, header)
+    from .project_front import register as register_front
+    register_front(app, built, studio_origin, header)
     from .scientific_resource_api import register as register_resources
     register_resources(app,built,studio_origin,header)
     from .scientific_file_api import register as register_files

@@ -16,11 +16,16 @@ Pins, Overview selection and last-visit checkpoints are additive viewer preferen
 old saved workspace schemas remain readable. Background researchers update their
 records without opening a tab unless the person has opened that effort.
 
-Overview uses existing Study/inventory/operation projections. It presents purpose,
-dated changes, observed execution, attention items and continuation. First-visit
-history is distinct from changes since the previous opening. The checkpoint captured
-on opening stays fixed during that visit; Mark seen advances it. These are viewing
-preferences, never accepted scientific history. Reports awaiting review remain visible.
+Overview is the Project's front page (docs/superpowers/specs/2026-11-05-project-front-page-design.md). It reads
+existing Study, inventory and operation projections plus the Project's `project-front` record, and presents, in order:
+- what the Project is (its name and one sentence);
+- the Project's page: one retained .html file, previewed sandboxed and opened in the reader;
+- where the work is (Now, Just finished, Next in the plan, Your own next step);
+- how it was made (its Studies, oldest first).
+Just finished picks results by record kind (reports, findings, ended runs, answers), never by their words. Results newer
+than the previous opening carry a dot; that checkpoint is a viewing preference, never accepted scientific history.
+Reports awaiting review remain visible under Next in the plan. A lapsed claim with no admitted operation is ownership
+to close or continue there, never "Execution needs checking".
 A connection is authorization, a claim is assignment ownership, and a running scientific
 operation is observed execution. None implies the other. No completion percentage or
 automatic summarizing model call is introduced.

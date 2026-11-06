@@ -14,6 +14,25 @@ from ..scientific_projects import InvalidProject, Conflict
 from ..scientific_comparisons import identity, exact
 
 
+LEASE_SECONDS = 300
+RENEW_WITHIN = 150
+
+
+def renew_leases(state, actor, now):
+    """A claimant's own Study activity (a report, a challenge, an evidence read) is its heartbeat: its running
+    assignments keep their claim for another 300 s, as re-claiming does (coordination.py). Only that actor's running
+    claims change, never another's or a released one. True when a lease moved."""
+    moved = False
+    for task in state.get('tasks', {}).values():
+        meta = task.get('collaboration') or {}
+        if (task.get('specification', {}).get('provider') == 'collaboration' and task.get('status') == 'running'
+                and (meta.get('claimedBy') or {}).get('by') == actor
+                and meta.get('leaseUntil', 0) - now < RENEW_WITHIN):
+            meta['leaseUntil'] = now + LEASE_SECONDS
+            moved = True
+    return moved
+
+
 class Studies:
     def __init__(self, store, workflows, operations):
         self.efforts = Efforts(store)
@@ -298,10 +317,11 @@ class Studies:
             rows = state.setdefault('evidenceReads', [])
             row = {'artifact': identity(saved), **attribution}
             if row in rows:
-                return False
+                return renew_leases(state, actor, time.time())
             if len(rows) >= 512:
                 raise InvalidProject('Evidence read capacity reached; retain this Study')
             rows.append(row)
+            renew_leases(state, actor, time.time())
             return True
         self.efforts._change(study, session, note)
         return {'artifact': identity(saved), 'document': saved.document,
@@ -324,6 +344,7 @@ class Studies:
             if len(rows) >= 128 or any(d not in {c['request'] for c in rows} for d in depends_on):
                 raise InvalidProject('Claims must depend on existing claims within this Study')
             rows.append(row)
+            renew_leases(state, actor, row['at'])
             return True
         return summary(self.efforts._change(study, session, change))
 
@@ -345,6 +366,7 @@ class Studies:
             if len(rows) >= 128:
                 raise InvalidProject('Claim change capacity reached')
             rows.append(row)
+            renew_leases(state, actor, row['at'])
             return True
         return summary(self.efforts._change(study, session, change))
 

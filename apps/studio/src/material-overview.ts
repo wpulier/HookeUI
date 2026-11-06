@@ -25,11 +25,12 @@ export function inspectionFacts(facts:MatrixInspectionFacts):HTMLElement{
  else section.append(node('p','This inspection predates the preview. Inspect again to retain a new preview; earlier reports stay saved.','rd-note'));
  return section;
 }
-export function materialSummary(material:ProjectMaterial):HTMLElement{
+export function materialSummary(material:ProjectMaterial,options:{shown?:boolean}={}):HTMLElement{
  const section=node('section','','material-summary');section.append(node('h3','What’s inside'));
  if(material.inspection?.status==='conflicting')section.append(node('p','Inspection reports disagree. Review each report before using these dimensions.','material-conflict'));
  else if(material.shape?.length===2){const stats=node('div','','material-dimensions');for(const [i,label] of ['Observations','Variables'].entries()){const box=node('div');box.append(node('strong',material.shape[i].toLocaleString()),node('span',label));stats.append(box);}section.append(stats);}
  if(material.organization?.role)section.append(node('p',`Project role · ${material.organization.role}`,'material-role'));
- if(!material.inspection)section.append(node('p','Preview isn’t available yet. The saved file remains available to download.','rd-note'));
+ // `shown`: the reader already shows the file itself (a Project's .html page), so no preview is missing.
+ if(!material.inspection&&!options.shown)section.append(node('p','Preview isn’t available yet. The saved file remains available to download.','rd-note'));
  return section;
 }

@@ -1,208 +1,194 @@
-// Synthetic rendering/ownership evidence; actual retained-Project browser acceptance is separate.
+// Synthetic rendering/ownership evidence for the Project front page; actual retained-Project browser acceptance is separate.
 import {afterEach, expect, test, vi} from 'vitest';
-import {ProjectResearchHome} from './project-research-home';
+import {ProjectResearchHome, type ProjectFrontState} from './project-research-home';
 import type {Effort} from './research-efforts';
-import {TestElement, syntheticDOM, fire} from './workspace-windows.test-support';
-afterEach(() => vi.unstubAllGlobals());
-const study = (session = 'p1'): Effort => ({id:'s1',session,revision:1,digest:'digest',title:'Response transfer',
+import type {ResearchSession} from './protocol';
+import {TestElement, syntheticDOM, fire, settleMicrotasks} from './workspace-windows.test-support';
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+const NOW = 1793920000;
+const study = (session = 'p1', fields: Partial<Effort> = {}): Effort => ({id:'s1',session,revision:1,digest:'digest',title:'Response transfer',
   objective:'Does the fitted response generalize?',criteria:'Measured error',status:'active',capMicrousd:0,
   spentMicrousd:0,heldMicrousd:0,availableMicrousd:0,inputs:[{id:'data',revision:2,digest:'data-digest'}],tasks:{},
-  createdAt:1793230000,createdBy:{by:'agent:ac_one',byLabel:'Codex'},
-  experiments:{first:{by:'agent:ac_one',operation:'op1',byLabel:'Codex',execution:{id:'run1',session}}},findings:[],
-  claims:[{by:'agent:ac_two',request:'claim',statement:'Observed a limitation',byLabel:'Claude Code',evidence:[],dependsOn:[]}]});
-function setup() {
+  createdAt:1793230000,createdBy:{by:'agent:ac_one',byLabel:'Codex'},findings:[],
+  claims:[{by:'agent:ac_two',at:NOW-600,request:'claim',statement:'C3 beat the safety entry on the held-out test',byLabel:'Claude Code',evidence:[],dependsOn:[]}],
+  ...fields});
+const front = (fields: Partial<ProjectFrontState> = {}): ProjectFrontState => ({about:null,page:null,next:[],revision:1,...fields});
+function setup(extra: Record<string, unknown> = {}) {
+  vi.useFakeTimers(); vi.setSystemTime(NOW * 1000);
   const dom = syntheticDOM(); vi.stubGlobal('document', dom.document);
   const host = new TestElement('section'); let current = 'p1';
-  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),retry:vi.fn()};
+  const actions = {current: () => current, openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),retry:vi.fn(),startResearch:vi.fn(),
+    openPage:vi.fn(),draft:vi.fn(),saveAbout:vi.fn(async () => {}),setPage:vi.fn(async () => {}),addStep:vi.fn(async () => {}),finishStep:vi.fn(async () => {}),...extra};
   const home = new ProjectResearchHome(host as unknown as HTMLElement, actions);
   const root = home.root as unknown as TestElement;
-  const button = (text: string) => root.querySelectorAll('button').find(item => item.textContent === text) as unknown as HTMLButtonElement;
-  return {home,host,root,actions,button,setCurrent:(id:string) => {current=id;}};
+  const buttons = () => root.querySelectorAll('button');
+  const button = (text: string) => buttons().find(item => item.textContent === text) as unknown as TestElement;
+  const column = (key: string) => root.querySelectorAll('.pf-col').find(col => col.dataset.column === key)!;
+  return {home,host,root,actions,button,buttons,column,setCurrent:(id:string) => {current=id;}};
 }
-test('retained question and evidence replace new-project onboarding without starting research', () => {
-  const {home,host,root,actions,button} = setup(); home.update('p1',[study()]);
-  expect(host.dataset.projectResearch).toBe('true'); expect(root.hidden).toBe(false);
+
+test('the front page says what the Project is, its page and how it was made, and starts nothing', () => {
+  const {home,host,root,actions,button} = setup();
+  home.setFront({name:'Virtual Cell Challenge — research',front:front({about:'Predict how cells respond.',
+    page:{id:'ppage',revision:2,digest:'d',title:'Our entry',name:'entry.html',savedAt:NOW-60}})});
+  home.update('p1',[study()],'',{},[],{count:3,groups:[]});
+  expect(host.dataset.projectResearch).toBe('true');
+  expect(root.textContent).toContain('Virtual Cell Challenge — research');
+  expect(root.textContent).toContain('Predict how cells respond.');
+  expect(root.textContent).toContain('1 Study · 3 inputs');
+  const frame = root.querySelector('iframe')!;
+  expect(frame.attributes.sandbox).toBe('allow-scripts');
+  expect((frame as unknown as {src:string}).src).toBe('/api/scientific-files/ppage/page?session=p1&revision=2');
+  expect(root.textContent).toContain('Up to date with everything up to');
+  expect(root.textContent).toContain('How it was made');
   expect(root.textContent).toContain('Does the fitted response generalize?');
-  expect(root.textContent).toContain('1 inputs'); expect(root.textContent).toContain('1Experiments');
-  expect(root.textContent).toContain('1 reports'); expect(root.textContent).toContain('0Findings');
-  expect(root.textContent).toContain('Latest report'); expect(root.textContent).toContain('Observed a limitation');
-  expect(root.textContent).not.toContain('Start a Project'); expect(actions.openStudy).not.toHaveBeenCalled();
-  fire(button('Open Study') as unknown as TestElement, 'click'); expect(actions.openStudy).toHaveBeenCalledWith('s1');
-  fire(button('Project data') as unknown as TestElement, 'click'); expect(actions.data).toHaveBeenCalledOnce();
-  fire(button('Add material') as unknown as TestElement, 'click'); expect(actions.inputs).toHaveBeenCalledOnce();
-});
-test('another Project, a stale button and a late foreign Study cannot redirect the current workspace', () => {
-  const {home,host,root,actions,button,setCurrent} = setup();home.update('p1',[study()]);const old=button('Open Study');
-  setCurrent('p2'); fire(old as unknown as TestElement, 'click'); expect(actions.openStudy).not.toHaveBeenCalled();
-  home.update('p2',[study()]); expect(root.hidden).toBe(true); expect(host.dataset.projectResearch).toBe('false');
-  setCurrent('p1');home.update('p1',[study()]);fire(old as unknown as TestElement, 'click');expect(actions.openStudy).not.toHaveBeenCalled();
-  fire(button('Open Study') as unknown as TestElement, 'click');expect(actions.openStudy).toHaveBeenCalledOnce();
-});
-test('unchanged polling preserves the action node and a failed refresh qualifies the retained overview', () => {
-  const {home,root,button} = setup(); home.update('p1',[study()]);const first=button('Open Study');
-  home.update('p1',[study()]);expect(button('Open Study')).toBe(first);
-  home.update('p1',[study()],'Reconnect to refresh.');expect(root.textContent).toContain('Showing saved history. Reconnect to refresh.');
-  home.update('p1',[]);expect(root.hidden).toBe(true);
+  expect(actions.openStudy).not.toHaveBeenCalled(); expect(actions.openPage).not.toHaveBeenCalled();
+  fire(button('Open the page'), 'click'); expect(actions.openPage).toHaveBeenCalledWith(expect.objectContaining({id:'ppage',revision:2}));
+  fire(root.querySelector('.pf-study')!, 'click'); expect(actions.openStudy).toHaveBeenCalledWith('s1');
 });
 
-test('latest attributed report remains distinct from findings and exposes its limitations', () => {
-  const {home,root} = setup(); const value = study();
-  value.claims!.push({request:'new',statement:'<script>untrusted</script> New result',byLabel:'Codex',evidence:[],dependsOn:[],limitations:'No independent validation'});
-  value.findings.push({request:'finding',statement:'Retained finding',tasks:[]});
+test('a page older than the newest result says so and offers a brief to update it', () => {
+  const {home,root} = setup();
+  home.setFront({name:'P',front:front({page:{id:'ppage',revision:1,digest:'d',title:'Our entry',savedAt:NOW-3600}})});
+  home.update('p1',[study()]);
+  expect(root.textContent).toContain('1 newer result since this page was saved');
+  expect(root.textContent).toContain('Copy a brief to update it');
+});
+
+test('without a page the Project explains what a page is and how to make or choose one', async () => {
+  const {home,root,actions,button} = setup();
+  home.setFront({name:'P',front:front()});
+  home.update('p1',[study()],'',{},[],{count:2,groups:[],pages:[{id:'pa',revision:1,title:'entry.html'}]});
+  expect(root.textContent).toContain('No page yet');
+  expect(root.querySelector('iframe')).toBeNull();
+  fire(button('Choose an .html file'), 'click');
+  fire(button('entry.html'), 'click'); await settleMicrotasks();
+  expect(actions.setPage).toHaveBeenCalledWith({id:'pa',revision:1,title:'entry.html'});
+});
+
+test('Just finished lists results by record, never bookkeeping', () => {
+  const {home,column} = setup();
+  const value = study('p1',{findings:[{request:'f',at:NOW-100,statement:'An accepted finding',tasks:[]}],
+    researchPlan:{status:'draft',updatedAt:NOW-50,desiredOutput:'A plan saved after the results'}});
   home.update('p1',[value]);
-  expect(root.textContent).toContain('2 reports'); expect(root.textContent).toContain('1Findings');
-  expect(root.textContent).toContain('No independent validation');
-  expect(root.textContent).toContain('Researcher report · not an accepted finding');
-  expect(root.textContent).toContain('Research history');
+  const finished = column('finished').textContent;
+  expect(finished).toContain('An accepted finding'); expect(finished).toContain('C3 beat the safety entry');
+  expect(finished).not.toContain('A plan saved after the results');
+});
+
+test('a lapsed claim with nothing running is a step to close, never an execution alarm', () => {
+  const {home,root,column} = setup();
+  const value = study('p1',{tasks:{'assignment:a':{status:'running',reservedMicrousd:0,chargedMicrousd:null,
+    specification:{provider:'collaboration',assignment:{objective:'Lead the campaign',dependsOn:[]}},
+    collaboration:{operations:[],claimedAt:NOW-7200,leaseUntil:NOW-6900,claimedBy:{by:'agent:ac_two',byLabel:'Claude Code'}}}}});
+  home.update('p1',[value]);
+  expect(root.textContent).not.toContain('Execution needs checking');
+  expect(root.textContent).not.toContain('Assignment ownership needs checking');
+  expect(column('plan').textContent).toContain('Close or continue 1 claimed assignment');
+  expect(column('now').textContent).toContain('Nothing is running.');
+});
+
+test('a live claim is shown as work going on now, with who holds it', () => {
+  const {home,column} = setup();
+  const value = study('p1',{tasks:{'assignment:a':{status:'running',reservedMicrousd:0,chargedMicrousd:null,
+    specification:{provider:'collaboration',assignment:{objective:'Score C3 on the held-out fold',dependsOn:[]}},
+    collaboration:{claimedAt:NOW-60,leaseUntil:NOW+240,claimedBy:{by:'agent:ac_two',byLabel:'Claude Code'}}}}});
+  home.update('p1',[value]);
+  expect(column('now').textContent).toContain('Score C3 on the held-out fold');
+  expect(column('now').textContent).toContain('Claude Code');
+});
+
+test('Next in the plan joins planned steps, reports to review, ready assignments and paused Studies', async () => {
+  const {home,column,button,actions} = setup();
+  home.setFront({name:'P',front:front({next:[{id:'n0123456789abcdef',text:'Record the score',when:'late November',byLabel:'Claude Code'}]})});
+  const ready = study('p1',{tasks:{
+    'assignment:r':{status:'planned',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration',assignment:{objective:'Literature notes',dependsOn:[]}}},
+    'assignment:b':{status:'planned',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration',assignment:{objective:'Blocked packaging',dependsOn:['assignment:r']}}},
+    'assignment:c':{status:'completed',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration',assignment:{objective:'Done',dependsOn:[]}},collaboration:{report:{statement:'x'}}}}});
+  const paused = {...study('p1'),id:'s2',status:'paused',title:'Measured campaign',claims:[]};
+  home.update('p1',[ready,paused]);
+  const plan = column('plan').textContent;
+  expect(plan).toContain('Record the score'); expect(plan).toContain('late November');
+  expect(plan).toContain('Review 1 report'); expect(plan).toContain('Literature notes');
+  expect(plan).not.toContain('Blocked packaging'); expect(plan).toContain('Continue or close this Study');
+  fire(button('Done'), 'click'); await settleMicrotasks();
+  expect(actions.finishStep).toHaveBeenCalledWith('n0123456789abcdef');
+});
+
+test('your own next step drafts words for the Assistant and starts nothing itself', () => {
+  const {home,root,actions,column} = setup();
+  home.update('p1',[study()]);
+  const own = column('own');
+  const field = own.querySelector('textarea')!; field.value = 'Why did C1 lose on direction?';
+  fire(own.querySelector('form')!, 'submit');
+  expect(actions.draft).toHaveBeenCalledWith('Why did C1 lose on direction?');
+  expect(root.textContent).toContain('Start a Study');
+  fire(root.querySelectorAll('button').find(b => b.dataset.researchFocus === 'start-research')!, 'click');
+  expect(actions.startResearch).toHaveBeenCalledOnce();
+});
+
+test('another Project, a stale button and a late foreign Study cannot redirect the current workspace', () => {
+  const {home,host,root,actions,setCurrent} = setup({startResearch:undefined});
+  home.update('p1',[study()]);const old=root.querySelector('.pf-study')!;
+  setCurrent('p2'); fire(old, 'click'); expect(actions.openStudy).not.toHaveBeenCalled();
+  home.update('p2',[study()]); expect(root.hidden).toBe(true); expect(host.dataset.projectResearch).toBe('false');
+  setCurrent('p1');home.update('p1',[study()]);fire(old, 'click');expect(actions.openStudy).not.toHaveBeenCalled();
+  fire(root.querySelector('.pf-study')!, 'click');expect(actions.openStudy).toHaveBeenCalledOnce();
+});
+
+test('untrusted words are shown as text and only this Projects researchers appear', () => {
+  const {home,root,column} = setup();
+  const value = study(); value.claims!.push({request:'new',at:NOW-10,statement:'<script>untrusted</script> New result',byLabel:'Codex',evidence:[],dependsOn:[]});
+  const researchers = [{rid:'r1',name:'Here',purpose:'research',sitting:'p1',status:'running',brief:'Count cells',created:1},
+    {rid:'r2',name:'Elsewhere',purpose:'research',sitting:'p2',status:'running',brief:'Other',created:2}] as unknown as ResearchSession[];
+  home.update('p1',[value,{...study('p2'),id:'foreign',title:'Foreign'}],'',{},researchers);
   expect(root.querySelectorAll('script')).toHaveLength(0);
-  expect(root.textContent).toContain('Contributors & origins');
-  expect(root.textContent).toContain('2Agents contributed');
-});
-test('a study with no report offers an honest empty state and retains its question', () => {
-  const {home,root} = setup();const value=study();value.claims=[];home.update('p1',[value]);
-  expect(root.textContent).toContain('Reports will appear here as the work develops.');
-  expect(root.textContent).toContain('Measured error');
-  expect(root.textContent).not.toContain('Latest report');
+  expect(column('finished').textContent).toContain('<script>untrusted</script> New result');
+  expect(column('now').textContent).toContain('Count cells'); expect(root.textContent).not.toContain('Elsewhere');
+  expect(root.textContent).not.toContain('Foreign');
 });
 
-test('same-Project updates preserve disclosures, but a new report or Project starts closed', () => {
-  const {home,root} = setup(); home.update('p1',[study()]);
-  const details = () => root.querySelectorAll('details') as unknown as HTMLDetailsElement[];
-  details().forEach(item => { item.open = true; });
-  const changed = study(); changed.revision++;
-  home.update('p1',[changed], 'Refreshing');
-  expect(details().every(item=>item.open)).toBe(true);
-  changed.claims!.push({request:'replacement',statement:'Next result',byLabel:'Codex',evidence:[],dependsOn:[]});
-  home.update('p1',[changed]);
-  expect(details().find(item=>item.dataset.disclosure==='study:s1:question')?.open).toBe(true);
-  expect(details().find(item=>item.dataset.disclosure?.endsWith(':report:replacement'))?.open).not.toBe(true);
-  home.update('p2',[study('p2')]);
-  expect(details().some(item => item.open)).toBe(false);
+test('initial loading and failed reads never masquerade as an empty Project', () => {
+  const {home,root,actions,button} = setup({startResearch:undefined});
+  home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
+  expect(root.textContent).toContain('Opening your Project…');
+  home.update('p1',[],'Studies could not be read.',{},[],{count:0,groups:[],error:'Material could not be read.'});
+  expect(root.textContent).toContain('Project history could not be loaded.');
+  fire(button('Retry'), 'click'); expect(actions.retry).toHaveBeenCalledOnce();
+  home.update('p1',[study()],'Reconnect to refresh.');
+  expect(root.textContent).toContain('Showing saved history. Reconnect to refresh.');
 });
 
-test('Main includes only this Projects researchers and preserves their identities across same-day Projects',()=>{
- const {home,root}=setup();
- const researchers=[
-  {rid:'r1',day:'shared-day',sitting:'p1',purpose:'research',name:'Here',brief:'Our question',status:'done',engine:'test',created:10},
-  {rid:'r2',day:'p1',sitting:'p2',purpose:'research',name:'Elsewhere',brief:'Other question',status:'running',engine:'test',created:20},
- ] as import('./protocol').ResearchSession[];
- home.update('p1',[study()],'',{},researchers);
- expect(root.textContent).toContain('Here');expect(root.textContent).not.toContain('Elsewhere');
- expect(root.textContent).toContain('0 Hooke researchers working');expect(root.textContent).toContain('3Agents contributed');
-});
-test('Main aggregates all owned Studies without counting another Projects effort',()=>{
- const {home,root}=setup();const a=study(),b=study();b.id='s2';b.title='Second question';
- home.update('p1',[a,b,study('other')]);
- expect(root.textContent).toContain('2Studies');expect(root.textContent).toContain('2Agents contributed');
- expect(root.textContent).toContain('2Experiments');expect(root.textContent).toContain('Second question');
+test('saving the sentence about the Project and adding a step go through the owner actions', async () => {
+  const {home,root,actions,button,column} = setup();
+  home.setFront({name:'P',front:front()});
+  home.update('p1',[study()]);
+  fire(button('Say in one sentence what this Project is'), 'click');
+  const field = root.querySelector('.pf-about-form')!.querySelector('textarea')!; field.value = '  Predict cell responses.  ';
+  fire(root.querySelector('.pf-about-form')!, 'submit'); await settleMicrotasks();
+  expect(actions.saveAbout).toHaveBeenCalledWith('Predict cell responses.');
+  fire(button('Add a step'), 'click');
+  const step = column('plan').querySelector('input')!; step.value = 'Record the score';
+  fire(column('plan').querySelector('form')!, 'submit'); await settleMicrotasks();
+  expect(actions.addStep).toHaveBeenCalledWith('Record the score');
 });
 
-test('retained material replaces camera onboarding before any Study exists',()=>{
- const {home,host,root,button,actions,setCurrent}=setup();
- home.update('p1',[],'',{},[],{count:3,groups:['Reference documents']});
- expect(host.dataset.projectResearch).toBe('true');expect(root.hidden).toBe(false);
- expect(root.textContent).toContain('Project overview');
- expect(root.textContent).toContain('3 Project inputs');
- expect(root.textContent).toContain('Reference documents');
- expect(root.textContent).toContain('No Study yet');
- expect(root.textContent).not.toContain('0Experiments');
- const browse=button('Browse inputs');fire(browse as unknown as TestElement,'click');
- expect(actions.inputs).toHaveBeenCalledOnce();
- setCurrent('p2');fire(browse as unknown as TestElement,'click');expect(actions.inputs).toHaveBeenCalledOnce();
- home.update('p2',[]);expect(root.hidden).toBe(true);
-});
-test('material refresh failures qualify retained counts without clearing the Project',()=>{
- const {home,root}=setup();home.update('p1',[],'',{},[],{count:1,groups:[],error:'Project material could not be refreshed.'});
- expect(root.textContent).toContain('1 Project input');
- expect(root.textContent).toContain('Project material could not be refreshed.');
- expect(root.hidden).toBe(false);
+test('a refused change is said in the server words and keeps the page', async () => {
+  const {home,root,button} = setup({saveAbout:vi.fn(async () => { throw new Error('The active Project changed. — return to the original Project'); })});
+  home.setFront({name:'P',front:front()});
+  home.update('p1',[study()]);
+  fire(button('Say in one sentence what this Project is'), 'click');
+  const form = root.querySelector('.pf-about-form')!; form.querySelector('textarea')!.value = 'x';
+  fire(form, 'submit'); await settleMicrotasks(); await settleMicrotasks();
+  expect(root.textContent).toContain('The active Project changed. — return to the original Project');
+  expect(root.textContent).toContain('How it was made');
 });
 
-test('material freshness does not invalidate independent workflow observations',()=>{
- const {home,root}=setup();const value=study();value.experiments={};
- home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[],error:'Material refresh failed'});
- expect(root.textContent).toContain('Material refresh failed');
- expect(root.textContent).toContain('No experiments running');
- home.update('p1',[value],'',{s1:{operations:[]}},[],{count:1,groups:[]});
- expect(root.textContent).not.toContain('Material refresh failed');
-});
-
-
-test('initial loading and failed reads never masquerade as an empty Project',()=>{
- const {home,host,root,actions,button}=setup();
- home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
- expect(host.dataset.projectResearch).toBe('true');
- expect(root.textContent).toContain('Opening your Project');
- expect(root.textContent).not.toContain('No Study yet');
- home.update('p1',[],'',{},[],{count:0,groups:[],error:'Material read failed'});
- expect(root.textContent).toContain('Project history could not be loaded');
- fire(button('Retry') as unknown as TestElement,'click');expect(actions.retry).toHaveBeenCalledOnce();
- home.update('p1',[],'',{},[],{count:0,groups:[]});
- expect(host.dataset.projectResearch).toBe('false');expect(root.hidden).toBe(true);
-});
-test('material arriving before Studies keeps the populated overview through refresh',()=>{
- const {home,root}=setup();
- home.update('p1',[],'',{},[],{count:2,groups:[],loading:true});
- expect(root.textContent).toContain('2 Project inputs');
- expect(root.textContent).not.toContain('Opening your Project');
- expect(root.textContent).not.toContain('No Study yet');
- home.update('p1',[study()],'',{},[],{count:2,groups:[],loading:false});
- expect(root.textContent).toContain('Response transfer');
-});
-
-
-test('a return to the same Project waits for new reads and rejects its previous buttons',()=>{
- const {home,root,button,actions,setCurrent}=setup();
- home.update('p1',[study()]);const original=button('Open Study');
- setCurrent('p2');home.update('p2',[],'',{},[],{count:0,groups:[],loading:true});
- setCurrent('p1');home.update('p1',[],'',{},[],{count:0,groups:[],loading:true});
- fire(original as unknown as TestElement,'click');expect(actions.openStudy).not.toHaveBeenCalled();
- expect(root.textContent).toContain('Opening your Project');
- home.update('p1',[],'',{},[],{count:2,groups:[],loading:false});
- expect(root.textContent).toContain('2 Project inputs');
-});
-
- test('slow initial reads offer recovery without presenting an empty Project',()=>{
- const {home,root,button,actions}=setup();
- home.update('p1',[],'',{},[],{count:0,groups:[],loading:true,slow:true});
- expect(root.textContent).toContain('Loading is taking longer');
- fire(button('Retry') as unknown as TestElement,'click');expect(actions.retry).toHaveBeenCalledOnce();
- fire(button('Browse Project data') as unknown as TestElement,'click');expect(actions.data).toHaveBeenCalledOnce();
- });
-test('partially loaded and failed refreshes preserve the overview with Retry',()=>{
- const {home,root,button}=setup();
- home.update('p1',[],'',{},[],{count:2,groups:[],loading:true,slow:true});
- expect(root.textContent).toContain('2 Project inputs');expect(root.textContent).toContain('Loading is taking longer');expect(button('Retry')).toBeDefined();
- home.update('p1',[study()],'Study refresh failed',{},[],{count:0,groups:[],loading:true,slow:true});
- expect(root.textContent).toContain('Response transfer');expect(button('Retry')).toBeDefined();
-});
-
-test('the agent entrance copies this Project and cannot act after a Project switch',async()=>{
- const dom=syntheticDOM();vi.stubGlobal('document',dom.document);
- const copy=vi.fn(async(_text:string)=>undefined);vi.stubGlobal('navigator',{clipboard:{writeText:copy}});
- let current='new-project';const host=new TestElement('section');
- const start=vi.fn(),home=new ProjectResearchHome(host as unknown as HTMLElement,{current:()=>current,openStudy:vi.fn(),data:vi.fn(),inputs:vi.fn(),startResearch:start});
- home.update(current,[]);const root=home.root as unknown as TestElement;
- const b=root.querySelectorAll('button').find(x=>x.textContent==='Copy instructions for my agent')!;
- fire(b,'click');await vi.waitFor(()=>expect(copy).toHaveBeenCalledOnce());
- expect(copy.mock.calls[0][0]).toContain('Project new-project');
- expect(copy.mock.calls[0][0]).toContain('do not create a duplicate');
- expect(root.textContent).toContain('Work starts there; results stay in this Project.');
- expect(start).not.toHaveBeenCalled();
- current='different-project';fire(b,'click');await Promise.resolve();expect(copy).toHaveBeenCalledOnce();
-});
-
-test('lease expiry refreshes unchanged records and shows the ownership check',()=>{
- const {home,root}=setup();const value=study();value.experiments={};
- value.tasks={assigned:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:100}}};
- vi.spyOn(Date,'now').mockReturnValue(90000);home.update('p1',[value]);expect(root.textContent).toContain('Agent assignment claimed');
- vi.spyOn(Date,'now').mockReturnValue(110000);home.update('p1',[value]);expect(root.textContent).toContain('Assignment ownership needs checking');
- vi.restoreAllMocks();
-});
-test('hundreds of synthetic Studies are grouped and paginated without hiding a later blocker',()=>{
- const {home,root}=setup();const rows=Array.from({length:200},(_,i)=>({...study(),id:'s'+i,title:'Study '+i,experiments:{},claims:[]}));
- rows[199].tasks={pending:{status:'running',reservedMicrousd:0,chargedMicrousd:null,specification:{provider:'collaboration'},collaboration:{leaseUntil:1}}};
- home.update('p1',rows);expect(root.textContent).toContain('Study 199');
- expect(root.textContent).toContain('Showing 12 of 200 Studies');
- expect(root.querySelectorAll('article').filter(e=>e.className==='project-research-summary')).toHaveLength(12);
+test('a long column shows four, then says how many more wait and shows them on request', () => {
+  const {home,column,button} = setup();
+  home.setFront({name:'P',front:front({next:Array.from({length:7},(_,i)=>({id:`n${String(i).padStart(16,'0')}`,text:`Step ${i}`}))})});
+  home.update('p1',[study()]);
+  expect(column('plan').querySelectorAll('.pf-item')).toHaveLength(4);
+  fire(button('Show 3 more'), 'click');
+  expect(column('plan').querySelectorAll('.pf-item')).toHaveLength(7);
 });

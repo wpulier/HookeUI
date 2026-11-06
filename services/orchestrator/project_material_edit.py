@@ -10,7 +10,7 @@ from .scientific_comparisons import exact, identity
 from .scientific_projects import InvalidProject, Conflict
 
 KIND = 'project-material-membership'
-RESERVED = {'research-effort', 'workflow-invocation', KIND}
+RESERVED = {'research-effort', 'workflow-invocation', 'project-front', KIND}
 
 
 def membership_id(reference):

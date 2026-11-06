@@ -346,3 +346,18 @@ def test_same_method_with_renamed_or_reordered_nodes_is_not_a_challenger():
     renamed['nodes'].reverse()
     assert method_signature(original) == method_signature(renamed)
     assert method_signature(original) != method_signature(graph('prepare', 2))
+
+
+def test_a_claimants_own_study_activity_renews_only_its_running_claims(context):
+    from orchestrator.research.studies import renew_leases, LEASE_SECONDS
+    c,s=context
+    mine=propose(c,s,'mine'); theirs=propose(c,s,'theirs',{**proposal(),'objective':'Other'}); idle=propose(c,s,'idle',{**proposal(),'objective':'Idle'})
+    claim(c,s,mine['id']); claim(c,s,theirs['id'],'agent:b')
+    state=c.efforts.read(s.id,s.session).document['state'][KEY]
+    # Long work outside Hooke: the 300 s claim has lapsed, then the claimant reports.
+    assert renew_leases(state,'agent:a',2000)
+    tasks=state['tasks']
+    assert tasks[mine['id']]['collaboration']['leaseUntil']==2000+LEASE_SECONDS
+    assert tasks[theirs['id']]['collaboration']['leaseUntil']==1300  # another contributor's claim is untouched
+    assert 'leaseUntil' not in tasks[idle['id']]['collaboration']  # an unclaimed assignment is never claimed by it
+    assert not renew_leases(state,'agent:a',2010)  # a fresh claim is not rewritten on every write

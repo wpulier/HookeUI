@@ -78,6 +78,10 @@ test('planned and claimed collaboration are separate from scientific experiments
 
 test('expired claims and unresolved admissions require reconciliation, never count as active scientific execution',()=>{
  const s=study();s.experiments={};s.tasks={a:{status:'running',specification:{provider:'collaboration'},collaboration:{leaseUntil:1},reservedMicrousd:0,chargedMicrousd:0}};
+ // No admitted operation: the claim lapsed while work ran elsewhere. Ownership to close, not execution to check.
+ const lapsed=studyActivity(s,{operations:[]});expect(lapsed.assignments.lapsed).toBe(1);expect(lapsed.assignments.check).toBe(0);
+ expect(lapsed.title).not.toBe('Execution needs checking');expect(lapsed.counts.running).toBe(0);
+ s.tasks.a.collaboration={leaseUntil:1,operations:['op_admitted']};
  const observed=studyActivity(s,{operations:[]});expect(observed.assignments.check).toBe(1);expect(observed.counts.running).toBe(0);
  s.tasks.a.status='completed';s.tasks.a.collaboration={completedAt:10,claimedBy:{by:'agent:ac_a',byLabel:'Worker'},report:{statement:'No biological conclusion'}};
  expect(history(s,{operations:[]})[0]).toMatchObject({at:10,title:'No biological conclusion',actor:'Worker'});

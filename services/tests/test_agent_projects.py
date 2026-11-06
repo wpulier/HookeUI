@@ -196,3 +196,40 @@ def test_unattributed_documents_remain_readable_in_resource_context(web):
     assert 'Existing protocol' in index.read_full(saved.id, built.day.sid)
     assert index.chronology(entry)['producer'] is None
     assert any(row['kind'] == 'project' for row in index.summary(built.day.sid)['kinds'])
+
+
+def test_project_front_page_is_set_by_a_contributor_and_read_by_a_reader(project_door,tmp_path,monkeypatch):
+    client,built=project_door
+    a=connect(client); h=bearer(a['token'])
+    b=connect(client,label='Reader',secret='reader-fixture-secret-000001'); hb=bearer(b['token'])
+    sid=run(client,h,'project.create',{'name':'Entry'},'front-project-001')['outcome']['project']['session']
+    page=tmp_path/'entry.html'; page.write_text('<!doctype html><h1>Our entry</h1>')
+    ref=run(client,h,'project.import',{'file':str(page)},'front-import-001',sid)['outcome']['artifact']
+    front=run(client,h,'project.front',{'action':'page','page':ref},'front-page-0001',sid)['outcome']['front']
+    assert front['page']['id']==ref['id'] and front['changes'][-1]['by']=='agent:'+a['connection']['id']
+    front=run(client,h,'project.front',{'action':'about','about':'Predict cell responses.'},'front-about-001',sid)['outcome']['front']
+    front=run(client,h,'project.front',{'action':'next','request':'score','text':'Record the score','when':'late Nov'},
+              'front-next-0001',sid)['outcome']['front']
+    assert front['about']=='Predict cell responses.' and front['next'][0]['when']=='late Nov'
+    assert built.day.sid != sid  # nothing navigated the workspace
+    monkeypatch.delenv('HOOKE_CONFIRM_KEY'); monkeypatch.setenv('HOOKE_DEV_CONFIRM','1')
+    grant={'session':sid,'connection':b['connection']['id'],'role':'read'}
+    assert client.post('/api/agent-project-access',json=grant,headers=STUDIO).status_code==200
+    read=run(client,hb,'project.front',{'action':'read'},'front-read-00001',sid)['outcome']['front']
+    assert read['page']['id']==ref['id'] and read['revision']==front['revision']
+    refused=client.post('/api/agent/v1/operations',json={'tool':'project.front','args':{'action':'about','about':'x'},
+        'requestKey':'front-about-002','project':sid},headers=hb)
+    if refused.status_code in (200,202):
+        op=refused.json()['operation']
+        ended=until(lambda: (lambda r: r if r['state'] in ('succeeded','failed') else None)(
+            client.get('/api/agent/v1/operations/'+op['id'],headers=hb).json()['operation']))
+        assert ended['state']=='failed'
+    else:
+        assert refused.status_code==403
+    extra=client.post('/api/agent/v1/operations',json={'tool':'project.front','args':{'action':'read','about':'x'},
+        'requestKey':'front-read-00002','project':sid},headers=h)
+    if extra.status_code in (200,202):
+        op=extra.json()['operation']
+        ended=until(lambda: (lambda r: r if r['state'] in ('succeeded','failed') else None)(
+            client.get('/api/agent/v1/operations/'+op['id'],headers=h).json()['operation']))
+        assert ended['state']=='failed'

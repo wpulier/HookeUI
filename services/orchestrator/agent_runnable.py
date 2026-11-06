@@ -182,6 +182,7 @@ DOOR_RESOURCES = {
     'project.dependencies': 'inspects declared historical evidence dependencies in an authorized Project; never reads external Projects or claims complete collection',
     'project.read': 'reads the exact authorized Project and retained corpus index',
     'project.state': 'reads the authorized Project as every reader sees it: data with exact references, researchers, Studies, the studio',
+    'project.front': "reads or sets the Project's front page: one sentence about it, the retained .html file that is its page, and planned next steps; starts no work",
     'material.organize': 'organizes an exact artifact in an authorized Project; preserves its bytes, producing provenance and historical revisions',
     'project.import': 'retains one explicitly supplied local file in an authorized Project',
     'artifact.read': 'reads an exact authorized retained revision, with bounded source text',

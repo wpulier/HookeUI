@@ -12,7 +12,7 @@ import {isRetainedMaterial,retainedSource,sourceReaderEntry} from './material-id
 import {sameMediaReference} from './project-media-reference';
 import { projectInputs, materialFacts, projectEntry, retainedProjectEntry, indexedRevision } from './project-inputs';
 import {readProjectActivity,type ActivitySnapshot} from './project-research-history';
-import { ProjectResearchHome } from './project-research-home';
+import { ProjectResearchHome, type ProjectFrontState } from './project-research-home';
 import {configureWorkspaceCompare} from './workspace-compare';
 import {configureDataTableDocuments} from './datatable-presentation';
 import { scientificAskSelection, clearScientificAsk } from './scientific-ask-input';
@@ -487,7 +487,33 @@ const projectResearchHome = new ProjectResearchHome(overviewPage, {
   retry: () => retryProjectReads(),
   current: () => bridge.state().session, openStudy: id => { void openStudy(id); },
   data: () => setDataOpen(true), inputs: () => { showSection('inputs'); setDrawer(true); },
+  // The Project's page opens as Data's reader does: its exact revision, in the reused reader Tab.
+  openPage: page => { const session=snapshot.session; rememberProjectDestination(null);
+    void workspaceViews.openReaderPage({title:page.title||page.name||"The Project's page",resource:{id:page.id,day:session,version:page.revision}}).catch(actionError); },
+  // Your own next step: the words wait in the Assistant's composer for the person to send.
+  draft: text => { composer.set(text); find('question').dispatchEvent(new Event('input',{bubbles:true})); setInspector(true); },
+  saveAbout: about => changeFront('about',{about}),
+  setPage: page => changeFront('page',{page:page?{id:page.id,revision:page.revision}:null}),
+  addStep: text => changeFront('next',{request:`step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,text}),
+  finishStep: item => changeFront('done',{item}),
 });
+/** The Project's front page record (project_front.py): read with the Studies, changed by the owner from the overview. */
+function projectNameOf(session:string):string{const row=snapshot.projects.find(item=>item.id===session);return row?sessionName(row,Date.now()/1000):'';}
+async function readFront(session:string,signal?:AbortSignal):Promise<void>{
+  try{const response=await fetch(`/api/project-front?session=${encodeURIComponent(session)}`,{cache:'no-store',signal});
+    const body=await response.json() as {ok?:boolean;front?:ProjectFrontState;says?:string};
+    if(snapshot.session!==session)return;
+    if(!response.ok||body.ok!==true||!body.front)throw new Error(body.says||'The Project front page could not be read.');
+    projectResearchHome.setFront({name:projectNameOf(session),front:body.front});
+  }catch(error){if(signal?.aborted||snapshot.session!==session)return;projectResearchHome.setFront({name:projectNameOf(session),front:null,error:error instanceof Error?error.message:String(error)});}
+}
+async function changeFront(action:'about'|'page'|'next'|'done',fields:Record<string,unknown>):Promise<void>{
+  const session=snapshot.session;
+  const response=await fetch(`/api/project-front/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'project-front'},body:JSON.stringify({session,...fields})});
+  const body=await response.json() as {ok?:boolean;front?:ProjectFrontState;says?:string;next?:string};
+  if(!response.ok||body.ok!==true||!body.front)throw new Error([body.says||'The change was not saved.',body.next].filter(Boolean).join(' — '));
+  if(snapshot.session===session)projectResearchHome.setFront({name:projectNameOf(session),front:body.front});
+}
 let studiesAvailable=false;
 let studiesNote='';
 let studiesLoadedSession='';
@@ -500,6 +526,7 @@ async function loadStudies(signal:AbortSignal, ownsRead:()=>boolean):Promise<voi
   const session = snapshot.session, generation = ++studyReadGeneration;
   const current = () => snapshot.session === session && generation === studyReadGeneration && ownsRead();
   if(!session){studiesAvailable=false;knownStudies=[];projectActivity={};renderBoard();return;}
+  void readFront(session,signal);
   let studies:Effort[]|null;
   try{studies=await listStudies(session, fetch, signal);}catch(error){if(!current())return;studiesLoadedSession=session;studiesAvailable=true;studiesNote=error instanceof Error?error.message:String(error);renderBoard();return;}
   if(!current())return;
@@ -570,7 +597,10 @@ function renderBoard():void{
   const inputTitles=[...media.map(asset=>asset.title),...material.map(entry=>entry.title)];
   starterDashboard.update(snapshot.session,resourceSession===snapshot.session && !resultsFailed()?inputTitles.length:null,inputTitles.slice(0,6));
   projectResearchHome.update(snapshot.session, knownStudies, studiesNote, projectActivity, bridge.researchers(),
-    {count:inventory?.inputs.length??0,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:inventory?.groups??[]});
+    {count:inventory?.inputs.length??0,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:inventory?.groups??[],
+     // The page's candidates: retained single files named .html (the server checks each choice again).
+     pages:(inventory?.entries??[]).filter(entry=>entry.material?.kind==='file'&&typeof entry.version==='number'&&/\.html?$/i.test(entry.title))
+       .map(entry=>({id:entry.id,revision:entry.version!,title:entry.title}))});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
 }

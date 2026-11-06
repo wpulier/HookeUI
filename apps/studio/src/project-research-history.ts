@@ -6,7 +6,9 @@ export type ResearchOperation = {
 };
 export type ActivitySnapshot = {operations:ResearchOperation[]; study?:Effort; error?:string};
 export type Contributor = {id:string; label:string; origin:string; experiments:number; reports:number; replies:number};
-export type HistoryEvent = {id:string; at?:number; title:string; detail:string; actor:string; study:string; run?:string};
+/** `kind` says which record an event is, so a view picks results by record, never by its words. */
+export type HistoryKind = 'created'|'run'|'run-ended'|'claim'|'report'|'plan'|'review'|'finding'|'researcher-report'|'challenge'|'question'|'answer';
+export type HistoryEvent = {id:string; kind:HistoryKind; at?:number; title:string; detail:string; actor:string; study:string; run?:string};
 export function actorOrigin(id:string):string {
   if(id.startsWith('agent:ac_'))return 'Connected agent';
   if(['agent:chat','agent:voice'].includes(id))return 'Hooke Assistant';
@@ -54,13 +56,15 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
   const ids=new Set(Object.values(study.experiments??{}).map(e=>e.operation));
   const operations=(snapshot?.operations??[]).filter(op=>ids.has(op.id)&&op.project===study.session&&(!op.workflow||op.workflow.session===study.session));
   const counts={running:0,waiting:0,check:0,finished:0,failed:0};
-  const assignments={waiting:0,working:0,review:0,check:0};
+  // `lapsed`: a claim whose 300 s lease ran out with no admitted operation linked to it. Nothing of Hooke's is
+  // running for it, so it is ownership to close or continue, never execution to check (HOOKE-GAPS row 23).
+  const assignments={waiting:0,working:0,review:0,check:0,lapsed:0};
   for(const op of operations)counts[operationPhase(op)]++;
   for(const task of Object.values(study.tasks??{})){
     if(task.specification?.provider==='scientific-gcp-grant')continue;
     if(task.specification?.provider==='collaboration'){
       if(task.status==='planned')assignments.waiting++;
-      else if(task.status==='running'){if(typeof task.collaboration?.leaseUntil==='number'&&task.collaboration.leaseUntil<Date.now()/1000)assignments.check++;else assignments.working++;}
+      else if(task.status==='running'){if(typeof task.collaboration?.leaseUntil==='number'&&task.collaboration.leaseUntil<Date.now()/1000){if(task.collaboration.operations?.length)assignments.check++;else assignments.lapsed++;}else assignments.working++;}
       else if(task.status==='completed')assignments.review++;
       else if(task.status!=='cancelled')assignments.check++;
       continue;
@@ -79,30 +83,30 @@ export function studyActivity(study:Effort,snapshot?:ActivitySnapshot){
   const unavailable=!!snapshot?.error||missing>0;
   // A failed refresh must not perpetuate a stale running/idle claim.
   const title=unavailable?'Activity needs refreshing':counts.running?`${counts.running} experiment${counts.running===1?'':'s'} running`:
-    counts.check||assignments.check?'Execution needs checking':assignments.working?'Agent assignment claimed':assignments.waiting?'Waiting for an agent':counts.waiting||assignments.review?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
+    counts.check||assignments.check?'Execution needs checking':assignments.working?'Agent assignment claimed':assignments.lapsed?'A claimed assignment went quiet':assignments.waiting?'Waiting for an agent':counts.waiting||assignments.review?'Waiting for review or a next step':pending?`${pending} question${pending===1?'':'s'} awaiting a reply`:'No experiments running';
   return {counts,assignments,pending,unavailable,title,operations};
 }
 export function history(study:Effort,snapshot?:ActivitySnapshot):HistoryEvent[]{
   const out:HistoryEvent[]=[];
   const add=(e:Omit<HistoryEvent,'study'>)=>out.push({...e,study:study.id});
-  if(study.createdAt)add({id:'created',at:study.createdAt,title:'Research effort created',detail:study.title||study.objective,actor:study.createdBy?.byLabel||'Initiator not recorded'});
-  for(const op of studyActivity(study,snapshot).operations)add({id:op.id,at:op.workflow?.updatedAt??op.endedAt??op.at,title:op.workflow?.definition?.name||'Workflow experiment',detail:`${op.workflow?.updatedAt||op.endedAt?'Last retained execution change':'Admitted'} · ${snapshot?.error?'last recorded state': 'current state'}: ${operationPhase(op)==='check'?'needs checking':operationPhase(op)}${op.workflow?.executionObservation?.reason?` — ${op.workflow.executionObservation.reason}`:''}`,actor:op.byLabel,run:op.workflow?.id});
+  if(study.createdAt)add({id:'created',kind:'created',at:study.createdAt,title:'Research effort created',detail:study.title||study.objective,actor:study.createdBy?.byLabel||'Initiator not recorded'});
+  for(const op of studyActivity(study,snapshot).operations)add({id:op.id,kind:['finished','failed'].includes(operationPhase(op))?'run-ended':'run',at:op.workflow?.updatedAt??op.endedAt??op.at,title:op.workflow?.definition?.name||'Workflow experiment',detail:`${op.workflow?.updatedAt||op.endedAt?'Last retained execution change':'Admitted'} · ${snapshot?.error?'last recorded state': 'current state'}: ${operationPhase(op)==='check'?'needs checking':operationPhase(op)}${op.workflow?.executionObservation?.reason?` — ${op.workflow.executionObservation.reason}`:''}`,actor:op.byLabel,run:op.workflow?.id});
   for(const [id,t] of Object.entries(study.tasks??{})){
     if(t.specification?.provider!=='collaboration')continue;
     const a=t.specification.assignment as {objective?:string}|undefined,m=t.collaboration;
-    if(m?.claimedAt)add({id:'claim:'+id,at:m.claimedAt,title:a?.objective||'Research assignment',detail:'Assignment claimed · not proof of active execution',actor:m.claimedBy?.byLabel||'Contributor not recorded'});
-    if(m?.report)add({id:'report:'+id,at:m.completedAt,title:m.report.statement,detail:'Assignment report · awaiting review',actor:m.report.byLabel||m.claimedBy?.byLabel||'Contributor not recorded'});
+    if(m?.claimedAt)add({id:'claim:'+id,kind:'claim',at:m.claimedAt,title:a?.objective||'Research assignment',detail:'Assignment claimed · not proof of active execution',actor:m.claimedBy?.byLabel||'Contributor not recorded'});
+    if(m?.report)add({id:'report:'+id,kind:'report',at:m.completedAt,title:m.report.statement,detail:'Assignment report · awaiting review',actor:m.report.byLabel||m.claimedBy?.byLabel||'Contributor not recorded'});
   }
   for(const [index,plan] of [...(study.researchPlanHistory??[]),study.researchPlan].entries())if(plan){
-    if(plan.updatedAt)add({id:`plan:${index}`,at:plan.updatedAt,title:'Research plan saved',detail:plan.desiredOutput,actor:plan.byLabel||'Author not recorded'});
-    if(plan.reviewedAt)add({id:`review:${index}`,at:plan.reviewedAt,title:'Research plan reviewed',detail:plan.desiredOutput,actor:plan.reviewedBy?.byLabel||'Reviewer not recorded'});
+    if(plan.updatedAt)add({id:`plan:${index}`,kind:'plan',at:plan.updatedAt,title:'Research plan saved',detail:plan.desiredOutput,actor:plan.byLabel||'Author not recorded'});
+    if(plan.reviewedAt)add({id:`review:${index}`,kind:'review',at:plan.reviewedAt,title:'Research plan reviewed',detail:plan.desiredOutput,actor:plan.reviewedBy?.byLabel||'Reviewer not recorded'});
   }
-  for(const f of study.findings??[])add({id:'finding:'+f.request,at:f.at,title:f.statement,detail:'Accepted finding',actor:f.byLabel||'Reviewer not recorded'});
-  for(const c of study.claims??[])add({id:c.request,at:c.at,title:c.statement,detail:'Researcher report · not an accepted finding',actor:c.byLabel});
-  for(const c of study.claimChanges??[])add({id:`challenge:${c.claim}:${c.at}`,at:c.at,title:c.reason,detail:'Report challenged',actor:c.byLabel});
+  for(const f of study.findings??[])add({id:'finding:'+f.request,kind:'finding',at:f.at,title:f.statement,detail:'Accepted finding',actor:f.byLabel||'Reviewer not recorded'});
+  for(const c of study.claims??[])add({id:c.request,kind:'researcher-report',at:c.at,title:c.statement,detail:'Researcher report · not an accepted finding',actor:c.byLabel});
+  for(const c of study.claimChanges??[])add({id:`challenge:${c.claim}:${c.at}`,kind:'challenge',at:c.at,title:c.reason,detail:'Report challenged',actor:c.byLabel});
   for(const q of study.questions??[]){
-    add({id:q.id,at:q.at,title:q.question,detail:q.answer?'Question answered':`Awaiting ${q.recipient.label} · pickup not confirmed`,actor:q.byLabel});
-    if(q.answer)add({id:q.id+':answer',at:q.answer.at,title:q.answer.statement,detail:'Agent reply · not a reviewed finding',actor:q.answer.byLabel});
+    add({id:q.id,kind:'question',at:q.at,title:q.question,detail:q.answer?'Question answered':`Awaiting ${q.recipient.label} · pickup not confirmed`,actor:q.byLabel});
+    if(q.answer)add({id:q.id+':answer',kind:'answer',at:q.answer.at,title:q.answer.statement,detail:'Agent reply · not a reviewed finding',actor:q.answer.byLabel});
   }
   return out.sort((a,b)=>(b.at??0)-(a.at??0));
 }

@@ -9,7 +9,7 @@ export type TaskStatus = 'planned' | 'launching' | 'running' | 'unknown' | 'canc
 export interface EffortTask {
   status: TaskStatus | string;
   specification?: Record<string, unknown>;
-  collaboration?: {createdAt?:number;proposedBy?:{by:string;byLabel:string};completedAt?:number;report?:{statement:string;at?:number;byLabel?:string};leaseUntil?:number;claimedAt?:number;claimedBy?:{by:string;byLabel:string}};
+  collaboration?: {operations?:string[];createdAt?:number;proposedBy?:{by:string;byLabel:string};completedAt?:number;report?:{statement:string;at?:number;byLabel?:string};leaseUntil?:number;claimedAt?:number;claimedBy?:{by:string;byLabel:string}};
   reservedMicrousd: number;
   chargedMicrousd: number | null;
   usageEstimated?: boolean;

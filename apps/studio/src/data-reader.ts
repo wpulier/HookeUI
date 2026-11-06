@@ -1015,6 +1015,20 @@ export class DataReader {
       this.drawHead();
       body.replaceChildren();
       if (document.kind === 'source-file') {
+        // A retained .html file is shown as the page it is (a Project's page, docs/superpowers/specs/
+        // 2026-11-05-project-front-page-design.md): sandboxed, served under a policy that loads nothing from anywhere.
+        const fileName = (document.state as {sourceFile?: {name?: unknown}}).sourceFile?.name;
+        if (typeof fileName === 'string' && /\.html?$/i.test(fileName)) {
+          const frame = el('iframe', 'rd-page') as HTMLIFrameElement;
+          frame.src = `/api/scientific-files/${encodeURIComponent(ref.id)}/page?session=${encodeURIComponent(ref.day)}&revision=${ref.version}`;
+          frame.setAttribute('sandbox', 'allow-scripts');
+          frame.setAttribute('referrerpolicy', 'no-referrer');
+          frame.title = typeof document.title === 'string' ? document.title : fileName;
+          // Sized here, not by a stylesheet: the reader draws in contexts whose sheets differ (Data, a reader Tab).
+          Object.assign(frame.style, {display: 'block', flex: 'none', width: '100%', height: 'min(80vh, 1200px)', border: '0',
+            borderRadius: '10px', margin: '0 0 16px'});
+          body.prepend(frame);
+        }
         showScientificSource(body, document.state, ref, open, document.resources);
         showRetainedMedia(body, document.state, ref, signal);
         let signature: string | undefined;
@@ -1033,7 +1047,8 @@ export class DataReader {
           previous?.remove();
           const inspection = latest.material?.inspection;
           const details=el('section','rd-material-inspection');
-          if(latest.material)details.append(materialSummary(latest.material));
+          const page = body.querySelector<HTMLElement>('.rd-page');
+          if(latest.material)details.append(materialSummary(latest.material,{shown:!!page}));
           const actions=el('div','material-actions');
           if(this.deps.materialAction){
             for(const [label,action] of [[inspection?'Inspect again':'Inspect','inspect'],['Use in an experiment','experiment'],['Ask about this material','ask']] as const){
@@ -1066,7 +1081,8 @@ export class DataReader {
             }
             if (inspection.total > inspection.reports.length) details.append(el('p', 'rd-note', `Showing ${inspection.reports.length} of ${inspection.total} retained inspections. All reported shapes were compared.`));
           }
-          body.prepend(details);
+          // A page stays first: what it is comes before its file facts.
+          if (page) page.after(details); else body.prepend(details);
         };
         this.refreshMaterial(current);
         this.drawHead();
