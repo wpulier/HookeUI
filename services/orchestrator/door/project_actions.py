@@ -34,12 +34,22 @@ SCHEMAS = {
     'project.remote.backup': {'to': {'type': 'string', 'minLength': 1, 'maxLength': 300}},
     'project.publish': {'licence': {'type': 'string', 'enum': ['CC-BY-4.0', 'CC0-1.0']},
                         'includeTranscripts': {'type': 'boolean'}},
+    # The Project's front page (project_front.py): one sentence about it, the retained .html file that is its page,
+    # and planned next steps. `read` with no fields; the others name their change.
+    'project.front': {'action': {'type': 'string', 'enum': ['read', 'about', 'page', 'next', 'done']},
+                      'about': {'type': 'string', 'minLength': 1, 'maxLength': 600},
+                      'page': {'anyOf': [{'$ref': 'artifact-reference.schema.json'}, {'type': 'null'}]},
+                      'request': {'type': 'string', 'minLength': 1, 'maxLength': 128},
+                      'text': {'type': 'string', 'minLength': 1, 'maxLength': 280},
+                      'study': {'type': 'string', 'pattern': '^p[a-f0-9]{32}$'},
+                      'when': {'type': 'string', 'minLength': 1, 'maxLength': 80},
+                      'item': {'type': 'string', 'pattern': '^n[a-f0-9]{16}$'}},
 }
 
 REQUIRED = {'artifact.read': ['reference'], 'project.state': [], 'project.remote.backup': [],
-            'project.publish': []}  # every other action's fields are all required
+            'project.publish': [], 'project.front': ['action']}  # every other action's fields are all required
 WRITES = ('project.import', 'material.organize', 'project.export', 'study.coordinate', 'project.remote.backup',
-          'project.publish')
+          'project.publish', 'project.front')
 
 
 def descriptors(build):
@@ -55,7 +65,33 @@ def authorize(built, name, project, actor):
     if name not in SCHEMAS or not agent_runnable.door_resource(name):
         raise Refused(403, 'action-not-admitted', 'This action is not declared for agents.', next='discover available tools')
     if name not in ('project.create', 'project.list', 'research.instructions'):
-        access(built).require(project, actor, write=name in WRITES)
+        # project.front reads with read access; its changes need write access (front_change below).
+        access(built).require(project, actor, write=name in WRITES and name != 'project.front')
+
+
+def front_change(built, project, actor, label, args):
+    """Read or change the Project's front page record; a change needs write access and names only its own fields."""
+    from ..project_front import ProjectFront
+    front = ProjectFront(built.hub.resources.projects)
+    action = args['action']
+    fields = {'read': set(), 'about': {'about'}, 'page': {'page'}, 'next': {'request', 'text'}, 'done': {'item'}}[action]
+    optional = {'study', 'when'} if action == 'next' else set()
+    given = set(args) - {'action'}
+    if not fields <= given or given - fields - optional:
+        raise Refused(400, 'invalid-fields', f'project.front {action} takes {sorted(fields | optional) or "no other fields"}.',
+                      next='send only the fields of this change')
+    if action == 'read':
+        return {'front': front.read(project)}
+    access(built).require(project, actor, write=True)
+    attribution = {'by': actor, 'byLabel': label}
+    if action == 'about':
+        return {'front': front.set_about(project, args['about'], attribution=attribution)}
+    if action == 'page':
+        return {'front': front.set_page(project, args['page'], attribution=attribution)}
+    if action == 'next':
+        return {'front': front.add_next(project, request=args['request'], text=args['text'], study=args.get('study'),
+                                        when=args.get('when'), attribution=attribution)}
+    return {'front': front.done_next(project, args['item'], attribution=attribution)}
 
 
 def _summary(built, project, actor):
@@ -181,6 +217,8 @@ async def run(built, record, progress):
         from ..research.coordination import Coordination
         from ..research.studies import service
         result = await asyncio.to_thread(Coordination(service(built)).read, args['study'], project)
+    elif name == 'project.front':
+        result = await asyncio.to_thread(front_change, built, project, actor, record['byLabel'], args)
     elif name == 'study.coordinate':
         from ..research.coordination_api import execute_command
         result = await execute_command(built, args['study'], project, args['action'], args['fields'], actor, record['byLabel'])
@@ -320,7 +358,8 @@ async def run(built, record, progress):
                     result['contentUnavailable'] = 'Use a ready catalog reader or download the retained bytes; no text was inferred.'
             return result
         result = await asyncio.to_thread(read_artifact)
-    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate'):
+    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate') or (
+            name == 'project.front' and args.get('action') != 'read'):
         # Tell open studios about detached contributions without navigating their stage.
         changed = getattr(built, 'sessions_changed', None)
         if callable(changed):

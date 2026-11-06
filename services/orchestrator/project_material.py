@@ -61,6 +61,8 @@ def describe(document: dict) -> dict:
         material.update(kind='assignment', origin='authored', input=True, section='study', category='study-result')
     elif kind == 'project-material-membership':
         material.update(kind='organization', origin='authored', section='history', category='organization', record=True)
+    elif kind == 'project-front':
+        material.update(kind='organization', origin='authored', section='history', category='organization', record=True)
     elif kind.startswith('scientific-workflow-'):
         material.update(kind='workflow', origin='generated', section='history', category='workflow', record=True)
         attempt = state.get('workflowAttempt', {})
