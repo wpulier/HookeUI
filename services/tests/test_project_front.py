@@ -163,3 +163,16 @@ def test_library_rows_are_reused_until_the_project_or_its_record_changes(front, 
     reads.clear()
     rows = project_front.library_rows(record, built, [sid])
     assert reads == [sid] and rows[0]['about'] == 'Changed.'
+
+
+def test_warming_fills_the_library_cache_and_stops_when_asked(front):
+    import threading
+    from orchestrator import project_front
+    _, built, record = front
+    project_front._LIBRARY_CACHE.clear()
+    assert project_front.warm_library(record, built, threading.Event(), pause=0) >= 1
+    assert built.day.sid in project_front._LIBRARY_CACHE
+    stopped = threading.Event(); stopped.set()
+    project_front._LIBRARY_CACHE.clear()
+    assert project_front.warm_library(record, built, stopped, pause=0) == 0
+    assert not project_front._LIBRARY_CACHE

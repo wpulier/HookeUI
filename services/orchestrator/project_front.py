@@ -7,8 +7,10 @@ attributed. It starts no work and makes no model call (docs/superpowers/specs/20
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
+import threading
 import time
 
 from fastapi import Request
@@ -291,6 +293,18 @@ def register(app, built, studio_origin, header):
         except (ValueError, OSError, KeyError) as error:
             return _error(error)
 
+    # Warm the library's rows soon after start-up (server.py lifespan), one Project at a time off the event loop, so
+    # the first Open Project shows covers at once instead of reading every Project's store while the studio loads.
+    stop = threading.Event()
+    async def warm(delay=WARM_AFTER_S):
+        try:
+            await asyncio.sleep(delay)
+            await asyncio.to_thread(warm_library, front, built, stop)
+        except asyncio.CancelledError:
+            stop.set()
+            raise
+    app.state.project_library_warm = (warm, stop)
+
     @app.get('/api/project-library')
     async def project_library():
         """Every Project as the Projects library lists it, beside the sessions list (names, dates, counts): its one
@@ -316,6 +330,27 @@ def register(app, built, studio_origin, header):
 
 
 _LIBRARY_CACHE: dict = {}
+WARM_AFTER_S = 15  # after start-up's own reads; the live view comes first
+WARM_PAUSE_S = 0.05
+
+
+def warm_library(front, built, stop, pause=WARM_PAUSE_S):
+    """Fill the library's row cache Project by Project, pausing between them; stops at once when asked."""
+    try:
+        sids = [info.id for info in built.day.catalogue.list()]
+    except (ValueError, OSError, KeyError):
+        return 0
+    done = 0
+    for sid in sids[:500]:
+        if stop.is_set():
+            break
+        try:
+            library_rows(front, built, [sid])
+            done += 1
+        except (ValueError, OSError, KeyError):
+            pass
+        stop.wait(pause)
+    return done
 
 
 def _stamp(path):

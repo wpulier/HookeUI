@@ -138,11 +138,18 @@ def create_app(bridge_url: str, use_gpu: bool = True, paths: Paths | None = None
         observed.record_use(built.paths.checks.parent / observed.USES,
                             changed=lambda: built.hub.broadcast(built.capabilities_wire()))
         lifecycle = app.state.research_lifecycle
+        warming = None
         try:
             await built.start()
             lifecycle.start()
+            warm = getattr(app.state, 'project_library_warm', None)  # project_front.py: Open Project's covers
+            if warm is not None:
+                warming = asyncio.get_running_loop().create_task(warm[0]())
             yield
         finally:
+            if warming is not None:
+                warm[1].set()
+                warming.cancel()
             try:
                 experiments = getattr(built.hub, 'experiments', None)
                 if experiments is not None:
