@@ -1,0 +1,24 @@
+{
+ "format": "dataset-manifest-v1",
+ "name": "Replogle 2022 K562 essential single-cell Perturb-seq",
+ "licence": {
+  "id": "CC-BY-4.0",
+  "url": "https://creativecommons.org/licenses/by/4.0/"
+ },
+ "citation": "Replogle J.M. et al. (2022) Mapping information-rich genotype-phenotype landscapes with genome-scale Perturb-seq. Cell. figshare+ doi:10.25452/figshare.plus.20029387.v1",
+ "page": "https://plus.figshare.com/articles/dataset/20029387",
+ "terms": "VCC 2026 rule: may train or condition a model; measured values must not be pasted into, or used to revise, predictions. Disclose as training data.",
+ "figshare": {
+  "article": 20029387,
+  "version": 1
+ },
+ "files": [
+  {
+   "name": "K562_essential_raw_singlecell_01.h5ad",
+   "figshareFile": 35773219,
+   "size": 10661879995,
+   "md5": "4f1122ce1c7f13299a68df6459a266d3",
+   "sha256": "3e5a63a9e892b21029bb55fca4e12517a49aad7af6c14133ca63d12cf68c6cee"
+  }
+ ]
+}

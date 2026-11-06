@@ -1,0 +1,65 @@
+{
+ "format": "dataset-manifest-v1",
+ "name": "DepMap 24Q4 Public (selected files)",
+ "licence": {
+  "id": "CC-BY-4.0",
+  "url": "https://creativecommons.org/licenses/by/4.0/"
+ },
+ "citation": "DepMap, Broad (2024). DepMap 24Q4 Public. figshare+. doi:10.25452/figshare.plus.27993248.v1",
+ "page": "https://depmap.org/portal/data_page/?tab=allData",
+ "terms": "VCC 2026: used to describe the contexts (line identity, a hypothesis), never as a model input.",
+ "figshare": {
+  "article": 27993248,
+  "version": 1
+ },
+ "files": [
+  {
+   "name": "CRISPRGeneEffect.csv",
+   "url": "https://depmap.org/portal/data_page/?tab=allData&releasename=DepMap%20Public%2024Q4&filename=CRISPRGeneEffect.csv",
+   "figshareFile": 51064667,
+   "mirror": {
+    "url": "https://ndownloader.figshare.com/files/51064667",
+    "why": "depmap.org answers automated clients with a Cloudflare verification page (observed 5 and 6 Nov 2026); Hooke never gets past such checks. figshare+ holds DepMap's own 24Q4 Public release."
+   },
+   "size": 428678699,
+   "md5": "6edf7ade09b9b34199210b559d4745d3",
+   "sha256": "3d8f3ec6dbf2db7ff834b79b508622ec0b226f3518003fe96ecf5a4fcf167e3b"
+  },
+  {
+   "name": "OmicsExpressionProteinCodingGenesTPMLogp1.csv",
+   "url": "https://depmap.org/portal/data_page/?tab=allData&releasename=DepMap%20Public%2024Q4&filename=OmicsExpressionProteinCodingGenesTPMLogp1.csv",
+   "figshareFile": 51065489,
+   "mirror": {
+    "url": "https://ndownloader.figshare.com/files/51065489",
+    "why": "depmap.org answers automated clients with a Cloudflare verification page (observed 5 and 6 Nov 2026); Hooke never gets past such checks. figshare+ holds DepMap's own 24Q4 Public release."
+   },
+   "size": 506628654,
+   "md5": "71794802b750ce77c422dad0720a40af",
+   "sha256": "2a71dc94110efcc0221eae821bb93a9f03b54bea16f005818911a09d33383d56"
+  },
+  {
+   "name": "Model.csv",
+   "url": "https://depmap.org/portal/data_page/?tab=allData&releasename=DepMap%20Public%2024Q4&filename=Model.csv",
+   "figshareFile": 51065297,
+   "mirror": {
+    "url": "https://ndownloader.figshare.com/files/51065297",
+    "why": "depmap.org answers automated clients with a Cloudflare verification page (observed 5 and 6 Nov 2026); Hooke never gets past such checks. figshare+ holds DepMap's own 24Q4 Public release."
+   },
+   "size": 645696,
+   "md5": "675210d17675f3517b0ce39a3c274f16",
+   "sha256": "b7a0c1385e6cef30132b56aff61f1261d11e3f490490b355c430d32ee0dbdcfa"
+  },
+  {
+   "name": "CRISPRInferredCommonEssentials.csv",
+   "url": "https://depmap.org/portal/data_page/?tab=allData&releasename=DepMap%20Public%2024Q4&filename=CRISPRInferredCommonEssentials.csv",
+   "figshareFile": 51064916,
+   "mirror": {
+    "url": "https://ndownloader.figshare.com/files/51064916",
+    "why": "depmap.org answers automated clients with a Cloudflare verification page (observed 5 and 6 Nov 2026); Hooke never gets past such checks. figshare+ holds DepMap's own 24Q4 Public release."
+   },
+   "size": 20795,
+   "md5": "545edef0d377f252db6e5e675201bd77",
+   "sha256": "0352de5335ae3bf72250dd136d1b0df87a6b72f653df34c2560cce17c0e7d928"
+  }
+ ]
+}

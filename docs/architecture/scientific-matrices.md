@@ -140,6 +140,15 @@ random-number order from the 5 Nov 2026 scripts:
 | `vcc-fold-score` | cell-eval2 0.20.0 / AnnData 0.13.4 | `cell-eval2 run` in-process after a tiny synthetic end-to-end score | `eval/score_fold.sh` |
 | `vcc-package` | vcc-cli 0.3.0 | official `run_prep` with a measured memory forecast, then a hash-for-hash check of the package | `vcc prep` |
 | `frozen-gate` | matrix CPU | a `frozen-gate-v1` rule (scaled gains over spans: overall, each metric, target subsets) on two fold scores | `eval/decide.py` |
+| `target-overlap` | matrix CPU | which listed targets one obs column (or the row names' n-th token) holds, with rows per target and an optional numeric column summarised; reads obs only | the night's overlap and Mann-Whitney checks |
+| `profile-match` | matrix CPU | Spearman of a selected-rows pseudobulk with every row of a reference table (DepMap: "SYMBOL (id)" headers), named from a names CSV; labelled a hypothesis | the night's line-identity check |
+
+`target-overlap` and `profile-match` read `.h5ad` files with h5py alone (`h5ad_read.py`, the same file in each
+folder): obs never loads X, and pseudobulk sums X a block of rows at a time, so a 10 GB screen answers in seconds.
+They read AnnData 0.7 (`__categories`) and current encodings (categorical, nullable strings). Agents run them, and
+`matrix-inspect`, with the door's `matrix.query` (`services/orchestrator/door/AGENTS.md`, "Data in"). On the night's
+files: 0 of the 300 contest targets in Jurkat (2,393 targets), HepG2 or K562-essential (2,057); context D's controls
+closest to MOLM-13 (Spearman 0.914, then MOLM-14), E's to U-87 MG (0.891, then U-118 MG), F with no clear match.
 
 Points that matter:
 

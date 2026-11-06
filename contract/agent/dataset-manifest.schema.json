@@ -1,0 +1,59 @@
+{
+  "$id": "hooke:agent/dataset-manifest",
+  "description": "A published dataset to acquire into a Project (dataset.acquire). Licence ids Hooke admits are listed in services/orchestrator/dataset_acquire.py LICENCES; any other is refused before anything is fetched. A figshare article states its own files' size, md5 and licence.",
+  "type": "object",
+  "required": ["format", "name", "licence", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"type": "string", "enum": ["dataset-manifest-v1"]},
+    "name": {"type": "string", "minLength": 1, "maxLength": 120},
+    "licence": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1, "maxLength": 80},
+        "url": {"type": "string", "pattern": "^https://", "maxLength": 2048}
+      }
+    },
+    "citation": {"type": "string", "minLength": 1, "maxLength": 600},
+    "page": {"type": "string", "pattern": "^https://", "maxLength": 2048},
+    "terms": {"type": "string", "minLength": 1, "maxLength": 600},
+    "figshare": {
+      "type": "object",
+      "required": ["article"],
+      "additionalProperties": false,
+      "properties": {
+        "article": {"type": "integer", "minimum": 1},
+        "version": {"type": "integer", "minimum": 1}
+      }
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 240},
+          "url": {"type": "string", "pattern": "^https://", "maxLength": 2048},
+          "figshareFile": {"type": "integer", "minimum": 1},
+          "mirror": {
+            "type": "object",
+            "required": ["url"],
+            "additionalProperties": false,
+            "properties": {
+              "url": {"type": "string", "pattern": "^https://", "maxLength": 2048},
+              "why": {"type": "string", "minLength": 1, "maxLength": 300}
+            }
+          },
+          "size": {"type": "integer", "minimum": 0},
+          "md5": {"type": "string", "pattern": "^[a-f0-9]{32}$"},
+          "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+        }
+      }
+    }
+  }
+}

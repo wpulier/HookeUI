@@ -222,6 +222,41 @@ requires explicit developer confirmation mode plus its Studio origin/referrer an
 header; this is not an OS-level isolation boundary against local shell access.
 Catalogue reads and complete synchronous grant operations run off the event loop.
 
+## Data in (HOOKE-GAPS rows 1–7)
+
+On the VCC night (5 Nov 2026) the reference data was fetched with curl, organizer zips were checked with
+`unzip -p | shasum`, papers were read through `pdftotext`, and the line-identity and target-overlap checks were scratch
+scripts. Each now runs through the door, as the connection, in its Project:
+
+- **`dataset.acquire {manifest}`** (contribute; `orchestrator/dataset_acquire.py`, `contract/agent/dataset-manifest.schema.json`).
+  A manifest names a published dataset: its licence, its files (address, optional mirror, size, md5, sha256) and
+  optionally a figshare article, whose own record supplies each file's size, md5 and licence. The licence is checked
+  first: anything but the open terms in `LICENCES` (and NCBI's "no restrictions" for GEO) is refused before a byte is
+  fetched (`licence-missing`, `licence-not-admitted`), and a figshare article's licence must be the manifest's
+  (`licence-mismatch`). Then the free space (`disk`). Each file is fetched with the URL intake's address rules (https,
+  public addresses on every hop, no credentials or cookies, stored bytes) into a private `.part` that survives a
+  stop, a dropped connection (`connection-dropped`) or a restart; the same request carries on with an HTTP Range
+  (If-Range, so a changed file is never spliced). A web page instead of the file (depmap.org's verification page,
+  never bypassed), a refusal, a missing file or a wrong size or checksum moves to the file's mirror; the receipt says
+  so (`primaryRefused`, `mirrorWhy`). Every file is hashed whole and must match every size and checksum given, then
+  is retained with its `sourceDataset` record (dataset, licence, address, mirror, final address without any pre-signed
+  query, when, size, sha256, md5), which only acquisition writes. A `<name>.dataset.json` receipt names every retained
+  file. Retrying the same request key returns what is retained without fetching again. Progress is the operation's.
+  The night's three sources are `examples/datasets/vcc-2026/`.
+- **`project.import {file, members?}`**: a .zip is read member by member (never extracted to disk): each member's
+  size, CRC and sha256, kept as the source's `sourceArchive` record (`orchestrator/archive_members.py`). A damaged
+  member, or a `members` entry ({name: sha256}) that is missing or differs, refuses the import. The answer lists, for
+  each member, the retained files in this Project with exactly its bytes (`sameBytesAs`). Over 2,048 members or
+  1 TiB, the archive is imported and its record says it was not verified, and why.
+- **`artifact.read` of a PDF** gives its extracted text (`orchestrator/pdf_text.py`): macOS PDFKit through
+  `osascript`, or Poppler's `pdftotext` where installed, in a bounded process (256 MiB, 60 s, 16 M characters), cached
+  by sha256 under the data home. `offset` and `length` count characters; the answer names the extractor and the pages
+  the range falls on, and says that extracted text is a reading aid. A PDF it cannot read gives `contentUnavailable`.
+- **`matrix.query {capability, inputs, params?}`** (contribute) runs one read-only reviewed matrix capability
+  (`matrix-inspect`, `target-overlap`, `profile-match`) over exact retained files through the shared `run_matrix`
+  admission, worker and heavy-work slot, and retains its result with the agent as its maker. Any other capability
+  runs through a Study's workflow; `matrix.query` refuses it at admission.
+
 ## Frozen rules (ADR 0031)
 
 `POST studies/{id}/rules` takes exactly session, requestKey, name and artifact (an exact retained JSON file with a

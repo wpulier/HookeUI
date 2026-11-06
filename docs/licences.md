@@ -64,6 +64,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Bundled official final-panel packaging integration](https://pypi.org/project/vcc-cli/0.3.0/) | open | Apache-2.0 adapter; MIT vcc-cli; dependencies retain their own licenses | code | catalog: `matrix-package-vcc` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-prepare` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `matrix-project-counts` | - |
+| [Profile similarity](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `profile-match` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-combine` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-development-check` | - |
 | [Bundled scientific count operation](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `response-effect-evaluate` | - |
@@ -74,6 +75,7 @@ declarations alone do not determine the legal effect on weights or clear a parti
 | [Spot measure, an example capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-measure` | - |
 | [Spot shape, an example derived capability](https://github.com/wpulier/HookeUI) | open | Apache-2.0 | code | catalog: `spot-shape` | - |
 | [Swin2SR lightweight x2 (Conde, Choi, Burchi, Timofte)](https://huggingface.co/caidas/swin2SR-lightweight-x2-64) | open | Apache-2.0 | code | catalog: `swin2sr-enlarge` | - |
+| [Observation label overlap](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `target-overlap` | - |
 | [Effect-transfer expression factors](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `transfer-factors` | - |
 | [Streaming count emission](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-count-emission` | - |
 | [Independent entry integrity check](https://github.com/wpulier/HookeUI) | open | Apache-2.0 adapter; dependencies retain their own licenses | code | catalog: `vcc-entry-check` | - |

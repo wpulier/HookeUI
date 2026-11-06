@@ -240,6 +240,8 @@ How things are built is in `AGENTS.md` and the files it maps; why some things ar
 ## Datasets
 
 - **Dataset**: a collection of research data used within a Project. A dataset can include recordings, images, matrices or other explicitly selected data.
+- **Acquired dataset**: a published dataset brought into a Project by `dataset.acquire` from its manifest: each file
+  retained with where it came from (address or mirror), its licence and checksums, and one receipt naming them all.
 - **Recorded dataset** (`ds-20261006-012923`, historically called Dataset): everything about a stretch of looking, collected while the
   user records, for later analysis by programs and agents (`docs/datasets.md`). Its edges are
   Record and its Stop and nothing else (ADR 0009). It is not tied to the day.
