@@ -170,6 +170,8 @@ def record_of(state):
 INTAKE_RECORDS = {
     'sourceRemote': 'Where a source was downloaded from is written only by Hooke’s download',
     'sourceStack': 'How files were stacked is written only when Hooke imports them as a stack',
+    'sourceDataset': 'Where an acquired dataset file came from is written only by Hooke’s dataset acquisition',
+    'sourceArchive': 'An archive’s verified members are written only when Hooke imports the archive',
 }
 
 

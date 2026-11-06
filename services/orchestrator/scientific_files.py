@@ -377,6 +377,10 @@ def validate_references(store,project,session,document,*,accepted=(),check=lambd
             raise InvalidProject('Source file identity must match its retained original bytes')
         from .scientific_url_intake import record_of
         record_of(document['state'])
+        from .dataset_acquire import record_of as acquired
+        acquired(document['state'])
+        from .archive_members import record_of as archived
+        archived(document['state'])
         if document['kind']=='source-directory':
             from .scientific_directory_intake import stack_of
             stack_of(document['state'])

@@ -1,0 +1,83 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "target-overlap"
+name = "Targets in a dataset"
+runs = "cpu"
+version = "1"
+licence = ["target-overlap"]
+kind = "tool-function"
+what = "Which listed targets a perturbation dataset holds"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from the VCC 2026 campaign's target-overlap checks; no pretrained weights" }
+credit = { authors = "HookeUI contributors", link = "https://github.com/wpulier/HookeUI" }
+component = { what = "Observation label overlap", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 1024
+load_limit_s = 30
+operation = "target-overlap"
+category = "Research"
+experimental = true
+outcomes = { empty = "No targets listed", unsupported = "A matrix without the declared observation column, or a target list without its column" }
+description = "Reads only the matrix's observation annotations (never its counts) and compares the labels of one column with a list of targets: which are found, with how many rows, which are not, and optionally a numeric column (such as a knockdown strength) summarised per found target. Labels are what the dataset's makers recorded; they do not establish what was perturbed."
+
+[[inputs]]
+id = "matrix"
+type = "matrix.anndata"
+label = "Perturbation dataset (.h5ad)"
+
+[[inputs]]
+id = "targets"
+type = "artifact.csv"
+label = "Target list (CSV)"
+
+[[inputs]]
+id = "column"
+type = "string"
+label = "Target column in the dataset"
+default = "target_gene"
+agent = true
+tooltip = "obs column holding each row's target label (empty: the row names, see Row-name token)."
+
+[[inputs]]
+id = "name_token"
+type = "int"
+label = "Row-name token"
+default = 0
+min = 0
+max = 8
+agent = true
+tooltip = "With no target column: 0 uses each whole row name, n its n-th '_'-separated part (2 for Replogle 2022 pseudobulk rows)."
+
+[[inputs]]
+id = "targets_column"
+type = "string"
+label = "Target column in the list"
+default = "target_gene"
+agent = true
+tooltip = "CSV column naming the targets to look for."
+
+[[inputs]]
+id = "control_label"
+type = "string"
+label = "Control label"
+default = "non-targeting"
+agent = true
+tooltip = "Rows with this label are controls: counted, never a target."
+
+[[inputs]]
+id = "value_column"
+type = "string"
+label = "Value column (optional)"
+default = ""
+agent = true
+tooltip = "Optional numeric obs column (e.g. mann_whitney_counts) summarised over each found target's rows."
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Target overlap"

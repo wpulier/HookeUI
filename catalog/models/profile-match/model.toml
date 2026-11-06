@@ -1,0 +1,120 @@
+# Reviewed folder matrix capability (ADR 0031): its adapter is this folder's adapter.py, run by the shared
+# confined matrix worker in its declared prepared runtime. Its generation covers only this folder.
+requires = { catalog = 2 }
+id = "profile-match"
+name = "Match a profile to a reference"
+runs = "cpu"
+version = "1"
+licence = ["profile-match"]
+kind = "tool-function"
+what = "Which reference profiles a sample resembles most (a hypothesis)"
+runner = "builtin-cpu"
+adapter = "adapter:run"
+source = { made_here = "Ported from the VCC 2026 campaign's line-identity check; no pretrained weights" }
+credit = { authors = "HookeUI contributors; reference data by its makers (e.g. the DepMap project)", link = "https://depmap.org/portal/" }
+component = { what = "Profile similarity", licence = "Apache-2.0 adapter; dependencies retain their own licenses", url = "https://github.com/wpulier/HookeUI", tier = "open" }
+needs_to_get = []
+needs_to_run = ["install:matrix-cpu-runtime"]
+workers = []
+host = "shared"
+documented_mb = 4096
+load_limit_s = 30
+operation = "profile-match"
+category = "Research"
+experimental = true
+outcomes = { empty = "No shared genes", unsupported = "A sample without counts or the declared columns, or a reference that is not one profile per row" }
+description = "Sums a sample's raw counts over its selected rows (e.g. the non-targeting controls) and ranks every profile of a reference table (one per row, a column per gene) by the Spearman correlation of their shared genes. The answer is a labelled hypothesis about what the sample resembles, never its identity."
+
+[[inputs]]
+id = "sample"
+type = "matrix.anndata"
+label = "Sample (.h5ad of raw counts)"
+
+[[inputs]]
+id = "reference"
+type = "artifact.csv"
+label = "Reference profiles (CSV: id, then one column per gene)"
+
+[[inputs]]
+id = "names"
+type = "artifact.csv"
+label = "Profile names (CSV, e.g. DepMap Model.csv)"
+
+[[inputs]]
+id = "cell_column"
+type = "string"
+label = "Select rows by column"
+default = "target_gene"
+agent = true
+tooltip = "obs column used to select the rows summed (empty: every row)."
+
+[[inputs]]
+id = "cell_label"
+type = "string"
+label = "Selected label"
+default = "non-targeting"
+agent = true
+tooltip = "Rows whose column has this label are summed."
+
+[[inputs]]
+id = "gene_column"
+type = "string"
+label = "Gene symbol column"
+default = ""
+agent = true
+tooltip = "var column of gene symbols (empty: the var names)."
+
+[[inputs]]
+id = "strip_parenthesised_ids"
+type = "bool"
+label = "Match 'SYMBOL (id)' headers by symbol"
+default = true
+agent = true
+tooltip = "DepMap writes genes as 'TP53 (7157)'; match them by the symbol before the parenthesis."
+
+[[inputs]]
+id = "names_id_column"
+type = "string"
+label = "Names: id column"
+default = "ModelID"
+agent = true
+
+[[inputs]]
+id = "names_label_column"
+type = "string"
+label = "Names: name column"
+default = "CellLineName"
+agent = true
+
+[[inputs]]
+id = "min_counts"
+type = "number"
+label = "Minimum pseudobulk counts per gene"
+default = 0.0
+min = 0.0
+max = 1000000.0
+agent = true
+tooltip = "Genes with fewer counts in the pseudobulk are left out of the comparison."
+
+[[inputs]]
+id = "min_genes"
+type = "int"
+label = "Minimum shared genes"
+default = 500
+min = 10
+max = 100000
+agent = true
+
+[[inputs]]
+id = "top"
+type = "int"
+label = "Profiles listed"
+default = 10
+min = 1
+max = 200
+agent = true
+
+[[outputs]]
+id = "result"
+type = "artifact.json"
+label = "Profile match (hypothesis)"

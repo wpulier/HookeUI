@@ -139,6 +139,16 @@ Project membership is the owner's choice in Settings → Connected agents → Pr
 access. Read-only access never authorizes an experiment or a finding. Do not call a
 Studio grant route or alter files to gain access. A refusal is a real boundary.
 
+Bring published data in with `dataset.acquire {"manifest": …}` (see the `dataset-manifest` schema; the
+VCC 2026 manifests in `examples/datasets/vcc-2026/` are models). Hooke checks the licence and free space first,
+resumes an interrupted download when you retry the same request key, uses a file's mirror when its publisher's site
+refuses (it never gets past a bot check), verifies every checksum and keeps where each file came from. Do not download
+data yourself and import it when a manifest can say where it is. Importing a .zip records every member's sha256
+(give `members` to check them against the organizer's list). `artifact.read` of a PDF returns its extracted text,
+paged by character offset. For quick read-only questions about a retained `.h5ad` (its columns, which targets it
+holds, which reference profile its controls resemble), run `matrix.query` with `matrix-inspect`, `target-overlap` or
+`profile-match`; a profile match is a hypothesis, never an identity.
+
 `artifact.read` gives a download locator for a retained file. Use
 `hooke download '<locator>' --output <new-file>` to retrieve it. Verify returned bytes
 against retained hashes before packaging. Reimport external validation receipts

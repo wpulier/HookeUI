@@ -9,6 +9,10 @@ from .connections import Refused
 from .projects import access
 from .. import agent_runnable
 
+# Read-only matrix capabilities `matrix.query` runs directly: each reads exact retained files and retains one result
+# (HOOKE-GAPS rows 5 and 6). Everything else runs through a Study's workflow.
+MATRIX_QUERIES = ('matrix-inspect', 'target-overlap', 'profile-match')
+
 # Schemas describe transport only; scientific capabilities remain catalog-owned.
 SCHEMAS = {
     "study.coordination": {"study": {"type":"string", "pattern":"^p[a-f0-9]{32}$"}},
@@ -26,7 +30,13 @@ SCHEMAS = {
     'project.state': {'cursor': {'type': 'string', 'minLength': 1, 'maxLength': 128},
                       'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}},
     'material.organize': {'reference': {'$ref': 'artifact-reference.schema.json'}, 'role': {'type': 'string', 'maxLength': 80}, 'input': {'type': 'boolean'}, 'expectedRevision': {'type':'integer','minimum':0}},
-    'project.import': {'file': {'type': 'string', 'minLength': 1}},
+    # A .zip is read member by member as it is imported (archive_members.py); `members` ({name: sha256}) must match.
+    'project.import': {'file': {'type': 'string', 'minLength': 1}, 'members': {'type': 'object'}},
+    # A published dataset by its manifest (dataset_acquire.py): licence first, resumable, verified, mirrored, retained.
+    'dataset.acquire': {'manifest': {'$ref': 'dataset-manifest.schema.json'}},
+    # One read-only reviewed matrix capability over exact retained files, its result retained (matrix_query below).
+    'matrix.query': {'capability': {'type': 'string', 'enum': list(MATRIX_QUERIES)},
+                     'inputs': {'type': 'object'}, 'params': {'type': 'object'}},
     'artifact.read': {'reference': {'$ref': 'artifact-reference.schema.json'}, 'offset': {'type':'integer','minimum':0}, 'length': {'type':'integer','minimum':1,'maximum':65536}},
     # Remotes (ADR 0028, hooke-projects ticket 09). A backup goes only where the owner already backs this Project up;
     # a publication is prepared for the owner, who reviews it and signs off in Hooke. Neither picks a destination.
@@ -48,9 +58,10 @@ SCHEMAS = {
 }
 
 REQUIRED = {'artifact.read': ['reference'], 'project.state': [], 'project.remote.backup': [],
-            'project.publish': [], 'project.front': ['action']}  # every other action's fields are all required
+            'project.publish': [], 'project.front': ['action'], 'project.import': ['file'],
+            'matrix.query': ['capability', 'inputs']}  # every other action's fields are all required
 WRITES = ('project.import', 'material.organize', 'project.export', 'study.coordinate', 'project.remote.backup',
-          'project.publish', 'project.front')
+          'project.publish', 'project.front', 'dataset.acquire', 'matrix.query')
 
 
 def descriptors(build):
@@ -59,7 +70,10 @@ def descriptors(build):
              'inputs': [], 'outputs': [{'type': 'project-evidence', 'label': 'retained Project evidence'}],
              'inputSchema': {'type': 'object', 'properties': fields, 'required': REQUIRED.get(name, list(fields)), 'additionalProperties': False},
              'generation': app_generation(build), 'state': 'available', 'runsOn': 'this Mac',
-             'cost': 'local computation only'} for name, fields in SCHEMAS.items() if agent_runnable.door_resource(name)]
+             'cost': COSTS.get(name, 'local computation only')} for name, fields in SCHEMAS.items() if agent_runnable.door_resource(name)]
+
+
+COSTS = {'dataset.acquire': "free; downloads the dataset from its publisher's address or mirror"}
 
 
 def authorize(built, name, project, actor):
@@ -172,7 +186,18 @@ def _ask_to_publish(built, record):
 
 
 def _import(built, record, stopped):
+    from .. import archive_members
     from ..scientific_file_intake import FileIntake, WORKING_BYTES
+
+    class Intake(FileIntake):
+        archive = None
+
+        def document(self, ref):
+            document = super().document(ref)
+            if self.archive is not None:
+                document['state']['sourceArchive'] = self.archive
+            return document
+
     from ..scientific_files import CHUNK_BYTES, MAX_CHUNKS, RETAINED_METADATA_BYTES
     from ..scientific_comparisons import identity
     from ..capture import captures
@@ -191,7 +216,7 @@ def _import(built, record, stopped):
         room = captures(built.hub).memory.reserve('analysis', WORKING_BYTES + RETAINED_METADATA_BYTES + 3*CHUNK_BYTES,
                                                  'agent source import')
         with room:
-            intake = FileIntake(store, session, request, name=path.name, size=info.st_size,
+            intake = Intake(store, session, request, name=path.name, size=info.st_size,
                                 max_bytes=CHUNK_BYTES * MAX_CHUNKS, producer={
                                     'kind':'agent-import', 'actor':actor, 'label':record['byLabel'],
                                     'operation':record['id']})
@@ -200,14 +225,96 @@ def _import(built, record, stopped):
                     if stopped():
                         raise ValueError('Import stopped before publication')
                     intake.write(data)
+                expected = record['params'].get('members')
+                if archive_members.is_zip(path.name, source) or expected is not None:
+                    def check():
+                        if stopped():
+                            raise ValueError('Import stopped before publication')
+                    intake.archive = archive_members.members(source, check, expected)
                 if any(getattr(os.fstat(source.fileno()), k) != getattr(info, k) for k in ('st_dev', 'st_ino', 'st_size', 'st_mtime_ns')):
                     raise ValueError('The source changed while it was imported')
                 access(built).require(session, actor, write=True)
                 saved = intake.publish(stopped)
-                return {'project': session, 'artifact': identity(saved), 'source': saved.document['state']['sourceFile'],
-                        'by': actor, 'says': 'File retained in the Project; reader readiness is separate.'}
+                result = {'project': session, 'artifact': identity(saved), 'source': saved.document['state']['sourceFile'],
+                          'by': actor, 'says': 'File retained in the Project; reader readiness is separate.'}
+                if intake.archive is not None:
+                    result['archive'] = _archive_summary(store, session, saved, intake.archive)
+                return result
             finally:
                 intake.close()
+
+
+def _archive_summary(store, session, saved, archive):
+    """The archive's record, each member with the retained files in this Project that have exactly its bytes."""
+    from ..scientific_comparisons import identity
+    rows, _ = store.scan(session)
+    by_hash = {}
+    for row in rows:
+        source = row.document.get('state', {}).get('sourceFile') if row.document.get('kind') == 'source-file' else None
+        if type(source) is dict and row.id != saved.id:
+            by_hash.setdefault(source.get('sha256'), []).append(identity(row))
+    members = [{**m, 'sameBytesAs': by_hash.get(m['sha256'], [])[:8]} for m in archive.get('members', [])[:200]]
+    return {**{k: v for k, v in archive.items() if k != 'members'}, 'members': members,
+            'membersShown': len(members), 'says': ('Every member was read and hashed; sameBytesAs lists retained files '
+                                                    'in this Project with exactly its bytes.' if archive['verified']
+                                                    else 'Imported, but its members were not all verified: ' + archive['why'])}
+
+
+def _acquire(built, record, stopped, report):
+    """dataset.acquire: the dataset_acquire module's work, as this connection, in its Project."""
+    from .. import dataset_acquire
+    from ..scientific_comparisons import identity
+    session, actor = record['project'], record['by']
+    access(built).require(session, actor, write=True)
+    built.day.elsewhere(session)  # a real retained Project before anything is fetched
+    request = hashlib.sha256((actor + '\0' + record['requestKey']).encode()).hexdigest()[:40]
+    producer = {'kind': 'dataset-acquire', 'actor': actor, 'label': record['byLabel'], 'operation': record['id']}
+    try:
+        job = dataset_acquire.Acquisition(built.hub.resources.projects, session, request, record['params']['manifest'],
+                                          spool=Path(built.paths.home) / 'downloads' / dataset_acquire.SPOOL,
+                                          producer=producer)
+        receipt, saved = job.run(stopped, report)
+    except dataset_acquire.Refused as error:
+        raise Refused(error.status, error.code, error.says, next=error.next) from None
+    access(built).require(session, actor, write=True)
+    return {'project': session, 'dataset': receipt['dataset'], 'receipt': receipt['artifact'],
+            'licence': receipt['licence'], 'files': [{**f, 'artifact': identity(s)} for f, s in zip(receipt['files'], saved)],
+            'says': 'Every file was checked against what its publisher states and retained in the Project with where it '
+                    'came from; the dataset receipt names them all.'}
+
+
+def _query(built, record, check):
+    """matrix.query: one read-only reviewed matrix capability through the shared run_matrix admission and worker."""
+    from ..matrix_capability_runs import descriptor, run_matrix
+    from ..scientific_comparisons import identity
+    session, actor, args = record['project'], record['by'], record['params']
+    access(built).require(session, actor, write=True)
+    current = descriptor(args['capability'])
+    if not current['ready']:
+        raise Refused(409, 'capability-not-ready', current['reason'], next='ask the owner to install its runtime in Tools')
+    request = hashlib.sha256((actor + '\0' + record['requestKey']).encode()).hexdigest()[:32]
+    saved = run_matrix(built.hub.resources.projects, session, args['capability'], current['generation'], args['inputs'],
+                       args.get('params', {}), request, check=check, wait_seconds=600)
+    access(built).require(session, actor, write=True)
+    state = saved.document['state']
+    return {'project': session, 'capability': args['capability'], 'generation': current['generation'],
+            'artifact': identity(saved), 'summary': (state.get('matrixOperation') or {}).get('output', {}).get('summary'),
+            'says': 'The result is retained in the Project; read it with artifact.read.'}
+
+
+async def _threaded(record, work):
+    """Run `work(stopped, report)` in a thread; a cancel asks it to stop and waits for its own ending."""
+    loop = asyncio.get_running_loop()
+    stopped = lambda: record.get('state') == 'cancelRequested'
+    task = asyncio.create_task(asyncio.to_thread(work, stopped, loop))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        record['state'] = 'cancelRequested'
+        try:
+            return await task
+        except (ValueError, OSError, Refused):
+            raise asyncio.CancelledError from None
 
 
 async def run(built, record, progress):
@@ -331,6 +438,20 @@ async def run(built, record, progress):
         saved = await _owned(organize, built.hub.resources.projects, project, args['reference'],
             role=args['role'], selected=args['input'], expected_revision=args['expectedRevision'], actor=actor, request=record['requestKey'], check=check, on_cancel=cancel)
         result = {'artifact': identity(saved), 'says': 'Material organization saved; earlier evidence revisions are unchanged.'}
+    elif name == 'dataset.acquire':
+        def acquire(stopped, loop):
+            def report(got, total, says):
+                words = f'{says}: {got / (1 << 30):.2f} of {total / (1 << 30):.2f} GiB' if total else says
+                asyncio.run_coroutine_threadsafe(progress(got, total or None, words), loop)
+            return _acquire(built, record, stopped, report)
+        result = await _threaded(record, acquire)
+    elif name == 'matrix.query':
+        def query(stopped, loop):
+            def check():
+                if stopped():
+                    raise ValueError('Query stopped before its result was retained')
+            return _query(built, record, check)
+        result = await _threaded(record, query)
     elif name == 'project.import':
         stopped = lambda: record.get('state') == 'cancelRequested'
         # Shield the thread: cancellation signals stop and waits for publication/cleanup observation.
@@ -354,7 +475,15 @@ async def run(built, record, progress):
             if file:
                 from urllib.parse import urlencode
                 result['download'] = 'artifacts/' + saved.id + '/bytes?' + urlencode({'session':project, 'revision':saved.revision})
-                if Path(file['name']).suffix.lower() in ('.txt', '.md', '.csv', '.json', '.toml', '.yaml', '.yml', '.py', '.html'):
+                if Path(file['name']).suffix.lower() == '.pdf':
+                    from .. import pdf_text
+                    source = built.hub.resources.projects.file_source(saved.id, project, saved.revision, file['reference'])
+                    try:
+                        text = pdf_text.text_of(source, Path(built.paths.home) / 'cache' / 'pdf-text')
+                        result['content'] = pdf_text.page(text, args.get('offset', 0), args.get('length', 65536))
+                    except pdf_text.Unreadable as error:
+                        result['contentUnavailable'] = str(error)
+                elif Path(file['name']).suffix.lower() in ('.txt', '.md', '.csv', '.json', '.toml', '.yaml', '.yml', '.py', '.html'):
                     from ..scientific_text import page
                     source = built.hub.resources.projects.file_source(saved.id, project, saved.revision, file['reference'])
                     result['content'] = page(source, args.get('offset', 0), args.get('length', 65536))
@@ -362,7 +491,8 @@ async def run(built, record, progress):
                     result['contentUnavailable'] = 'Use a ready catalog reader or download the retained bytes; no text was inferred.'
             return result
         result = await asyncio.to_thread(read_artifact)
-    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate') or (
+    if name in ('project.create', 'project.import', 'material.organize', 'study.coordinate', 'dataset.acquire',
+                'matrix.query') or (
             name == 'project.front' and args.get('action') != 'read'):
         # Tell open studios about detached contributions without navigating their stage.
         changed = getattr(built, 'sessions_changed', None)
