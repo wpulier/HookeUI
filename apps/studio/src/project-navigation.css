@@ -126,3 +126,5 @@ body[data-project-has-research=true] .session-home :is(.home-example,.starter-of
 @media(max-width:900px){.pf-it{grid-template-columns:1fr}.pf-ident{flex-direction:column;align-items:flex-start;gap:12px}}
 @media(max-width:620px){.pf-board{grid-template-columns:1fr}}
 #project-overview-page .project-front button.pf-more{align-self:flex-start;margin-top:6px}
+#project-overview-page .project-front button.pf-visual{font-size:12px}
+.pf-visual-menu{margin:-16px 0 20px auto;max-width:420px}

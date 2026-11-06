@@ -12,7 +12,8 @@ const node = <K extends keyof HTMLElementTagNameMap>(tag:K,text='',className='')
 };
 export type FrontPage={id:string;revision:number;digest:string;title?:string;name?:string;heading?:string|null;savedAt?:number;unavailable?:boolean};
 export type FrontStep={id:string;text:string;study?:string;when?:string;by?:string;byLabel?:string;at?:number;done?:{byLabel?:string;at?:number}};
-export type ProjectFrontState={about:string|null;page:FrontPage|null;next:FrontStep[];revision:number;updatedAt?:number};
+export type FrontVisual={id:string;revision:number;digest:string;name?:string;kind?:'image'|'page'|null;sha256?:string;unavailable?:boolean};
+export type ProjectFrontState={about:string|null;page:FrontPage|null;visual?:FrontVisual|null;next:FrontStep[];revision:number;updatedAt?:number};
 export type PageCandidate={id:string;revision:number;title:string};
 type Actions={current():string;openStudy(id:string):void;data():void;inputs():void;openResearcher?(id:string):void;retry?():void;startResearch?():void;camera?():void;
   /** Opens the Project's page in a reader Tab, at its exact revision. */
@@ -21,10 +22,12 @@ type Actions={current():string;openStudy(id:string):void;data():void;inputs():vo
   draft?(text:string):void;
   saveAbout?(text:string|null):Promise<void>;
   setPage?(page:PageCandidate|null):Promise<void>;
+  /** The Project's main visual: its cover wherever Projects are listed (project-library.ts). */
+  setVisual?(visual:PageCandidate|null):Promise<void>;
   addStep?(text:string):Promise<void>;
   finishStep?(id:string):Promise<void>;
 };
-export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean;slow?:boolean;pages?:readonly PageCandidate[]};
+export type ProjectMaterialSummary={count:number;groups:readonly string[];error?:string;loading?:boolean;slow?:boolean;pages?:readonly PageCandidate[];visuals?:readonly PageCandidate[]};
 export type ProjectFrontRead={name:string;front:ProjectFrontState|null;error?:string};
 /** A Study's words on one line: the first sentence of a long statement, the rest kept in its tooltip. */
 function line(text:string):string{const first=text.replace(/\s+/g,' ').trim();return first.length>160?`${first.slice(0,159).trimEnd()}…`:first;}
@@ -47,7 +50,7 @@ export class ProjectResearchHome {
   readonly root=node('section');
   private seenSession='';private seenAt=0;private seenOpen=false;
   private front:ProjectFrontRead={name:'',front:null};
-  private editing:''|'about'|'step'='';private pageMenu=false;private notice='';private expanded=new Set<string>();
+  private editing:''|'about'|'step'='';private pageMenu=false;private visualMenu=false;private notice='';private expanded=new Set<string>();
   enter(session:string):void{
     if(this.seenSession!==session||!this.seenOpen){
       this.seenSession=session;this.seenOpen=true;
@@ -71,10 +74,10 @@ export class ProjectResearchHome {
     this.last=[session,studies,error,activity,researchers,material];
     const owned=studies.filter(s=>s.session===session);
     const local=todaysResearch(researchers,session);
-    const signature=JSON.stringify([session,error,material,owned,activity,local.map(r=>[r.rid,r.status,r.name,r.brief,r.mission?.status]),this.front,this.editing,this.pageMenu,this.notice,[...this.expanded],Math.floor(Date.now()/60000)]);
+    const signature=JSON.stringify([session,error,material,owned,activity,local.map(r=>[r.rid,r.status,r.name,r.brief,r.mission?.status]),this.front,this.editing,this.pageMenu,this.visualMenu,this.notice,[...this.expanded],Math.floor(Date.now()/60000)]);
     if(signature===this.signature)return;
     const focus=(document.activeElement as HTMLElement|null)?.dataset.researchFocus;
-    const same=this.session===session;if(!same){this.opening++;this.editing='';this.pageMenu=false;this.notice='';this.expanded.clear();}
+    const same=this.session===session;if(!same){this.opening++;this.editing='';this.pageMenu=false;this.visualMenu=false;this.notice='';this.expanded.clear();}
     this.signature=signature;this.session=session;const opening=this.opening;
     const populated=!!(owned.length||local.length||material.count||this.front.front?.page||this.front.front?.about);
     const waiting=!populated&&!!material.loading;
@@ -128,7 +131,23 @@ export class ProjectResearchHome {
     if(team.length){const faces=node('span','','pf-faces');faces.title=team.map(c=>`${c.label} · ${c.origin}`).join('\n');
       for(const c of team.slice(0,5)){const face=node('span',(c.label.trim()[0]??'?').toUpperCase(),'pf-face');face.dataset.origin=c.origin;faces.append(face);}
       faces.setAttribute('aria-label',`Contributors: ${team.map(c=>c.label).join(', ')}`);meta.append(faces);}
+    if(this.actions.setVisual){
+      const visual=front?.visual,label=visual&&!visual.unavailable?`Main visual · ${visual.name||'chosen'}`:'Set a main visual';
+      const toggle=action(this.visualMenu?'Close':label,'visual-change',()=>{this.visualMenu=!this.visualMenu;this.redraw();},'quiet pf-visual');
+      toggle.title='The picture or page shown as this Project’s cover when you open Projects';meta.append(toggle);
+    }
     ident.append(words,meta);this.root.append(ident);
+    if(this.visualMenu&&this.actions.setVisual){
+      const menu=node('div','','pf-page-menu pf-visual-menu');menu.setAttribute('role','group');menu.setAttribute('aria-label','Choose the main visual');
+      menu.append(node('p','Main visual: the cover this Project shows when you open Projects.','pf-hint'));
+      const visuals=material.visuals??[];
+      if(!visuals.length)menu.append(node('p','No picture or .html page in this Project yet. Add one with Add material.','pf-hint'));
+      for(const candidate of visuals){const chosen=front?.visual?.id===candidate.id&&front.visual.revision===candidate.revision;
+        const b=action(chosen?`${candidate.title} · current`:candidate.title,`visual:${candidate.id}:${candidate.revision}`,()=>attempt(this.actions.setVisual?.(candidate),()=>{this.visualMenu=false;}),'quiet pf-page-choice');
+        b.disabled=chosen;menu.append(b);}
+      if(front?.visual)menu.append(action('No main visual','visual:none',()=>attempt(this.actions.setVisual?.(null),()=>{this.visualMenu=false;}),'quiet pf-page-choice'));
+      this.root.append(menu);
+    }
     if(error){const saved=node('p',`Showing saved history. ${error}`,'project-research-notice');saved.setAttribute('role','status');this.root.append(saved);}
     if(material.error)this.root.append(node('p',material.error,'project-research-notice'));
     if(this.front.error)this.root.append(node('p',this.front.error,'project-research-notice'));

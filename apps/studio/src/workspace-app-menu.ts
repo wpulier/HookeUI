@@ -54,7 +54,7 @@ export class WorkspaceAppMenu {
     };
     const closeThen = (action: () => void) => { this.close(); action(); };
     add('New project', () => closeThen(opts.newSession), '+');
-    if (opts.openProjectFolder) add('Open Project folder…', () => closeThen(opts.openProjectFolder!));
+    if (opts.openProjectFolder) add('Open Project…', () => closeThen(opts.openProjectFolder!));
     if (opts.startFrom) add('Start from a project…', () => closeThen(opts.startFrom!));
     if (opts.restore) add('Restore a backup…', () => closeThen(opts.restore!));
     if (opts.projectFolder) add('Project folder…', () => closeThen(opts.projectFolder!));

@@ -23,6 +23,8 @@ ABOUT_LIMIT = 600
 NEXT_LIMIT = 64
 TEXT_LIMIT = 280
 PAGE_SUFFIXES = ('.html', '.htm')
+# What a browser shows as a picture: the main visual is one of these, or the Project's page.
+IMAGE_SUFFIXES = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 
 
 def front_id(session: str) -> str:
@@ -60,8 +62,21 @@ def page_heading(store, saved) -> str | None:
     return words[:160] or None
 
 
+def file_name(saved):
+    source = saved.document.get('state', {}).get('sourceFile')
+    return source.get('name') if isinstance(source, dict) and isinstance(source.get('name'), str) else ''
+
+
+def visual_kind(saved) -> str | None:
+    """'image' or 'page' for a retained single file that can be a Project's main visual; None otherwise."""
+    if saved.document.get('kind') != 'source-file':
+        return None
+    name = file_name(saved).lower()
+    return 'image' if name.endswith(IMAGE_SUFFIXES) else 'page' if name.endswith(PAGE_SUFFIXES) else None
+
+
 def empty() -> dict:
-    return {'format': 1, 'about': None, 'page': None, 'next': [], 'changes': []}
+    return {'format': 1, 'about': None, 'page': None, 'visual': None, 'next': [], 'changes': []}
 
 
 class ProjectFront:
@@ -85,7 +100,15 @@ class ProjectFront:
             raise InvalidProject('This Project front page identity belongs to another document')
         state = saved.document['state'][KEY]
         page = state.get('page')
-        out = {**state, 'revision': saved.revision, 'updatedAt': saved.at}
+        out = {**empty(), **state, 'revision': saved.revision, 'updatedAt': saved.at}
+        visual = state.get('visual')
+        if visual:
+            try:
+                file = self.store.read(visual['id'], session, revision=visual['revision'])
+                out['visual'] = {**visual, 'name': file_name(file), 'kind': visual_kind(file),
+                                 'sha256': file.document['state']['sourceFile'].get('sha256')}
+            except (ValueError, OSError, KeyError):
+                out['visual'] = {**visual, 'unavailable': True}
         if page:
             try:
                 file = self.store.read(page['id'], session, revision=page['revision'])
@@ -144,6 +167,25 @@ class ProjectFront:
                 return None
             state['page'] = chosen
             return 'page'
+        return self._change(session, attribution, change)
+
+    def set_visual(self, session, reference, *, attribution):
+        """Choose the Project's main visual (its cover wherever Projects are listed): an exact retained picture or
+        .html page, or None to fall back to the page, then the newest picture."""
+        chosen = None
+        if reference is not None:
+            if type(reference) is dict and set(reference) == {'id', 'revision'} and type(reference['revision']) is int:
+                saved = self.store.read(reference['id'], session, revision=reference['revision'])
+            else:
+                saved = exact(self.store, reference, session)
+            if visual_kind(saved) is None:
+                raise InvalidProject('Choose a retained picture (.png, .jpg, .webp, .gif) or .html page as the main visual')
+            chosen = identity(saved)
+        def change(state):
+            if state.get('visual') == chosen:
+                return None
+            state['visual'] = chosen
+            return 'visual'
         return self._change(session, attribution, change)
 
     def add_next(self, session, *, request, text, study=None, when=None, attribution):
@@ -236,6 +278,8 @@ def register(app, built, studio_origin, header):
                 result = await _owned(front.set_about, session, body['about'], attribution=owner)
             elif action == 'page' and set(body) == {'session', 'page'}:
                 result = await _owned(front.set_page, session, body['page'], attribution=owner)
+            elif action == 'visual' and set(body) == {'session', 'visual'}:
+                result = await _owned(front.set_visual, session, body['visual'], attribution=owner)
             elif action == 'next' and {'session', 'request', 'text'} <= set(body) <= {'session', 'request', 'text', 'study', 'when'}:
                 result = await _owned(front.add_next, session, request=body['request'], text=body['text'],
                                       study=body.get('study'), when=body.get('when'), attribution=owner)
@@ -244,6 +288,19 @@ def register(app, built, studio_origin, header):
             else:
                 raise InvalidProject('Use a declared front page change and its fields')
             return JSONResponse({'ok': True, 'front': result}, headers=HEADERS)
+        except (ValueError, OSError, KeyError) as error:
+            return _error(error)
+
+    @app.get('/api/project-library')
+    async def project_library():
+        """Every Project as the Projects library lists it, beside the sessions list (names, dates, counts): its one
+        sentence, its main visual and page, its Study count and where it is saved. Read-only; one bad Project says
+        so in its own row and never hides the others."""
+        try:
+            def read():
+                return library_rows(front, built, [info.id for info in built.day.catalogue.list()])
+            rows = await _owned(read)
+            return JSONResponse({'ok': True, 'projects': rows}, headers=HEADERS)
         except (ValueError, OSError, KeyError) as error:
             return _error(error)
 
@@ -256,3 +313,54 @@ def register(app, built, studio_origin, header):
                                      'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer'})
         except (ValueError, OSError, KeyError) as error:
             return _error(error)
+
+
+_LIBRARY_CACHE: dict = {}
+
+
+def _stamp(path):
+    try:
+        info = path.stat()
+        return (info.st_mtime_ns, info.st_size)
+    except OSError:
+        return None
+
+
+def library_rows(front, built, sids):
+    """Each Project's row, rebuilt only when its store gains or loses a document or its front page record changes
+    (a new Study is a new document; the record's head.json moves on every change). Counting Studies reads every
+    document of a Project, so unchanged Projects reuse their last row."""
+    rows = []
+    locations = getattr(built.day, 'locations', None)
+    def stamp(sid):
+        try:
+            store = front.store.for_session(sid)
+            return (str(store.root), _stamp(store.root), _stamp(store._folder(front_id(sid)) / 'head.json'))
+        except (ValueError, OSError, KeyError):
+            return None
+    for sid in sids[:500]:
+        key = stamp(sid)
+        cached = _LIBRARY_CACHE.get(sid)
+        if key is not None and cached is not None and cached[0] == key:
+            rows.append(cached[1])
+            continue
+        row = {'session': sid}
+        try:
+            record = front.read(sid)
+            row.update(about=record.get('about'), page=record.get('page'), visual=record.get('visual'))
+        except (ValueError, OSError, KeyError) as error:
+            row['problem'] = str(error)[:200]
+        try:
+            row['studies'] = sum(1 for saved in front.store.list(sid) if saved.document.get('kind') == 'research-effort')
+        except (ValueError, OSError, KeyError):
+            row['studies'] = None
+        try:
+            row['savedIn'] = 'folder' if locations is not None and locations.project(sid) is not None else 'mac'
+        except (ValueError, OSError, KeyError):
+            row['savedIn'] = None
+        # Stamped again after reading: a store's first listing may add its own index file to the folder.
+        key = stamp(sid)
+        if key is not None and 'problem' not in row:
+            _LIBRARY_CACHE[sid] = (key, row)
+        rows.append(row)
+    return rows

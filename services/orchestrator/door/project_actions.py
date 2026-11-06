@@ -36,9 +36,10 @@ SCHEMAS = {
                         'includeTranscripts': {'type': 'boolean'}},
     # The Project's front page (project_front.py): one sentence about it, the retained .html file that is its page,
     # and planned next steps. `read` with no fields; the others name their change.
-    'project.front': {'action': {'type': 'string', 'enum': ['read', 'about', 'page', 'next', 'done']},
+    'project.front': {'action': {'type': 'string', 'enum': ['read', 'about', 'page', 'visual', 'next', 'done']},
                       'about': {'type': 'string', 'minLength': 1, 'maxLength': 600},
                       'page': {'anyOf': [{'$ref': 'artifact-reference.schema.json'}, {'type': 'null'}]},
+                      'visual': {'anyOf': [{'$ref': 'artifact-reference.schema.json'}, {'type': 'null'}]},
                       'request': {'type': 'string', 'minLength': 1, 'maxLength': 128},
                       'text': {'type': 'string', 'minLength': 1, 'maxLength': 280},
                       'study': {'type': 'string', 'pattern': '^p[a-f0-9]{32}$'},
@@ -74,7 +75,8 @@ def front_change(built, project, actor, label, args):
     from ..project_front import ProjectFront
     front = ProjectFront(built.hub.resources.projects)
     action = args['action']
-    fields = {'read': set(), 'about': {'about'}, 'page': {'page'}, 'next': {'request', 'text'}, 'done': {'item'}}[action]
+    fields = {'read': set(), 'about': {'about'}, 'page': {'page'}, 'visual': {'visual'}, 'next': {'request', 'text'},
+              'done': {'item'}}[action]
     optional = {'study', 'when'} if action == 'next' else set()
     given = set(args) - {'action'}
     if not fields <= given or given - fields - optional:
@@ -88,6 +90,8 @@ def front_change(built, project, actor, label, args):
         return {'front': front.set_about(project, args['about'], attribution=attribution)}
     if action == 'page':
         return {'front': front.set_page(project, args['page'], attribution=attribution)}
+    if action == 'visual':
+        return {'front': front.set_visual(project, args['visual'], attribution=attribution)}
     if action == 'next':
         return {'front': front.add_next(project, request=args['request'], text=args['text'], study=args.get('study'),
                                         when=args.get('when'), attribution=attribution)}

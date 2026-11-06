@@ -24,6 +24,7 @@ revisioned ProjectStore as Studies, so it travels with export, backup and public
 
 - `about`: at most 600 characters.
 - `page`: an exact `{id, revision, digest}` of a retained `.html` source file, or nothing.
+- `visual`: the main visual, an exact `{id, revision, digest}` of a retained picture (.png, .jpg, .webp, .gif) or .html page, or nothing. It is the Project's cover in Open Project.
 - `next[]`: at most 64 items, each `{id, text, study?, when?, by, byLabel, at, done?}`.
 
 Every change is attributed. Owner changes come from the studio route `/api/project-front`; agent changes come from the

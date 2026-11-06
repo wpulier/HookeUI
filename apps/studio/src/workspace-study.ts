@@ -4,6 +4,7 @@ import {ProjectRead} from './project-read';
 import {workingCopyOperation} from './project-export';
 import { organizeMaterial } from './material-organization';
 import { showOpenProject } from './project-open';
+import { showProjectLibrary, type LibraryRow } from './project-library';
 import { openProjectFolder } from './project-folder';
 import { openStartFrom, type GitHubCode, type PublishActions } from './project-publish';
 import { openRestore, type BackupActions } from './project-backup';
@@ -494,6 +495,7 @@ const projectResearchHome = new ProjectResearchHome(overviewPage, {
   draft: text => { composer.set(text); find('question').dispatchEvent(new Event('input',{bubbles:true})); setInspector(true); },
   saveAbout: about => changeFront('about',{about}),
   setPage: page => changeFront('page',{page:page?{id:page.id,revision:page.revision}:null}),
+  setVisual: visual => changeFront('visual',{visual:visual?{id:visual.id,revision:visual.revision}:null}),
   addStep: text => changeFront('next',{request:`step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`,text}),
   finishStep: item => changeFront('done',{item}),
 });
@@ -507,7 +509,7 @@ async function readFront(session:string,signal?:AbortSignal):Promise<void>{
     projectResearchHome.setFront({name:projectNameOf(session),front:body.front});
   }catch(error){if(signal?.aborted||snapshot.session!==session)return;projectResearchHome.setFront({name:projectNameOf(session),front:null,error:error instanceof Error?error.message:String(error)});}
 }
-async function changeFront(action:'about'|'page'|'next'|'done',fields:Record<string,unknown>):Promise<void>{
+async function changeFront(action:'about'|'page'|'visual'|'next'|'done',fields:Record<string,unknown>):Promise<void>{
   const session=snapshot.session;
   const response=await fetch(`/api/project-front/${action}`,{method:'POST',headers:{'Content-Type':'application/json','X-MicroscopeMind':'project-front'},body:JSON.stringify({session,...fields})});
   const body=await response.json() as {ok?:boolean;front?:ProjectFrontState;says?:string;next?:string};
@@ -600,6 +602,9 @@ function renderBoard():void{
     {count:inventory?.inputs.length??0,slow:resourceReads.slow||studyReads.slow,loading:studiesLoadedSession!==snapshot.session||(resourceSession!==snapshot.session&&!resultsFailed()),error:resultsFailed()?'Project material could not be refreshed.':'',groups:inventory?.groups??[],
      // The page's candidates: retained single files named .html (the server checks each choice again).
      pages:(inventory?.entries??[]).filter(entry=>entry.material?.kind==='file'&&typeof entry.version==='number'&&/\.html?$/i.test(entry.title))
+       .map(entry=>({id:entry.id,revision:entry.version!,title:entry.title})),
+     // Main visual candidates: retained pictures and pages (the server checks each choice again).
+     visuals:(inventory?.entries??[]).filter(entry=>entry.material?.kind&&['file','image'].includes(entry.material.kind)&&typeof entry.version==='number'&&/\.(png|jpe?g|webp|gif|html?)$/i.test(entry.title))
        .map(entry=>({id:entry.id,revision:entry.version!,title:entry.title}))});
   const all=bridge.researchers();
   board.update(todaysResearch(all,snapshot.session),{elsewhere:workingElsewhere(all,snapshot.session),studies:studiesAvailable?studyRows():null,studiesNote});
@@ -1478,7 +1483,7 @@ function projectPublishActions(session: string): PublishActions {
 }
 const appMenu = new WorkspaceAppMenu({
   opener: allSessionsButton, storageKey, scientificSessions: openScientificSessions, spending:()=>document.querySelector<HTMLButtonElement>('.spending-button')?.click(),
-  openProjectFolder: showProjectFolderPicker,
+  openProjectFolder: showProjectsLibrary,
   projectFolder: openCurrentProjectFolder,
   startFrom: () => { if (switching) return; openStartFrom({start: async (source, name) => { const r = await bridge.request('project-start-from', {source, name}); if (!r.project) throw new Error(r.error ?? 'The project could not be started.'); return {project: r.project}; }}, session => void changeSession(session)); },
   restore: () => { if (switching) return; openRestore({restore: async (source, replaceMissing) => { const r = await bridge.request('project-restore', {source, replaceMissing}); if (r.missing) return {missing: r.error ?? 'This Mac knew this project at a folder that is not there now.'}; if (!r.project) throw new Error(r.error ?? 'The backup could not be restored.'); return {project: r.project}; }}, session => void changeSession(session)); },
@@ -1631,7 +1636,7 @@ const starter = new InvestigationLauncher({
     } else if(kind==='microscope') throw new Error('The microscope Project did not open. Try again.');
   },
   dropFiles:startWithFiles,
-  openProject:showProjectFolderPicker,
+  openProject:showProjectsLibrary,
   openRecent:async id=>{await changeSession(id);},
   previewResearch:previewResearchStarter,
   createResearch:async brief=>{
@@ -1735,6 +1740,16 @@ function showProjectFolderPicker():void{
     if(!reply.project)throw new Error(reply.error??'The Project folder could not be opened.');
     return reply.project;
   },navigate:id=>changeSession(id)});
+}
+/** Open Project: the person's Projects as a library (project-library.ts); a folder not listed opens the folder dialog. */
+function showProjectsLibrary():void{
+  if(switching)return;
+  showProjectLibrary({rows:()=>snapshot.projects,current:()=>snapshot.session,
+    read:async signal=>{const response=await fetch('/api/project-library',{cache:'no-store',signal});
+      const body=await response.json() as {ok?:boolean;projects?:LibraryRow[];says?:string};
+      if(!response.ok||body.ok!==true||!Array.isArray(body.projects))throw new Error(body.says||'The Projects could not be read.');
+      return body.projects;},
+    open:id=>changeSession(id),openFolder:showProjectFolderPicker,newProject:showProjectLauncher});
 }
 window.addEventListener('hooke-new-project',showProjectLauncher);
 
