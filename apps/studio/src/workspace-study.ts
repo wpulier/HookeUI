@@ -1749,7 +1749,9 @@ function showProjectsLibrary():void{
       const body=await response.json() as {ok?:boolean;projects?:LibraryRow[];says?:string};
       if(!response.ok||body.ok!==true||!Array.isArray(body.projects))throw new Error(body.says||'The Projects could not be read.');
       return body.projects;},
-    open:id=>changeSession(id),openFolder:showProjectFolderPicker,newProject:showProjectLauncher});
+    // Opening lands on the Project's front page, the same for the current Project and any other.
+    open:async id=>{const opened=await changeSession(id);if(opened&&snapshot.session===id){surfaces.dismiss();openProjectDestination('overview');}return opened;},
+    openFolder:showProjectFolderPicker,newProject:showProjectLauncher});
 }
 window.addEventListener('hooke-new-project',showProjectLauncher);
 

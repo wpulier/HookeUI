@@ -29,7 +29,7 @@ test('cards say what is in a Project and when it was updated and created', () =>
 });
 
 function setup(rows: SessionRow[], read: () => Promise<LibraryRow[]>, open = vi.fn(async () => true)) {
-  vi.useFakeTimers({toFake: ['Date']}); vi.setSystemTime(NOW * 1000);
+  vi.useFakeTimers({toFake: ['Date', 'setInterval', 'clearInterval']}); vi.setSystemTime(NOW * 1000);
   const dom = syntheticDOM();
   const make = dom.document.createElement;
   const document = {...dom.document, activeElement: null, createElement: (tag: string) => Object.assign(make(tag), {
@@ -52,6 +52,7 @@ test('the library lists Projects newest first, enriches them, and opens one', as
   expect(dialog.textContent).toContain('Open now'); expect(dialog.textContent).toContain('Hooke Projects folder');
   fire(cards()[1], 'click'); await settleMicrotasks();
   expect(open).toHaveBeenCalledWith('p3');
+  expect(dialog.textContent).toContain('Opening');
 });
 
 test('filters, search and a failed read keep the list usable', async () => {
@@ -73,4 +74,21 @@ test('a Project that does not open says so and keeps the current one', async () 
   const {dialog, cards} = setup(rows, async () => [], vi.fn(async () => false));
   fire(cards()[1], 'click'); await settleMicrotasks(); await settleMicrotasks();
   expect(dialog.textContent).toContain('Other did not open. Your current Project is unchanged.');
+});
+
+test('the current Project opens too, on its front page, rather than only closing the sheet', async () => {
+  const rows = [row('p1', 'Current', {lastActive: NOW - 60}), row('p2', 'Other')];
+  const open = vi.fn(async () => true);
+  const {cards} = setup(rows, async () => [], open);
+  fire(cards()[0], 'click'); await settleMicrotasks();
+  expect(open).toHaveBeenCalledWith('p1');
+});
+
+test('Projects that arrive after the sheet opens are listed', async () => {
+  const rows = [row('p1', 'Current', {lastActive: NOW - 60})];
+  const {cards} = setup(rows, async () => []);
+  expect(cards()).toHaveLength(1);
+  rows.push(row('p2', 'Arrived later'));
+  vi.advanceTimersByTime(700);
+  expect(cards().map(c => c.dataset.session)).toEqual(['p1', 'p2']);
 });
