@@ -45,6 +45,7 @@ the same shape for its own comparisons.
 | `2026-11-05-quick-decisions-fast-bench` | Quick decisions | From the workspace notes alone, whether Opus 5.5 fast, Gemini 3.8 Flash and Sonnet 5.5 know when to act, answer, wait for a look or do nothing; time and cost a decision | `quick-decisions-2026-11-05.md` |
 | `2026-11-05-quick-decisions-fast-bench-resample` | Quick decisions | Whether Opus 5.5 fast's and Gemini 3.8 Flash's misses on five requests are systematic (4 more tries each) | `quick-decisions-2026-11-05.md` |
 | `2026-11-05-quick-decisions-will-drive` | Quick decisions | Driving Hooke by voice with each model planning the hand-offs: steps done, judged quality, false claims, receipts, speed, cost | `quick-decisions-2026-11-05.md` |
+| `2026-11-05-quick-decisions-prompt-cache` | Quick decisions | Whether the prompt with its fixed part first, cached by Anthropic, keeps Opus 5.5 fast's and Gemini 3.8 Flash's decisions right and makes them cheaper and faster | `quick-decisions-prompt-cache-2026-11-05.md` |
 | `2026-11-03-guide` | Guiding your hands | Whether three models and the rule centre and focus a simulated slide, how fast, in how many lines | `guide.md` |
 | `2026-10-29-vision-grounding` | Seeing | Whether five vision models box the thing a question is about on real leaf frames, and how fast | `vision-2026-10-29.md` |
 | `2026-10-29-vision-find-bccd` | Seeing | Recall and precision of five vision models outlining blood cells on BCCD smears | `vision-2026-10-29.md` |
