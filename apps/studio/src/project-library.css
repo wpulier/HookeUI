@@ -46,3 +46,18 @@
 .project-library .pl-more{background:var(--mm-ctl-fill);color:var(--mm-ctl-text);border-radius:9px;padding:8px 13px;font:500 13px var(--mm-sans)}
 .pl-empty{color:var(--mm-text-2);font:400 13px var(--mm-sans)}
 @media(max-width:760px){.project-library .pl-body{grid-template-columns:1fr}.pl-nav{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--mm-line);padding:12px}.pl-heading{display:none}.pl-elsewhere{margin:0;border:0;padding:0}.pl-hint{display:none}.pl-tools{flex-wrap:wrap}}
+/* Opening: the cover fills the sheet with the Project's name, then the sheet fades onto its front page. */
+.pl-main{position:relative}
+.pl-opening{position:absolute;inset:0;z-index:5;display:grid;overflow:hidden;background:var(--mm-card)}
+.pl-opening-cover{grid-area:1/1;position:relative;display:block;width:100%;height:100%;transform-origin:0 0;overflow:hidden}
+.pl-opening-cover .pl-img,.pl-opening-cover .pl-tile{filter:saturate(1.05)}
+.pl-opening-cover .pl-img{object-fit:cover}
+.pl-opening-cover .pl-frame{width:100%;height:100%;transform:none}
+.pl-opening-words{grid-area:1/1;align-self:end;display:grid;gap:6px;padding:28px 32px 30px;background:linear-gradient(transparent,rgb(10 10 12 / 82%) 38%);color:#f2f2f5}
+.pl-opening-eyebrow{font:600 11px var(--mm-sans);letter-spacing:.08em;text-transform:uppercase;color:#c9c9d0}
+.pl-opening-words strong{font:680 28px/1.15 var(--mm-display);letter-spacing:-.02em}
+.pl-opening-about{max-width:640px;color:#d6d6dc;font:400 15px/1.45 var(--mm-sans)}
+.pl-opening-bar{position:relative;height:3px;width:min(320px,60%);border-radius:2px;background:rgb(255 255 255 / 14%);overflow:hidden;margin-top:6px}
+.pl-opening-bar::after{content:"";position:absolute;inset:0 auto 0 0;width:40%;border-radius:2px;background:var(--mm-accent);animation:pl-progress 1.1s ease-in-out infinite}
+@keyframes pl-progress{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+@media (prefers-reduced-motion: reduce){.pl-opening-bar::after{animation:none;width:100%;opacity:.5}}

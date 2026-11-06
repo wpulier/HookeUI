@@ -137,16 +137,7 @@ export function showProjectLibrary(options: ProjectLibraryOptions): HTMLDialogEl
   function card(row: SessionRow): HTMLElement {
     const extra = extras.get(row.id), current = row.id === options.current();
     const button = node('button', '', 'pl-card'); button.type = 'button'; button.dataset.session = row.id;
-    const cover = node('span', '', 'pl-cover'), shown = coverOf(row, extra);
-    if (shown.kind === 'page') {
-      const frame = node('iframe', '', 'pl-frame'); frame.src = shown.src!; frame.setAttribute('sandbox', 'allow-scripts');
-      frame.setAttribute('referrerpolicy', 'no-referrer'); frame.tabIndex = -1; frame.setAttribute('aria-hidden', 'true'); frame.loading = 'lazy';
-      cover.append(frame);
-    } else if (shown.src) {
-      const img = node('img', '', 'pl-img'); img.src = shown.src; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
-      img.addEventListener('error', () => { img.remove(); cover.prepend(tile(row)); });
-      cover.append(img);
-    } else cover.append(tile(row));
+    const cover = node('span', '', 'pl-cover'); fillCover(cover, row);
     if (current) cover.append(node('span', 'Open now', 'pl-badge pl-now'));
     else if (row.archived) cover.append(node('span', 'Put away', 'pl-badge'));
     cover.append(node('span', inWords(row, extra?.studies), 'pl-chip'));
@@ -162,17 +153,61 @@ export function showProjectLibrary(options: ProjectLibraryOptions): HTMLDialogEl
     if (busy === row.id) { button.disabled = true; button.classList.add('pl-opening'); }
     button.addEventListener('click', () => {
       if (busy) return;
-      if (current) { dialog.close(); return; }
-      busy = row.id; notice.textContent = `Opening ${name(row)}…`; draw();
+      busy = row.id;
+      const opening = openingView(row, cover);
+      notice.textContent = '';
       void options.open(row.id).then(opened => {
         busy = '';
-        if (opened) { dialog.close(); return; }
+        if (opened) { opening.land(() => dialog.close()); return; }
+        opening.undo();
         notice.textContent = `${name(row)} did not open. Your current Project is unchanged.`; draw();
       }, (error: unknown) => {
-        busy = ''; notice.textContent = error instanceof Error ? error.message : `${name(row)} did not open.`; draw();
+        busy = ''; opening.undo();
+        notice.textContent = error instanceof Error ? error.message : `${name(row)} did not open.`; draw();
       });
     });
     return button;
+  }
+  /** Opening a Project: its cover grows from the card to fill the sheet with its name and "Opening…", then the sheet
+   * fades as the Project's front page appears behind it. A refusal shrinks it back. Reduced motion skips the motion. */
+  function openingView(row: SessionRow, cover: HTMLElement) {
+    const layer = node('div', '', 'pl-opening'); layer.setAttribute('role', 'status');
+    const art = node('span', '', 'pl-opening-cover'); fillCover(art, row);
+    const words = node('div', '', 'pl-opening-words');
+    words.append(node('span', 'Opening', 'pl-opening-eyebrow'), node('strong', name(row)));
+    const about = extras.get(row.id)?.about; if (about) words.append(node('span', about, 'pl-opening-about'));
+    words.append(node('span', '', 'pl-opening-bar'));
+    layer.append(art, words);
+    main.append(layer);
+    const still = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const from = cover.getBoundingClientRect?.(), to = main.getBoundingClientRect?.();
+    if (!still && from && to && typeof art.animate === 'function' && to.width && to.height) {
+      const dx = from.left - to.left + main.scrollLeft, dy = from.top - to.top;
+      art.animate([{transform: `translate(${dx}px, ${dy}px) scale(${from.width / to.width}, ${from.height / to.height})`, borderRadius: '10px'},
+        {transform: 'none', borderRadius: '0'}], {duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)'});
+      words.animate([{opacity: 0, transform: 'translateY(12px)'}, {opacity: 1, transform: 'none'}], {duration: 320, delay: 180, fill: 'both', easing: 'ease-out'});
+    }
+    return {
+      land(done: () => void) {
+        if (still || typeof dialog.animate !== 'function') { done(); return; }
+        const fade = dialog.animate([{opacity: 1, transform: 'none'}, {opacity: 0, transform: 'scale(1.015)'}], {duration: 260, easing: 'ease-in'});
+        fade.onfinish = () => done();
+      },
+      undo() { layer.remove(); },
+    };
+  }
+  /** The cover itself (main visual, page, newest picture or tile), for a card and for its opening. */
+  function fillCover(target: HTMLElement, row: SessionRow) {
+    const shown = coverOf(row, extras.get(row.id));
+    if (shown.kind === 'page') {
+      const frame = node('iframe', '', 'pl-frame'); frame.src = shown.src!; frame.setAttribute('sandbox', 'allow-scripts');
+      frame.setAttribute('referrerpolicy', 'no-referrer'); frame.tabIndex = -1; frame.setAttribute('aria-hidden', 'true'); frame.loading = 'lazy';
+      target.append(frame);
+    } else if (shown.src) {
+      const img = node('img', '', 'pl-img'); img.src = shown.src; img.alt = ''; img.loading = 'lazy'; img.decoding = 'async';
+      img.addEventListener('error', () => { img.remove(); target.prepend(tile(row)); });
+      target.append(img);
+    } else target.append(tile(row));
   }
   function tile(row: SessionRow): HTMLElement {
     const el = node('span', marks.get(name(row)) ?? initials(name(row)), `pl-tile pl-tile-${hue(row.id)}`); el.setAttribute('aria-hidden', 'true'); return el;
@@ -205,7 +240,11 @@ export function showProjectLibrary(options: ProjectLibraryOptions): HTMLDialogEl
       results.append(show);
     }
   }
-  dialog.addEventListener('close', () => { controller.abort(); dialog.remove(); if (opener?.isConnected) opener.focus(); });
+  // The Projects list can still be arriving when the sheet opens (and changes while it is open): follow it.
+  const listed = () => options.rows().map(row => `${row.id}:${row.lastActive}:${row.archived ? 1 : 0}:${row.counts?.sources ?? ''}:${row.thumb ?? ''}`).join('|');
+  let seen = listed();
+  const follow = setInterval(() => { if (busy) return; const now = listed(); if (now !== seen) { seen = now; draw(); } }, 600);
+  dialog.addEventListener('close', () => { clearInterval(follow); controller.abort(); dialog.remove(); if (opener?.isConnected) opener.focus(); });
   draw();
   void options.read(controller.signal).then(rows => {
     extras = new Map(rows.map(row => [row.session, row])); readProblem = ''; draw();
